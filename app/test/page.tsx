@@ -8,12 +8,16 @@ export default function Home() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // ✅ MEMORY ARRAY
   const [memory, setMemory] = useState<string[]>([]);
+
   const [image, setImage] = useState<string | null>(null);
   const [mobileMenu, setMobileMenu] = useState(false);
 
   const [showFeedbackBox, setShowFeedbackBox] = useState(false);
   const [feedbackText, setFeedbackText] = useState("");
+  const [feedbackUI, setFeedbackUI] = useState<{ [key: string]: string }>({});
+  const [feedbackGiven, setFeedbackGiven] = useState<{ [key: string]: boolean }>({});
 
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -38,6 +42,7 @@ export default function Home() {
       createNewChat();
     }
 
+    // ✅ MEMORY LOAD FIX
     if (mem) setMemory(JSON.parse(mem));
 
     if (window.innerWidth >= 768) {
@@ -64,6 +69,7 @@ export default function Home() {
 
   const activeChat = chats.find((c) => c.id === activeChatId);
 
+  // ✅ IMAGE HANDLER
   const handleFile = (e: any) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -87,6 +93,7 @@ export default function Home() {
       image,
     });
 
+    // ✅ AUTO TITLE
     if (updated[index].messages.length === 2) {
       updated[index].title = input.slice(0, 30);
     }
@@ -96,16 +103,11 @@ export default function Home() {
     setImage(null);
     setLoading(true);
 
-    // ✅ FEEDBACK WORDT MEEGESTUURD NAAR AI
-    const feedback = JSON.parse(localStorage.getItem("openlura_feedback") || "[]")
-      .slice(-5);
-
     const res = await fetch("/api/chat", {
       method: "POST",
       body: JSON.stringify({
         message: input,
         memory: memory.join(" | "),
-        feedback,
       }),
     });
 
@@ -137,7 +139,7 @@ export default function Home() {
       setChats([...updated]);
     }
 
-    // ✅ MEMORY OPSLAAN
+    // ✅ MEMORY SAVE
     if (input.length < 60) {
       const newMemory = [...memory, input].slice(-10);
       setMemory(newMemory);
@@ -147,25 +149,54 @@ export default function Home() {
     setLoading(false);
   };
 
-  const handleFeedback = (chatId: number, msgIndex: number, type: string) => {
-    const key = "openlura_feedback";
-    const existing = JSON.parse(localStorage.getItem(key) || "[]");
+  // ✅ BETERE FEEDBACK DATA
+const handleFeedback = (chatId: number, msgIndex: number, type: string) => {
+  const key = "openlura_feedback";
+  const existing = JSON.parse(localStorage.getItem(key) || "[]");
 
-    const chat = chats.find(c => c.id === chatId);
-    const message = chat?.messages[msgIndex];
-    const prevMessage = chat?.messages[msgIndex - 1];
+  const chat = chats.find(c => c.id === chatId);
+  const message = chat?.messages[msgIndex];
+  const prevMessage = chat?.messages[msgIndex - 1];
 
-    existing.push({
-      chatId,
-      msgIndex,
-      type,
-      message: message?.content,
-      userMessage: prevMessage?.content,
-      timestamp: Date.now(),
-    });
+  existing.push({
+    chatId,
+    msgIndex,
+    type,
+    message: message?.content,
+    userMessage: prevMessage?.content,
+    timestamp: Date.now(),
+  });
 
-    localStorage.setItem(key, JSON.stringify(existing));
-  };
+  // 👇 NIEUW (gewoon hieronder laten staan)
+  const lang = prevMessage?.content?.match(/\b(hallo|hoe|wat|waar|ik)\b/i)
+    ? "nl"
+    : "en";
+
+  const text =
+    lang === "nl"
+      ? "Bedankt voor je feedback"
+      : "Thanks for your feedback";
+
+  const keyId = chatId + "-" + msgIndex;
+  setFeedbackGiven(prev => ({
+  ...prev,
+  [keyId]: true
+}));
+
+  setFeedbackUI(prev => ({
+    ...prev,
+    [keyId]: text
+  }));
+
+  setTimeout(() => {
+  setFeedbackUI(prev => {
+    const copy = { ...prev };
+    delete copy[keyId];
+    return copy;
+  });
+}, 2000);
+};
+
 
   const handleIdeaSubmit = () => {
     const key = "openlura_ideas";
@@ -255,15 +286,26 @@ export default function Home() {
                   {msg.content}
                 </div>
 
-                {msg.role === "ai" && (
-                  <div className="flex gap-2 mt-1 text-sm opacity-70">
-                    <button onClick={() => handleFeedback(activeChatId!, i, "up")}>👍</button>
-                    <button onClick={() => handleFeedback(activeChatId!, i, "down")}>👎</button>
-                  </div>
+                {msg.role === "ai" && i !== 0 && (
+  <div className="flex gap-2 mt-1 text-sm opacity-70 items-center">
+  {!feedbackGiven[activeChatId + "-" + i] && (
+  <>
+    <button onClick={() => handleFeedback(activeChatId!, i, "up")}>👍</button>
+    <button onClick={() => handleFeedback(activeChatId!, i, "down")}>👎</button>
+  </>
+)}
+
+  {feedbackUI[activeChatId + "-" + i] && (
+    <span className="text-xs opacity-70 ml-2">
+      {feedbackUI[activeChatId + "-" + i]}
+    </span>
+  )}
+</div>
                 )}
               </div>
             ))}
 
+            {/* ✅ BETERE LOADING */}
             {loading && (
               <div className="opacity-70 text-sm">
                 OpenLura is typing...
@@ -282,6 +324,7 @@ export default function Home() {
               className="hidden" 
             />
 
+            {/* ✅ IMAGE PREVIEW */}
             {image && (
               <img 
                 src={image} 

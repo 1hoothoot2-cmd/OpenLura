@@ -16,6 +16,8 @@ export default function Home() {
 
   const [showFeedbackBox, setShowFeedbackBox] = useState(false);
   const [feedbackText, setFeedbackText] = useState("");
+  const [feedbackUI, setFeedbackUI] = useState<{ [key: string]: string }>({});
+  const [feedbackGiven, setFeedbackGiven] = useState<{ [key: string]: boolean }>({});
 
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -148,25 +150,53 @@ export default function Home() {
   };
 
   // ✅ BETERE FEEDBACK DATA
-  const handleFeedback = (chatId: number, msgIndex: number, type: string) => {
-    const key = "openlura_feedback";
-    const existing = JSON.parse(localStorage.getItem(key) || "[]");
+const handleFeedback = (chatId: number, msgIndex: number, type: string) => {
+  const key = "openlura_feedback";
+  const existing = JSON.parse(localStorage.getItem(key) || "[]");
 
-    const chat = chats.find(c => c.id === chatId);
-    const message = chat?.messages[msgIndex];
-    const prevMessage = chat?.messages[msgIndex - 1];
+  const chat = chats.find(c => c.id === chatId);
+  const message = chat?.messages[msgIndex];
+  const prevMessage = chat?.messages[msgIndex - 1];
 
-    existing.push({
-      chatId,
-      msgIndex,
-      type,
-      message: message?.content,
-      userMessage: prevMessage?.content,
-      timestamp: Date.now(),
-    });
+  existing.push({
+    chatId,
+    msgIndex,
+    type,
+    message: message?.content,
+    userMessage: prevMessage?.content,
+    timestamp: Date.now(),
+  });
 
-    localStorage.setItem(key, JSON.stringify(existing));
-  };
+  // 👇 NIEUW (gewoon hieronder laten staan)
+  const lang = prevMessage?.content?.match(/\b(hallo|hoe|wat|waar|ik)\b/i)
+    ? "nl"
+    : "en";
+
+  const text =
+    lang === "nl"
+      ? "Bedankt voor je feedback"
+      : "Thanks for your feedback";
+
+  const keyId = chatId + "-" + msgIndex;
+  setFeedbackGiven(prev => ({
+  ...prev,
+  [keyId]: true
+}));
+
+  setFeedbackUI(prev => ({
+    ...prev,
+    [keyId]: text
+  }));
+
+  setTimeout(() => {
+  setFeedbackUI(prev => {
+    const copy = { ...prev };
+    delete copy[keyId];
+    return copy;
+  });
+}, 2000);
+};
+
 
   const handleIdeaSubmit = () => {
     const key = "openlura_ideas";
@@ -256,11 +286,21 @@ export default function Home() {
                   {msg.content}
                 </div>
 
-                {msg.role === "ai" && (
-                  <div className="flex gap-2 mt-1 text-sm opacity-70">
-                    <button onClick={() => handleFeedback(activeChatId!, i, "up")}>👍</button>
-                    <button onClick={() => handleFeedback(activeChatId!, i, "down")}>👎</button>
-                  </div>
+                {msg.role === "ai" && i !== 0 && (
+  <div className="flex gap-2 mt-1 text-sm opacity-70 items-center">
+  {!feedbackGiven[activeChatId + "-" + i] && (
+  <>
+    <button onClick={() => handleFeedback(activeChatId!, i, "up")}>👍</button>
+    <button onClick={() => handleFeedback(activeChatId!, i, "down")}>👎</button>
+  </>
+)}
+
+  {feedbackUI[activeChatId + "-" + i] && (
+    <span className="text-xs opacity-70 ml-2">
+      {feedbackUI[activeChatId + "-" + i]}
+    </span>
+  )}
+</div>
                 )}
               </div>
             ))}
