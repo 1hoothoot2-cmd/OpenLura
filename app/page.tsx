@@ -7,7 +7,10 @@ export default function Home() {
   const [input, setInput] = useState("");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
-  const [memory, setMemory] = useState("");
+
+  // ✅ MEMORY ARRAY
+  const [memory, setMemory] = useState<string[]>([]);
+
   const [image, setImage] = useState<string | null>(null);
   const [mobileMenu, setMobileMenu] = useState(false);
 
@@ -37,7 +40,8 @@ export default function Home() {
       createNewChat();
     }
 
-    if (mem) setMemory(mem);
+    // ✅ MEMORY LOAD FIX
+    if (mem) setMemory(JSON.parse(mem));
 
     if (window.innerWidth >= 768) {
       setMobileMenu(true);
@@ -63,6 +67,18 @@ export default function Home() {
 
   const activeChat = chats.find((c) => c.id === activeChatId);
 
+  // ✅ IMAGE HANDLER
+  const handleFile = (e: any) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImage(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
   const sendMessage = async () => {
     if (!input && !image) return;
 
@@ -75,6 +91,11 @@ export default function Home() {
       image,
     });
 
+    // ✅ AUTO TITLE
+    if (updated[index].messages.length === 2) {
+      updated[index].title = input.slice(0, 30);
+    }
+
     setChats(updated);
     setInput("");
     setImage(null);
@@ -82,7 +103,10 @@ export default function Home() {
 
     const res = await fetch("/api/chat", {
       method: "POST",
-      body: JSON.stringify({ message: input, memory }),
+      body: JSON.stringify({
+        message: input,
+        memory: memory.join(" | "),
+      }),
     });
 
     const reader = res.body?.getReader();
@@ -113,17 +137,31 @@ export default function Home() {
       setChats([...updated]);
     }
 
+    // ✅ MEMORY SAVE
+    if (input.length < 60) {
+      const newMemory = [...memory, input].slice(-10);
+      setMemory(newMemory);
+      localStorage.setItem("openlura_memory", JSON.stringify(newMemory));
+    }
+
     setLoading(false);
   };
 
+  // ✅ BETERE FEEDBACK DATA
   const handleFeedback = (chatId: number, msgIndex: number, type: string) => {
     const key = "openlura_feedback";
     const existing = JSON.parse(localStorage.getItem(key) || "[]");
+
+    const chat = chats.find(c => c.id === chatId);
+    const message = chat?.messages[msgIndex];
+    const prevMessage = chat?.messages[msgIndex - 1];
 
     existing.push({
       chatId,
       msgIndex,
       type,
+      message: message?.content,
+      userMessage: prevMessage?.content,
       timestamp: Date.now(),
     });
 
@@ -147,7 +185,6 @@ export default function Home() {
   return (
     <main className="flex h-screen bg-[#050510] text-white">
 
-      {/* Sidebar */}
       <div className={`w-72 p-4 bg-white/5 backdrop-blur-xl flex flex-col absolute md:relative z-40 h-full transition ${
         mobileMenu ? "left-0" : "-left-full md:left-0"
       }`}>
@@ -178,25 +215,22 @@ export default function Home() {
           ))}
         </div>
 
-        {/* 🔥 Feedback knop */}
         <button
           onClick={() => setShowFeedbackBox(true)}
           className="mt-3 p-2 rounded-xl bg-white/10 hover:bg-white/20"
         >
-          💡 Feedback / Bug
+          💡 Feedback / Idee
         </button>
       </div>
 
-      {/* Feedback popup */}
       {showFeedbackBox && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
           <div className="bg-[#0a0a1f] p-6 rounded-2xl w-[300px]">
-            <h2 className="mb-2">Feedback / Bug </h2>
+            <h2 className="mb-2">Feedback / Idee</h2>
             <textarea
               value={feedbackText}
               onChange={(e) => setFeedbackText(e.target.value)}
               className="w-full p-2 rounded bg-white/10 mb-3"
-              placeholder="Typ je idee..."
             />
             <button
               onClick={handleIdeaSubmit}
@@ -208,7 +242,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* Chat */}
       <div className="flex-1 flex items-center justify-center p-4">
         <div className="w-full max-w-2xl h-[90%] flex flex-col bg-white/10 rounded-3xl backdrop-blur-2xl">
 
@@ -225,31 +258,39 @@ export default function Home() {
 
                 {msg.role === "ai" && (
                   <div className="flex gap-2 mt-1 text-sm opacity-70">
-                    <button onClick={() => handleFeedback(activeChatId!, i, "up")}>
-                      👍
-                    </button>
-                    <button onClick={() => handleFeedback(activeChatId!, i, "down")}>
-                      👎
-                    </button>
+                    <button onClick={() => handleFeedback(activeChatId!, i, "up")}>👍</button>
+                    <button onClick={() => handleFeedback(activeChatId!, i, "down")}>👎</button>
                   </div>
                 )}
               </div>
             ))}
 
-            {loading && <div>...</div>}
+            {/* ✅ BETERE LOADING */}
+            {loading && (
+              <div className="opacity-70 text-sm">
+                OpenLura is typing...
+              </div>
+            )}
           </div>
 
-          {/* Input */}
           <div className="p-3 flex gap-2 border-t border-white/10 items-center">
 
-            <button
-              onClick={() => fileRef.current?.click()}
-              className="text-xl px-2"
-            >
-              +
-            </button>
+            <button onClick={() => fileRef.current?.click()} className="text-xl px-2">+</button>
 
-            <input type="file" ref={fileRef} className="hidden" />
+            <input 
+              type="file" 
+              ref={fileRef} 
+              onChange={handleFile}
+              className="hidden" 
+            />
+
+            {/* ✅ IMAGE PREVIEW */}
+            {image && (
+              <img 
+                src={image} 
+                className="w-16 h-16 object-cover rounded-xl"
+              />
+            )}
 
             <input
               value={input}
