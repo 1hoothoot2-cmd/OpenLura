@@ -8,9 +8,7 @@ export default function Home() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // ✅ MEMORY ARRAY
   const [memory, setMemory] = useState<string[]>([]);
-
   const [image, setImage] = useState<string | null>(null);
   const [mobileMenu, setMobileMenu] = useState(false);
 
@@ -40,7 +38,6 @@ export default function Home() {
       createNewChat();
     }
 
-    // ✅ MEMORY LOAD FIX
     if (mem) setMemory(JSON.parse(mem));
 
     if (window.innerWidth >= 768) {
@@ -67,7 +64,6 @@ export default function Home() {
 
   const activeChat = chats.find((c) => c.id === activeChatId);
 
-  // ✅ IMAGE HANDLER
   const handleFile = (e: any) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -91,7 +87,6 @@ export default function Home() {
       image,
     });
 
-    // ✅ AUTO TITLE
     if (updated[index].messages.length === 2) {
       updated[index].title = input.slice(0, 30);
     }
@@ -101,11 +96,16 @@ export default function Home() {
     setImage(null);
     setLoading(true);
 
+    // ✅ FEEDBACK WORDT MEEGESTUURD NAAR AI
+    const feedback = JSON.parse(localStorage.getItem("openlura_feedback") || "[]")
+      .slice(-5);
+
     const res = await fetch("/api/chat", {
       method: "POST",
       body: JSON.stringify({
         message: input,
         memory: memory.join(" | "),
+        feedback,
       }),
     });
 
@@ -137,7 +137,7 @@ export default function Home() {
       setChats([...updated]);
     }
 
-    // ✅ MEMORY SAVE
+    // ✅ MEMORY OPSLAAN
     if (input.length < 60) {
       const newMemory = [...memory, input].slice(-10);
       setMemory(newMemory);
@@ -147,7 +147,6 @@ export default function Home() {
     setLoading(false);
   };
 
-  // ✅ BETERE FEEDBACK DATA
   const handleFeedback = (chatId: number, msgIndex: number, type: string) => {
     const key = "openlura_feedback";
     const existing = JSON.parse(localStorage.getItem(key) || "[]");
@@ -265,7 +264,6 @@ export default function Home() {
               </div>
             ))}
 
-            {/* ✅ BETERE LOADING */}
             {loading && (
               <div className="opacity-70 text-sm">
                 OpenLura is typing...
@@ -284,7 +282,6 @@ export default function Home() {
               className="hidden" 
             />
 
-            {/* ✅ IMAGE PREVIEW */}
             {image && (
               <img 
                 src={image} 
