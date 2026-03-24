@@ -287,7 +287,7 @@ const handleFeedback = (chatId: number, msgIndex: number, type: string) => {
                 </div>
 
                 {msg.role === "ai" && i !== 0 && (
-  <div className="flex gap-2 mt-1 text-sm opacity-70 items-center">
+  <div className="flex flex-col sm:flex-row gap-1 sm:gap-2 mt-1 text-sm opacity-70 sm:items-center">
   {!feedbackGiven[activeChatId + "-" + i] && (
   <>
     <button onClick={() => handleFeedback(activeChatId!, i, "up")}>👍</button>
