@@ -1038,12 +1038,13 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 >
             {activeChat?.messages?.length === 0 ? (
               <div className="w-full max-w-2xl text-center px-6">
-                <h1 className="text-2xl md:text-4xl font-medium mb-4">
-                  Hoi. Klaar om aan de slag te gaan?
+                                                <h1 className="text-2xl md:text-4xl font-semibold tracking-tight mb-4 bg-gradient-to-r from-white via-white to-white/60 bg-clip-text text-transparent">
+                  Waar wil je vandaag mee verder?
                 </h1>
-                <p className="text-sm md:text-base opacity-60">
-                  Stel een vraag en OpenLura schakelt daarna automatisch over naar de normale chat.
+                <p className="text-sm opacity-30">
+                  Begin met een vraag
                 </p>
+                
               </div>
             ) : (
               <>
