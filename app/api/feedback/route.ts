@@ -1,51 +1,53 @@
 import { NextResponse } from "next/server";
+
 export const dynamic = "force-dynamic";
-import { promises as fs } from "fs";
-import path from "path";
 
-const feedbackFilePath = path.join(process.cwd(), "data", "feedback.json");
+const supabaseUrl = process.env.SUPABASE_URL!;
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-async function ensureFeedbackFile() {
-  const dir = path.dirname(feedbackFilePath);
-
-  try {
-    await fs.mkdir(dir, { recursive: true });
-    await fs.access(feedbackFilePath);
-  } catch {
-    await fs.writeFile(feedbackFilePath, "[]", "utf-8");
-  }
-}
-
-async function readFeedbackFile() {
-  await ensureFeedbackFile();
-
-  try {
-    const content = await fs.readFile(feedbackFilePath, "utf-8");
-    return JSON.parse(content || "[]");
-  } catch {
-    return [];
-  }
-}
-
-async function writeFeedbackFile(data: any[]) {
-  await ensureFeedbackFile();
-  await fs.writeFile(feedbackFilePath, JSON.stringify(data, null, 2), "utf-8");
-}
+const feedbackTableUrl = `${supabaseUrl}/rest/v1/openlura_feedback`;
 
 export async function POST(req: Request) {
   try {
     const data = await req.json();
-    const existing = await readFeedbackFile();
 
     const entry = {
-      ...data,
-      timestamp: Date.now(),
+      chatId: data.chatId ?? null,
+      msgIndex: data.msgIndex ?? null,
+      type: data.type ?? null,
+      message: data.message ?? null,
+      userMessage: data.userMessage ?? null,
+      source: data.source ?? null,
+      timestamp: new Date().toISOString(),
     };
 
-    existing.push(entry);
-    await writeFeedbackFile(existing);
+    const res = await fetch(feedbackTableUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: supabaseServiceRoleKey,
+        Authorization: `Bearer ${supabaseServiceRoleKey}`,
+        Prefer: "return=representation",
+      },
+      body: JSON.stringify(entry),
+      cache: "no-store",
+    });
 
-    return NextResponse.json({ success: true, item: entry });
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error(errorText || "Supabase insert failed");
+    }
+
+    const saved = await res.json();
+
+    return NextResponse.json(
+      { success: true, item: saved?.[0] ?? entry },
+      {
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      }
+    );
   } catch (error) {
     console.error("Feedback POST failed:", error);
     return NextResponse.json(
@@ -57,7 +59,24 @@ export async function POST(req: Request) {
 
 export async function GET() {
   try {
-    const data = await readFeedbackFile();
+    const res = await fetch(
+      `${feedbackTableUrl}?select=*&order=timestamp.desc`,
+      {
+        method: "GET",
+        headers: {
+          apikey: supabaseServiceRoleKey,
+          Authorization: `Bearer ${supabaseServiceRoleKey}`,
+        },
+        cache: "no-store",
+      }
+    );
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error(errorText || "Supabase select failed");
+    }
+
+    const data = await res.json();
 
     return NextResponse.json(data, {
       headers: {
