@@ -22,6 +22,7 @@ export default function Home() {
   const [awaitingImprovement, setAwaitingImprovement] = useState<{ [key: number]: boolean }>({});
   
   const fileRef = useRef<HTMLInputElement>(null);
+  const messagesRef = useRef<HTMLDivElement>(null);
 
   const greetings = [
     "👋 Hey! Waar kan ik je mee helpen?",
@@ -59,6 +60,17 @@ export default function Home() {
       localStorage.setItem("openlura_chats", JSON.stringify(chats));
     }
   }, [chats]);
+  useEffect(() => {
+  const el = messagesRef.current;
+  if (!el) return;
+
+  requestAnimationFrame(() => {
+    el.scrollTo({
+      top: el.scrollHeight,
+      behavior: "smooth",
+    });
+  });
+}, [activeChatId, chats, loading]);
 
   const createNewChat = () => {
     const newChat = {
@@ -86,7 +98,7 @@ export default function Home() {
   };
 
   const sendMessage = async () => {
-        if (!input && !image) return;
+        if (!input.trim() && !image) return;
 
     const currentChatId = activeChatId!;
     const isImprovementReply = awaitingImprovement[currentChatId] && !!input.trim();
@@ -550,10 +562,13 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
         </div>
       )}
 
-      <div className="flex-1 flex items-stretch justify-center md:p-4 pt-16">
+      <div className="flex-1 flex items-stretch justify-center md:p-4 pt-0">
         <div className="w-full max-w-2xl h-full md:h-[90%] flex flex-col bg-white/10 md:rounded-3xl backdrop-blur-2xl">
 
-          <div className="flex-1 p-4 pt-6 md:pt-4 overflow-y-auto space-y-3 pb-28 md:pb-4">
+          <div
+  ref={messagesRef}
+  className="flex-1 p-4 pt-20 md:pt-4 overflow-y-auto space-y-3 pb-52 md:pb-4"
+>
             {activeChat?.messages.map((msg: any, i: number) => (
               <div key={i}>
                 <div className={`p-3 rounded-2xl max-w-[75%] whitespace-pre-line ${
@@ -599,7 +614,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
             )}
           </div>
 
-          <div className="fixed bottom-0 left-0 right-0 md:static p-3 flex gap-2 border-t border-white/10 items-center bg-[#050510] md:bg-transparent">
+          <div className="fixed bottom-0 left-0 right-0 md:static z-40 p-3 pb-4 flex gap-2 border-t border-white/10 items-end bg-[#050510] md:bg-transparent">
 
             <button onClick={() => fileRef.current?.click()} className="text-xl px-2">+</button>
 
@@ -618,17 +633,32 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
               />
             )}
 
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-              className="flex-1 p-2 bg-white/10 rounded-xl"
-              placeholder="Ask OpenLura..."
-            />
+            <textarea
+  value={input}
+  onChange={(e) => {
+    setInput(e.target.value);
+    e.target.style.height = "auto";
+    e.target.style.height = `${Math.min(e.target.scrollHeight, 140)}px`;
+  }}
+  onKeyDown={(e) => {
+    const isMobile = window.innerWidth < 768;
 
-            <button onClick={sendMessage} className="px-4 bg-purple-500 rounded-xl">
-              Send
-            </button>
+    if (!isMobile && e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  }}
+  className="flex-1 p-3 bg-white/10 rounded-2xl resize-none min-h-[52px] max-h-[140px] outline-none"
+  placeholder="Ask OpenLura..."
+  rows={1}
+/>
+
+            <button
+  onClick={sendMessage}
+  className="w-12 h-12 shrink-0 flex items-center justify-center bg-purple-500 rounded-full text-xl"
+>
+  ↑
+</button>
           </div>
 
         </div>

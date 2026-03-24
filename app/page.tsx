@@ -562,12 +562,12 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
         </div>
       )}
 
-      <div className="flex-1 flex items-stretch justify-center md:p-4 pt-16">
+      <div className="flex-1 flex items-stretch justify-center md:p-4 pt-0">
         <div className="w-full max-w-2xl h-full md:h-[90%] flex flex-col bg-white/10 md:rounded-3xl backdrop-blur-2xl">
 
           <div
   ref={messagesRef}
-  className="flex-1 p-4 pt-6 md:pt-4 overflow-y-auto space-y-3 pb-28 md:pb-4"
+  className="flex-1 p-4 pt-20 md:pt-4 overflow-y-auto space-y-3 pb-52 md:pb-4"
 >
             {activeChat?.messages.map((msg: any, i: number) => (
               <div key={i}>
@@ -614,7 +614,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
             )}
           </div>
 
-          <div className="fixed bottom-0 left-0 right-0 md:static p-3 flex gap-2 border-t border-white/10 items-center bg-[#050510] md:bg-transparent">
+          <div className="fixed bottom-0 left-0 right-0 md:static z-40 p-3 pb-4 flex gap-2 border-t border-white/10 items-end bg-[#050510] md:bg-transparent">
 
             <button onClick={() => fileRef.current?.click()} className="text-xl px-2">+</button>
 
