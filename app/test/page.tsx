@@ -342,8 +342,11 @@ const res = await fetch("/api/chat", {
 
   localStorage.setItem(key, JSON.stringify(existing));
 
-  fetch("/api/feedback", {
+    fetch("/api/feedback", {
     method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify({
       chatId,
       msgIndex,
