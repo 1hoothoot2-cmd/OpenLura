@@ -57,20 +57,35 @@ useEffect(() => {
     localStorage.getItem("openlura_feedback") || "[]"
   );
 
-  const normalizedLocal = localFeedback.map((item: any) => ({
-    ...item,
-    type:
-      item.type === "improvement"
-        ? "improve"
-        : item.type || "down",
-  }));
+    const normalizedLocal = localFeedback.map((item: any) => {
+    const isImprovementItem =
+      item.type === "improve" ||
+      item.type === "improvement" ||
+      item.source === "improvement_reply" ||
+      item.userMessage === "Direct improvement feedback";
 
-  const combined =
-    data.length > 0
-      ? [...data]
-      : [...normalizedLocal];
+    return {
+      ...item,
+      type: isImprovementItem ? "improve" : item.type || "down",
+    };
+  });
 
-  setFeedback([...combined].reverse());
+    const combined = [...data, ...normalizedLocal];
+
+    const deduped = combined.filter((item: any, index: number, arr: any[]) => {
+    return (
+      index ===
+      arr.findIndex(
+        (x: any) =>
+          x.timestamp === item.timestamp &&
+          x.message === item.message &&
+          x.userMessage === item.userMessage &&
+          x.type === item.type
+      )
+    );
+  });
+
+  setFeedback([...deduped].reverse());
 };
 
   load();

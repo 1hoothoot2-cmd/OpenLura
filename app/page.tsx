@@ -104,7 +104,7 @@ export default function Home() {
       existingFeedback.push({
         chatId: currentChatId,
         msgIndex: updated[index].messages.length - 1,
-        type: "down",
+                type: "improve",
         message: input,
         userMessage: "Direct improvement feedback",
         timestamp: Date.now(),
