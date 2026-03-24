@@ -482,7 +482,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
   ☰
 </button>
 
-      <div className={`w-72 p-4 bg-white/5 backdrop-blur-xl flex flex-col fixed md:relative top-0 left-0 z-50 h-full transform transition-transform duration-300 ${
+      <div className={`w-72 p-4 bg-white/5 backdrop-blur-xl flex flex-col fixed md:relative top-0 left-0 z-50 h-full transform transform transition-transform duration-300 ${
         mobileMenu ? "translate-x-0" : "-translate-x-full md:translate-x-0"
       }`}>
         
