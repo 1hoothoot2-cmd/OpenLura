@@ -1085,7 +1085,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
             )}
           </div>
 
-                    <div className="fixed bottom-0 left-0 right-0 md:static z-[90] p-3 pb-4 flex gap-2 border-t border-white/10 items-end bg-[#050510] md:bg-transparent">
+                              <div className="fixed bottom-0 left-0 right-0 md:static z-[90] pointer-events-auto p-3 pb-4 flex gap-2 border-t border-white/10 items-end bg-[#050510] md:bg-transparent">
 
             <button onClick={() => fileRef.current?.click()} className="text-xl px-2">+</button>
 
@@ -1124,9 +1124,14 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
   rows={1}
 />
 
-            <button
+                        <button
+  type="button"
   onClick={sendMessage}
-  className="w-12 h-12 shrink-0 flex items-center justify-center bg-purple-500 rounded-full text-xl"
+  onTouchEnd={(e) => {
+    e.preventDefault();
+    sendMessage();
+  }}
+  className="w-12 h-12 shrink-0 flex items-center justify-center bg-purple-500 rounded-full text-xl touch-manipulation"
 >
   ↑
 </button>
