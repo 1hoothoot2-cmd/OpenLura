@@ -470,8 +470,11 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 
   localStorage.setItem(key, JSON.stringify(existing));
 
-  fetch("/api/feedback", {
+    fetch("/api/feedback", {
     method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify({
       type: "idea",
       message: feedbackText,
@@ -487,6 +490,9 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 
   return (
     <main className="fixed inset-0 flex bg-[#050510] text-white overflow-hidden">
+      <div className="fixed top-2 right-3 z-[80] text-[10px] opacity-40 pointer-events-none">
+  {typeof window !== "undefined" ? window.location.origin : ""}
+</div>
       <button
   onClick={() => setMobileMenu(!mobileMenu)}
   className="fixed top-4 left-4 z-[70] md:hidden bg-white/10 backdrop-blur-xl p-2 rounded-full"
