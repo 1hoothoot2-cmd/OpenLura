@@ -127,7 +127,7 @@ export default function Home() {
         method: "POST",
         body: JSON.stringify({
           chatId: currentChatId,
-          type: "improve",
+          type: "improvement",
           message: input,
           userMessage: "Direct improvement feedback",
         }),
@@ -380,10 +380,10 @@ const res = await fetch("/api/chat", {
     const chatIndex = updatedChats.findIndex(c => c.id === chatId);
 
     updatedChats[chatIndex].messages.push({
-      role: "ai",
-      content: "🤖 Wat kan ik beter doen?",
-      disableFeedback: true,
-    });
+  role: "ai",
+  content: "🤖 Wat kan ik beter doen?",
+  disableFeedback: true,
+});
 
     setChats(updatedChats);
 
@@ -522,7 +522,11 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                   {msg.content}
                 </div>
 
-                {msg.role === "ai" && i !== 0 && !msg.disableFeedback && (
+                {msg.role === "ai" &&
+  i !== 0 &&
+  !msg.disableFeedback &&
+  msg.content !== "🤖 Wat kan ik beter doen?" &&
+  msg.content !== "🤖 Bedankt voor je feedback. Ik sla dit op en gebruik het om toekomstige antwoorden te verbeteren." && (
   <div className="flex gap-2 mt-1 text-sm opacity-70 items-center">
 
     {/* FEEDBACK (clean versie) */}
