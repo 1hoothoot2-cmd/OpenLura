@@ -125,8 +125,8 @@ return () => {
   return (
     <main className="min-h-screen bg-[#050510] text-white p-6">
       
-      <h1 className="text-2xl mb-6">📊 OpenLura Analytics</h1>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <h1 className="text-2xl mb-6">📊 OpenLura Analytics</h1>
   <div className="p-4 bg-white/10 rounded-2xl">
     <p className="text-xs opacity-60">Server items</p>
     <p className="text-xl">{feedback.filter((f) => !f._localOnly).length}</p>
