@@ -17,7 +17,10 @@ function getSupabaseConfig() {
     supabaseServiceRoleKey,
   };
 }
+
+export async function POST(req: Request) {
   try {
+    const { feedbackTableUrl, supabaseServiceRoleKey } = getSupabaseConfig();
     const data = await req.json();
 
     const entry = {
@@ -30,36 +33,36 @@ function getSupabaseConfig() {
       timestamp: new Date().toISOString(),
     };
 
-    const res = await fetch(getFeedbackTableUrl(), {
+    const res = await fetch(feedbackTableUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         apikey: supabaseServiceRoleKey,
         Authorization: `Bearer ${supabaseServiceRoleKey}`,
         Prefer: "return=representation",
-      },
+      } as HeadersInit,
       body: JSON.stringify(entry),
       cache: "no-store",
     });
 
     if (!res.ok) {
-  const errorText = await res.text();
-  console.error("Supabase POST failed:", res.status, errorText);
+      const errorText = await res.text();
+      console.error("Supabase POST failed:", res.status, errorText);
 
-  return NextResponse.json(
-    {
-      success: false,
-      error: "Feedback opslaan mislukt",
-      supabaseStatus: res.status,
-      supabaseError: errorText,
-    },
-    { status: 500 }
-  );
-}
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Feedback opslaan mislukt",
+          supabaseStatus: res.status,
+          supabaseError: errorText,
+        },
+        { status: 500 }
+      );
+    }
 
     const saved = await res.json();
 
-    return NextResponse.json(
+   return NextResponse.json(
       { success: true, item: saved?.[0] ?? entry },
       {
         headers: {
@@ -91,7 +94,7 @@ export async function GET() {
         headers: {
           apikey: supabaseServiceRoleKey,
           Authorization: `Bearer ${supabaseServiceRoleKey}`,
-        },
+        } as HeadersInit,
         cache: "no-store",
       }
     );
