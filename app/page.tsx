@@ -474,13 +474,22 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 
   return (
     <main className="flex h-screen bg-[#050510] text-white">
+      <button
+  onClick={() => setMobileMenu(!mobileMenu)}
+  className="absolute top-4 left-4 z-50 md:hidden bg-white/10 p-2 rounded-xl"
+>
+  ☰
+</button>
 
-      <div className={`w-72 p-4 bg-white/5 backdrop-blur-xl flex flex-col absolute md:relative z-40 h-full transition ${
+      <div className={`w-72 p-4 bg-white/5 backdrop-blur-xl flex flex-col fixed md:relative z-40 h-full transition ${
         mobileMenu ? "left-0" : "-left-full md:left-0"
       }`}>
         
         <button
-          onClick={createNewChat}
+          onClick={() => {
+  createNewChat();
+  setMobileMenu(false);
+}}
           className="mb-3 p-2 rounded-xl bg-gradient-to-r from-purple-500 to-blue-500"
         >
           + New Chat
@@ -497,7 +506,10 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
           {chats.map((chat) => (
             <div
               key={chat.id}
-              onClick={() => setActiveChatId(chat.id)}
+              onClick={() => {
+  setActiveChatId(chat.id);
+  setMobileMenu(false);
+}}
               className="p-2 rounded-lg bg-white/5 hover:bg-white/10"
             >
               {chat.title}
@@ -512,7 +524,12 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
           💡 Feedback / Idee
         </button>
       </div>
-
+{mobileMenu && (
+  <div
+    onClick={() => setMobileMenu(false)}
+    className="fixed inset-0 bg-black/50 z-30 md:hidden"
+  />
+)}
       {showFeedbackBox && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
           <div className="bg-[#0a0a1f] p-6 rounded-2xl w-[300px]">
