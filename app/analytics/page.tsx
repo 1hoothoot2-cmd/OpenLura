@@ -100,17 +100,23 @@ useEffect(() => {
   }
 };
 
-  load();
+    const runLoad = () => {
+    load().catch((error) => {
+      console.error("Analytics load wrapper failed:", error);
+    });
+  };
 
-  const interval = setInterval(load, 3000);
+  runLoad();
 
-  window.addEventListener("openlura_feedback_update", load);
-  window.addEventListener("focus", load);
+  const interval = setInterval(runLoad, 3000);
+
+  window.addEventListener("openlura_feedback_update", runLoad);
+  window.addEventListener("focus", runLoad);
 
   return () => {
     clearInterval(interval);
-    window.removeEventListener("openlura_feedback_update", load);
-    window.removeEventListener("focus", load);
+    window.removeEventListener("openlura_feedback_update", runLoad);
+    window.removeEventListener("focus", runLoad);
   };
 }, []);
 
