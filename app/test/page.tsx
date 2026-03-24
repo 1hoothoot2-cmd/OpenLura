@@ -102,14 +102,41 @@ export default function Home() {
     setInput("");
     setImage(null);
     setLoading(true);
+const rawFeedback = JSON.parse(localStorage.getItem("openlura_feedback") || "[]").slice(-20);
 
-    const res = await fetch("/api/chat", {
-      method: "POST",
-      body: JSON.stringify({
-        message: input,
-        memory: memory.join(" | "),
-      }),
-    });
+// geef recente feedback meer gewicht
+const weightedFeedback = rawFeedback.map((f: any, i: number) => ({
+  ...f,
+  weight: i / rawFeedback.length + 0.5, // recenter = hoger
+}));
+
+const feedbackSummary = {
+  likes: weightedFeedback
+    .filter((f: any) => f.type === "up")
+    .reduce((sum: number, f: any) => sum + f.weight, 0),
+
+  dislikes: weightedFeedback
+    .filter((f: any) => f.type === "down")
+    .reduce((sum: number, f: any) => sum + f.weight, 0),
+
+  issues: weightedFeedback
+    .filter((f: any) => f.type === "down")
+    .map((f: any) => f.message),
+
+  recentIssues: weightedFeedback
+    .filter((f: any) => f.type === "down")
+    .map((f: any) => f.userMessage)
+    .slice(-3),
+};
+ 
+const res = await fetch("/api/chat", {
+  method: "POST", // ✅ VERPLICHT
+  body: JSON.stringify({
+    message: input,
+    memory: memory.join(" | "),
+    feedback: feedbackSummary,
+  }),
+});
 
     const reader = res.body?.getReader();
     const decoder = new TextDecoder();
@@ -151,6 +178,7 @@ export default function Home() {
 
   // ✅ BETERE FEEDBACK DATA
 const handleFeedback = (chatId: number, msgIndex: number, type: string) => {
+ 
   const key = "openlura_feedback";
   const existing = JSON.parse(localStorage.getItem(key) || "[]");
 
@@ -158,14 +186,16 @@ const handleFeedback = (chatId: number, msgIndex: number, type: string) => {
   const message = chat?.messages[msgIndex];
   const prevMessage = chat?.messages[msgIndex - 1];
 
-  existing.push({
-    chatId,
-    msgIndex,
-    type,
-    message: message?.content,
-    userMessage: prevMessage?.content,
-    timestamp: Date.now(),
-  });
+existing.push({
+  chatId,
+  msgIndex,
+  type,
+  message: message?.content,
+  userMessage: prevMessage?.content,
+  timestamp: Date.now(),
+});
+
+  localStorage.setItem(key, JSON.stringify(existing));
 
   // 👇 NIEUW (gewoon hieronder laten staan)
   const lang = prevMessage?.content?.match(/\b(hallo|hoe|wat|waar|ik)\b/i)
@@ -196,6 +226,41 @@ const handleFeedback = (chatId: number, msgIndex: number, type: string) => {
   });
 }, 2000);
 window.dispatchEvent(new Event("openlura_feedback_update"));
+if (type === "down") {
+  const userMessage = prevMessage?.content;
+
+  fetch("/api/chat", {
+    method: "POST",
+    body: JSON.stringify({
+      message: userMessage,
+      memory: memory.join(" | "),
+      feedback: {
+        retry: true,
+        note: "User disliked previous answer. Improve it.",
+      },
+    }),
+  }).then(async (res) => {
+    const reader = res.body?.getReader();
+    const decoder = new TextDecoder();
+
+    let newText = "";
+
+    const updatedChats = [...chats];
+    const chatIndex = updatedChats.findIndex(c => c.id === chatId);
+
+    while (true) {
+      const { done, value } = await reader!.read();
+      if (done) break;
+
+      newText += decoder.decode(value);
+
+      // 👇 vervangt het oude AI antwoord
+      updatedChats[chatIndex].messages[msgIndex].content =
+  "✨ Improved answer:\n\n" + newText;
+      setChats([...updatedChats]);
+    }
+  });
+}
 };
 
 
@@ -203,10 +268,10 @@ window.dispatchEvent(new Event("openlura_feedback_update"));
     const key = "openlura_ideas";
     const existing = JSON.parse(localStorage.getItem(key) || "[]");
 
-    existing.push({
-      text: feedbackText,
-      timestamp: Date.now(),
-    });
+ existing.push({
+  text: feedbackText,
+  timestamp: Date.now(),
+});
 
     localStorage.setItem(key, JSON.stringify(existing));
     setFeedbackText("");
