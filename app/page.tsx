@@ -48,8 +48,10 @@ export default function Home() {
     if (mem) setMemory(JSON.parse(mem));
 
     if (window.innerWidth >= 768) {
-      setMobileMenu(true);
-    }
+  setMobileMenu(true);
+} else {
+  setMobileMenu(false);
+}
   }, []);
 
   useEffect(() => {
@@ -475,13 +477,13 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
     <main className="fixed inset-0 flex bg-[#050510] text-white overflow-hidden">
       <button
   onClick={() => setMobileMenu(!mobileMenu)}
-  className="fixed top-4 left-4 z-[60] md:hidden bg-white/10 backdrop-blur-xl p-2 rounded-full"
+  className="fixed top-4 left-4 z-[70] md:hidden bg-white/10 backdrop-blur-xl p-2 rounded-full"
 >
   ☰
 </button>
 
-      <div className={`w-72 p-4 bg-white/5 backdrop-blur-xl flex flex-col fixed md:relative top-0 left-0 z-50 h-full transition-transform duration-300 ${
-        mobileMenu ? "left-0" : "-left-full md:left-0"
+      <div className={`w-72 p-4 bg-white/5 backdrop-blur-xl flex flex-col fixed md:relative top-0 left-0 z-50 h-full transform transition-transform duration-300 ${
+        mobileMenu ? "translate-x-0" : "-translate-x-full md:translate-x-0"
       }`}>
         
         <button
