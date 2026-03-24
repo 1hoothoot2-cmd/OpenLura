@@ -472,15 +472,15 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 };
 
   return (
-    <main className="flex h-screen bg-[#050510] text-white">
+    <main className="fixed inset-0 flex bg-[#050510] text-white overflow-hidden">
       <button
   onClick={() => setMobileMenu(!mobileMenu)}
-  className="absolute top-4 left-4 z-50 md:hidden bg-white/10 p-2 rounded-xl"
+  className="fixed top-4 left-4 z-[60] md:hidden bg-white/10 backdrop-blur-xl p-2 rounded-full"
 >
   ☰
 </button>
 
-      <div className={`w-72 p-4 bg-white/5 backdrop-blur-xl flex flex-col fixed md:relative z-40 h-full transition ${
+      <div className={`w-72 p-4 bg-white/5 backdrop-blur-xl flex flex-col fixed md:relative top-0 left-0 z-50 h-full transition-transform duration-300 ${
         mobileMenu ? "left-0" : "-left-full md:left-0"
       }`}>
         
@@ -548,10 +548,10 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
         </div>
       )}
 
-      <div className="flex-1 flex items-center justify-center p-4">
-        <div className="w-full max-w-2xl h-[90%] flex flex-col bg-white/10 rounded-3xl backdrop-blur-2xl">
+      <div className="flex-1 flex items-stretch justify-center md:p-4 pt-16">
+        <div className="w-full max-w-2xl h-full md:h-[90%] flex flex-col bg-white/10 md:rounded-3xl backdrop-blur-2xl">
 
-          <div className="flex-1 p-4 overflow-y-auto space-y-3">
+          <div className="flex-1 p-4 pt-6 md:pt-4 overflow-y-auto space-y-3 pb-28 md:pb-4">
             {activeChat?.messages.map((msg: any, i: number) => (
               <div key={i}>
                 <div className={`p-3 rounded-2xl max-w-[75%] whitespace-pre-line ${
@@ -597,7 +597,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
             )}
           </div>
 
-          <div className="p-3 flex gap-2 border-t border-white/10 items-center">
+          <div className="fixed bottom-0 left-0 right-0 md:static p-3 flex gap-2 border-t border-white/10 items-center bg-[#050510] md:bg-transparent">
 
             <button onClick={() => fileRef.current?.click()} className="text-xl px-2">+</button>
 
