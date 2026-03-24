@@ -14,8 +14,9 @@ export default function Home() {
   const [image, setImage] = useState<string | null>(null);
   const [mobileMenu, setMobileMenu] = useState(false);
 
-    const [showFeedbackBox, setShowFeedbackBox] = useState(false);
+      const [showFeedbackBox, setShowFeedbackBox] = useState(false);
   const [showClearDeletedConfirm, setShowClearDeletedConfirm] = useState(false);
+  const [deleteTargetChatId, setDeleteTargetChatId] = useState<number | null>(null);
   const [feedbackText, setFeedbackText] = useState("");
   const [feedbackUI, setFeedbackUI] = useState<{ [key: string]: string }>({});
   const [feedbackGiven, setFeedbackGiven] = useState<{ [key: string]: boolean }>({});
@@ -168,18 +169,21 @@ export default function Home() {
     });
   };
 
-    const deleteChat = (chatId: number) => {
-    const confirmed = window.confirm(
-      "Weet je zeker dat je deze chat wilt verwijderen?"
-    );
+      const deleteChat = (chatId: number) => {
+    setDeleteTargetChatId(chatId);
+    setOpenChatMenuId(null);
+  };
 
-    if (!confirmed) return;
+  const confirmDeleteChat = () => {
+    if (deleteTargetChatId === null) return;
 
-    updateChatMeta(chatId, {
+    updateChatMeta(deleteTargetChatId, {
       deleted: true,
       archived: false,
       pinned: false,
     });
+
+    setDeleteTargetChatId(null);
   };
 
   const restoreDeletedChat = (chatId: number) => {
@@ -950,7 +954,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
     className="fixed inset-0 bg-black/50 z-30 md:hidden"
   />
 )}
-            {showClearDeletedConfirm && (
+                  {showClearDeletedConfirm && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
           <div className="bg-[#0a0a1f] p-6 rounded-2xl w-[300px]">
             <h2 className="mb-2">Weet je het zeker?</h2>
@@ -968,6 +972,33 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 
               <button
                 onClick={confirmClearDeletedChats}
+                className="flex-1 p-2 bg-red-500 rounded-xl"
+              >
+                Verwijderen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteTargetChatId !== null && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-[#0a0a1f] p-6 rounded-2xl w-[300px]">
+            <h2 className="mb-2">Weet je het zeker?</h2>
+            <p className="text-sm opacity-70 mb-4">
+              Deze chat wordt verplaatst naar Verwijderde chats.
+            </p>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => setDeleteTargetChatId(null)}
+                className="flex-1 p-2 bg-white/10 rounded-xl"
+              >
+                Annuleren
+              </button>
+
+              <button
+                onClick={confirmDeleteChat}
                 className="flex-1 p-2 bg-red-500 rounded-xl"
               >
                 Verwijderen
@@ -1054,7 +1085,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
             )}
           </div>
 
-          <div className="fixed bottom-0 left-0 right-0 md:static z-40 p-3 pb-4 flex gap-2 border-t border-white/10 items-end bg-[#050510] md:bg-transparent">
+                    <div className="fixed bottom-0 left-0 right-0 md:static z-[90] p-3 pb-4 flex gap-2 border-t border-white/10 items-end bg-[#050510] md:bg-transparent">
 
             <button onClick={() => fileRef.current?.click()} className="text-xl px-2">+</button>
 
