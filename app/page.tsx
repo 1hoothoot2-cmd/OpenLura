@@ -190,6 +190,12 @@ export default function Home() {
     const deletedChats = chats.filter((chat: any) => chat.deleted);
 
   const clearDeletedChats = () => {
+    const confirmed = window.confirm(
+      "Weet je zeker dat je alle verwijderde chats definitief wilt verwijderen?"
+    );
+
+    if (!confirmed) return;
+
     setChats((prev) => prev.filter((chat: any) => !chat.deleted));
   };
 
@@ -652,14 +658,15 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                       : "bg-white/5 hover:bg-white/10"
                   }`}
                 >
-                  <div
+                                    <div
                     onClick={() => {
                       setActiveChatId(chat.id);
                       setMobileMenu(false);
                     }}
-                    className="pr-8 cursor-pointer"
+                    className="pr-8 cursor-pointer flex items-center gap-2"
                   >
-                    {chat.title}
+                    <span className="text-xs opacity-70">📌</span>
+                    <span>{chat.title}</span>
                   </div>
 
                   <button
