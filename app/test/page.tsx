@@ -194,25 +194,17 @@ const res = await fetch("/api/chat", {
   });
 
   localStorage.setItem(key, JSON.stringify(existing));
+
   fetch("/api/feedback", {
-  method: "POST",
-  body: JSON.stringify({
-    chatId,
-    msgIndex,
-    type,
-    message: message?.content,
-    userMessage: prevMessage?.content,
-  }),
-});
-
-  const lang = prevMessage?.content?.match(/\b(hallo|hoe|wat|waar|ik)\b/i)
-    ? "nl"
-    : "en";
-
-  const text =
-    lang === "nl"
-      ? "Bedankt voor je feedback"
-      : "Thanks for your feedback";
+    method: "POST",
+    body: JSON.stringify({
+      chatId,
+      msgIndex,
+      type,
+      message: message?.content,
+      userMessage: prevMessage?.content,
+    }),
+  });
 
   const keyId = chatId + "-" + msgIndex;
 
@@ -223,7 +215,7 @@ const res = await fetch("/api/chat", {
 
   setFeedbackUI(prev => ({
     ...prev,
-    [keyId]: text
+    [keyId]: "Thanks for your feedback"
   }));
 
   setTimeout(() => {
@@ -234,42 +226,17 @@ const res = await fetch("/api/chat", {
     });
   }, 2000);
 
-  window.dispatchEvent(new Event("openlura_feedback_update"));
-
+  // 🔥 dit is je learning flow
   if (type === "down") {
-    const userMessage = prevMessage?.content;
+    const updatedChats = [...chats];
+    const chatIndex = updatedChats.findIndex(c => c.id === chatId);
 
-    fetch("/api/chat", {
-      method: "POST",
-      body: JSON.stringify({
-        message: userMessage,
-        memory: memory.join(" | "),
-        feedback: {
-          retry: true,
-          note: "User disliked previous answer. Improve it.",
-        },
-      }),
-    }).then(async (res) => {
-      const reader = res.body?.getReader();
-      const decoder = new TextDecoder();
-
-      let newText = "";
-
-      const updatedChats = [...chats];
-      const chatIndex = updatedChats.findIndex(c => c.id === chatId);
-
-      while (true) {
-        const { done, value } = await reader!.read();
-        if (done) break;
-
-        newText += decoder.decode(value);
-
-        updatedChats[chatIndex].messages[msgIndex].content =
-          "✨ Improved answer:\n\n" + newText;
-
-        setChats([...updatedChats]);
-      }
+    updatedChats[chatIndex].messages.push({
+      role: "ai",
+      content: "🤖 What should I do better?"
     });
+
+    setChats(updatedChats);
   }
 };
 
@@ -390,20 +357,13 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                 {msg.role === "ai" && i !== 0 && (
   <div className="flex gap-2 mt-1 text-sm opacity-70 items-center">
 
-    {/* NORMALE FEEDBACK */}
-    {!feedbackGiven[activeChatId + "-" + i] && (<>
-        <button onClick={() => handleFeedback(activeChatId!, i, "up")}>👍</button>
-        <button onClick={() => handleFeedback(activeChatId!, i, "down")}>👎</button>
-      </>
-    )}
-
-    {/* IMPROVED FEEDBACK */}
-    {msg.content.startsWith("✨ Improved answer") && !improvedFeedbackGiven[activeChatId + "-" + i] && (
-      <>
-        <button onClick={() => handleImprovedFeedback(activeChatId!, i, "up")}>👍</button>
-        <button onClick={() => handleImprovedFeedback(activeChatId!, i, "down")}>👎</button>
-      </>
-    )}
+    {/* FEEDBACK (clean versie) */}
+{!feedbackGiven[activeChatId + "-" + i] && (
+  <>
+    <button onClick={() => handleFeedback(activeChatId!, i, "up")}>👍</button>
+    <button onClick={() => handleFeedback(activeChatId!, i, "down")}>👎</button>
+  </>
+)}
 
     {/* FEEDBACK TEXT */}
     {feedbackUI[activeChatId + "-" + i] && (
