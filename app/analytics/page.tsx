@@ -81,10 +81,10 @@ useEffect(() => {
 
     data = await res.json();
   } catch (error) {
-    console.error("Analytics server load failed:", error);
+    console.warn("Analytics server tijdelijk niet bereikbaar");
   }
 
-  const combined = [...data, ...normalizedLocal];
+  const combined = data.length > 0 ? [...data] : [...normalizedLocal];
 
   const deduped = combined.filter((item: any, index: number, arr: any[]) => {
     return (
@@ -110,15 +110,14 @@ useEffect(() => {
 
 runLoad();
 
-const interval = setInterval(runLoad, 3000);
-
 window.addEventListener("openlura_feedback_update", runLoad);
 window.addEventListener("focus", runLoad);
+document.addEventListener("visibilitychange", runLoad);
 
 return () => {
-  clearInterval(interval);
   window.removeEventListener("openlura_feedback_update", runLoad);
   window.removeEventListener("focus", runLoad);
+  document.removeEventListener("visibilitychange", runLoad);
 };
 }, []);
 
