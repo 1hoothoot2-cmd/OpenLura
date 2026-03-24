@@ -48,13 +48,26 @@ ${feedbackContext}
 GLOBAL LEARNING:
 Total sessions: ${globalFeedback.length}
 
-Common issues:
-${globalFeedback.slice(-10).map(f => f.message).join("\n") || "none"}
+Common failed patterns (avoid these types of responses):
+${globalFeedback
+  .map(f => `User said: "${f.message}" → user was not satisfied`)
+  .join("\n") || "none"}
 
 INTERPRETATION RULES:
 - If multiple negative feedback entries exist, detect patterns and avoid them
 - If positive feedback exists, mirror tone, depth, and structure
 - If user explicitly says "this is wrong", treat it as strong negative feedback
+
+- If user input is vague or unclear and similar feedback was negative:
+  → Ask a clarifying question instead of giving a generic answer
+
+- If similar user messages received negative feedback:
+  → Change strategy completely
+  → Do NOT repeat previous style
+
+  - When a user message matches a previously disliked pattern:
+  → Do NOT respond normally
+  → Ask a clarifying or more specific question instead
 
 STYLE:
 - Write like a high-quality ChatGPT answer

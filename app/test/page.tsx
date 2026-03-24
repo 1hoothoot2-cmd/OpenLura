@@ -285,12 +285,17 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
   const updatedChats = [...chats];
   const chatIndex = updatedChats.findIndex(c => c.id === chatId);
 
-  updatedChats[chatIndex].messages.push({
-    role: "ai",
-    content: "🤔 What should I improve about my previous answer?"
-  });
+  const original = updatedChats[chatIndex].messages[msgIndex].content;
 
-  setChats(updatedChats);
+  updatedChats[chatIndex].messages[msgIndex] = {
+  ...updatedChats[chatIndex].messages[msgIndex],
+  content:
+    original +
+    "\n\n---\n\n🤖 OpenLura is still learning.\nYour feedback has been saved and will improve future answers.",
+  isLearningNote: true,
+};
+
+  setChats([...updatedChats]);
 }
 };
 
@@ -386,8 +391,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
   <div className="flex gap-2 mt-1 text-sm opacity-70 items-center">
 
     {/* NORMALE FEEDBACK */}
-    {!msg.content.startsWith("✨ Improved answer") && !feedbackGiven[activeChatId + "-" + i] && (
-      <>
+    {!feedbackGiven[activeChatId + "-" + i] && (<>
         <button onClick={() => handleFeedback(activeChatId!, i, "up")}>👍</button>
         <button onClick={() => handleFeedback(activeChatId!, i, "down")}>👎</button>
       </>
