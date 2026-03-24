@@ -195,6 +195,7 @@ const handleFeedback = (chatId: number, msgIndex: number, type: string) => {
     return copy;
   });
 }, 2000);
+window.dispatchEvent(new Event("openlura_feedback_update"));
 };
 
 
