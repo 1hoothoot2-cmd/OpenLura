@@ -105,10 +105,10 @@ export default function Home() {
 }, [activeChatId, chats, loading]);
 
   const createNewChat = () => {
-    const newChat = {
+        const newChat = {
       id: Date.now(),
       title: "New Chat",
-      messages: [{ role: "ai", content: getGreeting() }],
+      messages: [],
       pinned: false,
       archived: false,
       deleted: false,
@@ -416,7 +416,7 @@ Geef alleen direct het betere antwoord.`,
     });
 
     // ✅ AUTO TITLE
-    if (updated[index].messages.length === 2) {
+        if (updated[index].messages.length === 1) {
       updated[index].title = input.slice(0, 30);
     }
 
@@ -1030,58 +1030,70 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
       <div className="flex-1 flex items-stretch justify-center md:p-4 pt-0">
         <div className="w-full max-w-2xl h-full md:h-[90%] flex flex-col bg-white/10 md:rounded-3xl backdrop-blur-2xl">
 
-          <div
+                    <div
   ref={messagesRef}
-  className="flex-1 p-4 pt-20 md:pt-4 overflow-y-auto space-y-3 pb-52 md:pb-4"
+  className={`flex-1 overflow-y-auto pb-52 md:pb-4 ${
+    activeChat?.messages?.length ? "p-4 pt-20 md:pt-4 space-y-3" : "p-4 pt-20 md:pt-4 flex items-center justify-center"
+  }`}
 >
-                        {activeChat?.messages
-              .filter(
-                (msg: any) =>
-                  msg.content !==
-                  "🤖 Bedankt voor je feedback. Ik sla dit op en gebruik het om toekomstige antwoorden te verbeteren."
-              )
-              .map((msg: any, i: number) => (
-              <div key={i}>
-                <div className={`p-3 rounded-2xl max-w-[75%] whitespace-pre-line ${
-                  msg.role === "user"
-                    ? "bg-gradient-to-r from-purple-500 to-blue-500 ml-auto text-white"
-                    : "bg-white/20"
-                }`}>
-                  {msg.content}
-                </div>
-
-                {msg.role === "ai" &&
-  i !== 0 &&
-  !msg.disableFeedback &&
-  msg.content !== "🤖 Wat kan ik beter doen?" &&
-  msg.content !== "🤖 Bedankt voor je feedback. Ik sla dit op en gebruik het om toekomstige antwoorden te verbeteren." && (
-  <div className="flex gap-2 mt-1 text-sm opacity-70 items-center">
-
-    {/* FEEDBACK (clean versie) */}
-{!feedbackGiven[activeChatId + "-" + i] && (
-  <>
-    <button onClick={() => handleFeedback(activeChatId!, i, "up")}>👍</button>
-    <button onClick={() => handleFeedback(activeChatId!, i, "down")}>👎</button>
-  </>
-)}
-
-    {/* FEEDBACK TEXT */}
-    {feedbackUI[activeChatId + "-" + i] && (
-      <span className="text-xs opacity-70 ml-2">
-        {feedbackUI[activeChatId + "-" + i]}
-      </span>
-    )}
-
-  </div>
-)}
+            {activeChat?.messages?.length === 0 ? (
+              <div className="w-full max-w-2xl text-center px-6">
+                <h1 className="text-2xl md:text-4xl font-medium mb-4">
+                  Hoi. Klaar om aan de slag te gaan?
+                </h1>
+                <p className="text-sm md:text-base opacity-60">
+                  Stel een vraag en OpenLura schakelt daarna automatisch over naar de normale chat.
+                </p>
               </div>
-            ))}
+            ) : (
+              <>
+                {activeChat?.messages
+                  .filter(
+                    (msg: any) =>
+                      msg.content !==
+                      "🤖 Bedankt voor je feedback. Ik sla dit op en gebruik het om toekomstige antwoorden te verbeteren."
+                  )
+                  .map((msg: any, i: number) => (
+                    <div key={i}>
+                      <div className={`p-3 rounded-2xl max-w-[75%] whitespace-pre-line ${
+                        msg.role === "user"
+                          ? "bg-gradient-to-r from-purple-500 to-blue-500 ml-auto text-white"
+                          : "bg-white/20"
+                      }`}>
+                        {msg.content}
+                      </div>
 
-            {/* ✅ BETERE LOADING */}
-            {loading && (
-              <div className="opacity-70 text-sm">
-                OpenLura is typing...
-              </div>
+                      {msg.role === "ai" &&
+        i !== 0 &&
+        !msg.disableFeedback &&
+        msg.content !== "🤖 Wat kan ik beter doen?" &&
+        msg.content !== "🤖 Bedankt voor je feedback. Ik sla dit op en gebruik het om toekomstige antwoorden te verbeteren." && (
+        <div className="flex gap-2 mt-1 text-sm opacity-70 items-center">
+
+          {!feedbackGiven[activeChatId + "-" + i] && (
+            <>
+              <button onClick={() => handleFeedback(activeChatId!, i, "up")}>👍</button>
+              <button onClick={() => handleFeedback(activeChatId!, i, "down")}>👎</button>
+            </>
+          )}
+
+          {feedbackUI[activeChatId + "-" + i] && (
+            <span className="text-xs opacity-70 ml-2">
+              {feedbackUI[activeChatId + "-" + i]}
+            </span>
+          )}
+
+        </div>
+      )}
+                    </div>
+                  ))}
+
+                {loading && (
+                  <div className="opacity-70 text-sm">
+                    OpenLura is typing...
+                  </div>
+                )}
+              </>
             )}
           </div>
 
