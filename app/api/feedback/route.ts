@@ -2,12 +2,21 @@ import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-const supabaseUrl = process.env.SUPABASE_URL!;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-const feedbackTableUrl = `${supabaseUrl}/rest/v1/openlura_feedback`;
+function getSupabaseConfig() {
+  if (!supabaseUrl || !supabaseServiceRoleKey) {
+    throw new Error(
+      "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in environment"
+    );
+  }
 
-export async function POST(req: Request) {
+  return {
+    feedbackTableUrl: `${supabaseUrl}/rest/v1/openlura_feedback`,
+    supabaseServiceRoleKey,
+  };
+}
   try {
     const data = await req.json();
 
@@ -21,7 +30,7 @@ export async function POST(req: Request) {
       timestamp: new Date().toISOString(),
     };
 
-    const res = await fetch(feedbackTableUrl, {
+    const res = await fetch(getFeedbackTableUrl(), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -34,9 +43,19 @@ export async function POST(req: Request) {
     });
 
     if (!res.ok) {
-      const errorText = await res.text();
-      throw new Error(errorText || "Supabase insert failed");
-    }
+  const errorText = await res.text();
+  console.error("Supabase POST failed:", res.status, errorText);
+
+  return NextResponse.json(
+    {
+      success: false,
+      error: "Feedback opslaan mislukt",
+      supabaseStatus: res.status,
+      supabaseError: errorText,
+    },
+    { status: 500 }
+  );
+}
 
     const saved = await res.json();
 
@@ -51,7 +70,11 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error("Feedback POST failed:", error);
     return NextResponse.json(
-      { success: false, error: "Feedback opslaan mislukt" },
+      {
+        success: false,
+        error: "Feedback opslaan mislukt",
+        details: String(error),
+      },
       { status: 500 }
     );
   }
@@ -59,6 +82,8 @@ export async function POST(req: Request) {
 
 export async function GET() {
   try {
+    const { feedbackTableUrl, supabaseServiceRoleKey } = getSupabaseConfig();
+
     const res = await fetch(
       `${feedbackTableUrl}?select=*&order=timestamp.desc`,
       {
