@@ -14,7 +14,8 @@ export default function Home() {
   const [image, setImage] = useState<string | null>(null);
   const [mobileMenu, setMobileMenu] = useState(false);
 
-  const [showFeedbackBox, setShowFeedbackBox] = useState(false);
+    const [showFeedbackBox, setShowFeedbackBox] = useState(false);
+  const [showClearDeletedConfirm, setShowClearDeletedConfirm] = useState(false);
   const [feedbackText, setFeedbackText] = useState("");
   const [feedbackUI, setFeedbackUI] = useState<{ [key: string]: string }>({});
   const [feedbackGiven, setFeedbackGiven] = useState<{ [key: string]: boolean }>({});
@@ -67,10 +68,8 @@ export default function Home() {
 }
   }, []);
 
-      useEffect(() => {
-    if (chats.length > 0) {
-      localStorage.setItem("openlura_chats", JSON.stringify(chats));
-    }
+        useEffect(() => {
+    localStorage.setItem("openlura_chats", JSON.stringify(chats));
   }, [chats]);
 
   useEffect(() => {
@@ -212,14 +211,13 @@ export default function Home() {
 
     const deletedChats = chats.filter((chat: any) => chat.deleted);
 
-  const clearDeletedChats = () => {
-    const confirmed = window.confirm(
-      "Weet je zeker dat je alle verwijderde chats definitief wilt verwijderen?"
-    );
+    const clearDeletedChats = () => {
+    setShowClearDeletedConfirm(true);
+  };
 
-    if (!confirmed) return;
-
+  const confirmClearDeletedChats = () => {
     setChats((prev) => prev.filter((chat: any) => !chat.deleted));
+    setShowClearDeletedConfirm(false);
   };
 
   // ✅ IMAGE HANDLER
@@ -952,6 +950,33 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
     className="fixed inset-0 bg-black/50 z-30 md:hidden"
   />
 )}
+            {showClearDeletedConfirm && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-[#0a0a1f] p-6 rounded-2xl w-[300px]">
+            <h2 className="mb-2">Weet je het zeker?</h2>
+            <p className="text-sm opacity-70 mb-4">
+              Alle verwijderde chats worden permanent verwijderd.
+            </p>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowClearDeletedConfirm(false)}
+                className="flex-1 p-2 bg-white/10 rounded-xl"
+              >
+                Annuleren
+              </button>
+
+              <button
+                onClick={confirmClearDeletedChats}
+                className="flex-1 p-2 bg-red-500 rounded-xl"
+              >
+                Verwijderen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showFeedbackBox && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
           <div className="bg-[#0a0a1f] p-6 rounded-2xl w-[300px]">

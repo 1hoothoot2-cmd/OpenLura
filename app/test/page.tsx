@@ -14,7 +14,8 @@ export default function Home() {
   const [image, setImage] = useState<string | null>(null);
   const [mobileMenu, setMobileMenu] = useState(false);
 
-  const [showFeedbackBox, setShowFeedbackBox] = useState(false);
+    const [showFeedbackBox, setShowFeedbackBox] = useState(false);
+  const [showClearDeletedConfirm, setShowClearDeletedConfirm] = useState(false);
   const [feedbackText, setFeedbackText] = useState("");
   const [feedbackUI, setFeedbackUI] = useState<{ [key: string]: string }>({});
   const [feedbackGiven, setFeedbackGiven] = useState<{ [key: string]: boolean }>({});
@@ -67,10 +68,8 @@ export default function Home() {
 }
   }, []);
 
-      useEffect(() => {
-    if (chats.length > 0) {
-      localStorage.setItem("openlura_chats", JSON.stringify(chats));
-    }
+        useEffect(() => {
+    localStorage.setItem("openlura_chats", JSON.stringify(chats));
   }, [chats]);
 
   useEffect(() => {
@@ -212,14 +211,13 @@ export default function Home() {
 
     const deletedChats = chats.filter((chat: any) => chat.deleted);
 
-  const clearDeletedChats = () => {
-    const confirmed = window.confirm(
-      "Weet je zeker dat je alle verwijderde chats definitief wilt verwijderen?"
-    );
+    const clearDeletedChats = () => {
+    setShowClearDeletedConfirm(true);
+  };
 
-    if (!confirmed) return;
-
+  const confirmClearDeletedChats = () => {
     setChats((prev) => prev.filter((chat: any) => !chat.deleted));
+    setShowClearDeletedConfirm(false);
   };
 
   // ✅ IMAGE HANDLER
@@ -644,7 +642,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
   ☰
 </button>
 
-            <div className={`w-72 p-4 bg-white/5 backdrop-blur-xl flex flex-col fixed md:relative top-0 left-0 z-50 h-full overflow-hidden transform transition-transform duration-300 ${
+                  <div className={`w-[88vw] max-w-72 p-4 bg-white/5 backdrop-blur-xl flex flex-col fixed md:relative top-0 left-0 z-50 h-full overflow-hidden transform transition-transform duration-300 ${
         mobileMenu ? "translate-x-0" : "-translate-x-full md:translate-x-0"
       }`}>
         
@@ -676,30 +674,30 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                 <div
                   key={chat.id}
                   className={`group relative p-2 rounded-lg ${
-                    activeChatId === chat.id
-                      ? "bg-white/15"
-                      : "bg-white/5 hover:bg-white/10"
-                  }`}
+  activeChatId === chat.id
+    ? "bg-white/20 ring-1 ring-white/20"
+    : "bg-white/5 hover:bg-white/10"
+}`}
                 >
                                     <div
                     onClick={() => {
                       setActiveChatId(chat.id);
                       setMobileMenu(false);
                     }}
-                    className="pr-8 cursor-pointer flex items-center gap-2"
+                                        className="pr-8 cursor-pointer flex items-center gap-2 min-w-0"
                   >
                     <span className="text-xs opacity-70">📌</span>
-                    <span>{chat.title}</span>
+                                        <span className="truncate">{chat.title}</span>
                   </div>
 
-                  <button
+                                    <button
                     onClick={(e) => {
                       e.stopPropagation();
                       setOpenChatMenuId((prev) =>
                         prev === chat.id ? null : chat.id
                       );
                     }}
-                    className="absolute right-2 top-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+                    className="absolute right-1 top-1 h-9 w-9 flex items-center justify-center rounded-full opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:bg-white/10"
                   >
                     ⋯
                   </button>
@@ -754,29 +752,29 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                 <div
                   key={chat.id}
                   className={`group relative p-2 rounded-lg ${
-                    activeChatId === chat.id
-                      ? "bg-white/15"
-                      : "bg-white/5 hover:bg-white/10"
-                  }`}
+  activeChatId === chat.id
+    ? "bg-white/20 ring-1 ring-white/20"
+    : "bg-white/5 hover:bg-white/10"
+}`}
                 >
                   <div
                     onClick={() => {
                       setActiveChatId(chat.id);
                       setMobileMenu(false);
                     }}
-                    className="pr-8 cursor-pointer"
+                                        className="pr-8 cursor-pointer truncate"
                   >
                     {chat.title}
                   </div>
 
-                  <button
+                                    <button
                     onClick={(e) => {
                       e.stopPropagation();
                       setOpenChatMenuId((prev) =>
                         prev === chat.id ? null : chat.id
                       );
                     }}
-                    className="absolute right-2 top-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+                    className="absolute right-1 top-1 h-9 w-9 flex items-center justify-center rounded-full opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:bg-white/10"
                   >
                     ⋯
                   </button>
@@ -842,14 +840,14 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                     {chat.title}
                   </div>
 
-                  <button
+                                    <button
                     onClick={(e) => {
                       e.stopPropagation();
                       setOpenChatMenuId((prev) =>
                         prev === chat.id ? null : chat.id
                       );
                     }}
-                    className="absolute right-2 top-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+                    className="absolute right-1 top-1 h-9 w-9 flex items-center justify-center rounded-full opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:bg-white/10"
                   >
                     ⋯
                   </button>
@@ -908,14 +906,14 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                 >
                   <div className="pr-8 opacity-60">{chat.title}</div>
 
-                  <button
+                                    <button
                     onClick={(e) => {
                       e.stopPropagation();
                       setOpenChatMenuId((prev) =>
                         prev === chat.id ? null : chat.id
                       );
                     }}
-                    className="absolute right-2 top-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+                    className="absolute right-1 top-1 h-9 w-9 flex items-center justify-center rounded-full opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:bg-white/10"
                   >
                     ⋯
                   </button>
@@ -952,6 +950,33 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
     className="fixed inset-0 bg-black/50 z-30 md:hidden"
   />
 )}
+            {showClearDeletedConfirm && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-[#0a0a1f] p-6 rounded-2xl w-[300px]">
+            <h2 className="mb-2">Weet je het zeker?</h2>
+            <p className="text-sm opacity-70 mb-4">
+              Alle verwijderde chats worden permanent verwijderd.
+            </p>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowClearDeletedConfirm(false)}
+                className="flex-1 p-2 bg-white/10 rounded-xl"
+              >
+                Annuleren
+              </button>
+
+              <button
+                onClick={confirmClearDeletedChats}
+                className="flex-1 p-2 bg-red-500 rounded-xl"
+              >
+                Verwijderen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showFeedbackBox && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
           <div className="bg-[#0a0a1f] p-6 rounded-2xl w-[300px]">
