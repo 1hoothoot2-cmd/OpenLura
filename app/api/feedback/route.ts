@@ -33,28 +33,44 @@ async function writeFeedbackFile(data: any[]) {
 }
 
 export async function POST(req: Request) {
-  const data = await req.json();
-  const existing = await readFeedbackFile();
+  try {
+    const data = await req.json();
+    const existing = await readFeedbackFile();
 
-  const entry = {
-    ...data,
-    timestamp: Date.now(),
-  };
+    const entry = {
+      ...data,
+      timestamp: Date.now(),
+    };
 
-  existing.push(entry);
-  await writeFeedbackFile(existing);
+    existing.push(entry);
+    await writeFeedbackFile(existing);
 
-  return NextResponse.json({ success: true, item: entry });
+    return NextResponse.json({ success: true, item: entry });
+  } catch (error) {
+    console.error("Feedback POST failed:", error);
+    return NextResponse.json(
+      { success: false, error: "Feedback opslaan mislukt" },
+      { status: 500 }
+    );
+  }
 }
 
 export async function GET() {
-  const data = await readFeedbackFile();
+  try {
+    const data = await readFeedbackFile();
 
-  return NextResponse.json(data, {
-    headers: {
-      "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
-      Pragma: "no-cache",
-      Expires: "0",
-    },
-  });
+    return NextResponse.json(data, {
+      headers: {
+        "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+        Pragma: "no-cache",
+        Expires: "0",
+      },
+    });
+  } catch (error) {
+    console.error("Feedback GET failed:", error);
+    return NextResponse.json(
+      { success: false, error: "Feedback ophalen mislukt" },
+      { status: 500 }
+    );
+  }
 }
