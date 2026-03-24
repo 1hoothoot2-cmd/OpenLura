@@ -50,10 +50,28 @@ export default function AnalyticsPage() {
 
 useEffect(() => {
   const load = async () => {
-    const res = await fetch("/api/feedback");
-    const data = await res.json();
-    setFeedback([...data].reverse());
-  };
+  const res = await fetch("/api/feedback");
+  const data = await res.json();
+
+  const localFeedback = JSON.parse(
+    localStorage.getItem("openlura_feedback") || "[]"
+  );
+
+  const normalizedLocal = localFeedback.map((item: any) => ({
+    ...item,
+    type:
+      item.type === "improvement"
+        ? "improve"
+        : item.type || "down",
+  }));
+
+  const combined =
+    data.length > 0
+      ? [...data]
+      : [...normalizedLocal];
+
+  setFeedback([...combined].reverse());
+};
 
   load();
 
@@ -210,26 +228,8 @@ useEffect(() => {
       {f.type === "improve" ? "Verbeterfeedback" : "User"}
     </p>
     <p className="mb-3">
-  {f.type === "improve" ? f.message : f.userMessage}
-</p>
-
-{f.type === "improve" && (
-  <p className="text-xs opacity-60 mb-3">
-    Gebruiker gaf directe verbeterfeedback om toekomstige antwoorden te verbeteren.
-  </p>
-)}
-
-{f.type === "down" && (
-  <p className="text-xs text-red-300 mb-3">
-    Debug: dit antwoord kreeg een negatieve beoordeling van de gebruiker.
-  </p>
-)}
-
-{f.type === "up" && (
-  <p className="text-xs text-green-300 mb-3">
-    Debug: dit antwoord werd als goed of bruikbaar ervaren.
-  </p>
-)}
+      {f.type === "improve" ? f.message : f.userMessage}
+    </p>
 
     {f.type !== "improve" && (
       <>
