@@ -582,7 +582,13 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
   ref={messagesRef}
   className="flex-1 p-4 pt-20 md:pt-4 overflow-y-auto space-y-3 pb-52 md:pb-4"
 >
-            {activeChat?.messages.map((msg: any, i: number) => (
+                        {activeChat?.messages
+              .filter(
+                (msg: any) =>
+                  msg.content !==
+                  "🤖 Bedankt voor je feedback. Ik sla dit op en gebruik het om toekomstige antwoorden te verbeteren."
+              )
+              .map((msg: any, i: number) => (
               <div key={i}>
                 <div className={`p-3 rounded-2xl max-w-[75%] whitespace-pre-line ${
                   msg.role === "user"
