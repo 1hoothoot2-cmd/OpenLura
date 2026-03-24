@@ -50,7 +50,9 @@ export default function AnalyticsPage() {
 
 useEffect(() => {
   const load = async () => {
-  const res = await fetch("/api/feedback");
+  const res = await fetch("/api/feedback", {
+  cache: "no-store",
+});
   const data = await res.json();
 
   const localFeedback = JSON.parse(
@@ -70,7 +72,7 @@ useEffect(() => {
     };
   });
 
-    const combined = [...data, ...normalizedLocal];
+        const combined = [...data, ...normalizedLocal];
 
     const deduped = combined.filter((item: any, index: number, arr: any[]) => {
     return (
