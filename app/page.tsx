@@ -22,7 +22,8 @@ export default function Home() {
   const [awaitingImprovement, setAwaitingImprovement] = useState<{ [key: number]: boolean }>({});
   
   const fileRef = useRef<HTMLInputElement>(null);
-  const messagesRef = useRef<HTMLDivElement>(null);
+    const messagesRef = useRef<HTMLDivElement>(null);
+  const chatMenuRef = useRef<HTMLDivElement>(null);
 
   const greetings = [
     "👋 Hey! Waar kan ik je mee helpen?",
@@ -66,11 +67,27 @@ export default function Home() {
 }
   }, []);
 
-    useEffect(() => {
+      useEffect(() => {
     if (chats.length > 0) {
       localStorage.setItem("openlura_chats", JSON.stringify(chats));
     }
   }, [chats]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (!chatMenuRef.current) return;
+
+      if (!chatMenuRef.current.contains(e.target as Node)) {
+        setOpenChatMenuId(null);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   useEffect(() => {
     setOpenChatMenuId(null);
@@ -152,7 +169,13 @@ export default function Home() {
     });
   };
 
-  const deleteChat = (chatId: number) => {
+    const deleteChat = (chatId: number) => {
+    const confirmed = window.confirm(
+      "Weet je zeker dat je deze chat wilt verwijderen?"
+    );
+
+    if (!confirmed) return;
+
     updateChatMeta(chatId, {
       deleted: true,
       archived: false,
@@ -621,7 +644,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
   ☰
 </button>
 
-            <div className={`w-72 p-4 bg-white/5 backdrop-blur-xl flex flex-col fixed md:relative top-0 left-0 z-50 h-full overflow-hidden transform transition-transform duration-300 ${
+                  <div className={`w-[88vw] max-w-72 p-4 bg-white/5 backdrop-blur-xl flex flex-col fixed md:relative top-0 left-0 z-50 h-full overflow-hidden transform transition-transform duration-300 ${
         mobileMenu ? "translate-x-0" : "-translate-x-full md:translate-x-0"
       }`}>
         
@@ -653,36 +676,36 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                 <div
                   key={chat.id}
                   className={`group relative p-2 rounded-lg ${
-                    activeChatId === chat.id
-                      ? "bg-white/15"
-                      : "bg-white/5 hover:bg-white/10"
-                  }`}
+  activeChatId === chat.id
+    ? "bg-white/20 ring-1 ring-white/20"
+    : "bg-white/5 hover:bg-white/10"
+}`}
                 >
                                     <div
                     onClick={() => {
                       setActiveChatId(chat.id);
                       setMobileMenu(false);
                     }}
-                    className="pr-8 cursor-pointer flex items-center gap-2"
+                                        className="pr-8 cursor-pointer flex items-center gap-2 min-w-0"
                   >
                     <span className="text-xs opacity-70">📌</span>
-                    <span>{chat.title}</span>
+                                        <span className="truncate">{chat.title}</span>
                   </div>
 
-                  <button
+                                    <button
                     onClick={(e) => {
                       e.stopPropagation();
                       setOpenChatMenuId((prev) =>
                         prev === chat.id ? null : chat.id
                       );
                     }}
-                    className="absolute right-2 top-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+                    className="absolute right-1 top-1 h-9 w-9 flex items-center justify-center rounded-full opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:bg-white/10"
                   >
                     ⋯
                   </button>
 
                   {openChatMenuId === chat.id && (
-                    <div className="absolute right-2 top-10 z-50 w-40 rounded-xl bg-[#101025] border border-white/10 shadow-xl overflow-hidden">
+                                        <div ref={chatMenuRef} className="absolute right-2 top-10 z-50 w-40 rounded-xl bg-[#101025] border border-white/10 shadow-xl overflow-hidden">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -731,29 +754,29 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                 <div
                   key={chat.id}
                   className={`group relative p-2 rounded-lg ${
-                    activeChatId === chat.id
-                      ? "bg-white/15"
-                      : "bg-white/5 hover:bg-white/10"
-                  }`}
+  activeChatId === chat.id
+    ? "bg-white/20 ring-1 ring-white/20"
+    : "bg-white/5 hover:bg-white/10"
+}`}
                 >
                   <div
                     onClick={() => {
                       setActiveChatId(chat.id);
                       setMobileMenu(false);
                     }}
-                    className="pr-8 cursor-pointer"
+                                        className="pr-8 cursor-pointer truncate"
                   >
                     {chat.title}
                   </div>
 
-                  <button
+                                    <button
                     onClick={(e) => {
                       e.stopPropagation();
                       setOpenChatMenuId((prev) =>
                         prev === chat.id ? null : chat.id
                       );
                     }}
-                    className="absolute right-2 top-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+                    className="absolute right-1 top-1 h-9 w-9 flex items-center justify-center rounded-full opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:bg-white/10"
                   >
                     ⋯
                   </button>
@@ -819,14 +842,14 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                     {chat.title}
                   </div>
 
-                  <button
+                                    <button
                     onClick={(e) => {
                       e.stopPropagation();
                       setOpenChatMenuId((prev) =>
                         prev === chat.id ? null : chat.id
                       );
                     }}
-                    className="absolute right-2 top-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+                    className="absolute right-1 top-1 h-9 w-9 flex items-center justify-center rounded-full opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:bg-white/10"
                   >
                     ⋯
                   </button>
@@ -885,14 +908,14 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                 >
                   <div className="pr-8 opacity-60">{chat.title}</div>
 
-                  <button
+                                    <button
                     onClick={(e) => {
                       e.stopPropagation();
                       setOpenChatMenuId((prev) =>
                         prev === chat.id ? null : chat.id
                       );
                     }}
-                    className="absolute right-2 top-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+                    className="absolute right-1 top-1 h-9 w-9 flex items-center justify-center rounded-full opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:bg-white/10"
                   >
                     ⋯
                   </button>

@@ -22,7 +22,8 @@ export default function Home() {
   const [awaitingImprovement, setAwaitingImprovement] = useState<{ [key: number]: boolean }>({});
   
   const fileRef = useRef<HTMLInputElement>(null);
-  const messagesRef = useRef<HTMLDivElement>(null);
+    const messagesRef = useRef<HTMLDivElement>(null);
+  const chatMenuRef = useRef<HTMLDivElement>(null);
 
   const greetings = [
     "👋 Hey! Waar kan ik je mee helpen?",
@@ -37,10 +38,21 @@ export default function Home() {
     const saved = localStorage.getItem("openlura_chats");
     const mem = localStorage.getItem("openlura_memory");
 
-    if (saved) {
+        if (saved) {
       const parsed = JSON.parse(saved);
-      setChats(parsed);
-      setActiveChatId(parsed[0]?.id);
+      const normalizedChats = parsed.map((chat: any) => ({
+        ...chat,
+        pinned: chat.pinned ?? false,
+        archived: chat.archived ?? false,
+        deleted: chat.deleted ?? false,
+      }));
+
+      setChats(normalizedChats);
+      setActiveChatId(
+        normalizedChats.find(
+          (chat: any) => !chat.archived && !chat.deleted
+        )?.id ?? null
+      );
     } else {
       createNewChat();
     }
@@ -55,11 +67,31 @@ export default function Home() {
 }
   }, []);
 
-  useEffect(() => {
+      useEffect(() => {
     if (chats.length > 0) {
       localStorage.setItem("openlura_chats", JSON.stringify(chats));
     }
   }, [chats]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (!chatMenuRef.current) return;
+
+      if (!chatMenuRef.current.contains(e.target as Node)) {
+        setOpenChatMenuId(null);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  useEffect(() => {
+    setOpenChatMenuId(null);
+  }, [activeChatId]);
   useEffect(() => {
   const el = messagesRef.current;
   if (!el) return;
@@ -77,13 +109,118 @@ export default function Home() {
       id: Date.now(),
       title: "New Chat",
       messages: [{ role: "ai", content: getGreeting() }],
+      pinned: false,
+      archived: false,
+      deleted: false,
     };
 
-    setChats((prev) => [newChat, ...prev]);
+        setChats((prev) => [newChat, ...prev]);
     setActiveChatId(newChat.id);
+    setOpenChatMenuId(null);
   };
 
-  const activeChat = chats.find((c) => c.id === activeChatId);
+    const [openChatMenuId, setOpenChatMenuId] = useState<number | null>(null);
+
+  const activeChat = chats.find((c: any) => c.id === activeChatId);
+
+  const updateChatMeta = (
+    chatId: number,
+    updates: Partial<{
+      pinned: boolean;
+      archived: boolean;
+      deleted: boolean;
+    }>
+  ) => {
+    const updatedChats = chats.map((chat: any) =>
+      chat.id === chatId ? { ...chat, ...updates } : chat
+    );
+
+    setChats(updatedChats);
+
+    if (activeChatId === chatId && (updates.archived || updates.deleted)) {
+      const nextVisibleChat = updatedChats.find(
+        (chat: any) => !chat.archived && !chat.deleted
+      );
+      setActiveChatId(nextVisibleChat?.id ?? null);
+    }
+
+    setOpenChatMenuId(null);
+  };
+
+  const togglePinnedChat = (chatId: number) => {
+    const target = chats.find((chat: any) => chat.id === chatId);
+    if (!target) return;
+
+    updateChatMeta(chatId, { pinned: !target.pinned });
+  };
+
+  const archiveChat = (chatId: number) => {
+    updateChatMeta(chatId, {
+      archived: true,
+      deleted: false,
+      pinned: false,
+    });
+  };
+
+  const restoreArchivedChat = (chatId: number) => {
+    updateChatMeta(chatId, {
+      archived: false,
+      deleted: false,
+    });
+  };
+
+    const deleteChat = (chatId: number) => {
+    const confirmed = window.confirm(
+      "Weet je zeker dat je deze chat wilt verwijderen?"
+    );
+
+    if (!confirmed) return;
+
+    updateChatMeta(chatId, {
+      deleted: true,
+      archived: false,
+      pinned: false,
+    });
+  };
+
+  const restoreDeletedChat = (chatId: number) => {
+    updateChatMeta(chatId, {
+      deleted: false,
+      archived: false,
+    });
+  };
+
+  const visibleChats = chats.filter(
+    (chat: any) => !chat.archived && !chat.deleted
+  );
+
+  const pinnedChats = visibleChats.filter((chat: any) => chat.pinned);
+
+  const searchedPinnedChats = pinnedChats.filter((chat: any) =>
+    chat.title.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const regularChats = visibleChats.filter(
+    (chat: any) =>
+      !chat.pinned &&
+      chat.title.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const archivedChats = chats.filter(
+    (chat: any) => chat.archived && !chat.deleted
+  );
+
+    const deletedChats = chats.filter((chat: any) => chat.deleted);
+
+  const clearDeletedChats = () => {
+    const confirmed = window.confirm(
+      "Weet je zeker dat je alle verwijderde chats definitief wilt verwijderen?"
+    );
+
+    if (!confirmed) return;
+
+    setChats((prev) => prev.filter((chat: any) => !chat.deleted));
+  };
 
   // ✅ IMAGE HANDLER
   const handleFile = (e: any) => {
@@ -507,7 +644,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
   ☰
 </button>
 
-      <div className={`w-72 p-4 bg-white/5 backdrop-blur-xl flex flex-col fixed md:relative top-0 left-0 z-50 h-full transform transform transition-transform duration-300 ${
+            <div className={`w-72 p-4 bg-white/5 backdrop-blur-xl flex flex-col fixed md:relative top-0 left-0 z-50 h-full overflow-hidden transform transition-transform duration-300 ${
         mobileMenu ? "translate-x-0" : "-translate-x-full md:translate-x-0"
       }`}>
         
@@ -524,23 +661,282 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search..."
+                    placeholder="Search active chats..."
           className="mb-3 p-2 rounded-xl bg-white/10"
         />
 
-        <div className="flex-1 overflow-y-auto space-y-2">
-          {chats.map((chat) => (
-            <div
-              key={chat.id}
-              onClick={() => {
-  setActiveChatId(chat.id);
-  setMobileMenu(false);
-}}
-              className="p-2 rounded-lg bg-white/5 hover:bg-white/10"
-            >
-              {chat.title}
+                        <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+          {searchedPinnedChats.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs uppercase tracking-wide opacity-50 px-1">
+                Vastgemaakt
+              </p>
+
+              {searchedPinnedChats.map((chat: any) => (
+                <div
+                  key={chat.id}
+                  className={`group relative p-2 rounded-lg ${
+                    activeChatId === chat.id
+                      ? "bg-white/15"
+                      : "bg-white/5 hover:bg-white/10"
+                  }`}
+                >
+                                    <div
+                    onClick={() => {
+                      setActiveChatId(chat.id);
+                      setMobileMenu(false);
+                    }}
+                    className="pr-8 cursor-pointer flex items-center gap-2"
+                  >
+                    <span className="text-xs opacity-70">📌</span>
+                    <span>{chat.title}</span>
+                  </div>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setOpenChatMenuId((prev) =>
+                        prev === chat.id ? null : chat.id
+                      );
+                    }}
+                    className="absolute right-2 top-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+                  >
+                    ⋯
+                  </button>
+
+                  {openChatMenuId === chat.id && (
+                                        <div ref={chatMenuRef} className="absolute right-2 top-10 z-50 w-40 rounded-xl bg-[#101025] border border-white/10 shadow-xl overflow-hidden">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          togglePinnedChat(chat.id);
+                        }}
+                        className="w-full text-left px-3 py-2 hover:bg-white/10"
+                      >
+                        Losmaken
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          archiveChat(chat.id);
+                        }}
+                        className="w-full text-left px-3 py-2 hover:bg-white/10"
+                      >
+                        Archief
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteChat(chat.id);
+                        }}
+                        className="w-full text-left px-3 py-2 hover:bg-white/10 text-red-300"
+                      >
+                        Verwijderen
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
-          ))}
+          )}
+
+          <div className="space-y-2">
+            <p className="text-xs uppercase tracking-wide opacity-50 px-1">
+              Je chats
+            </p>
+
+            {regularChats.length === 0 ? (
+              <div className="p-2 rounded-lg bg-white/5 text-sm opacity-60">
+                Geen actieve chats gevonden.
+              </div>
+            ) : (
+              regularChats.map((chat: any) => (
+                <div
+                  key={chat.id}
+                  className={`group relative p-2 rounded-lg ${
+                    activeChatId === chat.id
+                      ? "bg-white/15"
+                      : "bg-white/5 hover:bg-white/10"
+                  }`}
+                >
+                  <div
+                    onClick={() => {
+                      setActiveChatId(chat.id);
+                      setMobileMenu(false);
+                    }}
+                    className="pr-8 cursor-pointer"
+                  >
+                    {chat.title}
+                  </div>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setOpenChatMenuId((prev) =>
+                        prev === chat.id ? null : chat.id
+                      );
+                    }}
+                    className="absolute right-2 top-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+                  >
+                    ⋯
+                  </button>
+
+                  {openChatMenuId === chat.id && (
+                    <div className="absolute right-2 top-10 z-50 w-40 rounded-xl bg-[#101025] border border-white/10 shadow-xl overflow-hidden">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          togglePinnedChat(chat.id);
+                        }}
+                        className="w-full text-left px-3 py-2 hover:bg-white/10"
+                      >
+                        Vastmaken
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          archiveChat(chat.id);
+                        }}
+                        className="w-full text-left px-3 py-2 hover:bg-white/10"
+                      >
+                        Archief
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteChat(chat.id);
+                        }}
+                        className="w-full text-left px-3 py-2 hover:bg-white/10 text-red-300"
+                      >
+                        Verwijderen
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-xs uppercase tracking-wide opacity-50 px-1">
+              Archief
+            </p>
+
+            {archivedChats.length === 0 ? (
+              <div className="p-2 rounded-lg bg-white/5 text-sm opacity-60">
+                Geen gearchiveerde chats.
+              </div>
+            ) : (
+              archivedChats.map((chat: any) => (
+                <div
+                  key={chat.id}
+                  className="group relative p-2 rounded-lg bg-white/5 hover:bg-white/10"
+                >
+                  <div
+                    onClick={() => {
+                      setActiveChatId(chat.id);
+                      setMobileMenu(false);
+                    }}
+                    className="pr-8 cursor-pointer opacity-80"
+                  >
+                    {chat.title}
+                  </div>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setOpenChatMenuId((prev) =>
+                        prev === chat.id ? null : chat.id
+                      );
+                    }}
+                    className="absolute right-2 top-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+                  >
+                    ⋯
+                  </button>
+
+                  {openChatMenuId === chat.id && (
+                    <div className="absolute right-2 top-10 z-50 w-40 rounded-xl bg-[#101025] border border-white/10 shadow-xl overflow-hidden">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          restoreArchivedChat(chat.id);
+                        }}
+                        className="w-full text-left px-3 py-2 hover:bg-white/10"
+                      >
+                        Terugzetten
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteChat(chat.id);
+                        }}
+                        className="w-full text-left px-3 py-2 hover:bg-white/10 text-red-300"
+                      >
+                        Verwijderen
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+
+                    <div className="space-y-2">
+            <div className="flex items-center justify-between px-1">
+              <p className="text-xs uppercase tracking-wide opacity-50">
+                Verwijderde chats
+              </p>
+              {deletedChats.length > 0 && (
+                <button
+                  onClick={clearDeletedChats}
+                  className="text-xs text-red-400 hover:text-red-300"
+                >
+                  Leegmaken
+                </button>
+              )}
+            </div>
+
+            {deletedChats.length === 0 ? (
+              <div className="p-2 rounded-lg bg-white/5 text-sm opacity-60">
+                Geen verwijderde chats.
+              </div>
+            ) : (
+              deletedChats.map((chat: any) => (
+                <div
+                  key={chat.id}
+                  className="group relative p-2 rounded-lg bg-white/5 hover:bg-white/10"
+                >
+                  <div className="pr-8 opacity-60">{chat.title}</div>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setOpenChatMenuId((prev) =>
+                        prev === chat.id ? null : chat.id
+                      );
+                    }}
+                    className="absolute right-2 top-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+                  >
+                    ⋯
+                  </button>
+
+                  {openChatMenuId === chat.id && (
+                    <div className="absolute right-2 top-10 z-50 w-40 rounded-xl bg-[#101025] border border-white/10 shadow-xl overflow-hidden">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          restoreDeletedChat(chat.id);
+                        }}
+                        className="w-full text-left px-3 py-2 hover:bg-white/10"
+                      >
+                        Terugzetten
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
         </div>
 
         <button
