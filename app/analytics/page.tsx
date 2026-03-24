@@ -50,45 +50,54 @@ export default function AnalyticsPage() {
 
 useEffect(() => {
   const load = async () => {
-  const res = await fetch("/api/feedback", {
-    cache: "no-store",
-  });
-  const data = await res.json();
+  try {
+    const res = await fetch("/api/feedback", {
+      cache: "no-store",
+    });
 
-  const localFeedback = JSON.parse(
-    localStorage.getItem("openlura_feedback") || "[]"
-  );
+    if (!res.ok) {
+      throw new Error("Feedback ophalen mislukt");
+    }
 
-  const normalizedLocal = localFeedback.map((item: any) => {
-  const isImprovementItem =
-    item.type === "improve" ||
-    item.type === "improvement" ||
-    item.source === "improvement_reply" ||
-    item.userMessage === "Direct improvement feedback";
+    const data = await res.json();
 
-  return {
-    ...item,
-    _localOnly: true,
-    type: isImprovementItem ? "improve" : item.type || "down",
-  };
-});
-
-  const combined = [...data, ...normalizedLocal];
-
-  const deduped = combined.filter((item: any, index: number, arr: any[]) => {
-    return (
-      index ===
-      arr.findIndex(
-        (x: any) =>
-          x.timestamp === item.timestamp &&
-          x.message === item.message &&
-          x.userMessage === item.userMessage &&
-          x.type === item.type
-      )
+    const localFeedback = JSON.parse(
+      localStorage.getItem("openlura_feedback") || "[]"
     );
-  });
 
-  setFeedback([...deduped].reverse());
+    const normalizedLocal = localFeedback.map((item: any) => {
+      const isImprovementItem =
+        item.type === "improve" ||
+        item.type === "improvement" ||
+        item.source === "improvement_reply" ||
+        item.userMessage === "Direct improvement feedback";
+
+      return {
+        ...item,
+        _localOnly: true,
+        type: isImprovementItem ? "improve" : item.type || "down",
+      };
+    });
+
+    const combined = [...data, ...normalizedLocal];
+
+    const deduped = combined.filter((item: any, index: number, arr: any[]) => {
+      return (
+        index ===
+        arr.findIndex(
+          (x: any) =>
+            x.timestamp === item.timestamp &&
+            x.message === item.message &&
+            x.userMessage === item.userMessage &&
+            x.type === item.type
+        )
+      );
+    });
+
+    setFeedback([...deduped].reverse());
+  } catch (error) {
+    console.error("Analytics load failed:", error);
+  }
 };
 
   load();
@@ -109,6 +118,22 @@ useEffect(() => {
     <main className="min-h-screen bg-[#050510] text-white p-6">
       
       <h1 className="text-2xl mb-6">📊 OpenLura Analytics</h1>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+  <div className="p-4 bg-white/10 rounded-2xl">
+    <p className="text-xs opacity-60">Server items</p>
+    <p className="text-xl">{feedback.filter((f) => !f._localOnly).length}</p>
+  </div>
+
+  <div className="p-4 bg-white/10 rounded-2xl">
+    <p className="text-xs opacity-60">Lokale items</p>
+    <p className="text-xl">{feedback.filter((f) => f._localOnly).length}</p>
+  </div>
+
+  <div className="p-4 bg-white/10 rounded-2xl">
+    <p className="text-xs opacity-60">Totaal zichtbaar</p>
+    <p className="text-xl">{feedback.length}</p>
+  </div>
+</div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
   <div className="p-4 bg-white/10 rounded-2xl">
     <p className="text-xs opacity-60">Server items</p>
