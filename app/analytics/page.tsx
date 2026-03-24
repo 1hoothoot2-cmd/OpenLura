@@ -31,32 +31,46 @@ useEffect(() => {
         )}
 
         {feedback.map((f, i) => (
-          <div key={i} className="p-4 bg-white/10 rounded-2xl">
+  <div key={i} className="p-4 bg-white/10 rounded-2xl">
 
-            <p className="text-xs opacity-60 mb-1">User</p>
-            <p className="mb-3">{f.userMessage}</p>
+    <p className="text-xs opacity-60 mb-1">
+      {f.type === "idea" ? "Ingezonden feedback" : "User"}
+    </p>
+    <p className="mb-3">
+      {f.type === "idea" ? f.message : f.userMessage}
+    </p>
 
-            <p className="text-xs opacity-60 mb-1">AI</p>
-            <p className="mb-3">{f.message}</p>
+    {f.type !== "idea" && (
+      <>
+        <p className="text-xs opacity-60 mb-1">AI</p>
+        <p className="mb-3">{f.message}</p>
+      </>
+    )}
 
-            <div className="flex justify-between items-center">
-              <span
-                className={
-                  f.type === "up"
-                    ? "text-green-400"
-                    : "text-red-400"
-                }
-              >
-                {f.type === "up" ? "👍 Positive" : "👎 Negative"}
-              </span>
+    <div className="flex justify-between items-center">
+      <span
+        className={
+          f.type === "up"
+            ? "text-green-400"
+            : f.type === "down"
+            ? "text-red-400"
+            : "text-yellow-400"
+        }
+      >
+        {f.type === "up"
+          ? "👍 Positive"
+          : f.type === "down"
+          ? "👎 Negative"
+          : "💡 Idee / Feedback"}
+      </span>
 
-              <span className="text-xs opacity-50">
-                {new Date(f.timestamp).toLocaleString()}
-              </span>
-            </div>
+      <span className="text-xs opacity-50">
+        {new Date(f.timestamp).toLocaleString()}
+      </span>
+    </div>
 
-          </div>
-        ))}
+  </div>
+))}
       </div>
 
     </main>
