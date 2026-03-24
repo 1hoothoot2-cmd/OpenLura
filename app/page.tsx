@@ -187,7 +187,11 @@ export default function Home() {
     (chat: any) => chat.archived && !chat.deleted
   );
 
-  const deletedChats = chats.filter((chat: any) => chat.deleted);
+    const deletedChats = chats.filter((chat: any) => chat.deleted);
+
+  const clearDeletedChats = () => {
+    setChats((prev) => prev.filter((chat: any) => !chat.deleted));
+  };
 
   // ✅ IMAGE HANDLER
   const handleFile = (e: any) => {
@@ -847,10 +851,20 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
             )}
           </div>
 
-          <div className="space-y-2">
-            <p className="text-xs uppercase tracking-wide opacity-50 px-1">
-              Verwijderde chats
-            </p>
+                    <div className="space-y-2">
+            <div className="flex items-center justify-between px-1">
+              <p className="text-xs uppercase tracking-wide opacity-50">
+                Verwijderde chats
+              </p>
+              {deletedChats.length > 0 && (
+                <button
+                  onClick={clearDeletedChats}
+                  className="text-xs text-red-400 hover:text-red-300"
+                >
+                  Leegmaken
+                </button>
+              )}
+            </div>
 
             {deletedChats.length === 0 ? (
               <div className="p-2 rounded-lg bg-white/5 text-sm opacity-60">
