@@ -19,7 +19,8 @@ export default function Home() {
   const [feedbackUI, setFeedbackUI] = useState<{ [key: string]: string }>({});
   const [feedbackGiven, setFeedbackGiven] = useState<{ [key: string]: boolean }>({});
   const [improvedFeedbackGiven, setImprovedFeedbackGiven] = useState<{ [key: string]: boolean }>({});
-
+  const [awaitingImprovement, setAwaitingImprovement] = useState<{ [key: number]: boolean }>({});
+  
   const fileRef = useRef<HTMLInputElement>(null);
 
   const greetings = [
@@ -83,6 +84,152 @@ export default function Home() {
   };
 
   const sendMessage = async () => {
+        if (!input && !image) return;
+
+    const currentChatId = activeChatId!;
+    const isImprovementReply = awaitingImprovement[currentChatId] && !!input.trim();
+
+    if (isImprovementReply) {
+      let updated = [...chats];
+      const index = updated.findIndex((c) => c.id === currentChatId);
+
+      updated[index].messages.push({
+        role: "user",
+        content: input,
+      });
+
+      const localFeedbackKey = "openlura_feedback";
+      const existingFeedback = JSON.parse(localStorage.getItem(localFeedbackKey) || "[]");
+
+      existingFeedback.push({
+        chatId: currentChatId,
+        msgIndex: updated[index].messages.length - 1,
+        type: "down",
+        message: input,
+        userMessage: "Direct improvement feedback",
+        timestamp: Date.now(),
+        source: "improvement_reply",
+      });
+
+      localStorage.setItem(localFeedbackKey, JSON.stringify(existingFeedback));
+
+      updated[index].messages.push({
+        role: "ai",
+        content: "🤖 Bedankt voor je feedback. Ik sla dit op en gebruik het om toekomstige antwoorden te verbeteren.",
+        disableFeedback: true,
+      });
+
+      setChats([...updated]);
+      setInput("");
+      setImage(null);
+
+      fetch("/api/feedback", {
+        method: "POST",
+        body: JSON.stringify({
+          chatId: currentChatId,
+          type: "improve",
+          message: input,
+          userMessage: "Direct improvement feedback",
+        }),
+      }).then(() => {
+        window.dispatchEvent(new Event("openlura_feedback_update"));
+      });
+
+      const chatMessages = updated[index].messages;
+
+      const originalUserMessage =
+        [...chatMessages]
+          .reverse()
+          .find((msg: any) => msg.role === "user" && msg.content !== input)?.content || "";
+
+      const originalAiMessage =
+        [...chatMessages]
+          .reverse()
+          .find(
+            (msg: any) =>
+              msg.role === "ai" &&
+              !msg.disableFeedback &&
+              msg.content !== "🤖 Wat kan ik beter doen?"
+          )?.content || "";
+
+      setAwaitingImprovement((prev) => ({
+        ...prev,
+        [currentChatId]: false,
+      }));
+
+      setLoading(true);
+
+      const improveRes = await fetch("/api/chat", {
+        method: "POST",
+        body: JSON.stringify({
+          message: `De gebruiker was niet tevreden met je vorige antwoord.
+
+Oorspronkelijke vraag:
+${originalUserMessage}
+
+Je vorige antwoord:
+${originalAiMessage}
+
+Verbeterpunt van de gebruiker:
+${input}
+
+Geef nu meteen een betere versie van hetzelfde antwoord.
+
+BELANGRIJK:
+- Volg het verbeterpunt van de gebruiker letterlijk op
+- Als de gebruiker zegt "korter" of "te lang": maak het antwoord maximaal 50% van de oorspronkelijke lengte
+- Als de gebruiker zegt "duidelijker": maak het antwoord simpeler en concreter
+- Als de gebruiker kritiek geeft op structuur: pas de structuur zichtbaar aan
+- Herhaal niet dezelfde fout als in het vorige antwoord
+
+Noem niet dat dit een verbeterde versie is.
+Geef alleen direct het betere antwoord.`,
+          memory: memory.join(" | "),
+          feedback: {
+            likes: 0,
+            dislikes: 1,
+            issues: [input],
+            recentIssues: [originalUserMessage],
+          },
+        }),
+      });
+
+      const improveReader = improveRes.body?.getReader();
+      const improveDecoder = new TextDecoder();
+
+      let improvedText = "";
+
+      updated[index].messages.push({
+        role: "ai",
+        content: "",
+      });
+
+      setChats([...updated]);
+
+      while (true) {
+        const { done, value } = await improveReader!.read();
+        if (done) break;
+
+        let chunk = improveDecoder.decode(value);
+
+        chunk = chunk
+          .replace(/\(blank line\)/gi, "")
+          .replace(/\n{3,}/g, "\n\n")
+          .replace(/\n\s*\n/g, "\n\n");
+
+        improvedText += chunk;
+
+        updated[index].messages[
+          updated[index].messages.length - 1
+        ].content = improvedText;
+
+        setChats([...updated]);
+      }
+
+      setLoading(false);
+
+      return;
+    }
     if (!input && !image) return;
 
     let updated = [...chats];
@@ -204,6 +351,8 @@ const res = await fetch("/api/chat", {
       message: message?.content,
       userMessage: prevMessage?.content,
     }),
+  }).then(() => {
+    window.dispatchEvent(new Event("openlura_feedback_update"));
   });
 
   const keyId = chatId + "-" + msgIndex;
@@ -226,17 +375,22 @@ const res = await fetch("/api/chat", {
     });
   }, 2000);
 
-  // 🔥 dit is je learning flow
   if (type === "down") {
     const updatedChats = [...chats];
     const chatIndex = updatedChats.findIndex(c => c.id === chatId);
 
     updatedChats[chatIndex].messages.push({
       role: "ai",
-      content: "🤖 What should I do better?"
+      content: "🤖 Wat kan ik beter doen?",
+      disableFeedback: true,
     });
 
     setChats(updatedChats);
+
+    setAwaitingImprovement(prev => ({
+      ...prev,
+      [chatId]: true
+    }));
   }
 };
 
@@ -267,18 +421,32 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 };
 
   const handleIdeaSubmit = () => {
-    const key = "openlura_ideas";
-    const existing = JSON.parse(localStorage.getItem(key) || "[]");
+  const key = "openlura_ideas";
+  const existing = JSON.parse(localStorage.getItem(key) || "[]");
 
- existing.push({
-  text: feedbackText,
-  timestamp: Date.now(),
-});
-
-    localStorage.setItem(key, JSON.stringify(existing));
-    setFeedbackText("");
-    setShowFeedbackBox(false);
+  const ideaEntry = {
+    text: feedbackText,
+    timestamp: Date.now(),
   };
+
+  existing.push(ideaEntry);
+
+  localStorage.setItem(key, JSON.stringify(existing));
+
+  fetch("/api/feedback", {
+    method: "POST",
+    body: JSON.stringify({
+      type: "idea",
+      message: feedbackText,
+      userMessage: "Feedback / Idee",
+    }),
+  }).then(() => {
+    window.dispatchEvent(new Event("openlura_feedback_update"));
+  });
+
+  setFeedbackText("");
+  setShowFeedbackBox(false);
+};
 
   return (
     <main className="flex h-screen bg-[#050510] text-white">
@@ -354,7 +522,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                   {msg.content}
                 </div>
 
-                {msg.role === "ai" && i !== 0 && (
+                {msg.role === "ai" && i !== 0 && !msg.disableFeedback && (
   <div className="flex gap-2 mt-1 text-sm opacity-70 items-center">
 
     {/* FEEDBACK (clean versie) */}

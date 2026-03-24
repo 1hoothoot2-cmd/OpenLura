@@ -34,13 +34,13 @@ useEffect(() => {
   <div key={i} className="p-4 bg-white/10 rounded-2xl">
 
     <p className="text-xs opacity-60 mb-1">
-      {f.type === "idea" ? "Ingezonden feedback" : "User"}
+      {f.type === "improve" ? "Verbeterfeedback" : "User"}
     </p>
     <p className="mb-3">
-      {f.type === "idea" ? f.message : f.userMessage}
+      {f.type === "improve" ? f.message : f.userMessage}
     </p>
 
-    {f.type !== "idea" && (
+    {f.type !== "improve" && (
       <>
         <p className="text-xs opacity-60 mb-1">AI</p>
         <p className="mb-3">{f.message}</p>
@@ -61,7 +61,7 @@ useEffect(() => {
           ? "👍 Positive"
           : f.type === "down"
           ? "👎 Negative"
-          : "💡 Idee / Feedback"}
+          : "🛠️ Verbeterfeedback"}
       </span>
 
       <span className="text-xs opacity-50">
