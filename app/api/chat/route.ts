@@ -100,6 +100,55 @@ ${feedbackRecentIssues.join("\n") || "none"}
       : "none";
 
   globalFeedback = effectiveFeedback;
+
+  const negativeFeedbackTexts = effectiveFeedback
+    .filter((f: any) => f.type === "down" || f.type === "improve")
+    .map((f: any) => `${f.userMessage || ""} ${f.message || ""}`.toLowerCase())
+    .join(" ");
+
+  const detectedFeedbackPatterns = [
+    {
+      label: "Users prefer shorter answers",
+      active:
+        negativeFeedbackTexts.includes("korter") ||
+        negativeFeedbackTexts.includes("te lang") ||
+        negativeFeedbackTexts.includes("too long") ||
+        negativeFeedbackTexts.includes("shorter"),
+    },
+    {
+      label: "Users want clearer explanations",
+      active:
+        negativeFeedbackTexts.includes("duidelijker") ||
+        negativeFeedbackTexts.includes("onduidelijk") ||
+        negativeFeedbackTexts.includes("clearer") ||
+        negativeFeedbackTexts.includes("unclear"),
+    },
+    {
+      label: "Users want more depth or context",
+      active:
+        negativeFeedbackTexts.includes("meer context") ||
+        negativeFeedbackTexts.includes("te oppervlakkig") ||
+        negativeFeedbackTexts.includes("more context") ||
+        negativeFeedbackTexts.includes("more depth"),
+    },
+    {
+      label: "Users want a different structure",
+      active:
+        negativeFeedbackTexts.includes("andere structuur") ||
+        negativeFeedbackTexts.includes("structuur") ||
+        negativeFeedbackTexts.includes("structure"),
+    },
+    {
+      label: "Users dislike vague answers",
+      active:
+        negativeFeedbackTexts.includes("te vaag") ||
+        negativeFeedbackTexts.includes("vaag") ||
+        negativeFeedbackTexts.includes("vague"),
+    },
+  ]
+    .filter((item) => item.active)
+    .map((item) => `- ${item.label}`)
+    .join("\n");
   const stream = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     stream: true,
@@ -131,6 +180,16 @@ ${globalFeedback
       `User said: "${f.userMessage || f.message}" → user was not satisfied`
   )
   .join("\n") || "none"}
+
+DETECTED FEEDBACK PATTERNS:
+${detectedFeedbackPatterns || "none"}
+
+ADAPTATION RULES:
+- If users prefer shorter answers, reduce filler and get to the point faster
+- If users want clearer explanations, simplify wording and make the logic more obvious
+- If users want more depth or context, explain the why behind the answer more clearly
+- If users want a different structure, use cleaner sections and a more readable flow
+- If users dislike vague answers, be more concrete and specific
 
 INTERPRETATION RULES:
 EMOTIONAL SUPPORT RULES:
