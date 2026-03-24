@@ -127,11 +127,20 @@ export default function Home() {
 
       localStorage.setItem(localFeedbackKey, JSON.stringify(existingFeedback));
 
-      updated[index].messages.push({
-        role: "ai",
-        content: "🤖 Bedankt voor je feedback. Ik sla dit op en gebruik het om toekomstige antwoorden te verbeteren.",
-        disableFeedback: true,
-      });
+            const keyId = currentChatId + "-" + (updated[index].messages.length - 1);
+
+      setFeedbackUI(prev => ({
+        ...prev,
+        [keyId]: "Thanks for your feedback"
+      }));
+
+      setTimeout(() => {
+        setFeedbackUI(prev => {
+          const copy = { ...prev };
+          delete copy[keyId];
+          return copy;
+        });
+      }, 2000);
 
       setChats([...updated]);
       setInput("");

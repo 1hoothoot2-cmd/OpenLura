@@ -127,11 +127,20 @@ export default function Home() {
 
       localStorage.setItem(localFeedbackKey, JSON.stringify(existingFeedback));
 
-      updated[index].messages.push({
-        role: "ai",
-        content: "🤖 Bedankt voor je feedback. Ik sla dit op en gebruik het om toekomstige antwoorden te verbeteren.",
-        disableFeedback: true,
-      });
+            const keyId = currentChatId + "-" + (updated[index].messages.length - 1);
+
+      setFeedbackUI(prev => ({
+        ...prev,
+        [keyId]: "Thanks for your feedback"
+      }));
+
+      setTimeout(() => {
+        setFeedbackUI(prev => {
+          const copy = { ...prev };
+          delete copy[keyId];
+          return copy;
+        });
+      }, 2000);
 
       setChats([...updated]);
       setInput("");
@@ -356,7 +365,10 @@ console.log("FEEDBACK CLICKED", { chatId, msgIndex, type });
 
   const chat = chats.find(c => c.id === chatId);
   const message = chat?.messages[msgIndex];
-  const prevMessage = chat?.messages[msgIndex - 1];
+  const prevMessage =
+[...(chat?.messages.slice(0, msgIndex) || [])]
+.reverse()
+.find((msg: any) => msg.role === "user");
 
   existing.push({
     chatId,
