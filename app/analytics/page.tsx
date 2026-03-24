@@ -84,7 +84,7 @@ useEffect(() => {
     console.warn("Analytics server tijdelijk niet bereikbaar");
   }
 
-  const combined = data.length > 0 ? [...data] : [...normalizedLocal];
+  const combined = [...data, ...normalizedLocal];
 
   const deduped = combined.filter((item: any, index: number, arr: any[]) => {
     return (
@@ -99,7 +99,7 @@ useEffect(() => {
     );
   });
 
-  setFeedback([...deduped].reverse());
+  setFeedback([...deduped]);
 };
 
     const runLoad = () => {
@@ -126,6 +126,9 @@ return () => {
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <h1 className="text-2xl mb-6">📊 OpenLura Analytics</h1>
+        <p className="text-xs opacity-50 mb-4">
+  Environment: {typeof window !== "undefined" ? window.location.origin : ""}
+</p>
   <div className="p-4 bg-white/10 rounded-2xl">
     <p className="text-xs opacity-60">Server items</p>
     <p className="text-xl">{feedback.filter((f) => !f._localOnly).length}</p>
