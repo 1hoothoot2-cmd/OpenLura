@@ -138,27 +138,28 @@ export default function Home() {
       setImage(null);
 
       try {
-        const feedbackRes = await fetch("/api/feedback", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            chatId: currentChatId,
-            type: "improve",
-            message: input,
-            userMessage: "Direct improvement feedback",
-          }),
-        });
+  const feedbackRes = await fetch("/api/feedback", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      chatId: currentChatId,
+      type: "improve",
+      message: input,
+      userMessage: "Direct improvement feedback",
+      source: "improvement_reply",
+    }),
+  });
 
-        if (!feedbackRes.ok) {
-          throw new Error("Improvement feedback POST failed");
-        }
+  if (!feedbackRes.ok) {
+    throw new Error("Improvement feedback POST failed");
+  }
 
-        window.dispatchEvent(new Event("openlura_feedback_update"));
-      } catch (error) {
-        console.error("OpenLura improvement feedback save failed:", error);
-      }
+  window.dispatchEvent(new Event("openlura_feedback_update"));
+} catch (error) {
+  console.error("OpenLura improvement feedback save failed:", error);
+}
 
       const chatMessages = updated[index].messages;
 
@@ -368,29 +369,28 @@ const res = await fetch("/api/chat", {
   localStorage.setItem(key, JSON.stringify(existing));
 
       try {
-    const res = await fetch("/api/feedback", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        chatId,
-        msgIndex,
-        type,
-        message: message?.content,
-        userMessage: prevMessage?.content,
-      }),
-    });
+  const res = await fetch("/api/feedback", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      chatId,
+      msgIndex,
+      type,
+      message: message?.content,
+      userMessage: prevMessage?.content,
+    }),
+  });
 
-    if (!res.ok) {
-      throw new Error("Feedback POST failed");
-    }
-
-    window.dispatchEvent(new Event("openlura_feedback_update"));
-  } catch (error) {
-    console.error("OpenLura feedback save failed:", error);
-
+  if (!res.ok) {
+    throw new Error("Feedback POST failed");
   }
+
+  window.dispatchEvent(new Event("openlura_feedback_update"));
+} catch (error) {
+  console.error("OpenLura feedback save failed:", error);
+}
 
   const keyId = chatId + "-" + msgIndex;
 
