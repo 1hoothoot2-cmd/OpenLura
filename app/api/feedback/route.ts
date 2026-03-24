@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+export const dynamic = "force-dynamic";
 import { promises as fs } from "fs";
 import path from "path";
 
@@ -48,5 +49,12 @@ export async function POST(req: Request) {
 
 export async function GET() {
   const data = await readFeedbackFile();
-  return NextResponse.json(data);
+
+  return NextResponse.json(data, {
+    headers: {
+      "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+      Pragma: "no-cache",
+      Expires: "0",
+    },
+  });
 }

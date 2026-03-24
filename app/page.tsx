@@ -144,6 +144,7 @@ export default function Home() {
         window.dispatchEvent(new Event("openlura_feedback_update"));
       } catch (error) {
         console.error("OpenLura improvement feedback save failed:", error);
+alert("Verbeterfeedback opslaan mislukt.");
       }
 
       const chatMessages = updated[index].messages;
@@ -375,6 +376,7 @@ const res = await fetch("/api/chat", {
     window.dispatchEvent(new Event("openlura_feedback_update"));
   } catch (error) {
     console.error("OpenLura feedback save failed:", error);
+alert("Feedback opslaan mislukt.");
   }
 
   const keyId = chatId + "-" + msgIndex;

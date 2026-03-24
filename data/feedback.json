@@ -6,5 +6,28 @@
     "message": "Wat kan ik voor je doen? Heb je misschien een specifieke vraag of onderwerp waar je meer over wilt weten? Laat het me weten!",
     "userMessage": "gegroet",
     "timestamp": 1774368762846
+  },
+  {
+    "chatId": 1774368756097,
+    "msgIndex": 2,
+    "type": "down",
+    "message": "Wat kan ik voor je doen? Heb je misschien een specifieke vraag of onderwerp waar je meer over wilt weten? Laat het me weten!",
+    "userMessage": "gegroet",
+    "timestamp": 1774369061540
+  },
+  {
+    "chatId": 1774368756097,
+    "type": "improve",
+    "message": "je doet dit goed maar ik test het even",
+    "userMessage": "Direct improvement feedback",
+    "timestamp": 1774369077998
+  },
+  {
+    "chatId": 1774368756097,
+    "msgIndex": 6,
+    "type": "up",
+    "message": "Hallo! Hoe kan ik je helpen? Heb je een specifieke vraag of onderwerp waar je meer over wilt weten?",
+    "userMessage": "🤖 Bedankt voor je feedback. Ik sla dit op en gebruik het om toekomstige antwoorden te verbeteren.",
+    "timestamp": 1774369082523
   }
 ]
