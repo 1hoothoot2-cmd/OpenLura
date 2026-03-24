@@ -4,10 +4,21 @@ import { useEffect, useState } from "react";
 export default function AnalyticsPage() {
   const [feedback, setFeedback] = useState<any[]>([]);
 
-  useEffect(() => {
-    const data = JSON.parse(localStorage.getItem("openlura_feedback") || "[]");
-    setFeedback(data.reverse());
-  }, []);
+useEffect(() => {
+  const load = async () => {
+    const res = await fetch("/api/feedback");
+    const data = await res.json();
+    setFeedback([...data].reverse());
+  };
+
+  load();
+
+  window.addEventListener("openlura_feedback_update", load);
+
+  return () => {
+    window.removeEventListener("openlura_feedback_update", load);
+  };
+}, []);
 
   return (
     <main className="min-h-screen bg-[#050510] text-white p-6">
