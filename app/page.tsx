@@ -98,7 +98,7 @@ export default function Home() {
   };
 
   const sendMessage = async () => {
-        if (!input && !image) return;
+        if (!input.trim() && !image) return;
 
     const currentChatId = activeChatId!;
     const isImprovementReply = awaitingImprovement[currentChatId] && !!input.trim();
@@ -633,17 +633,32 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
               />
             )}
 
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-              className="flex-1 p-2 bg-white/10 rounded-xl"
-              placeholder="Ask OpenLura..."
-            />
+            <textarea
+  value={input}
+  onChange={(e) => {
+    setInput(e.target.value);
+    e.target.style.height = "auto";
+    e.target.style.height = `${Math.min(e.target.scrollHeight, 140)}px`;
+  }}
+  onKeyDown={(e) => {
+    const isMobile = window.innerWidth < 768;
 
-            <button onClick={sendMessage} className="px-4 bg-purple-500 rounded-xl">
-              Send
-            </button>
+    if (!isMobile && e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  }}
+  className="flex-1 p-3 bg-white/10 rounded-2xl resize-none min-h-[52px] max-h-[140px] outline-none"
+  placeholder="Ask OpenLura..."
+  rows={1}
+/>
+
+            <button
+  onClick={sendMessage}
+  className="w-12 h-12 shrink-0 flex items-center justify-center bg-purple-500 rounded-full text-xl"
+>
+  ↑
+</button>
           </div>
 
         </div>
