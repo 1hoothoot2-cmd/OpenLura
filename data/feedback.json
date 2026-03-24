@@ -29,5 +29,13 @@
     "message": "Hallo! Hoe kan ik je helpen? Heb je een specifieke vraag of onderwerp waar je meer over wilt weten?",
     "userMessage": "🤖 Bedankt voor je feedback. Ik sla dit op en gebruik het om toekomstige antwoorden te verbeteren.",
     "timestamp": 1774369082523
+  },
+  {
+    "chatId": 1774376426285,
+    "msgIndex": 2,
+    "type": "up",
+    "message": "Hoi! Hoe kan ik je vandaag helpen?",
+    "userMessage": "hoi chat",
+    "timestamp": 1774376433377
   }
 ]
