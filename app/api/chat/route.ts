@@ -1,16 +1,30 @@
 import OpenAI from "openai"; 
 
+let globalFeedback: any[] = [];
+
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
 export async function POST(req: Request) {
   const { message, memory, location, feedback } = await req.json();
+  const feedbackContext = feedback
+  ? `
+Likes: ${feedback.likes || 0}
+Dislikes: ${feedback.dislikes || 0}
 
-  const feedbackContext = feedback?.length
-    ? JSON.stringify(feedback)
-    : "none";
+Recent issues:
+${feedback.recentIssues?.join("\n") || "none"}
+`
+  : "none";
+  if (feedback) {
 
+  globalFeedback.push({
+    ...feedback,
+    message,
+    timestamp: Date.now(),
+  });
+}
   const stream = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     stream: true,
@@ -28,8 +42,14 @@ CRITICAL RULES:
 - NEVER write "(blank line)"
 - Learn from feedback: avoid disliked responses and reinforce liked ones
 
-FEEDBACK CONTEXT:
+FEEDBACK CONTEXT (recent user):
 ${feedbackContext}
+
+GLOBAL LEARNING:
+Total sessions: ${globalFeedback.length}
+
+Common issues:
+${globalFeedback.slice(-10).map(f => f.message).join("\n") || "none"}
 
 INTERPRETATION RULES:
 - If multiple negative feedback entries exist, detect patterns and avoid them
