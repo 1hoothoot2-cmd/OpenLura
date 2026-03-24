@@ -272,20 +272,16 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
   }));
 
   if (type === "down") {
-    const userNote = prompt("What should I do better?");
+  const updatedChats = [...chats];
+  const chatIndex = updatedChats.findIndex(c => c.id === chatId);
 
-    if (userNote) {
-      const existing = JSON.parse(localStorage.getItem("openlura_feedback") || "[]");
+  updatedChats[chatIndex].messages.push({
+    role: "ai",
+    content: "🤔 What should I improve about my previous answer?"
+  });
 
-      existing.push({
-        type: "improved_down",
-        note: userNote,
-        timestamp: Date.now(),
-      });
-
-      localStorage.setItem("openlura_feedback", JSON.stringify(existing));
-    }
-  }
+  setChats(updatedChats);
+}
 };
 
   const handleIdeaSubmit = () => {
