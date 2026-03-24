@@ -2,29 +2,104 @@ import OpenAI from "openai";
 
 let globalFeedback: any[] = [];
 
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+async function getRecentServerFeedback() {
+  if (!supabaseUrl || !supabaseServiceRoleKey) return [];
+
+  try {
+    const res = await fetch(
+      `${supabaseUrl}/rest/v1/openlura_feedback?select=type,message,userMessage,timestamp&order=timestamp.desc&limit=30`,
+      {
+        method: "GET",
+        headers: {
+          apikey: supabaseServiceRoleKey,
+          Authorization: `Bearer ${supabaseServiceRoleKey}`,
+        },
+        cache: "no-store",
+      }
+    );
+
+    if (!res.ok) {
+      console.error(
+        "OpenLura server feedback fetch failed:",
+        res.status,
+        await res.text()
+      );
+      return [];
+    }
+
+    return await res.json();
+  } catch (error) {
+    console.error("OpenLura server feedback fetch error:", error);
+    return [];
+  }
+}
+
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
 export async function POST(req: Request) {
   const { message, memory, location, feedback } = await req.json();
-  const feedbackContext = feedback
-  ? `
-Likes: ${feedback.likes || 0}
-Dislikes: ${feedback.dislikes || 0}
+   const serverFeedback = await getRecentServerFeedback();
+
+  const normalizedServerFeedback = serverFeedback.map((item: any) => ({
+    type: item.type,
+    message: item.message,
+    userMessage: item.userMessage,
+    timestamp: item.timestamp,
+  }));
+
+  const effectiveFeedback =
+    normalizedServerFeedback.length > 0
+      ? normalizedServerFeedback
+      : feedback
+      ? [
+          {
+            type: "up",
+            message,
+            userMessage: "",
+            timestamp: Date.now(),
+            weight: feedback.likes || 0,
+          },
+          {
+            type: "down",
+            message: (feedback.issues || []).join(" | "),
+            userMessage: (feedback.recentIssues || []).join(" | "),
+            timestamp: Date.now(),
+            weight: feedback.dislikes || 0,
+          },
+        ]
+      : [];
+
+  const feedbackLikes = effectiveFeedback.filter(
+    (f: any) => f.type === "up"
+  ).length;
+
+  const feedbackDislikes = effectiveFeedback.filter(
+    (f: any) => f.type === "down"
+  ).length;
+
+  const feedbackRecentIssues = effectiveFeedback
+    .filter((f: any) => f.type === "down")
+    .map((f: any) => f.userMessage || f.message)
+    .filter(Boolean)
+    .slice(0, 5);
+
+  const feedbackContext =
+    effectiveFeedback.length > 0
+      ? `
+Likes: ${feedbackLikes}
+Dislikes: ${feedbackDislikes}
 
 Recent issues:
-${feedback.recentIssues?.join("\n") || "none"}
+${feedbackRecentIssues.join("\n") || "none"}
 `
-  : "none";
-  if (feedback) {
+      : "none";
 
-  globalFeedback.push({
-    ...feedback,
-    message,
-    timestamp: Date.now(),
-  });
-}
+  globalFeedback = effectiveFeedback;
   const stream = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     stream: true,
@@ -50,7 +125,11 @@ Total sessions: ${globalFeedback.length}
 
 Common failed patterns (avoid these types of responses):
 ${globalFeedback
-  .map(f => `User said: "${f.message}" → user was not satisfied`)
+  .filter((f: any) => f.type === "down")
+  .map(
+    (f: any) =>
+      `User said: "${f.userMessage || f.message}" → user was not satisfied`
+  )
   .join("\n") || "none"}
 
 INTERPRETATION RULES:
