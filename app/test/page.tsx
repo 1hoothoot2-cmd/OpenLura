@@ -194,6 +194,16 @@ const res = await fetch("/api/chat", {
   });
 
   localStorage.setItem(key, JSON.stringify(existing));
+  fetch("/api/feedback", {
+  method: "POST",
+  body: JSON.stringify({
+    chatId,
+    msgIndex,
+    type,
+    message: message?.content,
+    userMessage: prevMessage?.content,
+  }),
+});
 
   const lang = prevMessage?.content?.match(/\b(hallo|hoe|wat|waar|ik)\b/i)
     ? "nl"
