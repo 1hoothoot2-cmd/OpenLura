@@ -73,7 +73,17 @@ export async function GET() {
 
     if (!res.ok) {
       const errorText = await res.text();
-      throw new Error(errorText || "Supabase select failed");
+      console.error("Supabase GET failed:", res.status, errorText);
+
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Feedback ophalen mislukt",
+          supabaseStatus: res.status,
+          supabaseError: errorText,
+        },
+        { status: 500 }
+      );
     }
 
     const data = await res.json();
@@ -88,7 +98,11 @@ export async function GET() {
   } catch (error) {
     console.error("Feedback GET failed:", error);
     return NextResponse.json(
-      { success: false, error: "Feedback ophalen mislukt" },
+      {
+        success: false,
+        error: "Feedback ophalen mislukt",
+        details: String(error),
+      },
       { status: 500 }
     );
   }
