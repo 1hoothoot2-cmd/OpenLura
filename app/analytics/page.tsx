@@ -50,52 +50,57 @@ export default function AnalyticsPage() {
 
 useEffect(() => {
   const load = async () => {
-  const res = await fetch("/api/feedback", {
-  cache: "no-store",
-});
-  const data = await res.json();
+    const res = await fetch("/api/feedback", {
+      cache: "no-store",
+    });
+    const data = await res.json();
 
-  const localFeedback = JSON.parse(
-    localStorage.getItem("openlura_feedback") || "[]"
-  );
+    const localFeedback = JSON.parse(
+      localStorage.getItem("openlura_feedback") || "[]"
+    );
 
     const normalizedLocal = localFeedback.map((item: any) => {
-    const isImprovementItem =
-      item.type === "improve" ||
-      item.type === "improvement" ||
-      item.source === "improvement_reply" ||
-      item.userMessage === "Direct improvement feedback";
+      const isImprovementItem =
+        item.type === "improve" ||
+        item.type === "improvement" ||
+        item.source === "improvement_reply" ||
+        item.userMessage === "Direct improvement feedback";
 
-    return {
-      ...item,
-      type: isImprovementItem ? "improve" : item.type || "down",
-    };
-  });
+      return {
+        ...item,
+        type: isImprovementItem ? "improve" : item.type || "down",
+      };
+    });
 
-        const combined = [...data, ...normalizedLocal];
+    const combined = [...data, ...normalizedLocal];
 
     const deduped = combined.filter((item: any, index: number, arr: any[]) => {
-    return (
-      index ===
-      arr.findIndex(
-        (x: any) =>
-          x.timestamp === item.timestamp &&
-          x.message === item.message &&
-          x.userMessage === item.userMessage &&
-          x.type === item.type
-      )
-    );
-  });
+      return (
+        index ===
+        arr.findIndex(
+          (x: any) =>
+            x.timestamp === item.timestamp &&
+            x.message === item.message &&
+            x.userMessage === item.userMessage &&
+            x.type === item.type
+        )
+      );
+    });
 
-  setFeedback([...deduped].reverse());
-};
+    setFeedback([...deduped].reverse());
+  };
 
   load();
 
+  const interval = setInterval(load, 3000);
+
   window.addEventListener("openlura_feedback_update", load);
+  window.addEventListener("focus", load);
 
   return () => {
+    clearInterval(interval);
     window.removeEventListener("openlura_feedback_update", load);
+    window.removeEventListener("focus", load);
   };
 }, []);
 
