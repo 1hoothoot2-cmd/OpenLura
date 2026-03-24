@@ -22,6 +22,7 @@ export default function Home() {
   const [awaitingImprovement, setAwaitingImprovement] = useState<{ [key: number]: boolean }>({});
   
   const fileRef = useRef<HTMLInputElement>(null);
+  const messagesRef = useRef<HTMLDivElement>(null);
 
   const greetings = [
     "👋 Hey! Waar kan ik je mee helpen?",
@@ -59,6 +60,17 @@ export default function Home() {
       localStorage.setItem("openlura_chats", JSON.stringify(chats));
     }
   }, [chats]);
+  useEffect(() => {
+  const el = messagesRef.current;
+  if (!el) return;
+
+  requestAnimationFrame(() => {
+    el.scrollTo({
+      top: el.scrollHeight,
+      behavior: "smooth",
+    });
+  });
+}, [activeChatId, chats, loading]);
 
   const createNewChat = () => {
     const newChat = {
@@ -553,7 +565,10 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
       <div className="flex-1 flex items-stretch justify-center md:p-4 pt-16">
         <div className="w-full max-w-2xl h-full md:h-[90%] flex flex-col bg-white/10 md:rounded-3xl backdrop-blur-2xl">
 
-          <div className="flex-1 p-4 pt-6 md:pt-4 overflow-y-auto space-y-3 pb-28 md:pb-4">
+          <div
+  ref={messagesRef}
+  className="flex-1 p-4 pt-6 md:pt-4 overflow-y-auto space-y-3 pb-28 md:pb-4"
+>
             {activeChat?.messages.map((msg: any, i: number) => (
               <div key={i}>
                 <div className={`p-3 rounded-2xl max-w-[75%] whitespace-pre-line ${
