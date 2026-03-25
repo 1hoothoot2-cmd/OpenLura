@@ -263,7 +263,7 @@ export default function AnalyticsPage() {
     ).length,
   };
 
-  const personalWeightedSignals = {
+    const personalWeightedSignals = {
     shorter: personalLearningPool.filter((f: any) =>
       `${f.userMessage || ""} ${f.message || ""}`.toLowerCase().match(/korter|te lang|too long|shorter/)
     ).length,
@@ -273,6 +273,20 @@ export default function AnalyticsPage() {
     structure: personalLearningPool.filter((f: any) =>
       `${f.userMessage || ""} ${f.message || ""}`.toLowerCase().match(/andere structuur|structuur|structure/)
     ).length,
+  };
+
+  const getLearningConfidence = (count: number) => {
+    if (count >= 6) return "High";
+    if (count >= 3) return "Medium";
+    if (count >= 1) return "Low";
+    return "None";
+  };
+
+  const getLearningConfidenceColor = (confidence: string) => {
+    if (confidence === "High") return "text-green-400";
+    if (confidence === "Medium") return "text-yellow-300";
+    if (confidence === "Low") return "text-blue-300";
+    return "text-white/40";
   };
 
   useEffect(() => {
@@ -1057,7 +1071,7 @@ return () => {
     </div>
   </div>
 
-  <div className="grid md:grid-cols-3 gap-4 text-sm mb-4">
+    <div className="grid md:grid-cols-3 gap-4 text-sm mb-4">
     <div className="p-3 rounded-xl bg-white/5">
       <p className="text-xs opacity-60 mb-2">Global weighted signals</p>
       <div className="space-y-2">
@@ -1072,6 +1086,26 @@ return () => {
         <div className="flex justify-between">
           <span>Structuur</span>
           <span className="opacity-60">{globalWeightedSignals.structure}</span>
+        </div>
+      </div>
+      <div className="mt-3 pt-3 border-t border-white/10 space-y-2">
+        <div className="flex justify-between">
+          <span>Korter confidence</span>
+          <span className={getLearningConfidenceColor(getLearningConfidence(globalWeightedSignals.shorter))}>
+            {getLearningConfidence(globalWeightedSignals.shorter)}
+          </span>
+        </div>
+        <div className="flex justify-between">
+          <span>Duidelijker confidence</span>
+          <span className={getLearningConfidenceColor(getLearningConfidence(globalWeightedSignals.clearer))}>
+            {getLearningConfidence(globalWeightedSignals.clearer)}
+          </span>
+        </div>
+        <div className="flex justify-between">
+          <span>Structuur confidence</span>
+          <span className={getLearningConfidenceColor(getLearningConfidence(globalWeightedSignals.structure))}>
+            {getLearningConfidence(globalWeightedSignals.structure)}
+          </span>
         </div>
       </div>
     </div>
@@ -1090,6 +1124,26 @@ return () => {
         <div className="flex justify-between">
           <span>Structuur</span>
           <span className="opacity-60">{personalWeightedSignals.structure}</span>
+        </div>
+      </div>
+      <div className="mt-3 pt-3 border-t border-white/10 space-y-2">
+        <div className="flex justify-between">
+          <span>Korter confidence</span>
+          <span className={getLearningConfidenceColor(getLearningConfidence(personalWeightedSignals.shorter))}>
+            {getLearningConfidence(personalWeightedSignals.shorter)}
+          </span>
+        </div>
+        <div className="flex justify-between">
+          <span>Duidelijker confidence</span>
+          <span className={getLearningConfidenceColor(getLearningConfidence(personalWeightedSignals.clearer))}>
+            {getLearningConfidence(personalWeightedSignals.clearer)}
+          </span>
+        </div>
+        <div className="flex justify-between">
+          <span>Structuur confidence</span>
+          <span className={getLearningConfidenceColor(getLearningConfidence(personalWeightedSignals.structure))}>
+            {getLearningConfidence(personalWeightedSignals.structure)}
+          </span>
         </div>
       </div>
     </div>
