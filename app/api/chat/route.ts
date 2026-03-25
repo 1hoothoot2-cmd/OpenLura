@@ -474,9 +474,23 @@ CRITICAL RULES:
 - NEVER write "(blank line)"
 - Learn from feedback: avoid disliked responses and reinforce liked ones
 - Use live web search when the user asks for current, local, location-based, business, travel, venue, opening-hours, review, route, event, or factual web-dependent information
-- When web search is used, ground the answer in the found sources
+- When web search is used:
+  → ALWAYS include at least 2–3 real sources in the answer
+  → Mention actual names of places, products, or locations
+  → Prefer clickable, real-world useful results (restaurants, places, pages)
+  → If possible, refer to the source naturally in the answer (not only at the bottom)
+
+- Never give generic lists without sources
+- Never give “top 10” style answers without at least some real references
+- If you list places, businesses, cafés, restaurants, venues, or locations, prefer fewer stronger options over a vague long list
+- For location or business recommendations, only mention options that can be supported by web results
+- Make the answer itself mention why each option is relevant, instead of only naming many places
 - Never invent sources, links, addresses, ratings, opening hours, or locations
 - If the answer depends on fresh web information, prefer searched information over guessing
+- If an image is present and no text is provided, treat the request as: "Analyze this image and tell me clearly what it shows"
+- If an image is present and text is also provided, answer the user's question using the image as primary context
+- Do not ignore the image when one is attached
+- If the image is unclear, say what is visible and what is uncertain
 
 GLOBAL FEEDBACK CONTEXT:
 ${feedbackContext}
@@ -677,7 +691,7 @@ VARIANT RULES:
 
 FOLLOW THIS STYLE STRICTLY.
     `,
-    input: [
+        input: [
       {
         role: "user",
         content: [
@@ -699,29 +713,56 @@ FOLLOW THIS STYLE STRICTLY.
             : []),
         ],
       },
-    ] as any,
-  });
+    ],
+  } as any);
 
-  const aiText = response.output_text || "";
+    const aiText =
+    response.output_text ||
+    (response.output || [])
+      .flatMap((item: any) =>
+        item.type === "message" ? item.content || [] : []
+      )
+      .filter((part: any) => part.type === "output_text")
+      .map((part: any) => part.text || "")
+      .join("");
+
+  const annotationSources: [string, { title: string; url: string }][] = (response.output || [])
+    .flatMap((item: any) =>
+      item.type === "message" ? item.content || [] : []
+    )
+    .flatMap((part: any) =>
+      part.type === "output_text" ? part.annotations || [] : []
+    )
+    .filter((annotation: any) => annotation.type === "url_citation" && annotation.url)
+    .map(
+      (annotation: any): [string, { title: string; url: string }] => [
+        annotation.url,
+        {
+          title: annotation.title || annotation.url,
+          url: annotation.url,
+        },
+      ]
+    );
+
+  const webSearchSources: [string, { title: string; url: string }][] = (response.output || [])
+    .filter((item: any) => item.type === "web_search_call")
+    .flatMap((item: any) => item.action?.sources || [])
+    .filter((source: any) => source?.url)
+    .map(
+      (source: any): [string, { title: string; url: string }] => [
+        source.url,
+        {
+          title: source.title || source.url,
+          url: source.url,
+        },
+      ]
+    );
 
   const sources = Array.from(
-    new Map(
-      (response.output || [])
-        .flatMap((item: any) =>
-          item.type === "message" ? item.content || [] : []
-        )
-        .flatMap((part: any) =>
-          part.type === "output_text" ? part.annotations || [] : []
-        )
-        .filter((annotation: any) => annotation.type === "url_citation" && annotation.url)
-        .map((annotation: any) => [
-          annotation.url,
-          {
-            title: annotation.title || annotation.url,
-            url: annotation.url,
-          },
-        ])
-    ).values()
+    new Map<string, { title: string; url: string }>([
+      ...annotationSources,
+      ...webSearchSources,
+    ]).values()
   ).slice(0, 5);
 
   const encoder = new TextEncoder();
