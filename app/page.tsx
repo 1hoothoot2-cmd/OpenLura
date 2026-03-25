@@ -39,48 +39,79 @@ export default function Home() {
   const getGreeting = () =>
     greetings[Math.floor(Math.random() * greetings.length)];
 
-  useEffect(() => {
-    const saved = localStorage.getItem("openlura_chats");
-    const mem = localStorage.getItem("openlura_memory");
+        useEffect(() => {
+    try {
+      const saved = localStorage.getItem("openlura_chats");
+      const mem = localStorage.getItem("openlura_memory");
 
-        if (saved) {
-      const parsed = JSON.parse(saved);
-      const normalizedChats = parsed.map((chat: any) => ({
-        ...chat,
-        pinned: chat.pinned ?? false,
-        archived: chat.archived ?? false,
-        deleted: chat.deleted ?? false,
-      }));
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const normalizedChats = parsed.map((chat: any) => ({
+          ...chat,
+          pinned: chat.pinned ?? false,
+          archived: chat.archived ?? false,
+          deleted: chat.deleted ?? false,
+          messages: Array.isArray(chat.messages)
+            ? chat.messages.map((msg: any) => ({
+                ...msg,
+                image: msg.image === "[image-uploaded]" ? null : msg.image ?? null,
+              }))
+            : [],
+        }));
 
-      setChats(normalizedChats);
-      setActiveChatId(
-        normalizedChats.find(
-          (chat: any) => !chat.archived && !chat.deleted
-        )?.id ?? null
-      );
-    } else {
+        setChats(normalizedChats);
+        setActiveChatId(
+          normalizedChats.find(
+            (chat: any) => !chat.archived && !chat.deleted
+          )?.id ?? null
+        );
+      } else {
+        createNewChat();
+      }
+
+      // ✅ MEMORY LOAD FIX
+      if (mem) {
+        const parsed = JSON.parse(mem);
+        if (parsed.length && typeof parsed[0] === "string") {
+          setMemory(parsed.map((m: string) => ({ text: m, weight: 0.5 })));
+        } else {
+          setMemory(parsed);
+        }
+      }
+    } catch (error) {
+      console.error("OpenLura load failed:", error);
+      localStorage.removeItem("openlura_chats");
       createNewChat();
     }
 
-    // ✅ MEMORY LOAD FIX
-        if (mem) {
-      const parsed = JSON.parse(mem);
-      if (parsed.length && typeof parsed[0] === "string") {
-        setMemory(parsed.map((m: string) => ({ text: m, weight: 0.5 })));
-      } else {
-        setMemory(parsed);
-      }
-    }
-
     if (window.innerWidth >= 768) {
-  setMobileMenu(true);
-} else {
-  setMobileMenu(false);
-}
+      setMobileMenu(true);
+    } else {
+      setMobileMenu(false);
+    }
   }, []);
 
-        useEffect(() => {
-    localStorage.setItem("openlura_chats", JSON.stringify(chats));
+      useEffect(() => {
+    try {
+      const safeChats = chats.map((chat: any) => ({
+        ...chat,
+        messages: (chat.messages || []).map((msg: any) => {
+          if (!msg.image) return msg;
+
+          return {
+            ...msg,
+            image:
+              typeof msg.image === "string" && msg.image.startsWith("data:")
+                ? "[image-uploaded]"
+                : msg.image,
+          };
+        }),
+      }));
+
+      localStorage.setItem("openlura_chats", JSON.stringify(safeChats));
+    } catch (error) {
+      console.error("OpenLura chat persistence failed:", error);
+    }
   }, [chats]);
 
   useEffect(() => {
@@ -321,7 +352,7 @@ export default function Home() {
         img.onerror = () => reject(new Error("Image load failed"));
       });
 
-      const maxSize = 1280;
+            const maxSize = 960;
       let { width, height } = img;
 
       if (width > maxSize || height > maxSize) {
@@ -339,7 +370,7 @@ export default function Home() {
 
       ctx.drawImage(img, 0, 0, width, height);
 
-      return canvas.toDataURL("image/jpeg", 0.82);
+            return canvas.toDataURL("image/jpeg", 0.72);
     };
 
     const setImageFromFile = async (file?: File | null) => {
