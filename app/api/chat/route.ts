@@ -494,11 +494,11 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
       isSearchStyleRequest ||
       normalizedMessageForRouting.length <= 40;
 
-    const shouldUseFastTextPath =
+        const shouldUseFastTextPath =
       !image &&
       !shouldUseWebSearch &&
       !!normalizedMessageForRouting &&
-      normalizedMessageForRouting.length <= 40;
+      normalizedMessageForRouting.length <= 120;
 
         if (shouldUseFastTextPath) {
       const cacheKey = buildCacheKey({
@@ -676,15 +676,27 @@ Do not use web search for this path.`,
       }
     }
 
+        const isLightPrompt =
+      !image &&
+      !shouldUseWebSearch &&
+      !!normalizedMessageForRouting &&
+      normalizedMessageForRouting.length <= 120;
+
     const response = await openai.responses.create({
-      model: "gpt-4.1-mini",
-      store: false,
-      tools: shouldUseWebSearch ? [{ type: "web_search_preview" }] : [],
-      include: shouldUseWebSearch ? ["web_search_call.action.sources"] : [],
-      text: {
-        verbosity: "medium", 
-      },
-      instructions: `
+    model: "gpt-4.1-mini",
+    store: false,
+    tools: shouldUseWebSearch ? [{ type: "web_search_preview" }] : [],
+    include: shouldUseWebSearch ? ["web_search_call.action.sources"] : [],
+    text: {
+      verbosity: "medium",
+    },
+    instructions: isLightPrompt
+      ? `You are OpenLura.
+
+Respond in the same language as the user.
+Be clear, useful, and direct.
+Avoid long structured sections unless needed.`
+      : `
 You are OpenLura.
 
 You improve yourself based on user feedback.

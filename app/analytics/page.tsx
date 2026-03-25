@@ -71,9 +71,22 @@ export default function AnalyticsPage() {
   const positiveFeedback = feedback.filter((f: any) => f.type === "up");
   const improvementFeedback = feedback.filter((f: any) => f.type === "improve");
   const ideaFeedback = feedback.filter((f: any) => f.type === "idea");
-  const bugIdeas = ideaFeedback.filter((f: any) => f.source === "idea_bug");
+    const bugIdeas = ideaFeedback.filter((f: any) => f.source === "idea_bug");
   const adjustmentIdeas = ideaFeedback.filter((f: any) => f.source === "idea_adjustment");
   const learningIdeas = ideaFeedback.filter((f: any) => f.source === "idea_feedback_learning");
+
+  const variantAFeedback = feedback.filter((f: any) => f.source === "ab_test_A");
+  const variantBFeedback = feedback.filter((f: any) => f.source === "ab_test_B");
+
+  const variantAScore = {
+    up: variantAFeedback.filter((f: any) => f.type === "up").length,
+    down: variantAFeedback.filter((f: any) => f.type === "down").length,
+  };
+
+  const variantBScore = {
+    up: variantBFeedback.filter((f: any) => f.type === "up").length,
+    down: variantBFeedback.filter((f: any) => f.type === "down").length,
+  };
 
   const improvementTexts = improvementFeedback
     .map((f: any) => (f.message || "").toLowerCase().trim())
@@ -1167,6 +1180,40 @@ return () => {
     </div>
   </div>
 </div>
+<div className="p-4 bg-white/10 rounded-2xl mb-6">
+  <h2 className="text-lg mb-3">🧪 A/B Learning Test</h2>
+
+  <div className="grid md:grid-cols-2 gap-4 text-sm">
+    <div className="p-3 rounded-xl bg-white/5">
+      <p className="text-xs opacity-60 mb-2">Variant A</p>
+      <div className="space-y-2">
+        <div className="flex justify-between">
+          <span>👍 Positief</span>
+          <span className="opacity-60">{variantAScore.up}</span>
+        </div>
+        <div className="flex justify-between">
+          <span>👎 Negatief</span>
+          <span className="opacity-60">{variantAScore.down}</span>
+        </div>
+      </div>
+    </div>
+
+    <div className="p-3 rounded-xl bg-white/5">
+      <p className="text-xs opacity-60 mb-2">Variant B</p>
+      <div className="space-y-2">
+        <div className="flex justify-between">
+          <span>👍 Positief</span>
+          <span className="opacity-60">{variantBScore.up}</span>
+        </div>
+        <div className="flex justify-between">
+          <span>👎 Negatief</span>
+          <span className="opacity-60">{variantBScore.down}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div className="p-4 bg-white/10 rounded-2xl mb-6">
   <h2 className="text-lg mb-3">🤖 AI Actie Suggesties</h2>
 

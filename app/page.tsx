@@ -741,7 +741,16 @@ Geef alleen direct het betere antwoord.`,
     setInput("");
     setImage(null);
     setLoading(true);
-    setLoadingStage(imageToSend ? "analyzing" : "typing");
+setLoadingStage(imageToSend ? "analyzing" : "typing");
+
+// instant visual feedback (feels faster)
+updated[index].messages.push({
+  role: "ai",
+  content: imageToSend ? "Analyzing image..." : "Thinking...",
+  isStreaming: true,
+});
+
+setChats([...updated]);
 
     if (imageToSend) {
             setTimeout(() => {
@@ -828,13 +837,16 @@ Geef alleen direct het betere antwoord.`,
 
    let aiText = "";
 
-    updated[index].messages.push({
-      role: "ai",
-      content: "",
-      variant: responseVariant,
-      sources: responseSources,
-      isStreaming: true,
-    });
+    // placeholder already added above → only attach metadata
+updated[index].messages[
+  updated[index].messages.length - 1
+] = {
+  ...updated[index].messages[
+    updated[index].messages.length - 1
+  ],
+  variant: responseVariant,
+  sources: responseSources,
+};
     setChats([...updated]);
 
         try {
