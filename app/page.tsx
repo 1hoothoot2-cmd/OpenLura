@@ -463,14 +463,16 @@ Geef alleen direct het betere antwoord.`,
         }),
       });
 
-      const improveReader = improveRes.body?.getReader();
+            const improveReader = improveRes.body?.getReader();
       const improveDecoder = new TextDecoder();
+      const improveVariant = improveRes.headers.get("X-OpenLura-Variant") || "unknown";
 
       let improvedText = "";
 
       updated[index].messages.push({
         role: "ai",
         content: "",
+        variant: improveVariant,
       });
 
       setChats([...updated]);
@@ -562,12 +564,13 @@ const feedbackSummary = {
   }),
 });
 
-    const reader = res.body?.getReader();
+        const reader = res.body?.getReader();
     const decoder = new TextDecoder();
+    const responseVariant = res.headers.get("X-OpenLura-Variant") || "unknown";
 
     let aiText = "";
 
-    updated[index].messages.push({ role: "ai", content: "" });
+    updated[index].messages.push({ role: "ai", content: "", variant: responseVariant });
     setChats([...updated]);
 
     while (true) {
@@ -628,12 +631,13 @@ console.log("FEEDBACK CLICKED", { chatId, msgIndex, type });
 .reverse()
 .find((msg: any) => msg.role === "user");
 
-  existing.push({
+    existing.push({
     chatId,
     msgIndex,
     type,
     message: message?.content,
     userMessage: prevMessage?.content,
+    source: message?.variant ? `ab_test_${message.variant}` : null,
     timestamp: Date.now(),
   });
 
@@ -649,12 +653,13 @@ console.log("FEEDBACK CLICKED", { chatId, msgIndex, type });
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
+        body: JSON.stringify({
       chatId,
       msgIndex,
       type,
       message: message?.content,
       userMessage: prevMessage?.content,
+      source: message?.variant ? `ab_test_${message.variant}` : null,
     }),
   });
 
