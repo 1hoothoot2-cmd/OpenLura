@@ -2,25 +2,35 @@
 import { useEffect, useState } from "react";
 
 export default function AnalyticsPage() {
-  const [feedback, setFeedback] = useState<any[]>([]);
+    const [feedback, setFeedback] = useState<any[]>([]);
     const [activeTab, setActiveTab] = useState("all");
+    const [ideaFilter, setIdeaFilter] = useState("all");
 
-  const filteredFeedback = feedback.filter((f) => {
+    const filteredFeedback = feedback.filter((f) => {
     if (activeTab === "all") return true;
     if (activeTab === "positive") return f.type === "up";
     if (activeTab === "negative") return f.type === "down";
-        if (activeTab === "improvement") return f.type === "improve";
-    if (activeTab === "ideas") return f.type === "idea";
+    if (activeTab === "improvement") return f.type === "improve";
+    if (activeTab === "ideas") {
+      if (f.type !== "idea") return false;
+      if (ideaFilter === "all") return true;
+      if (ideaFilter === "bug") return f.source === "idea_bug";
+      if (ideaFilter === "adjustment") return f.source === "idea_adjustment";
+      if (ideaFilter === "learning") return f.source === "idea_feedback_learning";
+    }
     return true;
   });
 
-  const negativeFeedback = feedback.filter((f) => f.type === "down");
-  const positiveFeedback = feedback.filter((f) => f.type === "up");
-    const improvementFeedback = feedback.filter((f) => f.type === "improve");
-  const ideaFeedback = feedback.filter((f) => f.type === "idea");
+          const negativeFeedback = feedback.filter((f: any) => f.type === "down");
+  const positiveFeedback = feedback.filter((f: any) => f.type === "up");
+  const improvementFeedback = feedback.filter((f: any) => f.type === "improve");
+  const ideaFeedback = feedback.filter((f: any) => f.type === "idea");
+  const bugIdeas = ideaFeedback.filter((f: any) => f.source === "idea_bug");
+  const adjustmentIdeas = ideaFeedback.filter((f: any) => f.source === "idea_adjustment");
+  const learningIdeas = ideaFeedback.filter((f: any) => f.source === "idea_feedback_learning");
 
   const improvementTexts = improvementFeedback
-    .map((f) => (f.message || "").toLowerCase().trim())
+    .map((f: any) => (f.message || "").toLowerCase().trim())
     .filter(Boolean);
 
   const complaintKeywords = [
@@ -39,7 +49,7 @@ export default function AnalyticsPage() {
   const topComplaints = complaintKeywords
     .map((keyword) => ({
       keyword,
-      count: improvementTexts.filter((text) => text.includes(keyword)).length,
+      count: improvementTexts.filter((text: string) => text.includes(keyword)).length,
     }))
     .filter((item) => item.count > 0)
     .sort((a, b) => b.count - a.count)
@@ -56,22 +66,57 @@ useEffect(() => {
     localStorage.getItem("openlura_feedback") || "[]"
   );
 
-  const normalizedLocal = localFeedback.map((item: any) => {
+    const normalizedLocal = localFeedback.map((item: any) => {
     const isImprovementItem =
       item.type === "improve" ||
       item.type === "improvement" ||
       item.source === "improvement_reply" ||
       item.userMessage === "Direct improvement feedback";
 
+    const normalizedType =
+      item.type === "idea"
+        ? "idea"
+        : isImprovementItem
+        ? "improve"
+        : item.type || "down";
+
+    const rawMessage = String(item.message || "").toLowerCase();
+
+    const normalizedSource =
+      normalizedType === "idea"
+        ? item.source ||
+          (rawMessage.includes("bug") ||
+          rawMessage.includes("werkt niet") ||
+          rawMessage.includes("error") ||
+          rawMessage.includes("fout") ||
+          rawMessage.includes("crash") ||
+          rawMessage.includes("stuk") ||
+          rawMessage.includes("kapot")
+            ? "idea_bug"
+            : rawMessage.includes("aanpassen") ||
+              rawMessage.includes("aanpassing") ||
+              rawMessage.includes("toevoegen") ||
+              rawMessage.includes("maak") ||
+              rawMessage.includes("zet") ||
+              rawMessage.includes("verander") ||
+              rawMessage.includes("wijzig")
+            ? "idea_adjustment"
+            : rawMessage.includes("ai") ||
+              rawMessage.includes("antwoord") ||
+              rawMessage.includes("reageer") ||
+              rawMessage.includes("korter") ||
+              rawMessage.includes("duidelijker") ||
+              rawMessage.includes("beter") ||
+              rawMessage.includes("leren")
+            ? "idea_feedback_learning"
+            : "idea_adjustment")
+        : item.source;
+
     return {
       ...item,
       _localOnly: true,
-            type:
-        item.type === "idea"
-          ? "idea"
-          : isImprovementItem
-          ? "improve"
-          : item.type || "down",
+      type: normalizedType,
+      source: normalizedSource,
     };
   });
 
@@ -266,6 +311,35 @@ return () => {
   </button>
 </div>
 
+{activeTab === "ideas" && (
+  <div className="mb-6 flex flex-wrap gap-2">
+    <button
+      onClick={() => setIdeaFilter("all")}
+      className={`px-4 py-2 rounded-xl ${ideaFilter === "all" ? "bg-blue-400 text-black" : "bg-white/10 text-white"}`}
+    >
+      Alle ideeën ({ideaFeedback.length})
+    </button>
+    <button
+      onClick={() => setIdeaFilter("bug")}
+      className={`px-4 py-2 rounded-xl ${ideaFilter === "bug" ? "bg-red-400 text-black" : "bg-white/10 text-white"}`}
+    >
+      Bugs ({bugIdeas.length})
+    </button>
+    <button
+      onClick={() => setIdeaFilter("adjustment")}
+      className={`px-4 py-2 rounded-xl ${ideaFilter === "adjustment" ? "bg-yellow-400 text-black" : "bg-white/10 text-white"}`}
+    >
+      Aanpassingen ({adjustmentIdeas.length})
+    </button>
+    <button
+      onClick={() => setIdeaFilter("learning")}
+      className={`px-4 py-2 rounded-xl ${ideaFilter === "learning" ? "bg-green-400 text-black" : "bg-white/10 text-white"}`}
+    >
+      AI feedback ({learningIdeas.length})
+    </button>
+  </div>
+)}
+
 <div className="grid md:grid-cols-3 gap-4 mb-6">
   <div className="p-4 bg-white/10 rounded-2xl">
     <h2 className="text-lg mb-3">🚨 Top complaints</h2>
@@ -343,14 +417,18 @@ return () => {
     )}
 
     <div className="flex justify-between items-center">
-      <span
-                className={
+            <span
+        className={
           f.type === "up"
             ? "text-green-400"
             : f.type === "down"
             ? "text-red-400"
             : f.type === "idea"
-            ? "text-blue-400"
+            ? f.source === "idea_bug"
+              ? "text-red-400"
+              : f.source === "idea_feedback_learning"
+              ? "text-green-400"
+              : "text-blue-400"
             : "text-yellow-400"
         }
       >
@@ -359,7 +437,11 @@ return () => {
           : f.type === "down"
           ? "👎 Negative"
           : f.type === "idea"
-          ? "💡 Idee"
+          ? f.source === "idea_bug"
+            ? "🐞 Bug"
+            : f.source === "idea_feedback_learning"
+            ? "🧠 AI feedback"
+            : "💡 Aanpassing"
           : "🛠️ Verbeter feedback"}
       </span>
 

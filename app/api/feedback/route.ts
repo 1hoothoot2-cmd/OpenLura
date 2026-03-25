@@ -23,13 +23,52 @@ export async function POST(req: Request) {
     const { feedbackTableUrl, supabaseServiceRoleKey } = getSupabaseConfig();
     const data = await req.json();
 
+            const rawMessage = String(data.message ?? "").toLowerCase();
+
+    let inferredIdeaSource = data.source ?? null;
+
+    if (data.type === "idea") {
+      if (
+        rawMessage.includes("bug") ||
+        rawMessage.includes("werkt niet") ||
+        rawMessage.includes("error") ||
+        rawMessage.includes("fout") ||
+        rawMessage.includes("crash") ||
+        rawMessage.includes("stuk") ||
+        rawMessage.includes("kapot")
+      ) {
+        inferredIdeaSource = "idea_bug";
+      } else if (
+        rawMessage.includes("aanpassen") ||
+        rawMessage.includes("aanpassing") ||
+        rawMessage.includes("toevoegen") ||
+        rawMessage.includes("maak") ||
+        rawMessage.includes("zet") ||
+        rawMessage.includes("verander") ||
+        rawMessage.includes("wijzig")
+      ) {
+        inferredIdeaSource = "idea_adjustment";
+      } else if (
+        rawMessage.includes("ai") ||
+        rawMessage.includes("antwoord") ||
+        rawMessage.includes("reageer") ||
+        rawMessage.includes("korter") ||
+        rawMessage.includes("duidelijker") ||
+        rawMessage.includes("beter") ||
+        rawMessage.includes("leren")
+      ) {
+        inferredIdeaSource = "idea_feedback_learning";
+      } else {
+        inferredIdeaSource = "idea_adjustment";
+      }
+    }
     const entry = {
       chatId: data.chatId ?? null,
       msgIndex: data.msgIndex ?? null,
       type: data.type ?? null,
       message: data.message ?? null,
       userMessage: data.userMessage ?? null,
-      source: data.source ?? null,
+      source: inferredIdeaSource,
       timestamp: new Date().toISOString(),
     };
 
