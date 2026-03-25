@@ -7,6 +7,16 @@ const responseCache = new Map<
 >();
 const RESPONSE_CACHE_TTL_MS = 1000 * 60 * 10;
 
+function buildCacheKey(input: {
+  message: string;
+  personalMemory?: string;
+}) {
+  return JSON.stringify({
+    message: input.message.trim().toLowerCase(),
+    personalMemory: (input.personalMemory || "").trim().toLowerCase(),
+  });
+}
+
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -478,11 +488,104 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
         )
       );
 
-    const isSearchStyleRequest = shouldUseWebSearch;
+        const isSearchStyleRequest = shouldUseWebSearch;
     const shouldForceFastCompactOutput =
       isSimpleImageAnalysis ||
       isSearchStyleRequest ||
       normalizedMessageForRouting.length <= 40;
+
+    const shouldUseFastTextPath =
+      !image &&
+      !shouldUseWebSearch &&
+      !!normalizedMessageForRouting &&
+      normalizedMessageForRouting.length <= 40;
+
+        if (shouldUseFastTextPath) {
+      const cacheKey = buildCacheKey({
+        message: message || "",
+        personalMemory: personalMemory || memory || "",
+      });
+
+      const cached = responseCache.get(cacheKey);
+
+      if (cached && Date.now() - cached.timestamp < RESPONSE_CACHE_TTL_MS) {
+        return new Response(cached.text, {
+          headers: {
+            "Content-Type": "text/plain; charset=utf-8",
+            "X-OpenLura-Variant": responseVariant,
+            "X-OpenLura-Sources": encodeURIComponent(JSON.stringify(cached.sources || [])),
+            "X-OpenLura-Speed": "fast_text_cache",
+          },
+        });
+      }
+
+      const fastStream = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        stream: true,
+        messages: [
+          {
+            role: "system",
+            content: `You are OpenLura.
+
+Respond in the same language as the user.
+Keep short casual prompts fast, natural, and direct.
+Do not use long structure for greetings or tiny prompts.
+Keep the answer useful but compact.
+Personal memory: ${personalMemory || memory || "none"}`,
+          },
+          {
+            role: "user",
+            content: message || "",
+          },
+        ],
+      });
+
+      const encoder = new TextEncoder();
+
+            return new Response(
+        new ReadableStream({
+          async start(controller) {
+            let fullText = "";
+
+            for await (const chunk of fastStream as any) {
+              const text = chunk.choices?.[0]?.delta?.content || "";
+              fullText += text;
+              controller.enqueue(encoder.encode(text));
+            }
+
+            const cacheKey = buildCacheKey({
+              message: message || "",
+              personalMemory: personalMemory || memory || "",
+            });
+
+            if (fullText.trim()) {
+              responseCache.set(cacheKey, {
+                text: fullText,
+                sources: [],
+                timestamp: Date.now(),
+              });
+
+              if (responseCache.size > 100) {
+                const oldestKey = responseCache.keys().next().value as string | undefined;
+                if (oldestKey) {
+                  responseCache.delete(oldestKey);
+                }
+              }
+            }
+
+            controller.close();
+          },
+        }),
+        {
+          headers: {
+            "Content-Type": "text/plain; charset=utf-8",
+            "X-OpenLura-Variant": responseVariant,
+            "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
+            "X-OpenLura-Speed": "fast_text",
+          },
+        }
+      );
+    }
 
     const canUseCache =
       !image &&
