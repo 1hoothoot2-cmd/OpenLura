@@ -1198,61 +1198,67 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
               </div>
             ) : (
               <>
-                {activeChat?.messages
+                                                {activeChat?.messages
                   .filter(
                     (msg: any) =>
                       msg.content !==
                       "🤖 Bedankt voor je feedback. Ik sla dit op en gebruik het om toekomstige antwoorden te verbeteren."
                   )
-                  .map((msg: any, i: number) => (
-                    <div key={i}>
-                      <div className={`p-3 rounded-2xl max-w-[75%] whitespace-pre-line ${
-                        msg.role === "user"
-                          ? "bg-gradient-to-r from-purple-500 to-blue-500 ml-auto text-white"
-                          : "bg-white/20"
-                      }`}>
-                        {msg.content}
+                  .map((msg: any, i: number, arr: any[]) => {
+                    const isLastAI =
+                      msg.role === "ai" &&
+                      i === arr.length - 1;
+
+                    return (
+                      <div key={i}>
+                        <div className={`p-3 rounded-2xl max-w-[75%] whitespace-pre-line ${
+                          msg.role === "user"
+                            ? "bg-gradient-to-r from-purple-500 to-blue-500 ml-auto text-white"
+                            : "bg-white/20"
+                        }`}>
+                          {msg.content}
+                        </div>
+
+                        {msg.role === "ai" &&
+                          i !== 0 &&
+                          !msg.disableFeedback &&
+                          msg.content !== "🤖 Wat kan ik beter doen?" &&
+                          msg.content !== "🤖 Bedankt voor je feedback. Ik sla dit op en gebruik het om toekomstige antwoorden te verbeteren." && (
+                            <>
+                              {isLastAI && (
+                                <div className="mt-2 p-2 rounded-xl bg-white/5 text-xs opacity-70">
+                                  <p className="mb-1">🧠 AI Learning actief:</p>
+                                  {getActiveLearningDebug().length === 0 ? (
+                                    <p>geen actieve learning regels</p>
+                                  ) : (
+                                    <div className="space-y-1">
+                                      {getActiveLearningDebug().map((rule, idx) => (
+                                        <p key={idx}>- {rule}</p>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              <div className="flex gap-2 mt-1 text-sm opacity-70 items-center">
+                                {!feedbackGiven[activeChatId + "-" + i] && (
+                                  <>
+                                    <button onClick={() => handleFeedback(activeChatId!, i, "up")}>👍</button>
+                                    <button onClick={() => handleFeedback(activeChatId!, i, "down")}>👎</button>
+                                  </>
+                                )}
+
+                                {feedbackUI[activeChatId + "-" + i] && (
+                                  <span className="text-xs opacity-70 ml-2">
+                                    {feedbackUI[activeChatId + "-" + i]}
+                                  </span>
+                                )}
+                              </div>
+                            </>
+                          )}
                       </div>
-
-                                            {msg.role === "ai" &&
-        i !== 0 &&
-        !msg.disableFeedback &&
-        msg.content !== "🤖 Wat kan ik beter doen?" &&
-        msg.content !== "🤖 Bedankt voor je feedback. Ik sla dit op en gebruik het om toekomstige antwoorden te verbeteren." && (
-        <>
-          <div className="mt-2 p-2 rounded-xl bg-white/5 text-xs opacity-70">
-            <p className="mb-1">🧠 AI Learning actief:</p>
-            {getActiveLearningDebug().length === 0 ? (
-              <p>geen actieve learning regels</p>
-            ) : (
-              <div className="space-y-1">
-                {getActiveLearningDebug().map((rule, idx) => (
-                  <p key={idx}>- {rule}</p>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="flex gap-2 mt-1 text-sm opacity-70 items-center">
-
-            {!feedbackGiven[activeChatId + "-" + i] && (
-              <>
-                <button onClick={() => handleFeedback(activeChatId!, i, "up")}>👍</button>
-                <button onClick={() => handleFeedback(activeChatId!, i, "down")}>👎</button>
-              </>
-            )}
-
-            {feedbackUI[activeChatId + "-" + i] && (
-              <span className="text-xs opacity-70 ml-2">
-                {feedbackUI[activeChatId + "-" + i]}
-              </span>
-            )}
-
-          </div>
-        </>
-      )}
-                    </div>
-                  ))}
+                    );
+                  })}
 
                 {loading && (
                   <div className="opacity-70 text-sm">
