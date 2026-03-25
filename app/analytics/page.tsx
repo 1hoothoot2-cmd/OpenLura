@@ -308,8 +308,9 @@ return () => {
     }
   };
 
-  const getItemKey = (f: any) =>
-    [f.type || "", f.source || "", f.timestamp || "", f.userMessage || "", f.message || ""].join("::");
+    function getItemKey(f: any) {
+    return [f.type || "", f.source || "", f.timestamp || "", f.userMessage || "", f.message || ""].join("::");
+  }
 
   const updateItemStatus = (key: string, status: string) => {
     setItemStatus((prev) => {
