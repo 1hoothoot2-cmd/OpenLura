@@ -578,6 +578,9 @@ export default function Home() {
       }));
 
       setLoading(true);
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => resolve());
+      });
 
       const improveRes = await fetch("/api/chat", {
         method: "POST",
@@ -650,11 +653,12 @@ Geef alleen direct het betere antwoord.`,
 
             let improvedText = "";
 
-      updated[index].messages.push({
+        updated[index].messages.push({
         role: "ai",
-        content: "Thinking...",
+        content: "…",
         variant: improveVariant,
         sources: improveSources,
+        isStreaming: true,
       });
 
       setChats([...updated]);
@@ -709,7 +713,7 @@ Geef alleen direct het betere antwoord.`,
       updated[index].title = inputToSend.slice(0, 30);
     }
 
-        setChats(updated);
+    setChats(updated);
     setInput("");
     setImage(null);
     setLoading(true);
@@ -720,6 +724,10 @@ Geef alleen direct het betere antwoord.`,
         setLoadingStage((current) => (current === "analyzing" ? "typing" : current));
       }, 700);
     }
+
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => resolve());
+    });
 
     const rawFeedback = JSON.parse(localStorage.getItem("openlura_feedback") || "[]").slice(-20);
 
@@ -782,13 +790,14 @@ Geef alleen direct het betere antwoord.`,
       responseSources = [];
     }
 
-        let aiText = "";
+   let aiText = "";
 
     updated[index].messages.push({
       role: "ai",
-      content: imageToSend ? "Analyzing image..." : "Thinking...",
+      content: "…",
       variant: responseVariant,
       sources: responseSources,
+      isStreaming: true,
     });
     setChats([...updated]);
 
@@ -808,7 +817,11 @@ Geef alleen direct het betere antwoord.`,
 
         updated[index].messages[
           updated[index].messages.length - 1
-        ].content = aiText;
+        ] = {
+          ...updated[index].messages[updated[index].messages.length - 1],
+          content: aiText,
+          isStreaming: false,
+        };
 
         setChats([...updated]);
       }
@@ -1465,8 +1478,14 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                           )}
 
                           {msg.content ? (
-                            <div className={msg.image ? "mt-3" : ""}>{msg.content}</div>
-                          ) : null}
+  <div className={msg.image ? "mt-3" : ""}>
+    {msg.isStreaming && msg.content === "…" ? (
+      <span className="opacity-50">thinking...</span>
+    ) : (
+      msg.content
+    )}
+  </div>
+) : null}
                         </div>
 
                         {msg.role === "ai" &&
