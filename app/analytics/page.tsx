@@ -793,6 +793,34 @@ return () => {
   </div>
 </div>
 
+<div className="p-4 bg-white/10 rounded-2xl mb-6">
+  <h2 className="text-lg mb-3">🤖 AI Actie Suggesties</h2>
+
+  <div className="space-y-2 text-sm">
+
+    {priorityItems[0]?.type === "bug" && (
+      <p>🐞 Fix deze bug eerst (hoogste prioriteit)</p>
+    )}
+
+    {topComplaints.some(c => c.keyword.includes("korter") || c.keyword.includes("te lang")) && (
+      <p>✂️ AI antwoorden zijn te lang → maak ze korter</p>
+    )}
+
+    {topComplaints.some(c => c.keyword.includes("duidelijker") || c.keyword.includes("onduidelijk")) && (
+      <p>🧠 Users willen duidelijkere uitleg</p>
+    )}
+
+    {topComplaints.some(c => c.keyword.includes("structuur")) && (
+      <p>📐 Verbeter de structuur van antwoorden</p>
+    )}
+
+    {negativeFeedback.length > positiveFeedback.length && (
+      <p>📉 Meer negatieve dan positieve feedback → herzie AI output</p>
+    )}
+
+  </div>
+</div>
+
 <div className="grid gap-4">
         {filteredFeedback.length === 0 && (
           <p className="opacity-60">No feedback yet...</p>
