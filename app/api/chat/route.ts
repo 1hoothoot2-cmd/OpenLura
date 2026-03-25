@@ -80,6 +80,83 @@ function buildStyleLearningSignals(input: {
   };
 }
 
+function buildResponseStyleProfile(input: {
+  isCasualChatRequest: boolean;
+  shouldUseWebSearch: boolean;
+  isSimpleImageAnalysis: boolean;
+  learningConfidence: {
+    shorter: string;
+    clearer: string;
+    structure: string;
+    vague: string;
+    context: string;
+    casual: string;
+  };
+  cappedLearningStrength: {
+    shorter: number;
+    clearer: number;
+    structure: number;
+    vague: number;
+    context: number;
+    casual: number;
+  };
+}) {
+  const tone =
+    input.isCasualChatRequest
+      ? input.cappedLearningStrength.casual >= 2
+        ? "casual_light"
+        : "casual_balanced"
+      : input.shouldUseWebSearch
+      ? "practical_grounded"
+      : input.isSimpleImageAnalysis
+      ? "visual_direct"
+      : "default_premium";
+
+  const brevity =
+    input.cappedLearningStrength.shorter >= 3
+      ? "tight"
+      : input.isCasualChatRequest || input.isSimpleImageAnalysis
+      ? "compact"
+      : "balanced";
+
+  const structure =
+    input.shouldUseWebSearch
+      ? "shortlist"
+      : input.cappedLearningStrength.structure >= 2
+      ? "structured"
+      : input.isCasualChatRequest
+      ? "minimal"
+      : "balanced";
+
+  const clarity =
+    input.cappedLearningStrength.clearer >= 2 || input.cappedLearningStrength.vague >= 2
+      ? "high"
+      : "normal";
+
+  const depth =
+    input.cappedLearningStrength.context >= 2 &&
+    !input.isCasualChatRequest &&
+    !input.isSimpleImageAnalysis
+      ? "expanded"
+      : "standard";
+
+  return {
+    tone,
+    brevity,
+    structure,
+    clarity,
+    depth,
+    confidenceSummary: {
+      shorter: input.learningConfidence.shorter,
+      clearer: input.learningConfidence.clearer,
+      structure: input.learningConfidence.structure,
+      vague: input.learningConfidence.vague,
+      context: input.learningConfidence.context,
+      casual: input.learningConfidence.casual,
+    },
+  };
+}
+
 function buildContentLearningState(input: {
   responsePreferenceContext: string;
   hasMixedResponseFeedback: boolean;
@@ -96,6 +173,45 @@ function buildContentLearningState(input: {
     bestResponsePreference: input.bestResponsePreference || null,
     hasContentPreference: !!input.bestResponsePreference,
   };
+}
+
+function shouldBypassFastTextPath(input: {
+  isCasualChatRequest: boolean;
+  casualSignalStrength: number;
+  hasContentPreference: boolean;
+  hasMixedResponseFeedback: boolean;
+  bestResponsePreferenceScore: number;
+}) {
+  const casualNeedsLearnedBehavior =
+    input.isCasualChatRequest && input.casualSignalStrength >= 2;
+
+  const strongExactMessagePreference =
+    input.hasContentPreference &&
+    !input.hasMixedResponseFeedback &&
+    input.bestResponsePreferenceScore >= 2;
+
+  return casualNeedsLearnedBehavior || strongExactMessagePreference;
+}
+
+function shouldUseAdaptiveSpeedMode(input: {
+  shouldUseFastTextPath: boolean;
+  isCasualChatRequest: boolean;
+  casualSignalStrength: number;
+  hasContentPreference: boolean;
+  hasMixedResponseFeedback: boolean;
+  bestResponsePreferenceScore: number;
+}) {
+  if (input.hasMixedResponseFeedback) return false;
+
+  if (input.hasContentPreference && input.bestResponsePreferenceScore >= 2) {
+    return false;
+  }
+
+  if (input.isCasualChatRequest && input.casualSignalStrength >= 2) {
+    return true;
+  }
+
+  return input.shouldUseFastTextPath;
 }
 
 function classifyOpenLuraRoute(input: {
@@ -590,7 +706,38 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
       image,
     });
 
-        if (shouldUseFastTextPath) {
+    const responseStyleProfile = buildResponseStyleProfile({
+      isCasualChatRequest,
+      shouldUseWebSearch,
+      isSimpleImageAnalysis,
+      learningConfidence,
+      cappedLearningStrength,
+    });
+
+    const fastRouteDecisionInput = {
+      shouldUseFastTextPath,
+      isCasualChatRequest,
+      casualSignalStrength: cappedLearningStrength.casual,
+      hasContentPreference: contentLearningState.hasContentPreference,
+      hasMixedResponseFeedback: contentLearningState.hasMixedResponseFeedback,
+      bestResponsePreferenceScore:
+        contentLearningState.bestResponsePreference?.score || 0,
+    };
+
+    const shouldUseFastTextRoute =
+      shouldUseAdaptiveSpeedMode(fastRouteDecisionInput) &&
+      !shouldBypassFastTextPath(fastRouteDecisionInput); 
+      
+  !shouldBypassFastTextPath({
+    isCasualChatRequest,
+    casualSignalStrength: cappedLearningStrength.casual,
+    hasContentPreference: contentLearningState.hasContentPreference,
+    hasMixedResponseFeedback: contentLearningState.hasMixedResponseFeedback,
+    bestResponsePreferenceScore:
+      contentLearningState.bestResponsePreference?.score || 0,
+  });
+
+        if (shouldUseFastTextRoute) {
       const cacheKey = buildCacheKey({
         message: message || "",
         personalMemory: personalMemory || memory || "",
@@ -618,10 +765,32 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
             content: `You are OpenLura.
 
 Respond in the same language as the user.
-Keep short casual prompts fast, natural, and direct.
+Keep short prompts fast, natural, and direct.
 Do not use long structure for greetings or tiny prompts.
 Keep the answer useful but compact.
-Personal memory: ${personalMemory || memory || "none"}`,
+
+Fast-path style profile:
+- tone: ${responseStyleProfile.tone}
+- brevity: ${responseStyleProfile.brevity}
+- structure: ${responseStyleProfile.structure}
+- clarity: ${responseStyleProfile.clarity}
+- depth: ${responseStyleProfile.depth}
+
+Fast-path style rules:
+- Prefer shorter replies when possible
+- Be clearer and less vague
+- If the prompt is casual, sound light and natural
+- Do not go into essay mode
+- Only expand if the user clearly asks for more detail
+- If structure is minimal, keep formatting very light
+- If structure is shortlist, prioritize the strongest options only
+
+Personal memory: ${personalMemory || memory || "none"}
+Active fast-path style pressure:
+- shorter: ${cappedLearningStrength.shorter}
+- clearer: ${cappedLearningStrength.clearer}
+- vague reduction: ${cappedLearningStrength.vague}
+- casual tone: ${cappedLearningStrength.casual}`,
           },
           {
             role: "user",
@@ -845,6 +1014,13 @@ STYLE LEARNING SIGNALS:
 - more context: ${cappedLearningStrength.context} (${learningConfidence.context})
 - casual/natural chat tone: ${cappedLearningStrength.casual} (${learningConfidence.casual})
 
+RESPONSE STYLE PROFILE:
+- tone: ${responseStyleProfile.tone}
+- brevity: ${responseStyleProfile.brevity}
+- structure: ${responseStyleProfile.structure}
+- clarity: ${responseStyleProfile.clarity}
+- depth: ${responseStyleProfile.depth}
+
 GLOBAL LEARNING:
 Total sessions: ${globalFeedback.length}
 
@@ -904,8 +1080,8 @@ ADAPTATION RULES:
 - ALWAYS prioritize GLOBAL LEARNING over personal feedback unless explicitly asked
 - For general questions, prioritize global learning before personal preferences
 - Only use personal preferences as an extra layer unless the user clearly asks for something personal or stylistic
-- If RESPONSE PREFERENCE FOR THIS EXACT MESSAGE contains a strong positively rated answer, reuse that style as the default for similar future messages
-- If RESPONSE PREFERENCE FOR THIS EXACT MESSAGE shows mixed feedback, do not copy the old answer literally; create a balanced improved version between too short and too verbose
+- If RESPONSE CONTENT PREFERENCE FOR THIS EXACT MESSAGE contains a strong positively rated answer, reuse that style as the default for similar future messages
+- If RESPONSE CONTENT PREFERENCE FOR THIS EXACT MESSAGE shows mixed feedback, do not copy the old answer literally; create a balanced improved version between too short and too verbose
 - For simple greetings or repeated casual openers, converge toward the best globally rated phrasing instead of answering randomly
 - When ACTIVE LEARNING RULES exist, follow them before default style preferences
 - When LEARNING INJECTION FROM FEEDBACK exists, apply those rules directly unless they conflict with safety or the user's current request
@@ -914,6 +1090,15 @@ ADAPTATION RULES:
 - Low confidence signals should only be applied lightly as a soft preference
 - Ignore signals with confidence None
 - Weighted learning signals are recency-based, so follow recent repeated feedback more strongly than older feedback
+- Follow RESPONSE STYLE PROFILE as the default presentation layer for this answer
+- If tone is casual_light, keep the answer warm, short, and natural
+- If tone is practical_grounded, prioritize usefulness and concrete details
+- If tone is visual_direct, answer directly from what is visible
+- If brevity is tight, cut filler aggressively
+- If structure is minimal, avoid heavy sections unless necessary
+- If structure is shortlist, prefer fewer stronger options over long lists
+- If clarity is high, use simpler wording and more direct phrasing
+- If depth is expanded, add more why/context without becoming bloated
 
 INTERPRETATION RULES:
 EMOTIONAL SUPPORT RULES:
