@@ -648,11 +648,11 @@ Geef alleen direct het betere antwoord.`,
         improveSources = [];
       }
 
-      let improvedText = "";
+            let improvedText = "";
 
       updated[index].messages.push({
         role: "ai",
-        content: "",
+        content: "Thinking...",
         variant: improveVariant,
         sources: improveSources,
       });
@@ -716,9 +716,9 @@ Geef alleen direct het betere antwoord.`,
     setLoadingStage(imageToSend ? "analyzing" : "typing");
 
     if (imageToSend) {
-      setTimeout(() => {
+            setTimeout(() => {
         setLoadingStage((current) => (current === "analyzing" ? "typing" : current));
-      }, 1400);
+      }, 700);
     }
 
     const rawFeedback = JSON.parse(localStorage.getItem("openlura_feedback") || "[]").slice(-20);
@@ -782,11 +782,11 @@ Geef alleen direct het betere antwoord.`,
       responseSources = [];
     }
 
-    let aiText = "";
+        let aiText = "";
 
     updated[index].messages.push({
       role: "ai",
-      content: "",
+      content: imageToSend ? "Analyzing image..." : "Thinking...",
       variant: responseVariant,
       sources: responseSources,
     });
