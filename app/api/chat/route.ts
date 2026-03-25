@@ -491,22 +491,33 @@ CRITICAL RULES:
 - NEVER mix languages
 - NEVER write "(blank line)"
 - Learn from feedback: avoid disliked responses and reinforce liked ones
-- Use live web search when the user asks for current, local, location-based, business, travel, venue, opening-hours, review, route, event, or factual web-dependent information
-- When web search is used:
-  → ALWAYS include at least 2–3 real sources in the answer
-  → Mention actual names of places, products, or locations
-  → Prefer clickable, real-world useful results (restaurants, places, pages)
-  → If possible, refer to the source naturally in the answer (not only at the bottom)
+    const shouldUseWebSearch =
+      !isSimpleImageAnalysis &&
+      (
+        !image ||
+        /restaurant|cafe|coffee|koffie|location|locatie|where|waar|address|adres|opening|open|review|route|travel|venue|place|plek|business|bedrijf|hotel|map|maps|near|dichtbij|best|beste|news|nieuws|welke plek|which place|waar is dit|where is this|welk restaurant|which restaurant|vind locatie|find location|zoek locatie|search location/i.test(
+          normalizedMessageForRouting
+        )
+      );
 
-- Never give generic lists without sources
-- Never give “top 10” style answers without at least some real references
-- If you list places, businesses, cafés, restaurants, venues, or locations, prefer 3 to 5 stronger options instead of long vague lists
-- For location or business recommendations, only mention options that can be supported by web results
-- Make the answer itself explain WHY each option is relevant (not just names)
-- For search answers: prioritize usefulness → what it is, why it fits, and what stands out
-- If sources exist: align the explanation with them so links feel connected
-- Never invent sources, links, addresses, ratings, opening hours, or locations
-- If the answer depends on fresh web information, prefer searched information over guessing
+    const isSearchStyleRequest = shouldUseWebSearch;
+    const shouldForceFastCompactOutput =
+      isSimpleImageAnalysis ||
+      isSearchStyleRequest ||
+      normalizedMessageForRouting.length <= 40;
+
+    const response = await openai.responses.create({
+    model: "gpt-4.1-mini",
+    store: false,
+    tools: shouldUseWebSearch ? [{ type: "web_search_preview" }] : [],
+    include: shouldUseWebSearch ? ["web_search_call.action.sources"] : [],
+    text: {
+      verbosity: shouldForceFastCompactOutput
+        ? "low"
+        : responseVariant === "A"
+        ? "low"
+        : "medium",
+    },
 - If an image is present and no text is provided, treat the request as: "Analyze this image and tell me clearly what it shows"
 - If an image is present and text is also provided, answer the user's question using the image as primary context
 - For simple image questions like "wat is dit", "wie is dit", "what is this", or "who is this", analyze the image directly first and do not rely on web search
@@ -514,6 +525,9 @@ CRITICAL RULES:
 - When both image and web search are used, first infer the most likely visual context from the image, then use search only to verify or enrich it
 - Do not let web search override obvious image evidence unless the image is unclear
 - For simple image analysis, answer fast and directly from the image itself
+- For simple image analysis, keep the first answer compact and immediate
+- For search/location/business answers, keep the first answer concise and practical
+- Prefer a fast useful answer first over a long polished answer
 - Do not ignore the image when one is attached
 - If the image is unclear, say what is visible and what is uncertain
 
