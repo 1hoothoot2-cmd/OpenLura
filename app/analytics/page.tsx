@@ -5,16 +5,24 @@ export default function AnalyticsPage() {
         const [feedback, setFeedback] = useState<any[]>([]);
     const [activeTab, setActiveTab] = useState("all");
     const [ideaFilter, setIdeaFilter] = useState("all");
-    const [analyticsPassword, setAnalyticsPassword] = useState("");
+        const [analyticsPassword, setAnalyticsPassword] = useState("");
     const [isUnlocked, setIsUnlocked] = useState(false);
     const [authError, setAuthError] = useState("");
     const [authLoading, setAuthLoading] = useState(true);
+    const [itemStatus, setItemStatus] = useState<{ [key: string]: string }>({});
 
-    useEffect(() => {
+      useEffect(() => {
     if (activeTab !== "ideas") {
       setIdeaFilter("all");
     }
   }, [activeTab]);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("openlura_analytics_status");
+    if (saved) {
+      setItemStatus(JSON.parse(saved));
+    }
+  }, []);
 
     useEffect(() => {
     const checkAnalyticsAccess = async () => {
@@ -125,10 +133,16 @@ export default function AnalyticsPage() {
     },
   ].sort((a, b) => b.count - a.count);
 
-  const feedbackScore =
+    const feedbackScore =
     feedback.length > 0
       ? Math.round((positiveFeedback.length / (positiveFeedback.length + negativeFeedback.length || 1)) * 100)
       : 0;
+
+  const workflowCounts = {
+    nieuw: filteredFeedback.filter((f: any) => (itemStatus[getItemKey(f)] || "nieuw") === "nieuw").length,
+    bezig: filteredFeedback.filter((f: any) => (itemStatus[getItemKey(f)] || "nieuw") === "bezig").length,
+    klaar: filteredFeedback.filter((f: any) => (itemStatus[getItemKey(f)] || "nieuw") === "klaar").length,
+  };
 
 useEffect(() => {
   if (!isUnlocked) return;
@@ -268,7 +282,7 @@ return () => {
 };
 }, [isUnlocked]);
 
-      const handleUnlock = async () => {
+        const handleUnlock = async () => {
     try {
       const res = await fetch("/api/feedback", {
         method: "POST",
@@ -294,17 +308,18 @@ return () => {
     }
   };
 
-      if (authLoading) {
-    return (
-      <main className="min-h-screen bg-[#050510] text-white p-6 flex items-center justify-center">
-        <div className="w-full max-w-sm bg-white/10 rounded-2xl p-6 text-center">
-          Analytics laden...
-        </div>
-      </main>
-    );
-  }
+  const getItemKey = (f: any) =>
+    [f.type || "", f.source || "", f.timestamp || "", f.userMessage || "", f.message || ""].join("::");
 
-    if (authLoading) {
+  const updateItemStatus = (key: string, status: string) => {
+    setItemStatus((prev) => {
+      const next = { ...prev, [key]: status };
+      localStorage.setItem("openlura_analytics_status", JSON.stringify(next));
+      return next;
+    });
+  };
+
+            if (authLoading) {
     return (
       <main className="min-h-screen bg-[#050510] text-white p-6 flex items-center justify-center">
         <div className="w-full max-w-sm bg-white/10 rounded-2xl p-6 text-center">
@@ -355,8 +370,7 @@ return () => {
   return (
     <main className="min-h-screen bg-[#050510] text-white p-6">
       
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center justify-between mb-6">
   <h1 className="text-2xl">📊 OpenLura Analytics</h1>
   <button
     onClick={() => {
@@ -370,9 +384,12 @@ return () => {
     Logout
   </button>
 </div>
-        <p className="text-xs opacity-50 mb-4">
+
+      <p className="text-xs opacity-50 mb-4">
   Environment: {typeof window !== "undefined" ? window.location.origin : ""}
 </p>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
   <div className="p-4 bg-white/10 rounded-2xl">
     <p className="text-xs opacity-60">Server items</p>
     <p className="text-xl">{feedback.filter((f) => !f._localOnly).length}</p>
@@ -581,7 +598,7 @@ return () => {
     </p>
   </div>
 
-  <div className="p-4 bg-white/10 rounded-2xl">
+    <div className="p-4 bg-white/10 rounded-2xl">
     <h2 className="text-lg mb-3">🚦 Auto priority</h2>
     <div className="space-y-2 text-sm">
       {priorityItems.map((item) => (
@@ -594,6 +611,24 @@ return () => {
       ))}
     </div>
   </div>
+
+  <div className="p-4 bg-white/10 rounded-2xl">
+    <h2 className="text-lg mb-3">🗂️ Workflow</h2>
+    <div className="space-y-2 text-sm">
+      <div className="flex justify-between">
+        <span>Nieuw</span>
+        <span className="opacity-60">{workflowCounts.nieuw}</span>
+      </div>
+      <div className="flex justify-between">
+        <span>In behandeling</span>
+        <span className="opacity-60">{workflowCounts.bezig}</span>
+      </div>
+      <div className="flex justify-between">
+        <span>Klaar</span>
+        <span className="opacity-60">{workflowCounts.klaar}</span>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div className="grid gap-4">
@@ -601,7 +636,11 @@ return () => {
           <p className="opacity-60">No feedback yet...</p>
         )}
 
-        {filteredFeedback.map((f, i) => (
+                {filteredFeedback.map((f, i) => {
+  const itemKey = getItemKey(f);
+  const currentStatus = itemStatus[itemKey] || "nieuw";
+
+  return (
   <div key={i} className="p-4 bg-white/10 rounded-2xl">
 
         <p className="text-xs opacity-60 mb-1">
@@ -622,8 +661,8 @@ return () => {
       </>
     )}
 
-    <div className="flex justify-between items-center">
-            <span
+        <div className="flex justify-between items-center gap-3 flex-wrap">
+      <span
         className={
           f.type === "up"
             ? "text-green-400"
@@ -651,13 +690,26 @@ return () => {
           : "🛠️ Verbeter feedback"}
       </span>
 
-      <span className="text-xs opacity-50">
-        {new Date(f.timestamp).toLocaleString()}
-      </span>
+      <div className="flex items-center gap-2 ml-auto">
+        <select
+          value={currentStatus}
+          onChange={(e) => updateItemStatus(itemKey, e.target.value)}
+          className="px-3 py-1 rounded-lg bg-white/10 text-sm"
+        >
+          <option value="nieuw">Nieuw</option>
+          <option value="bezig">In behandeling</option>
+          <option value="klaar">Klaar</option>
+        </select>
+
+        <span className="text-xs opacity-50">
+          {new Date(f.timestamp).toLocaleString()}
+        </span>
+      </div>
     </div>
 
   </div>
-))}
+);
+})}
       </div>
 
     </main>
