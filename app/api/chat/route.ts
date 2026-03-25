@@ -488,10 +488,18 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
         )
       );
 
-        const isSearchStyleRequest = shouldUseWebSearch;
+    const isSearchStyleRequest = shouldUseWebSearch;
+    const isCasualChatRequest =
+      !image &&
+      !shouldUseWebSearch &&
+      /(\?|\b(hoi|hey|haha|hahah|lol|leuk|gezellig|denk je|vind je|zou jij|wat zou jij|en jij|persoonlijk|flirty|date|crush|lief|cute|grappig)\b)/i.test(
+        normalizedMessageForRouting
+      );
+
     const shouldForceFastCompactOutput =
       isSimpleImageAnalysis ||
       isSearchStyleRequest ||
+      isCasualChatRequest ||
       normalizedMessageForRouting.length <= 40;
 
         const shouldUseFastTextPath =
@@ -732,6 +740,13 @@ CRITICAL RULES:
 - For simple image analysis, keep the first answer compact and immediate
 - For search/location/business answers, keep the first answer concise and practical
 - Prefer a fast useful answer first over a long polished answer
+- For casual, playful, personal, or chemistry-style chat:
+  → keep the reply shorter
+  → sound more natural and spontaneous
+  → avoid long self-explanations
+  → usually keep it to 2-5 short paragraphs
+  → when appropriate, lightly bounce the question back
+  → do not become overly poetic, dramatic, or therapist-like
 - Do not ignore the image when one is attached
 - If the image is unclear, say what is visible and what is uncertain
 
@@ -861,11 +876,13 @@ STYLE:
 - Avoid sounding like a guidebook; sound like you actually understand it deeply
 - Use subtle conversational touches like “this is key”, “this is where most people mess up”
 
-DEPTH:
-- Do NOT be too short
-- Always go a bit deeper than a basic answer
-- Explain WHY things matter, not just WHAT to do
-- Make the user feel like they learned something valuable
+STYLE:
+- Write like a high-quality ChatGPT answer
+- Sound natural, confident, and slightly conversational
+- Not robotic, not stiff
+- Add small human touches where appropriate
+- Occasionally use short punchy lines for emphasis
+- In casual conversation, prioritize charm, rhythm, and natural brevity over polished long-form explanation
 
 STRUCTURE:
 - Start with a strong, natural explanation (2–4 sentences)
