@@ -379,10 +379,59 @@ return () => {
     return [f.type || "", f.source || "", f.timestamp || "", f.userMessage || "", f.message || ""].join("::");
   }
 
-  function getAutoStatus(f: any) {
+    function getAutoStatus(f: any) {
     if (f.type === "up") return "klaar";
     return "nieuw";
   }
+
+  const handleInsightAction = async (action: string) => {
+    if (action === "focus_bug") {
+      const nextBug = bugIdeas.find(
+        (f: any) => (itemStatus[getItemKey(f)] || getAutoStatus(f)) === "nieuw"
+      );
+
+      if (nextBug) {
+        await updateItemStatus(getItemKey(nextBug), "bezig");
+      }
+
+      return;
+    }
+
+    if (action === "shorter_answers") {
+      await fetch("/api/feedback", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          type: "idea",
+          message: "AI antwoorden zijn te lang, maak antwoorden korter en directer",
+          userMessage: "AI insight action",
+          source: "idea_feedback_learning",
+        }),
+      });
+
+      window.dispatchEvent(new Event("openlura_feedback_update"));
+      return;
+    }
+
+    if (action === "clearer_structure") {
+      await fetch("/api/feedback", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          type: "idea",
+          message: "Veel users willen duidelijkere structuur en helderdere opbouw in antwoorden",
+          userMessage: "AI insight action",
+          source: "idea_feedback_learning",
+        }),
+      });
+
+      window.dispatchEvent(new Event("openlura_feedback_update"));
+    }
+  };
 
       const updateItemStatus = async (key: string, status: string) => {
     setItemStatus((prev) => {
@@ -798,20 +847,40 @@ return () => {
 
   <div className="space-y-2 text-sm">
 
-    {priorityItems[0]?.type === "bug" && (
-      <p>🐞 Fix deze bug eerst (hoogste prioriteit)</p>
+        {priorityItems[0]?.type === "bug" && (
+      <button
+        onClick={() => handleInsightAction("focus_bug")}
+        className="block text-left w-full p-3 rounded-xl bg-red-500/20 hover:bg-red-500/30"
+      >
+        🐞 Fix deze bug eerst (hoogste prioriteit)
+      </button>
     )}
 
-    {topComplaints.some(c => c.keyword.includes("korter") || c.keyword.includes("te lang")) && (
-      <p>✂️ AI antwoorden zijn te lang → maak ze korter</p>
+        {topComplaints.some(c => c.keyword.includes("korter") || c.keyword.includes("te lang")) && (
+      <button
+        onClick={() => handleInsightAction("shorter_answers")}
+        className="block text-left w-full p-3 rounded-xl bg-yellow-500/20 hover:bg-yellow-500/30"
+      >
+        ✂️ AI antwoorden zijn te lang → maak ze korter
+      </button>
     )}
 
-    {topComplaints.some(c => c.keyword.includes("duidelijker") || c.keyword.includes("onduidelijk")) && (
-      <p>🧠 Users willen duidelijkere uitleg</p>
+        {topComplaints.some(c => c.keyword.includes("duidelijker") || c.keyword.includes("onduidelijk")) && (
+      <button
+        onClick={() => handleInsightAction("clearer_structure")}
+        className="block text-left w-full p-3 rounded-xl bg-blue-500/20 hover:bg-blue-500/30"
+      >
+        🧠 Users willen duidelijkere uitleg
+      </button>
     )}
 
     {topComplaints.some(c => c.keyword.includes("structuur")) && (
-      <p>📐 Verbeter de structuur van antwoorden</p>
+      <button
+        onClick={() => handleInsightAction("clearer_structure")}
+        className="block text-left w-full p-3 rounded-xl bg-purple-500/20 hover:bg-purple-500/30"
+      >
+        📐 Verbeter de structuur van antwoorden
+      </button>
     )}
 
     {negativeFeedback.length > positiveFeedback.length && (
