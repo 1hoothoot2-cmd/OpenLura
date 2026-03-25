@@ -327,12 +327,31 @@ export default function Home() {
     });
   };
 
-    const stopStreaming = () => {
+      const stopStreaming = () => {
     if (streamController) {
       streamController.abort();
       setStreamController(null);
     }
     setLoading(false);
+  };
+
+  const isRetryInstruction = (text: string) => {
+    const normalized = text.toLowerCase().trim();
+    return [
+      "opnieuw",
+      "retry",
+      "again",
+      "nog een keer",
+      "probeer opnieuw",
+      "ga opnieuw",
+      "doe opnieuw",
+      "verder",
+      "ga verder",
+      "maak af",
+      "maak het af",
+      "continue",
+      "ga door",
+    ].includes(normalized);
   };
 
   const sendMessage = async () => {
@@ -341,72 +360,15 @@ export default function Home() {
     const currentChatId = activeChatId!;
     const isImprovementReply = awaitingImprovement[currentChatId] && !!input.trim();
 
-    if (isImprovementReply) {
+        if (isImprovementReply) {
       let updated = [...chats];
       const index = updated.findIndex((c) => c.id === currentChatId);
+      const retryRequest = isRetryInstruction(input);
 
       updated[index].messages.push({
         role: "user",
         content: input,
       });
-
-      const localFeedbackKey = "openlura_feedback";
-      const existingFeedback = JSON.parse(localStorage.getItem(localFeedbackKey) || "[]");
-
-      existingFeedback.push({
-        chatId: currentChatId,
-        msgIndex: updated[index].messages.length - 1,
-                type: "improve",
-        message: input,
-        userMessage: "Direct improvement feedback",
-        timestamp: Date.now(),
-        source: "improvement_reply",
-      });
-
-      localStorage.setItem(localFeedbackKey, JSON.stringify(existingFeedback));
-
-            const keyId = currentChatId + "-" + (updated[index].messages.length - 1);
-
-      setFeedbackUI(prev => ({
-        ...prev,
-        [keyId]: "Thanks for your feedback"
-      }));
-
-      setTimeout(() => {
-        setFeedbackUI(prev => {
-          const copy = { ...prev };
-          delete copy[keyId];
-          return copy;
-        });
-      }, 2000);
-
-      setChats([...updated]);
-      setInput("");
-      setImage(null);
-
-      try {
-  const feedbackRes = await fetch("/api/feedback", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      chatId: currentChatId,
-      type: "improve",
-      message: input,
-      userMessage: "Direct improvement feedback",
-      source: "improvement_reply",
-    }),
-  });
-
-  if (!feedbackRes.ok) {
-    throw new Error("Improvement feedback POST failed");
-  }
-
-  window.dispatchEvent(new Event("openlura_feedback_update"));
-} catch (error) {
-  console.error("OpenLura improvement feedback save failed:", error);
-}
 
       const chatMessages = updated[index].messages;
 
@@ -425,23 +387,88 @@ export default function Home() {
               msg.content !== "🤖 Wat kan ik beter doen?"
           )?.content || "";
 
-            setAwaitingImprovement((prev) => ({
+      if (!retryRequest) {
+        const localFeedbackKey = "openlura_feedback";
+        const existingFeedback = JSON.parse(localStorage.getItem(localFeedbackKey) || "[]");
+
+        existingFeedback.push({
+          chatId: currentChatId,
+          msgIndex: updated[index].messages.length - 1,
+          type: "improve",
+          message: input,
+          userMessage: "Direct improvement feedback",
+          timestamp: Date.now(),
+          source: "improvement_reply",
+        });
+
+        localStorage.setItem(localFeedbackKey, JSON.stringify(existingFeedback));
+
+        const keyId = currentChatId + "-" + (updated[index].messages.length - 1);
+
+        setFeedbackUI(prev => ({
+          ...prev,
+          [keyId]: "Thanks for your feedback"
+        }));
+
+        setTimeout(() => {
+          setFeedbackUI(prev => {
+            const copy = { ...prev };
+            delete copy[keyId];
+            return copy;
+          });
+        }, 2000);
+
+        try {
+          const feedbackRes = await fetch("/api/feedback", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              chatId: currentChatId,
+              type: "improve",
+              message: input,
+              userMessage: "Direct improvement feedback",
+              source: "improvement_reply",
+            }),
+          });
+
+          if (!feedbackRes.ok) {
+            throw new Error("Improvement feedback POST failed");
+          }
+
+          window.dispatchEvent(new Event("openlura_feedback_update"));
+        } catch (error) {
+          console.error("OpenLura improvement feedback save failed:", error);
+        }
+      }
+
+      setChats([...updated]);
+      setInput("");
+      setImage(null);
+
+      setAwaitingImprovement((prev) => ({
         ...prev,
         [currentChatId]: false,
       }));
 
-      updateMemoryWeight(input, 0.3);
-
       setLoading(true);
-
-            const controller = new AbortController();
-      setStreamController(controller);
 
       const improveRes = await fetch("/api/chat", {
         method: "POST",
-        signal: controller.signal,
         body: JSON.stringify({
-          message: `De gebruiker was niet tevreden met je vorige antwoord.
+          message: retryRequest
+            ? `De gebruiker wil dat je opnieuw antwoord geeft op dezelfde vraag.
+
+Oorspronkelijke vraag:
+${originalUserMessage}
+
+Je vorige onvolledige of afgewezen antwoord:
+${originalAiMessage}
+
+Geef nu direct opnieuw een volledig, goed antwoord op de oorspronkelijke vraag.
+Noem niet dat dit een nieuwe poging is.`
+            : `De gebruiker was niet tevreden met je vorige antwoord.
 
 Oorspronkelijke vraag:
 ${originalUserMessage}
@@ -463,16 +490,23 @@ BELANGRIJK:
 
 Noem niet dat dit een verbeterde versie is.
 Geef alleen direct het betere antwoord.`,
-                    memory: memory
+          memory: memory
             .filter((m) => m.weight > 0.6)
             .map((m) => m.text)
             .join(" | "),
-          feedback: {
-            likes: 0,
-            dislikes: 1,
-            issues: [input],
-            recentIssues: [originalUserMessage],
-          },
+          feedback: retryRequest
+            ? {
+                likes: 0,
+                dislikes: 0,
+                issues: [],
+                recentIssues: [originalUserMessage],
+              }
+            : {
+                likes: 0,
+                dislikes: 1,
+                issues: [input],
+                recentIssues: [originalUserMessage],
+              },
         }),
       });
 
