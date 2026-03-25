@@ -455,11 +455,29 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
       });
     }
 
+            const normalizedMessageForRouting = (message || "").toLowerCase().trim();
+
+    const isSimpleImageAnalysis =
+      !!image &&
+      (!normalizedMessageForRouting ||
+        /^(wat is dit|what is this|beschrijf dit|describe this|analyseer dit|analyze this|wat zie je|what do you see|wie is dit|who is this)$/i.test(
+          normalizedMessageForRouting
+        ));
+
+    const shouldUseWebSearch =
+      !isSimpleImageAnalysis &&
+      (
+        !image ||
+        /restaurant|cafe|coffee|koffie|location|locatie|where|waar|address|adres|opening|open|review|route|travel|venue|place|plek|business|bedrijf|hotel|map|maps|near|dichtbij|best|beste|news|nieuws|welke plek|which place|waar is dit|where is this|welk restaurant|which restaurant|vind locatie|find location|zoek locatie|search location/i.test(
+          normalizedMessageForRouting
+        )
+      );
+
     const response = await openai.responses.create({
     model: "gpt-4.1-mini",
     store: false,
-    tools: [{ type: "web_search_preview" }],
-    include: ["web_search_call.action.sources"],
+    tools: shouldUseWebSearch ? [{ type: "web_search_preview" }] : [],
+    include: shouldUseWebSearch ? ["web_search_call.action.sources"] : [],
     text: {
       verbosity: responseVariant === "A" ? "low" : "medium",
     },
@@ -489,6 +507,9 @@ CRITICAL RULES:
 - If the answer depends on fresh web information, prefer searched information over guessing
 - If an image is present and no text is provided, treat the request as: "Analyze this image and tell me clearly what it shows"
 - If an image is present and text is also provided, answer the user's question using the image as primary context
+- For simple image questions like "wat is dit", "wie is dit", "what is this", or "who is this", analyze the image directly first and do not rely on web search
+- Only use web search with an image when the user asks for location, business, venue, travel, restaurant, address, opening hours, reviews, maps, or other fresh real-world lookup
+- For simple image analysis, answer fast and directly from the image itself
 - Do not ignore the image when one is attached
 - If the image is unclear, say what is visible and what is uncertain
 
