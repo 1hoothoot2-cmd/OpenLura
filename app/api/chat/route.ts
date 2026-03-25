@@ -519,11 +519,7 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
       tools: shouldUseWebSearch ? [{ type: "web_search_preview" }] : [],
       include: shouldUseWebSearch ? ["web_search_call.action.sources"] : [],
       text: {
-        verbosity: shouldForceFastCompactOutput
-          ? "low"
-          : responseVariant === "A"
-          ? "low"
-          : "medium",
+        verbosity: "medium", 
       },
       instructions: `
 You are OpenLura.
