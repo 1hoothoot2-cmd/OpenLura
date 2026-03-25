@@ -8,8 +8,8 @@ export default function Home() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // ✅ MEMORY ARRAY
-  const [memory, setMemory] = useState<string[]>([]);
+    // ✅ MEMORY ARRAY (weighted)
+  const [memory, setMemory] = useState<{ text: string; weight: number }[]>([]);
 
   const [image, setImage] = useState<string | null>(null);
   const [mobileMenu, setMobileMenu] = useState(false);
@@ -61,7 +61,14 @@ export default function Home() {
     }
 
     // ✅ MEMORY LOAD FIX
-    if (mem) setMemory(JSON.parse(mem));
+        if (mem) {
+      const parsed = JSON.parse(mem);
+      if (parsed.length && typeof parsed[0] === "string") {
+        setMemory(parsed.map((m: string) => ({ text: m, weight: 0.5 })));
+      } else {
+        setMemory(parsed);
+      }
+    }
 
     if (window.innerWidth >= 768) {
   setMobileMenu(true);
@@ -248,7 +255,7 @@ export default function Home() {
     setShowClearDeletedConfirm(false);
   };
 
-  // ✅ IMAGE HANDLER
+    // ✅ IMAGE HANDLER
   const handleFile = (e: any) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -258,6 +265,26 @@ export default function Home() {
       setImage(reader.result as string);
     };
     reader.readAsDataURL(file);
+  };
+
+  const updateMemoryWeight = (text: string, delta: number) => {
+    if (!text?.trim() || text.trim().length >= 120) return;
+
+    setMemory((prev) => {
+      const existing = prev.find((m) => m.text === text.trim());
+
+      let next = existing
+        ? prev.map((m) =>
+            m.text === text.trim()
+              ? { ...m, weight: Math.max(0.1, Math.min(m.weight + delta, 1)) }
+              : m
+          )
+        : [...prev, { text: text.trim(), weight: Math.max(0.1, Math.min(0.5 + delta, 1)) }];
+
+      next = next.sort((a, b) => b.weight - a.weight).slice(0, 10);
+      localStorage.setItem("openlura_memory", JSON.stringify(next));
+      return next;
+    });
   };
 
   const sendMessage = async () => {
@@ -350,10 +377,12 @@ export default function Home() {
               msg.content !== "🤖 Wat kan ik beter doen?"
           )?.content || "";
 
-      setAwaitingImprovement((prev) => ({
+            setAwaitingImprovement((prev) => ({
         ...prev,
         [currentChatId]: false,
       }));
+
+      updateMemoryWeight(input, 0.3);
 
       setLoading(true);
 
@@ -382,7 +411,10 @@ BELANGRIJK:
 
 Noem niet dat dit een verbeterde versie is.
 Geef alleen direct het betere antwoord.`,
-          memory: memory.join(" | "),
+                    memory: memory
+            .filter((m) => m.weight > 0.6)
+            .map((m) => m.text)
+            .join(" | "),
           feedback: {
             likes: 0,
             dislikes: 1,
@@ -512,9 +544,26 @@ const res = await fetch("/api/chat", {
       setChats([...updated]);
     }
 
-    // ✅ MEMORY SAVE
+        // ✅ MEMORY SAVE (weighted)
     if (input.length < 60) {
-      const newMemory = [...memory, input].slice(-10);
+      const existing = memory.find((m) => m.text === input);
+
+      let newMemory;
+
+      if (existing) {
+        newMemory = memory.map((m) =>
+          m.text === input
+            ? { ...m, weight: Math.min(m.weight + 0.2, 1) }
+            : m
+        );
+      } else {
+        newMemory = [...memory, { text: input, weight: 0.5 }];
+      }
+
+      newMemory = newMemory
+        .sort((a, b) => b.weight - a.weight)
+        .slice(0, 10);
+
       setMemory(newMemory);
       localStorage.setItem("openlura_memory", JSON.stringify(newMemory));
     }
@@ -542,7 +591,11 @@ console.log("FEEDBACK CLICKED", { chatId, msgIndex, type });
     timestamp: Date.now(),
   });
 
-  localStorage.setItem(key, JSON.stringify(existing));
+    localStorage.setItem(key, JSON.stringify(existing));
+
+  if (prevMessage?.content) {
+    updateMemoryWeight(prevMessage.content, type === "up" ? 0.2 : -0.2);
+  }
 
       try {
   const res = await fetch("/api/feedback", {
