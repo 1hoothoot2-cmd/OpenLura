@@ -587,6 +587,66 @@ Personal memory: ${personalMemory || memory || "none"}`,
       );
     }
 
+        if (isSimpleImageAnalysis && image) {
+      const fastImageStream = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        stream: true,
+        messages: [
+          {
+            role: "system",
+            content: `You are OpenLura.
+
+Respond in the same language as the user.
+Analyze the image directly.
+Be fast, clear, and compact first.
+If something is uncertain, say that clearly.
+Do not use web search for this path.`,
+          },
+          {
+            role: "user",
+            content: [
+              ...(message
+                ? [
+                    {
+                      type: "text",
+                      text: message,
+                    },
+                  ]
+                : []),
+              {
+                type: "image_url",
+                image_url: {
+                  url: image,
+                },
+              },
+            ] as any,
+          },
+        ],
+      });
+
+      const encoder = new TextEncoder();
+
+      return new Response(
+        new ReadableStream({
+          async start(controller) {
+            for await (const chunk of fastImageStream as any) {
+              const text = chunk.choices?.[0]?.delta?.content || "";
+              controller.enqueue(encoder.encode(text));
+            }
+            controller.close();
+          },
+        }),
+        {
+          headers: {
+            "Content-Type": "text/plain; charset=utf-8",
+            "X-OpenLura-Variant": responseVariant,
+            "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
+            "X-OpenLura-Speed": "fast_image",
+          },
+        }
+      );
+    }
+
     const canUseCache =
       !image &&
       !shouldUseWebSearch &&
