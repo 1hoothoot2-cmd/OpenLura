@@ -8,8 +8,9 @@ export default function AnalyticsPage() {
         const [analyticsPassword, setAnalyticsPassword] = useState("");
     const [isUnlocked, setIsUnlocked] = useState(false);
     const [authError, setAuthError] = useState("");
-    const [authLoading, setAuthLoading] = useState(true);
+                const [authLoading, setAuthLoading] = useState(true);
     const [itemStatus, setItemStatus] = useState<{ [key: string]: string }>({});
+    const [workflowFilter, setWorkflowFilter] = useState("all");
 
       useEffect(() => {
     if (activeTab !== "ideas") {
@@ -42,7 +43,16 @@ export default function AnalyticsPage() {
     checkAnalyticsAccess();
   }, []);
 
-    const filteredFeedback = feedback.filter((f) => {
+            const filteredFeedback = feedback.filter((f: any) => {
+    const currentStatus =
+      itemStatus[
+        [f.type || "", f.source || "", f.timestamp || "", f.userMessage || "", f.message || ""].join("::")
+      ] || "nieuw";
+
+    if (workflowFilter !== "all" && currentStatus !== workflowFilter) {
+      return false;
+    }
+
     if (activeTab === "all") return true;
     if (activeTab === "positive") return f.type === "up";
     if (activeTab === "negative") return f.type === "down";
@@ -538,6 +548,33 @@ return () => {
   </div>
 )}
 
+<div className="mb-6 flex flex-wrap gap-2">
+  <button
+    onClick={() => setWorkflowFilter("all")}
+    className={`px-4 py-2 rounded-xl ${workflowFilter === "all" ? "bg-white text-black" : "bg-white/10 text-white"}`}
+  >
+    Alles ({feedback.length})
+  </button>
+  <button
+    onClick={() => setWorkflowFilter("nieuw")}
+    className={`px-4 py-2 rounded-xl ${workflowFilter === "nieuw" ? "bg-blue-400 text-black" : "bg-white/10 text-white"}`}
+  >
+    Nieuw ({feedback.filter((f: any) => (itemStatus[getItemKey(f)] || "nieuw") === "nieuw").length})
+  </button>
+  <button
+    onClick={() => setWorkflowFilter("bezig")}
+    className={`px-4 py-2 rounded-xl ${workflowFilter === "bezig" ? "bg-yellow-400 text-black" : "bg-white/10 text-white"}`}
+  >
+    In behandeling ({feedback.filter((f: any) => (itemStatus[getItemKey(f)] || "nieuw") === "bezig").length})
+  </button>
+  <button
+    onClick={() => setWorkflowFilter("klaar")}
+    className={`px-4 py-2 rounded-xl ${workflowFilter === "klaar" ? "bg-green-400 text-black" : "bg-white/10 text-white"}`}
+  >
+    Klaar ({feedback.filter((f: any) => (itemStatus[getItemKey(f)] || "nieuw") === "klaar").length})
+  </button>
+</div>
+
 <div className="grid md:grid-cols-4 gap-4 mb-6">
   <div className="p-4 bg-white/10 rounded-2xl">
     <h2 className="text-lg mb-3">🚨 Top complaints</h2>
@@ -637,7 +674,7 @@ return () => {
           <p className="opacity-60">No feedback yet...</p>
         )}
 
-                {filteredFeedback.map((f, i) => {
+                        {filteredFeedback.map((f, i) => {
   const itemKey = getItemKey(f);
   const currentStatus = itemStatus[itemKey] || "nieuw";
 

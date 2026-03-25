@@ -10,7 +10,7 @@ async function getRecentServerFeedback() {
 
   try {
     const res = await fetch(
-      `${supabaseUrl}/rest/v1/openlura_feedback?select=type,message,userMessage,timestamp&order=timestamp.desc&limit=30`,
+            `${supabaseUrl}/rest/v1/openlura_feedback?select=type,message,userMessage,source,timestamp&order=timestamp.desc&limit=30`,
       {
         method: "GET",
         headers: {
@@ -45,10 +45,11 @@ export async function POST(req: Request) {
   const { message, memory, location, feedback } = await req.json();
    const serverFeedback = await getRecentServerFeedback();
 
-  const normalizedServerFeedback = serverFeedback.map((item: any) => ({
+    const normalizedServerFeedback = serverFeedback.map((item: any) => ({
     type: item.type,
     message: item.message,
     userMessage: item.userMessage,
+    source: item.source,
     timestamp: item.timestamp,
   }));
 
@@ -76,11 +77,16 @@ export async function POST(req: Request) {
       )
     : [];
 
-  const effectiveFeedback = [
-    ...normalizedServerFeedback,
+        const effectiveFeedback = [
+    ...normalizedServerFeedback.filter(
+      (item: any) =>
+        item.type === "up" ||
+        item.type === "down" ||
+        item.type === "improve" ||
+        item.source === "idea_feedback_learning"
+    ),
     ...clientFeedback,
   ];
-
   const feedbackLikes = effectiveFeedback.filter(
     (f: any) => f.type === "up"
   ).length;
@@ -89,8 +95,10 @@ export async function POST(req: Request) {
     (f: any) => f.type === "down"
   ).length;
 
-  const feedbackRecentIssues = effectiveFeedback
-    .filter((f: any) => f.type === "down")
+    const feedbackRecentIssues = effectiveFeedback
+    .filter(
+      (f: any) => f.type === "down" || f.source === "idea_feedback_learning"
+    )
     .map((f: any) => f.userMessage || f.message)
     .filter(Boolean)
     .slice(0, 5);
@@ -181,7 +189,9 @@ Total sessions: ${globalFeedback.length}
 
 Common failed patterns (avoid these types of responses):
 ${globalFeedback
-  .filter((f: any) => f.type === "down")
+  .filter(
+    (f: any) => f.type === "down" || f.source === "idea_feedback_learning"
+  )
   .map(
     (f: any) =>
       `User said: "${f.userMessage || f.message}" → user was not satisfied`
