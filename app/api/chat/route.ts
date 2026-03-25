@@ -117,7 +117,7 @@ const personalLayer = personalLearningFeedback;
     .filter(Boolean)
     .slice(0, 5);
 
-  const feedbackContext =
+    const feedbackContext =
     globalLearningFeedback.length > 0
       ? `
 Likes: ${feedbackLikes}
@@ -135,6 +135,70 @@ Personal issues from this user/session:
 ${personalRecentIssues.join("\n") || "none"}
 `
       : "none";
+
+  const normalizePromptText = (text: string) =>
+    text
+      .toLowerCase()
+      .trim()
+      .replace(/[!?.,]+$/g, "")
+      .replace(/\s+/g, " ");
+
+  const normalizedMessage = normalizePromptText(message || "");
+
+  const matchingGlobalResponses = globalLearningFeedback.filter((f: any) => {
+    const promptText = normalizePromptText(f.userMessage || "");
+    return promptText === normalizedMessage && !!(f.message || "").trim();
+  });
+
+  const groupedResponsePreferences = matchingGlobalResponses.reduce(
+    (acc: any, item: any) => {
+      const responseText = String(item.message || "").trim();
+      if (!responseText) return acc;
+
+      if (!acc[responseText]) {
+        acc[responseText] = {
+          response: responseText,
+          up: 0,
+          down: 0,
+        };
+      }
+
+      if (item.type === "up") acc[responseText].up += 1;
+      if (item.type === "down") acc[responseText].down += 1;
+
+      return acc;
+    },
+    {}
+  );
+
+  const rankedResponsePreferences = Object.values(groupedResponsePreferences)
+    .map((item: any) => ({
+      ...item,
+      score: item.up - item.down,
+      total: item.up + item.down,
+    }))
+    .sort((a: any, b: any) => {
+      if (b.score !== a.score) return b.score - a.score;
+      if (b.up !== a.up) return b.up - a.up;
+      return b.total - a.total;
+    });
+
+  const bestResponsePreference = rankedResponsePreferences[0];
+  const hasMixedResponseFeedback =
+    rankedResponsePreferences.some((item: any) => item.up > 0) &&
+    rankedResponsePreferences.some((item: any) => item.down > 0);
+
+  const responsePreferenceContext = bestResponsePreference
+    ? `
+Best known response for this exact user message:
+${bestResponsePreference.response}
+
+Score: ${bestResponsePreference.score}
+Positive votes: ${bestResponsePreference.up}
+Negative votes: ${bestResponsePreference.down}
+Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
+`
+    : "none";
 
   globalFeedback = globalLearningFeedback;
 
@@ -281,7 +345,7 @@ ${personalRecentIssues.join("\n") || "none"}
     .filter(Boolean)
     .join("\n");
 
-  const injectedLearningRules = effectiveFeedback
+    const injectedLearningRules = effectiveFeedback
     .filter(
       (f: any) =>
         f.type === "improve" ||
@@ -292,7 +356,48 @@ ${personalRecentIssues.join("\n") || "none"}
     .slice(0, 8)
     .map((rule: string) => `- ${rule}`)
     .join("\n");
-      let responseVariant = "A";
+
+  let globalSignals = {
+    shorter: 0,
+    clearer: 0,
+    structure: 0,
+  };
+
+  try {
+    const feedbackRes = await fetch(
+      `${supabaseUrl}/rest/v1/openlura_feedback?select=message,type`,
+      {
+        headers: {
+          apikey: supabaseServiceRoleKey!,
+          Authorization: `Bearer ${supabaseServiceRoleKey}`,
+        },
+        cache: "no-store",
+      }
+    );
+
+    if (feedbackRes.ok) {
+      const feedbackData = await feedbackRes.json();
+
+      feedbackData.forEach((f: any) => {
+        const text = `${f.message || ""}`.toLowerCase();
+
+        if (f.type === "down" || f.type === "improve" || f.type === "idea") {
+          if (text.match(/korter|te lang|too long|shorter/)) globalSignals.shorter += 1;
+          if (text.match(/duidelijker|onduidelijk|clearer|unclear/)) globalSignals.clearer += 1;
+          if (text.match(/structuur|structure|opbouw/)) globalSignals.structure += 1;
+        }
+
+        if (f.type === "up") {
+          if (text.match(/korter|short/)) globalSignals.shorter -= 0.5;
+          if (text.match(/duidelijk|clear/)) globalSignals.clearer -= 0.5;
+        }
+      });
+    }
+  } catch (e) {
+    console.warn("Global learning fetch failed");
+  }
+
+    let responseVariant = "A";
 
   try {
     const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/feedback`, {
@@ -350,6 +455,9 @@ ${feedbackContext}
 PERSONAL FEEDBACK CONTEXT:
 ${personalFeedbackContext}
 
+RESPONSE PREFERENCE FOR THIS EXACT MESSAGE:
+${responsePreferenceContext}
+
 GLOBAL LEARNING:
 Total sessions: ${globalFeedback.length}
 
@@ -369,6 +477,16 @@ ${detectedFeedbackPatterns || "none"}
 
 ACTIVE LEARNING RULES:
 ${activeLearningRules || "none"}
+
+GLOBAL AI LEARNING (CONSENSUS ENGINE):
+- Shorter answers pressure: ${globalSignals.shorter}
+- Clearer explanations pressure: ${globalSignals.clearer}
+- Better structure pressure: ${globalSignals.structure}
+
+CONSENSUS RULES:
+- If a consensus signal is above 5, apply it strongly
+- If a consensus signal is between 2 and 5, apply it lightly
+- If consensus signals conflict, choose a balanced middle ground
 
 WEIGHTED LEARNING SIGNALS (recent feedback weighs more than old feedback):
 - shorter answers: ${cappedLearningStrength.shorter} (${learningConfidence.shorter})
@@ -406,6 +524,9 @@ ADAPTATION RULES:
 - ALWAYS prioritize GLOBAL LEARNING over personal feedback unless explicitly asked
 - For general questions, prioritize global learning before personal preferences
 - Only use personal preferences as an extra layer unless the user clearly asks for something personal or stylistic
+- If RESPONSE PREFERENCE FOR THIS EXACT MESSAGE contains a strong positively rated answer, reuse that style as the default for similar future messages
+- If RESPONSE PREFERENCE FOR THIS EXACT MESSAGE shows mixed feedback, do not copy the old answer literally; create a balanced improved version between too short and too verbose
+- For simple greetings or repeated casual openers, converge toward the best globally rated phrasing instead of answering randomly
 - When ACTIVE LEARNING RULES exist, follow them before default style preferences
 - When LEARNING INJECTION FROM FEEDBACK exists, apply those rules directly unless they conflict with safety or the user's current request
 - High confidence signals should change the reply clearly and strongly
