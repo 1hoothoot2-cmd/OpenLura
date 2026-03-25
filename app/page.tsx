@@ -565,73 +565,76 @@ Geef alleen direct het betere antwoord.`,
 
       return;
     }
-    if (!input && !image) return;
+        if (!input && !image) return;
 
     let updated = [...chats];
     const index = updated.findIndex((c) => c.id === activeChatId);
+    const inputToSend = input;
+    const imageToSend = image;
 
     updated[index].messages.push({
       role: "user",
-      content: input,
-      image,
+      content: inputToSend,
+      image: imageToSend,
     });
 
     // ✅ AUTO TITLE
-        if (updated[index].messages.length === 1) {
-      updated[index].title = input.slice(0, 30);
+    if (updated[index].messages.length === 1) {
+      updated[index].title = inputToSend.slice(0, 30);
     }
 
     setChats(updated);
     setInput("");
     setImage(null);
     setLoading(true);
-const rawFeedback = JSON.parse(localStorage.getItem("openlura_feedback") || "[]").slice(-20);
 
-// geef recente feedback meer gewicht
-const weightedFeedback = rawFeedback.map((f: any, i: number) => ({
-  ...f,
-  weight: i / rawFeedback.length + 0.5, // recenter = hoger
-}));
+    const rawFeedback = JSON.parse(localStorage.getItem("openlura_feedback") || "[]").slice(-20);
 
-const feedbackSummary = {
-  likes: weightedFeedback
-    .filter((f: any) => f.type === "up")
-    .reduce((sum: number, f: any) => sum + f.weight, 0),
+    // geef recente feedback meer gewicht
+    const weightedFeedback = rawFeedback.map((f: any, i: number) => ({
+      ...f,
+      weight: i / rawFeedback.length + 0.5, // recenter = hoger
+    }));
 
-  dislikes: weightedFeedback
-    .filter((f: any) => f.type === "down")
-    .reduce((sum: number, f: any) => sum + f.weight, 0),
+    const feedbackSummary = {
+      likes: weightedFeedback
+        .filter((f: any) => f.type === "up")
+        .reduce((sum: number, f: any) => sum + f.weight, 0),
 
-  issues: weightedFeedback
-    .filter((f: any) => f.type === "down")
-    .map((f: any) => f.message),
+      dislikes: weightedFeedback
+        .filter((f: any) => f.type === "down")
+        .reduce((sum: number, f: any) => sum + f.weight, 0),
 
-  recentIssues: weightedFeedback
-    .filter((f: any) => f.type === "down")
-    .map((f: any) => f.userMessage)
-    .slice(-3),
-};
- 
+      issues: weightedFeedback
+        .filter((f: any) => f.type === "down")
+        .map((f: any) => f.message),
+
+      recentIssues: weightedFeedback
+        .filter((f: any) => f.type === "down")
+        .map((f: any) => f.userMessage)
+        .slice(-3),
+    };
+
     const controller = new AbortController();
-setStreamController(controller);
+    setStreamController(controller);
 
-const res = await fetch("/api/chat", {
-  method: "POST", // ✅ VERPLICHT
-  signal: controller.signal,
-  body: JSON.stringify({
-    message: input,
-    image,
-    memory: memory
-      .filter((m) => m.weight > 0.6)
-      .map((m) => m.text)
-      .join(" | "),
-    personalMemory: memory
-      .filter((m) => m.weight > 0.6)
-      .map((m) => m.text)
-      .join(" | "),
-    feedback: feedbackSummary,
-  }),
-});
+    const res = await fetch("/api/chat", {
+      method: "POST", // ✅ VERPLICHT
+      signal: controller.signal,
+      body: JSON.stringify({
+        message: inputToSend,
+        image: imageToSend,
+        memory: memory
+          .filter((m) => m.weight > 0.6)
+          .map((m) => m.text)
+          .join(" | "),
+        personalMemory: memory
+          .filter((m) => m.weight > 0.6)
+          .map((m) => m.text)
+          .join(" | "),
+        feedback: feedbackSummary,
+      }),
+    });
 
         const reader = res.body?.getReader();
     const decoder = new TextDecoder();
@@ -684,20 +687,20 @@ const res = await fetch("/api/chat", {
 
     setStreamController(null);
 
-    // ✅ MEMORY SAVE
-    if (input.length < 60) {
-      const existing = memory.find((m) => m.text === input);
+        // ✅ MEMORY SAVE
+    if (inputToSend.length < 60) {
+      const existing = memory.find((m) => m.text === inputToSend);
 
       let newMemory;
 
       if (existing) {
         newMemory = memory.map((m) =>
-          m.text === input
+          m.text === inputToSend
             ? { ...m, weight: Math.min(m.weight + 0.2, 1) }
             : m
         );
       } else {
-        newMemory = [...memory, { text: input, weight: 0.5 }];
+        newMemory = [...memory, { text: inputToSend, weight: 0.5 }];
       }
 
       newMemory = newMemory
