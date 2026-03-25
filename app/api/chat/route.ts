@@ -333,7 +333,7 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
     return 0.25;
   };
 
-  const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
+    const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
     return Math.round(
       items.reduce((sum: number, f: any) => {
         const text = `${f.userMessage || ""} ${f.message || ""}`.toLowerCase();
@@ -342,55 +342,50 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
     );
   };
 
-  const shorterCount = getWeightedSignalCount(
-    globalLearningFeedback,
-    /korter|te lang|too long|shorter/
-  );
+  const getFeedbackSignals = (items: any[]) => ({
+    shorter: getWeightedSignalCount(items, /korter|te lang|too long|shorter/),
+    clearer: getWeightedSignalCount(items, /duidelijker|onduidelijk|clearer|unclear/),
+    structure: getWeightedSignalCount(items, /andere structuur|structuur|structure/),
+    vague: getWeightedSignalCount(items, /te vaag|vaag|vague/),
+    context: getWeightedSignalCount(items, /meer context|te oppervlakkig|more context|more depth/),
+    casual: getWeightedSignalCount(items, /te lang voor chat|te serieus|te formeel|korter en natuurlijker|menselijker|spontaner|luchtiger|more natural|too formal|too long for chat/),
+  });
 
-  const clearerCount = getWeightedSignalCount(
-    globalLearningFeedback,
-    /duidelijker|onduidelijk|clearer|unclear/
-  );
-
-  const structureCount = getWeightedSignalCount(
-    globalLearningFeedback,
-    /andere structuur|structuur|structure/
-  );
-
-  const vagueCount = getWeightedSignalCount(
-    globalLearningFeedback,
-    /te vaag|vaag|vague/
-  );
-
-  const contextCount = getWeightedSignalCount(
-    globalLearningFeedback,
-    /meer context|te oppervlakkig|more context|more depth/
-  );
-
-    const getSignalConfidence = (count: number) => {
+      const getSignalConfidence = (count: number) => {
     if (count >= 6) return "High";
     if (count >= 3) return "Medium";
     if (count >= 1) return "Low";
     return "None";
   };
 
-    const learningConfidence = {
+  const feedbackSignals = getFeedbackSignals(globalLearningFeedback);
+
+  const shorterCount = feedbackSignals.shorter;
+  const clearerCount = feedbackSignals.clearer;
+  const structureCount = feedbackSignals.structure;
+  const vagueCount = feedbackSignals.vague;
+  const contextCount = feedbackSignals.context;
+  const casualCount = feedbackSignals.casual;
+
+  const learningConfidence = {
     shorter: getSignalConfidence(shorterCount),
     clearer: getSignalConfidence(clearerCount),
     structure: getSignalConfidence(structureCount),
     vague: getSignalConfidence(vagueCount),
     context: getSignalConfidence(contextCount),
+    casual: getSignalConfidence(casualCount),
   };
 
-  const cappedLearningStrength = {
+    const cappedLearningStrength = {
     shorter: Math.min(shorterCount, 8),
     clearer: Math.min(clearerCount, 8),
     structure: Math.min(structureCount, 8),
     vague: Math.min(vagueCount, 8),
     context: Math.min(contextCount, 8),
+    casual: Math.min(casualCount, 8),
   };
 
-    const activeLearningRules = [
+      const activeLearningRules = [
     shorterCount >= 1 &&
       `- Keep answers shorter and cut filler aggressively (strength: ${cappedLearningStrength.shorter}, confidence: ${learningConfidence.shorter})`,
     clearerCount >= 1 &&
@@ -401,6 +396,8 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
       `- Be more concrete, specific, and less generic (strength: ${cappedLearningStrength.vague}, confidence: ${learningConfidence.vague})`,
     contextCount >= 1 &&
       `- Add a bit more depth and explain the why more clearly (strength: ${cappedLearningStrength.context}, confidence: ${learningConfidence.context})`,
+    casualCount >= 1 &&
+      `- In casual conversation, sound lighter, shorter, and more natural instead of formal or essay-like (strength: ${cappedLearningStrength.casual}, confidence: ${learningConfidence.casual})`,
   ]
     .filter(Boolean)
     .join("\n");
@@ -541,12 +538,6 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
       /(\?|\b(hoi|hey|haha|hahah|lol|leuk|gezellig|denk je|vind je|zou jij|wat zou jij|en jij|persoonlijk|flirty|date|crush|lief|cute|grappig)\b)/i.test(
         normalizedMessageForRouting
       );
-      
-  !image &&
-  !shouldUseWebSearch &&
-  /(\b(en jij|wat zou jij|zou jij|denk je|vind je|haha|hihi|lol|gezellig|leuke vraag|flirty|cute|crush|date)\b|\?)/i.test(
-    normalizedMessageForRouting
-  );
 
 const shouldForceFastCompactOutput =
       isSimpleImageAnalysis ||
@@ -843,6 +834,7 @@ WEIGHTED LEARNING SIGNALS (recent feedback weighs more than old feedback):
 - better structure: ${cappedLearningStrength.structure} (${learningConfidence.structure})
 - less vague: ${cappedLearningStrength.vague} (${learningConfidence.vague})
 - more context: ${cappedLearningStrength.context} (${learningConfidence.context})
+- casual/natural chat tone: ${cappedLearningStrength.casual} (${learningConfidence.casual})
 
 GLOBAL LEARNING (all users):
 ${injectedLearningRules || "none"}
@@ -923,13 +915,6 @@ STYLE:
 - Add short “why this matters” or “this is where it goes wrong” moments
 - Avoid sounding like a guidebook; sound like you actually understand it deeply
 - Use subtle conversational touches like “this is key”, “this is where most people mess up”
-
-STYLE:
-- Write like a high-quality ChatGPT answer
-- Sound natural, confident, and slightly conversational
-- Not robotic, not stiff
-- Add small human touches where appropriate
-- Occasionally use short punchy lines for emphasis
 - In casual conversation, prioritize charm, rhythm, and natural brevity over polished long-form explanation
 
 STRUCTURE:
@@ -1150,21 +1135,6 @@ ${aiText}`,
   }
 
   const encoder = new TextEncoder();
-
-  if (canUseCache && aiText) {
-    responseCache.set(cacheKey, {
-      text: aiText,
-      sources,
-      timestamp: Date.now(),
-    });
-
-    if (responseCache.size > 100) {
-      const oldestKey = responseCache.keys().next().value as string | undefined;
-      if (oldestKey) {
-        responseCache.delete(oldestKey);
-      }
-    }
-  }
 
   return new Response(
     new ReadableStream({
