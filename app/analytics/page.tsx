@@ -101,30 +101,59 @@ export default function AnalyticsPage() {
     .sort((a, b) => b.count - a.count)
     .slice(0, 5);
 
+    const bugNewCount = bugIdeas.filter(
+    (f: any) => (itemStatus[getItemKey(f)] || getAutoStatus(f)) === "nieuw"
+  ).length;
+  const bugBezigCount = bugIdeas.filter(
+    (f: any) => (itemStatus[getItemKey(f)] || getAutoStatus(f)) === "bezig"
+  ).length;
+
+  const learningPool = [
+    ...learningIdeas,
+    ...improvementFeedback,
+    ...negativeFeedback,
+  ];
+
+  const learningNewCount = learningPool.filter(
+    (f: any) => (itemStatus[getItemKey(f)] || getAutoStatus(f)) === "nieuw"
+  ).length;
+  const learningBezigCount = learningPool.filter(
+    (f: any) => (itemStatus[getItemKey(f)] || getAutoStatus(f)) === "bezig"
+  ).length;
+
+  const adjustmentNewCount = adjustmentIdeas.filter(
+    (f: any) => (itemStatus[getItemKey(f)] || getAutoStatus(f)) === "nieuw"
+  ).length;
+  const adjustmentBezigCount = adjustmentIdeas.filter(
+    (f: any) => (itemStatus[getItemKey(f)] || getAutoStatus(f)) === "bezig"
+  ).length;
+
   const priorityItems = [
     {
       label: "Bugs",
       count: bugIdeas.length,
       type: "bug",
+      weightedCount: bugIdeas.length + bugNewCount * 2 + bugBezigCount,
       priority:
-        bugIdeas.length >= 5
+        bugIdeas.length + bugNewCount * 2 + bugBezigCount >= 8
           ? "Hoog"
-          : bugIdeas.length >= 2
+          : bugIdeas.length + bugNewCount * 2 + bugBezigCount >= 4
           ? "Middel"
-          : bugIdeas.length >= 1
+          : bugIdeas.length + bugNewCount * 2 + bugBezigCount >= 1
           ? "Laag"
           : "Geen",
     },
     {
       label: "AI feedback",
-      count: learningIdeas.length + improvementFeedback.length + negativeFeedback.length,
+      count: learningPool.length,
       type: "learning",
+      weightedCount: learningPool.length + learningNewCount * 2 + learningBezigCount,
       priority:
-        learningIdeas.length + improvementFeedback.length + negativeFeedback.length >= 8
+        learningPool.length + learningNewCount * 2 + learningBezigCount >= 12
           ? "Hoog"
-          : learningIdeas.length + improvementFeedback.length + negativeFeedback.length >= 4
+          : learningPool.length + learningNewCount * 2 + learningBezigCount >= 6
           ? "Middel"
-          : learningIdeas.length + improvementFeedback.length + negativeFeedback.length >= 1
+          : learningPool.length + learningNewCount * 2 + learningBezigCount >= 1
           ? "Laag"
           : "Geen",
     },
@@ -132,16 +161,17 @@ export default function AnalyticsPage() {
       label: "Aanpassingen",
       count: adjustmentIdeas.length,
       type: "adjustment",
+      weightedCount: adjustmentIdeas.length + adjustmentNewCount * 2 + adjustmentBezigCount,
       priority:
-        adjustmentIdeas.length >= 6
+        adjustmentIdeas.length + adjustmentNewCount * 2 + adjustmentBezigCount >= 9
           ? "Hoog"
-          : adjustmentIdeas.length >= 3
+          : adjustmentIdeas.length + adjustmentNewCount * 2 + adjustmentBezigCount >= 4
           ? "Middel"
-          : adjustmentIdeas.length >= 1
+          : adjustmentIdeas.length + adjustmentNewCount * 2 + adjustmentBezigCount >= 1
           ? "Laag"
           : "Geen",
     },
-  ].sort((a, b) => b.count - a.count);
+  ].sort((a, b) => b.weightedCount - a.weightedCount);
 
     const feedbackScore =
     feedback.length > 0
@@ -517,9 +547,10 @@ return () => {
     <p className="text-xl">{topComplaints.length}</p>
   </div>
 
-  <div className="p-4 bg-white/10 rounded-xl">
+    <div className="p-4 bg-white/10 rounded-xl">
     <p className="text-xs opacity-60">🔥 Top prioriteit</p>
     <p className="text-xl">{priorityItems[0]?.label || "Geen"}</p>
+    <p className="text-xs opacity-60 mt-1">{priorityItems[0]?.priority || ""}</p>
   </div>
 
   <button
@@ -597,29 +628,74 @@ return () => {
 )}
 
 <div className="mb-6 flex flex-wrap gap-2">
-  <button
+    <button
     onClick={() => setWorkflowFilter("all")}
     className={`px-4 py-2 rounded-xl ${workflowFilter === "all" ? "bg-white text-black" : "bg-white/10 text-white"}`}
   >
-    Alles ({feedback.length})
+    Alles ({filteredFeedback.length})
   </button>
   <button
     onClick={() => setWorkflowFilter("nieuw")}
     className={`px-4 py-2 rounded-xl ${workflowFilter === "nieuw" ? "bg-blue-400 text-black" : "bg-white/10 text-white"}`}
   >
-        Nieuw ({feedback.filter((f: any) => (itemStatus[getItemKey(f)] || getAutoStatus(f)) === "nieuw").length})
+    Nieuw ({feedback.filter((f: any) => {
+      const status = itemStatus[getItemKey(f)] || getAutoStatus(f);
+      if (status !== "nieuw") return false;
+      if (activeTab === "all") return true;
+      if (activeTab === "positive") return f.type === "up";
+      if (activeTab === "negative") return f.type === "down";
+      if (activeTab === "improvement") return f.type === "improve";
+      if (activeTab === "ideas") {
+        if (f.type !== "idea") return false;
+        if (ideaFilter === "all") return true;
+        if (ideaFilter === "bug") return f.source === "idea_bug";
+        if (ideaFilter === "adjustment") return f.source === "idea_adjustment";
+        if (ideaFilter === "learning") return f.source === "idea_feedback_learning";
+      }
+      return true;
+    }).length})
   </button>
   <button
     onClick={() => setWorkflowFilter("bezig")}
     className={`px-4 py-2 rounded-xl ${workflowFilter === "bezig" ? "bg-yellow-400 text-black" : "bg-white/10 text-white"}`}
   >
-        In behandeling ({feedback.filter((f: any) => (itemStatus[getItemKey(f)] || getAutoStatus(f)) === "bezig").length})
+    In behandeling ({feedback.filter((f: any) => {
+      const status = itemStatus[getItemKey(f)] || getAutoStatus(f);
+      if (status !== "bezig") return false;
+      if (activeTab === "all") return true;
+      if (activeTab === "positive") return f.type === "up";
+      if (activeTab === "negative") return f.type === "down";
+      if (activeTab === "improvement") return f.type === "improve";
+      if (activeTab === "ideas") {
+        if (f.type !== "idea") return false;
+        if (ideaFilter === "all") return true;
+        if (ideaFilter === "bug") return f.source === "idea_bug";
+        if (ideaFilter === "adjustment") return f.source === "idea_adjustment";
+        if (ideaFilter === "learning") return f.source === "idea_feedback_learning";
+      }
+      return true;
+    }).length})
   </button>
   <button
     onClick={() => setWorkflowFilter("klaar")}
     className={`px-4 py-2 rounded-xl ${workflowFilter === "klaar" ? "bg-green-400 text-black" : "bg-white/10 text-white"}`}
   >
-        Klaar ({feedback.filter((f: any) => (itemStatus[getItemKey(f)] || getAutoStatus(f)) === "klaar").length})
+    Klaar ({feedback.filter((f: any) => {
+      const status = itemStatus[getItemKey(f)] || getAutoStatus(f);
+      if (status !== "klaar") return false;
+      if (activeTab === "all") return true;
+      if (activeTab === "positive") return f.type === "up";
+      if (activeTab === "negative") return f.type === "down";
+      if (activeTab === "improvement") return f.type === "improve";
+      if (activeTab === "ideas") {
+        if (f.type !== "idea") return false;
+        if (ideaFilter === "all") return true;
+        if (ideaFilter === "bug") return f.source === "idea_bug";
+        if (ideaFilter === "adjustment") return f.source === "idea_adjustment";
+        if (ideaFilter === "learning") return f.source === "idea_feedback_learning";
+      }
+      return true;
+    }).length})
   </button>
 </div>
 
@@ -690,8 +766,8 @@ return () => {
       {priorityItems.map((item) => (
         <div key={item.type} className="flex justify-between">
           <span>{item.label}</span>
-          <span className="opacity-60">
-            {item.priority} ({item.count})
+                    <span className="opacity-60">
+            {item.priority} ({item.weightedCount})
           </span>
         </div>
       ))}
@@ -777,10 +853,10 @@ return () => {
       </span>
 
       <div className="flex items-center gap-2 ml-auto">
-                <select
+                        <select
           value={currentStatus}
           onChange={(e) => updateItemStatus(itemKey, e.target.value)}
-          className="px-3 py-1 rounded-lg bg-white/10 text-white text-sm"
+          className="px-3 py-1 rounded-lg bg-white/10 text-white text-sm [&>option]:text-black"
         >
           <option value="nieuw">Nieuw</option>
           <option value="bezig">In behandeling</option>
