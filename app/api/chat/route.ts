@@ -242,17 +242,40 @@ ${personalRecentIssues.join("\n") || "none"}
     /meer context|te oppervlakkig|more context|more depth/
   );
 
-  const activeLearningRules = [
+    const getSignalConfidence = (count: number) => {
+    if (count >= 6) return "High";
+    if (count >= 3) return "Medium";
+    if (count >= 1) return "Low";
+    return "None";
+  };
+
+    const learningConfidence = {
+    shorter: getSignalConfidence(shorterCount),
+    clearer: getSignalConfidence(clearerCount),
+    structure: getSignalConfidence(structureCount),
+    vague: getSignalConfidence(vagueCount),
+    context: getSignalConfidence(contextCount),
+  };
+
+  const cappedLearningStrength = {
+    shorter: Math.min(shorterCount, 8),
+    clearer: Math.min(clearerCount, 8),
+    structure: Math.min(structureCount, 8),
+    vague: Math.min(vagueCount, 8),
+    context: Math.min(contextCount, 8),
+  };
+
+    const activeLearningRules = [
     shorterCount >= 1 &&
-      `- Keep answers shorter and cut filler aggressively (strength: ${shorterCount})`,
+      `- Keep answers shorter and cut filler aggressively (strength: ${cappedLearningStrength.shorter}, confidence: ${learningConfidence.shorter})`,
     clearerCount >= 1 &&
-      `- Use simpler wording and make the explanation easier to follow (strength: ${clearerCount})`,
+      `- Use simpler wording and make the explanation easier to follow (strength: ${cappedLearningStrength.clearer}, confidence: ${learningConfidence.clearer})`,
     structureCount >= 1 &&
-      `- Use cleaner structure with clearer sections and flow (strength: ${structureCount})`,
+      `- Use cleaner structure with clearer sections and flow (strength: ${cappedLearningStrength.structure}, confidence: ${learningConfidence.structure})`,
     vagueCount >= 1 &&
-      `- Be more concrete, specific, and less generic (strength: ${vagueCount})`,
+      `- Be more concrete, specific, and less generic (strength: ${cappedLearningStrength.vague}, confidence: ${learningConfidence.vague})`,
     contextCount >= 1 &&
-      `- Add a bit more depth and explain the why more clearly (strength: ${contextCount})`,
+      `- Add a bit more depth and explain the why more clearly (strength: ${cappedLearningStrength.context}, confidence: ${learningConfidence.context})`,
   ]
     .filter(Boolean)
     .join("\n");
@@ -312,11 +335,11 @@ ACTIVE LEARNING RULES:
 ${activeLearningRules || "none"}
 
 WEIGHTED LEARNING SIGNALS (recent feedback weighs more than old feedback):
-- shorter answers: ${shorterCount}
-- clearer explanations: ${clearerCount}
-- better structure: ${structureCount}
-- less vague: ${vagueCount}
-- more context: ${contextCount}
+- shorter answers: ${cappedLearningStrength.shorter} (${learningConfidence.shorter})
+- clearer explanations: ${cappedLearningStrength.clearer} (${learningConfidence.clearer})
+- better structure: ${cappedLearningStrength.structure} (${learningConfidence.structure})
+- less vague: ${cappedLearningStrength.vague} (${learningConfidence.vague})
+- more context: ${cappedLearningStrength.context} (${learningConfidence.context})
 
 LEARNING INJECTION FROM FEEDBACK:
 ${injectedLearningRules || "none"}
@@ -346,8 +369,10 @@ ADAPTATION RULES:
 - Only use personal preferences as an extra layer unless the user clearly asks for something personal or stylistic
 - When ACTIVE LEARNING RULES exist, follow them before default style preferences
 - When LEARNING INJECTION FROM FEEDBACK exists, apply those rules directly unless they conflict with safety or the user's current request
-- If a weighted learning signal is 3 or higher, apply that rule noticeably stronger in this reply
-- If a weighted learning signal is 5 or higher, treat it as a dominant global preference unless the user asks otherwise
+- High confidence signals should change the reply clearly and strongly
+- Medium confidence signals should noticeably influence structure, clarity, or length
+- Low confidence signals should only be applied lightly as a soft preference
+- Ignore signals with confidence None
 - Weighted learning signals are recency-based, so follow recent repeated feedback more strongly than older feedback
 
 INTERPRETATION RULES:
