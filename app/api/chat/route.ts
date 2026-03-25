@@ -172,35 +172,37 @@ ${feedbackRecentIssues.join("\n") || "none"}
     .map((item) => `- ${item.label}`)
     .join("\n");
 
-    const activeLearningRules = [
-    (
-      negativeFeedbackTexts.includes("korter") ||
-      negativeFeedbackTexts.includes("te lang") ||
-      negativeFeedbackTexts.includes("too long") ||
-      negativeFeedbackTexts.includes("shorter")
-    ) && "- Keep answers shorter and cut filler aggressively",
-    (
-      negativeFeedbackTexts.includes("duidelijker") ||
-      negativeFeedbackTexts.includes("onduidelijk") ||
-      negativeFeedbackTexts.includes("clearer") ||
-      negativeFeedbackTexts.includes("unclear")
-    ) && "- Use simpler wording and make the explanation easier to follow",
-    (
-      negativeFeedbackTexts.includes("andere structuur") ||
-      negativeFeedbackTexts.includes("structuur") ||
-      negativeFeedbackTexts.includes("structure")
-    ) && "- Use cleaner structure with clearer sections and flow",
-    (
-      negativeFeedbackTexts.includes("te vaag") ||
-      negativeFeedbackTexts.includes("vaag") ||
-      negativeFeedbackTexts.includes("vague")
-    ) && "- Be more concrete, specific, and less generic",
-    (
-      negativeFeedbackTexts.includes("meer context") ||
-      negativeFeedbackTexts.includes("te oppervlakkig") ||
-      negativeFeedbackTexts.includes("more context") ||
-      negativeFeedbackTexts.includes("more depth")
-    ) && "- Add a bit more depth and explain the why more clearly",
+      const shorterCount = effectiveFeedback.filter((f: any) =>
+    `${f.userMessage || ""} ${f.message || ""}`.toLowerCase().match(/korter|te lang|too long|shorter/)
+  ).length;
+
+  const clearerCount = effectiveFeedback.filter((f: any) =>
+    `${f.userMessage || ""} ${f.message || ""}`.toLowerCase().match(/duidelijker|onduidelijk|clearer|unclear/)
+  ).length;
+
+  const structureCount = effectiveFeedback.filter((f: any) =>
+    `${f.userMessage || ""} ${f.message || ""}`.toLowerCase().match(/andere structuur|structuur|structure/)
+  ).length;
+
+  const vagueCount = effectiveFeedback.filter((f: any) =>
+    `${f.userMessage || ""} ${f.message || ""}`.toLowerCase().match(/te vaag|vaag|vague/)
+  ).length;
+
+  const contextCount = effectiveFeedback.filter((f: any) =>
+    `${f.userMessage || ""} ${f.message || ""}`.toLowerCase().match(/meer context|te oppervlakkig|more context|more depth/)
+  ).length;
+
+  const activeLearningRules = [
+    shorterCount >= 1 &&
+      `- Keep answers shorter and cut filler aggressively (strength: ${shorterCount})`,
+    clearerCount >= 1 &&
+      `- Use simpler wording and make the explanation easier to follow (strength: ${clearerCount})`,
+    structureCount >= 1 &&
+      `- Use cleaner structure with clearer sections and flow (strength: ${structureCount})`,
+    vagueCount >= 1 &&
+      `- Be more concrete, specific, and less generic (strength: ${vagueCount})`,
+    contextCount >= 1 &&
+      `- Add a bit more depth and explain the why more clearly (strength: ${contextCount})`,
   ]
     .filter(Boolean)
     .join("\n");
@@ -256,6 +258,13 @@ ${detectedFeedbackPatterns || "none"}
 ACTIVE LEARNING RULES:
 ${activeLearningRules || "none"}
 
+WEIGHTED LEARNING SIGNALS:
+- shorter answers: ${shorterCount}
+- clearer explanations: ${clearerCount}
+- better structure: ${structureCount}
+- less vague: ${vagueCount}
+- more context: ${contextCount}
+
 LEARNING INJECTION FROM FEEDBACK:
 ${injectedLearningRules || "none"}
 
@@ -281,6 +290,8 @@ ADAPTATION RULES:
 - Treat LEARNING INJECTION FROM FEEDBACK as direct instructions learned from analytics and user feedback
 - When ACTIVE LEARNING RULES exist, follow them before default style preferences
 - When LEARNING INJECTION FROM FEEDBACK exists, apply those rules directly unless they conflict with safety or the user's current request
+- If a weighted learning signal is 3 or higher, apply that rule noticeably stronger in this reply
+- If a weighted learning signal is 5 or higher, treat it as a dominant preference unless the user asks otherwise
 
 INTERPRETATION RULES:
 EMOTIONAL SUPPORT RULES:
