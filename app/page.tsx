@@ -1034,7 +1034,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
         </div>
       )}
 
-      {showFeedbackBox && (
+            {showFeedbackBox && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
           <div className="bg-[#0a0a1f] p-6 rounded-2xl w-[300px]">
             <h2 className="mb-2">Feedback / Idee</h2>
@@ -1043,12 +1043,23 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
               onChange={(e) => setFeedbackText(e.target.value)}
               className="w-full p-2 rounded bg-white/10 mb-3"
             />
-            <button
-              onClick={handleIdeaSubmit}
-              className="w-full p-2 bg-purple-500 rounded-xl"
-            >
-              Verstuur
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  setShowFeedbackBox(false);
+                  setFeedbackText("");
+                }}
+                className="flex-1 p-2 bg-white/10 rounded-xl"
+              >
+                Annuleren
+              </button>
+              <button
+                onClick={handleIdeaSubmit}
+                className="flex-1 p-2 bg-purple-500 rounded-xl"
+              >
+                Verstuur
+              </button>
+            </div>
           </div>
         </div>
       )}
