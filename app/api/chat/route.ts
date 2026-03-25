@@ -62,6 +62,92 @@ function buildCacheKey(input: {
   });
 }
 
+function buildStyleLearningSignals(input: {
+  shorter: number;
+  clearer: number;
+  structure: number;
+  vague: number;
+  context: number;
+  casual: number;
+}) {
+  return {
+    shorter: input.shorter,
+    clearer: input.clearer,
+    structure: input.structure,
+    vague: input.vague,
+    context: input.context,
+    casual: input.casual,
+  };
+}
+
+function buildContentLearningState(input: {
+  responsePreferenceContext: string;
+  hasMixedResponseFeedback: boolean;
+  bestResponsePreference?: {
+    response: string;
+    score: number;
+    up: number;
+    down: number;
+  };
+}) {
+  return {
+    responsePreferenceContext: input.responsePreferenceContext,
+    hasMixedResponseFeedback: input.hasMixedResponseFeedback,
+    bestResponsePreference: input.bestResponsePreference || null,
+    hasContentPreference: !!input.bestResponsePreference,
+  };
+}
+
+function classifyOpenLuraRoute(input: {
+  message?: string;
+  image?: string | null;
+}) {
+  const normalizedMessage = (input.message || "").toLowerCase().trim();
+
+  const isSimpleImageAnalysis =
+    !!input.image &&
+    (!normalizedMessage ||
+      /^(wat is dit|what is this|beschrijf dit|describe this|analyseer dit|analyze this|wat zie je|what do you see|wie is dit|who is this)$/i.test(
+        normalizedMessage
+      ));
+
+  const shouldUseWebSearch =
+    !isSimpleImageAnalysis &&
+    (!input.image ||
+      /restaurant|cafe|coffee|koffie|location|locatie|where|waar|address|adres|opening|open|review|route|travel|venue|place|plek|business|bedrijf|hotel|map|maps|near|dichtbij|best|beste|news|nieuws|welke plek|which place|waar is dit|where is this|welk restaurant|which restaurant|vind locatie|find location|zoek locatie|search location/i.test(
+        normalizedMessage
+      ));
+
+  const isCasualChatRequest =
+    !input.image &&
+    !shouldUseWebSearch &&
+    /(\?|\b(hoi|hey|haha|hahah|lol|leuk|gezellig|denk je|vind je|zou jij|wat zou jij|en jij|persoonlijk|flirty|date|crush|lief|cute|grappig)\b)/i.test(
+      normalizedMessage
+    );
+
+  const shouldForceFastCompactOutput =
+    isSimpleImageAnalysis ||
+    shouldUseWebSearch ||
+    isCasualChatRequest ||
+    normalizedMessage.length <= 40;
+
+  const shouldUseFastTextPath =
+    !input.image &&
+    !shouldUseWebSearch &&
+    !!normalizedMessage &&
+    normalizedMessage.length <= 120;
+
+  return {
+    normalizedMessage,
+    isSimpleImageAnalysis,
+    shouldUseWebSearch,
+    isSearchStyleRequest: shouldUseWebSearch,
+    isCasualChatRequest,
+    shouldForceFastCompactOutput,
+    shouldUseFastTextPath,
+  };
+}
+
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -260,6 +346,12 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
 `
     : "none";
 
+  const contentLearningState = buildContentLearningState({
+    responsePreferenceContext,
+    hasMixedResponseFeedback,
+    bestResponsePreference,
+  });
+
   globalFeedback = globalLearningFeedback;
 
     const completedFeedback = globalLearningFeedback.filter(
@@ -360,12 +452,21 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
 
   const feedbackSignals = getFeedbackSignals(globalLearningFeedback);
 
-  const shorterCount = feedbackSignals.shorter;
-  const clearerCount = feedbackSignals.clearer;
-  const structureCount = feedbackSignals.structure;
-  const vagueCount = feedbackSignals.vague;
-  const contextCount = feedbackSignals.context;
-  const casualCount = feedbackSignals.casual;
+  const styleLearningSignals = buildStyleLearningSignals({
+    shorter: feedbackSignals.shorter,
+    clearer: feedbackSignals.clearer,
+    structure: feedbackSignals.structure,
+    vague: feedbackSignals.vague,
+    context: feedbackSignals.context,
+    casual: feedbackSignals.casual,
+  });
+
+  const shorterCount = styleLearningSignals.shorter;
+  const clearerCount = styleLearningSignals.clearer;
+  const structureCount = styleLearningSignals.structure;
+  const vagueCount = styleLearningSignals.vague;
+  const contextCount = styleLearningSignals.context;
+  const casualCount = styleLearningSignals.casual;
 
   const learningConfidence = {
     shorter: getSignalConfidence(shorterCount),
@@ -496,60 +597,18 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
     responseVariant = Math.random() < 0.5 ? "A" : "B";
   }
 
-        const userContent: any[] = [];
-
-    if (message) {
-      userContent.push({
-        type: "input_text",
-        text: message,
-      });
-    }
-
-    if (image) {
-      userContent.push({
-        type: "input_image",
-        image_url: image,
-      });
-    }
-
-            const normalizedMessageForRouting = (message || "").toLowerCase().trim();
-
-    const isSimpleImageAnalysis =
-      !!image &&
-      (!normalizedMessageForRouting ||
-        /^(wat is dit|what is this|beschrijf dit|describe this|analyseer dit|analyze this|wat zie je|what do you see|wie is dit|who is this)$/i.test(
-          normalizedMessageForRouting
-        ));
-
-        const shouldUseWebSearch =
-        
-      !isSimpleImageAnalysis &&
-      (
-        !image ||
-        /restaurant|cafe|coffee|koffie|location|locatie|where|waar|address|adres|opening|open|review|route|travel|venue|place|plek|business|bedrijf|hotel|map|maps|near|dichtbij|best|beste|news|nieuws|welke plek|which place|waar is dit|where is this|welk restaurant|which restaurant|vind locatie|find location|zoek locatie|search location/i.test(
-          normalizedMessageForRouting
-        )
-      );
-
-    const isSearchStyleRequest = shouldUseWebSearch;
-    const isCasualChatRequest =
-      !image &&
-      !shouldUseWebSearch &&
-      /(\?|\b(hoi|hey|haha|hahah|lol|leuk|gezellig|denk je|vind je|zou jij|wat zou jij|en jij|persoonlijk|flirty|date|crush|lief|cute|grappig)\b)/i.test(
-        normalizedMessageForRouting
-      );
-
-const shouldForceFastCompactOutput =
-      isSimpleImageAnalysis ||
-      isSearchStyleRequest ||
-      isCasualChatRequest ||
-      normalizedMessageForRouting.length <= 40;
-
-        const shouldUseFastTextPath =
-      !image &&
-      !shouldUseWebSearch &&
-      !!normalizedMessageForRouting &&
-      normalizedMessageForRouting.length <= 120;
+    const {
+      normalizedMessage: normalizedMessageForRouting,
+      isSimpleImageAnalysis,
+      shouldUseWebSearch,
+      isSearchStyleRequest,
+      isCasualChatRequest,
+      shouldForceFastCompactOutput,
+      shouldUseFastTextPath,
+    } = classifyOpenLuraRoute({
+      message,
+      image,
+    });
 
         if (shouldUseFastTextPath) {
       const cacheKey = buildCacheKey({
@@ -795,8 +854,16 @@ ${feedbackContext}
 PERSONAL FEEDBACK CONTEXT:
 ${personalFeedbackContext}
 
-RESPONSE PREFERENCE FOR THIS EXACT MESSAGE:
-${responsePreferenceContext}
+RESPONSE CONTENT PREFERENCE FOR THIS EXACT MESSAGE:
+${contentLearningState.responsePreferenceContext}
+
+STYLE LEARNING SIGNALS:
+- shorter answers: ${cappedLearningStrength.shorter} (${learningConfidence.shorter})
+- clearer explanations: ${cappedLearningStrength.clearer} (${learningConfidence.clearer})
+- better structure: ${cappedLearningStrength.structure} (${learningConfidence.structure})
+- less vague: ${cappedLearningStrength.vague} (${learningConfidence.vague})
+- more context: ${cappedLearningStrength.context} (${learningConfidence.context})
+- casual/natural chat tone: ${cappedLearningStrength.casual} (${learningConfidence.casual})
 
 GLOBAL LEARNING:
 Total sessions: ${globalFeedback.length}
@@ -827,14 +894,6 @@ CONSENSUS RULES:
 - If a consensus signal is above 5, apply it strongly
 - If a consensus signal is between 2 and 5, apply it lightly
 - If consensus signals conflict, choose a balanced middle ground
-
-WEIGHTED LEARNING SIGNALS (recent feedback weighs more than old feedback):
-- shorter answers: ${cappedLearningStrength.shorter} (${learningConfidence.shorter})
-- clearer explanations: ${cappedLearningStrength.clearer} (${learningConfidence.clearer})
-- better structure: ${cappedLearningStrength.structure} (${learningConfidence.structure})
-- less vague: ${cappedLearningStrength.vague} (${learningConfidence.vague})
-- more context: ${cappedLearningStrength.context} (${learningConfidence.context})
-- casual/natural chat tone: ${cappedLearningStrength.casual} (${learningConfidence.casual})
 
 GLOBAL LEARNING (all users):
 ${injectedLearningRules || "none"}
