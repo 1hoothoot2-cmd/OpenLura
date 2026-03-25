@@ -44,10 +44,10 @@ export default function AnalyticsPage() {
   }, []);
 
             const filteredFeedback = feedback.filter((f: any) => {
-    const currentStatus =
+        const currentStatus =
       itemStatus[
         [f.type || "", f.source || "", f.timestamp || "", f.userMessage || "", f.message || ""].join("::")
-      ] || "nieuw";
+      ] || getAutoStatus(f);
 
     if (workflowFilter !== "all" && currentStatus !== workflowFilter) {
       return false;
@@ -148,10 +148,10 @@ export default function AnalyticsPage() {
       ? Math.round((positiveFeedback.length / (positiveFeedback.length + negativeFeedback.length || 1)) * 100)
       : 0;
 
-  const workflowCounts = {
-    nieuw: filteredFeedback.filter((f: any) => (itemStatus[getItemKey(f)] || "nieuw") === "nieuw").length,
-    bezig: filteredFeedback.filter((f: any) => (itemStatus[getItemKey(f)] || "nieuw") === "bezig").length,
-    klaar: filteredFeedback.filter((f: any) => (itemStatus[getItemKey(f)] || "nieuw") === "klaar").length,
+    const workflowCounts = {
+    nieuw: filteredFeedback.filter((f: any) => (itemStatus[getItemKey(f)] || getAutoStatus(f)) === "nieuw").length,
+    bezig: filteredFeedback.filter((f: any) => (itemStatus[getItemKey(f)] || getAutoStatus(f)) === "bezig").length,
+    klaar: filteredFeedback.filter((f: any) => (itemStatus[getItemKey(f)] || getAutoStatus(f)) === "klaar").length,
   };
 
 useEffect(() => {
@@ -318,11 +318,16 @@ return () => {
     }
   };
 
-    function getItemKey(f: any) {
+      function getItemKey(f: any) {
     return [f.type || "", f.source || "", f.timestamp || "", f.userMessage || "", f.message || ""].join("::");
   }
 
-  const updateItemStatus = (key: string, status: string) => {
+  function getAutoStatus(f: any) {
+    if (f.type === "up") return "klaar";
+    return "nieuw";
+  }
+
+    const updateItemStatus = (key: string, status: string) => {
     setItemStatus((prev) => {
       const next = { ...prev, [key]: status };
       localStorage.setItem("openlura_analytics_status", JSON.stringify(next));
@@ -559,19 +564,19 @@ return () => {
     onClick={() => setWorkflowFilter("nieuw")}
     className={`px-4 py-2 rounded-xl ${workflowFilter === "nieuw" ? "bg-blue-400 text-black" : "bg-white/10 text-white"}`}
   >
-    Nieuw ({feedback.filter((f: any) => (itemStatus[getItemKey(f)] || "nieuw") === "nieuw").length})
+        Nieuw ({feedback.filter((f: any) => (itemStatus[getItemKey(f)] || getAutoStatus(f)) === "nieuw").length})
   </button>
   <button
     onClick={() => setWorkflowFilter("bezig")}
     className={`px-4 py-2 rounded-xl ${workflowFilter === "bezig" ? "bg-yellow-400 text-black" : "bg-white/10 text-white"}`}
   >
-    In behandeling ({feedback.filter((f: any) => (itemStatus[getItemKey(f)] || "nieuw") === "bezig").length})
+        In behandeling ({feedback.filter((f: any) => (itemStatus[getItemKey(f)] || getAutoStatus(f)) === "bezig").length})
   </button>
   <button
     onClick={() => setWorkflowFilter("klaar")}
     className={`px-4 py-2 rounded-xl ${workflowFilter === "klaar" ? "bg-green-400 text-black" : "bg-white/10 text-white"}`}
   >
-    Klaar ({feedback.filter((f: any) => (itemStatus[getItemKey(f)] || "nieuw") === "klaar").length})
+        Klaar ({feedback.filter((f: any) => (itemStatus[getItemKey(f)] || getAutoStatus(f)) === "klaar").length})
   </button>
 </div>
 
@@ -676,7 +681,7 @@ return () => {
 
                         {filteredFeedback.map((f, i) => {
   const itemKey = getItemKey(f);
-  const currentStatus = itemStatus[itemKey] || "nieuw";
+    const currentStatus = itemStatus[itemKey] || getAutoStatus(f);
 
   return (
   <div key={i} className="p-4 bg-white/10 rounded-2xl">
@@ -729,10 +734,10 @@ return () => {
       </span>
 
       <div className="flex items-center gap-2 ml-auto">
-        <select
+                <select
           value={currentStatus}
           onChange={(e) => updateItemStatus(itemKey, e.target.value)}
-          className="px-3 py-1 rounded-lg bg-white/10 text-sm"
+          className="px-3 py-1 rounded-lg bg-white/10 text-white text-sm"
         >
           <option value="nieuw">Nieuw</option>
           <option value="bezig">In behandeling</option>
