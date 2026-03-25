@@ -87,10 +87,11 @@ export async function POST(req: Request) {
 
   const personalLearningFeedback = clientFeedback;
 
-  const effectiveFeedback = [
-    ...globalLearningFeedback,
-    ...personalLearningFeedback,
-  ];
+  // GLOBAL FIRST (true AI learning)
+const effectiveFeedback = globalLearningFeedback;
+
+// PERSONAL alleen als extra laag (optioneel)
+const personalLayer = personalLearningFeedback;
 
   const feedbackLikes = globalLearningFeedback.filter(
     (f: any) => f.type === "up"
@@ -341,9 +342,11 @@ WEIGHTED LEARNING SIGNALS (recent feedback weighs more than old feedback):
 - less vague: ${cappedLearningStrength.vague} (${learningConfidence.vague})
 - more context: ${cappedLearningStrength.context} (${learningConfidence.context})
 
-LEARNING INJECTION FROM FEEDBACK:
+GLOBAL LEARNING (all users):
 ${injectedLearningRules || "none"}
 
+PERSONAL CONTEXT (single user bias):
+${personalLayer.length > 0 ? "present" : "none"}
 SUCCESSFUL PATTERNS (completed items):
 ${completedFeedback
   .filter(
@@ -364,7 +367,8 @@ ADAPTATION RULES:
 - If users dislike vague answers, be more concrete and specific
 - Treat ACTIVE LEARNING RULES as global behavior instructions learned from all users
 - Treat LEARNING INJECTION FROM FEEDBACK as global instructions learned from analytics and shared feedback
-- Treat PERSONAL FEEDBACK CONTEXT and User memory as personal preferences for this specific user
+- Treat PERSONAL FEEDBACK CONTEXT and User memory as a weak preference layer
+- ALWAYS prioritize GLOBAL LEARNING over personal feedback unless explicitly asked
 - For general questions, prioritize global learning before personal preferences
 - Only use personal preferences as an extra layer unless the user clearly asks for something personal or stylistic
 - When ACTIVE LEARNING RULES exist, follow them before default style preferences
