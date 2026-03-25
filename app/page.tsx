@@ -256,7 +256,7 @@ export default function Home() {
   };
 
     // ✅ IMAGE HANDLER
-  const handleFile = (e: any) => {
+    const handleFile = (e: any) => {
     const file = e.target.files[0];
     if (!file) return;
 
@@ -265,6 +265,45 @@ export default function Home() {
       setImage(reader.result as string);
     };
     reader.readAsDataURL(file);
+  };
+
+  const getActiveLearningDebug = () => {
+    const rawFeedback = JSON.parse(localStorage.getItem("openlura_feedback") || "[]");
+    const feedbackText = rawFeedback
+      .map((f: any) => `${f.userMessage || ""} ${f.message || ""}`.toLowerCase())
+      .join(" ");
+
+    const rules = [
+      (
+        feedbackText.includes("korter") ||
+        feedbackText.includes("te lang") ||
+        feedbackText.includes("shorter") ||
+        feedbackText.includes("too long")
+      ) && "kortere antwoorden",
+      (
+        feedbackText.includes("duidelijker") ||
+        feedbackText.includes("onduidelijk") ||
+        feedbackText.includes("clearer") ||
+        feedbackText.includes("unclear")
+      ) && "duidelijkere uitleg",
+      (
+        feedbackText.includes("structuur") ||
+        feedbackText.includes("structure")
+      ) && "betere structuur",
+      (
+        feedbackText.includes("te vaag") ||
+        feedbackText.includes("vaag") ||
+        feedbackText.includes("vague")
+      ) && "concretere antwoorden",
+      (
+        feedbackText.includes("meer context") ||
+        feedbackText.includes("more context") ||
+        feedbackText.includes("more depth")
+      ) && "meer context waar nodig",
+      memory.some((m) => m.weight > 0.6) && "persoonlijke memory actief",
+    ].filter(Boolean) as string[];
+
+    return rules.slice(0, 4);
   };
 
   const updateMemoryWeight = (text: string, delta: number) => {
@@ -1175,27 +1214,42 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                         {msg.content}
                       </div>
 
-                      {msg.role === "ai" &&
+                                            {msg.role === "ai" &&
         i !== 0 &&
         !msg.disableFeedback &&
         msg.content !== "🤖 Wat kan ik beter doen?" &&
         msg.content !== "🤖 Bedankt voor je feedback. Ik sla dit op en gebruik het om toekomstige antwoorden te verbeteren." && (
-        <div className="flex gap-2 mt-1 text-sm opacity-70 items-center">
+        <>
+          <div className="mt-2 p-2 rounded-xl bg-white/5 text-xs opacity-70">
+            <p className="mb-1">🧠 AI Learning actief:</p>
+            {getActiveLearningDebug().length === 0 ? (
+              <p>geen actieve learning regels</p>
+            ) : (
+              <div className="space-y-1">
+                {getActiveLearningDebug().map((rule, idx) => (
+                  <p key={idx}>- {rule}</p>
+                ))}
+              </div>
+            )}
+          </div>
 
-          {!feedbackGiven[activeChatId + "-" + i] && (
-            <>
-              <button onClick={() => handleFeedback(activeChatId!, i, "up")}>👍</button>
-              <button onClick={() => handleFeedback(activeChatId!, i, "down")}>👎</button>
-            </>
-          )}
+          <div className="flex gap-2 mt-1 text-sm opacity-70 items-center">
 
-          {feedbackUI[activeChatId + "-" + i] && (
-            <span className="text-xs opacity-70 ml-2">
-              {feedbackUI[activeChatId + "-" + i]}
-            </span>
-          )}
+            {!feedbackGiven[activeChatId + "-" + i] && (
+              <>
+                <button onClick={() => handleFeedback(activeChatId!, i, "up")}>👍</button>
+                <button onClick={() => handleFeedback(activeChatId!, i, "down")}>👎</button>
+              </>
+            )}
 
-        </div>
+            {feedbackUI[activeChatId + "-" + i] && (
+              <span className="text-xs opacity-70 ml-2">
+                {feedbackUI[activeChatId + "-" + i]}
+              </span>
+            )}
+
+          </div>
+        </>
       )}
                     </div>
                   ))}
