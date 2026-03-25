@@ -42,7 +42,7 @@ const openai = new OpenAI({
 });
 
 export async function POST(req: Request) {
-  const { message, memory, location, feedback } = await req.json();
+  const { message, memory, personalMemory, location, feedback } = await req.json();
    const serverFeedback = await getRecentServerFeedback();
 
     const normalizedServerFeedback = serverFeedback.map((item: any) => ({
@@ -77,25 +77,38 @@ export async function POST(req: Request) {
       )
     : [];
 
-        const effectiveFeedback = [
-    ...normalizedServerFeedback.filter(
-      (item: any) =>
-        item.type === "up" ||
-        item.type === "down" ||
-        item.type === "improve" ||
-        item.source === "idea_feedback_learning"
-    ),
-    ...clientFeedback,
+                const globalLearningFeedback = normalizedServerFeedback.filter(
+    (item: any) =>
+      item.type === "up" ||
+      item.type === "down" ||
+      item.type === "improve" ||
+      item.source === "idea_feedback_learning"
+  );
+
+  const personalLearningFeedback = clientFeedback;
+
+  const effectiveFeedback = [
+    ...globalLearningFeedback,
+    ...personalLearningFeedback,
   ];
-  const feedbackLikes = effectiveFeedback.filter(
+
+  const feedbackLikes = globalLearningFeedback.filter(
     (f: any) => f.type === "up"
   ).length;
 
-  const feedbackDislikes = effectiveFeedback.filter(
+  const feedbackDislikes = globalLearningFeedback.filter(
     (f: any) => f.type === "down"
   ).length;
 
-    const feedbackRecentIssues = effectiveFeedback
+    const feedbackRecentIssues = globalLearningFeedback
+    .filter(
+      (f: any) => f.type === "down" || f.source === "idea_feedback_learning"
+    )
+    .map((f: any) => f.userMessage || f.message)
+    .filter(Boolean)
+    .slice(0, 5);
+
+  const personalRecentIssues = personalLearningFeedback
     .filter(
       (f: any) => f.type === "down" || f.source === "idea_feedback_learning"
     )
@@ -104,19 +117,27 @@ export async function POST(req: Request) {
     .slice(0, 5);
 
   const feedbackContext =
-    effectiveFeedback.length > 0
+    globalLearningFeedback.length > 0
       ? `
 Likes: ${feedbackLikes}
 Dislikes: ${feedbackDislikes}
 
-Recent issues:
+Recent global issues:
 ${feedbackRecentIssues.join("\n") || "none"}
 `
       : "none";
 
-  globalFeedback = effectiveFeedback;
+  const personalFeedbackContext =
+    personalLearningFeedback.length > 0
+      ? `
+Personal issues from this user/session:
+${personalRecentIssues.join("\n") || "none"}
+`
+      : "none";
 
-    const completedFeedback = effectiveFeedback.filter(
+  globalFeedback = globalLearningFeedback;
+
+    const completedFeedback = globalLearningFeedback.filter(
     (f: any) =>
       f.type === "workflow_status" &&
       f.source === "analytics_workflow" &&
@@ -172,23 +193,23 @@ ${feedbackRecentIssues.join("\n") || "none"}
     .map((item) => `- ${item.label}`)
     .join("\n");
 
-      const shorterCount = effectiveFeedback.filter((f: any) =>
+        const shorterCount = globalLearningFeedback.filter((f: any) =>
     `${f.userMessage || ""} ${f.message || ""}`.toLowerCase().match(/korter|te lang|too long|shorter/)
   ).length;
 
-  const clearerCount = effectiveFeedback.filter((f: any) =>
+  const clearerCount = globalLearningFeedback.filter((f: any) =>
     `${f.userMessage || ""} ${f.message || ""}`.toLowerCase().match(/duidelijker|onduidelijk|clearer|unclear/)
   ).length;
 
-  const structureCount = effectiveFeedback.filter((f: any) =>
+  const structureCount = globalLearningFeedback.filter((f: any) =>
     `${f.userMessage || ""} ${f.message || ""}`.toLowerCase().match(/andere structuur|structuur|structure/)
   ).length;
 
-  const vagueCount = effectiveFeedback.filter((f: any) =>
+  const vagueCount = globalLearningFeedback.filter((f: any) =>
     `${f.userMessage || ""} ${f.message || ""}`.toLowerCase().match(/te vaag|vaag|vague/)
   ).length;
 
-  const contextCount = effectiveFeedback.filter((f: any) =>
+  const contextCount = globalLearningFeedback.filter((f: any) =>
     `${f.userMessage || ""} ${f.message || ""}`.toLowerCase().match(/meer context|te oppervlakkig|more context|more depth/)
   ).length;
 
@@ -235,8 +256,11 @@ CRITICAL RULES:
 - NEVER write "(blank line)"
 - Learn from feedback: avoid disliked responses and reinforce liked ones
 
-FEEDBACK CONTEXT (recent user):
+GLOBAL FEEDBACK CONTEXT:
 ${feedbackContext}
+
+PERSONAL FEEDBACK CONTEXT:
+${personalFeedbackContext}
 
 GLOBAL LEARNING:
 Total sessions: ${globalFeedback.length}
@@ -286,12 +310,15 @@ ADAPTATION RULES:
 - If users want more depth or context, explain the why behind the answer more clearly
 - If users want a different structure, use cleaner sections and a more readable flow
 - If users dislike vague answers, be more concrete and specific
-- Treat ACTIVE LEARNING RULES as live behavior instructions for this reply
-- Treat LEARNING INJECTION FROM FEEDBACK as direct instructions learned from analytics and user feedback
+- Treat ACTIVE LEARNING RULES as global behavior instructions learned from all users
+- Treat LEARNING INJECTION FROM FEEDBACK as global instructions learned from analytics and shared feedback
+- Treat PERSONAL FEEDBACK CONTEXT and User memory as personal preferences for this specific user
+- For general questions, prioritize global learning before personal preferences
+- Only use personal preferences as an extra layer unless the user clearly asks for something personal or stylistic
 - When ACTIVE LEARNING RULES exist, follow them before default style preferences
 - When LEARNING INJECTION FROM FEEDBACK exists, apply those rules directly unless they conflict with safety or the user's current request
 - If a weighted learning signal is 3 or higher, apply that rule noticeably stronger in this reply
-- If a weighted learning signal is 5 or higher, treat it as a dominant preference unless the user asks otherwise
+- If a weighted learning signal is 5 or higher, treat it as a dominant global preference unless the user asks otherwise
 
 INTERPRETATION RULES:
 EMOTIONAL SUPPORT RULES:
@@ -376,7 +403,7 @@ BEHAVIOR:
 - If useful, add small “insider” tips
 
 CONTEXT:
-User memory: ${memory || "none"}
+Personal user memory: ${personalMemory || memory || "none"}
 User location: ${location ? JSON.stringify(location) : "unknown"}
 
 BAD OUTPUT:

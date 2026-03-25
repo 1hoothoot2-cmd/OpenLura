@@ -546,11 +546,18 @@ const feedbackSummary = {
     .slice(-3),
 };
  
-const res = await fetch("/api/chat", {
+    const res = await fetch("/api/chat", {
   method: "POST", // ✅ VERPLICHT
   body: JSON.stringify({
     message: input,
-    memory: memory.join(" | "),
+    memory: memory
+      .filter((m) => m.weight > 0.6)
+      .map((m) => m.text)
+      .join(" | "),
+    personalMemory: memory
+      .filter((m) => m.weight > 0.6)
+      .map((m) => m.text)
+      .join(" | "),
     feedback: feedbackSummary,
   }),
 });
