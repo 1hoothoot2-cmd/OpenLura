@@ -645,8 +645,11 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 
   localStorage.setItem(key, JSON.stringify(existing));
 
-  fetch("/api/feedback", {
+    fetch("/api/feedback", {
     method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify({
       type: "idea",
       message: feedbackText,
