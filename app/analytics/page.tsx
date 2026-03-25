@@ -216,14 +216,14 @@ useEffect(() => {
     };
   });
 
-  let data: any[] = [];
+    let data: any[] = [];
 
   try {
     const res = await fetch("/api/feedback", {
       cache: "no-store",
     });
 
-        if (res.status === 401) {
+    if (res.status === 401) {
       setIsUnlocked(false);
       setFeedback([]);
       return;
@@ -238,7 +238,34 @@ useEffect(() => {
     console.warn("Analytics server tijdelijk niet bereikbaar");
   }
 
-    const combined = [...data, ...normalizedLocal];
+  const workflowEntries = data.filter(
+    (item: any) =>
+      item.type === "workflow_status" && item.source === "analytics_workflow"
+  );
+
+  const serverStatusMap = workflowEntries
+    .sort(
+      (a: any, b: any) =>
+        new Date(a.timestamp || 0).getTime() - new Date(b.timestamp || 0).getTime()
+    )
+    .reduce((acc: any, item: any) => {
+      if (item.userMessage && item.message) {
+        acc[item.userMessage] = item.message;
+      }
+      return acc;
+    }, {});
+
+  setItemStatus((prev) => {
+    const next = { ...prev, ...serverStatusMap };
+    localStorage.setItem("openlura_analytics_status", JSON.stringify(next));
+    return next;
+  });
+
+  const normalServerFeedback = data.filter(
+    (item: any) => item.type !== "workflow_status"
+  );
+
+  const combined = [...normalServerFeedback, ...normalizedLocal];
 
   const deduped = combined.filter((item: any, index: number, arr: any[]) => {
     const itemType = item.type || "down";
@@ -327,12 +354,28 @@ return () => {
     return "nieuw";
   }
 
-    const updateItemStatus = (key: string, status: string) => {
+      const updateItemStatus = async (key: string, status: string) => {
     setItemStatus((prev) => {
       const next = { ...prev, [key]: status };
       localStorage.setItem("openlura_analytics_status", JSON.stringify(next));
       return next;
     });
+
+    try {
+      await fetch("/api/feedback", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "update_workflow_status",
+          itemKey: key,
+          status,
+        }),
+      });
+    } catch (error) {
+      console.error("Workflow status sync failed:", error);
+    }
   };
 
             if (authLoading) {
