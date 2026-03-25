@@ -6,7 +6,8 @@ export default function Home() {
   const [activeChatId, setActiveChatId] = useState<number | null>(null);
   const [input, setInput] = useState("");
   const [search, setSearch] = useState("");
-  const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(false);
+  const [streamController, setStreamController] = useState<AbortController | null>(null);
 
     // ✅ MEMORY ARRAY (weighted)
   const [memory, setMemory] = useState<{ text: string; weight: number }[]>([]);
@@ -326,6 +327,14 @@ export default function Home() {
     });
   };
 
+    const stopStreaming = () => {
+    if (streamController) {
+      streamController.abort();
+      setStreamController(null);
+    }
+    setLoading(false);
+  };
+
   const sendMessage = async () => {
         if (!input.trim() && !image) return;
 
@@ -425,8 +434,12 @@ export default function Home() {
 
       setLoading(true);
 
+            const controller = new AbortController();
+      setStreamController(controller);
+
       const improveRes = await fetch("/api/chat", {
         method: "POST",
+        signal: controller.signal,
         body: JSON.stringify({
           message: `De gebruiker was niet tevreden met je vorige antwoord.
 
@@ -477,26 +490,33 @@ Geef alleen direct het betere antwoord.`,
 
       setChats([...updated]);
 
-      while (true) {
-        const { done, value } = await improveReader!.read();
-        if (done) break;
+            try {
+        while (true) {
+          const { done, value } = await improveReader!.read();
+          if (done) break;
 
-        let chunk = improveDecoder.decode(value);
+          let chunk = improveDecoder.decode(value);
 
-        chunk = chunk
-          .replace(/\(blank line\)/gi, "")
-          .replace(/\n{3,}/g, "\n\n")
-          .replace(/\n\s*\n/g, "\n\n");
+          chunk = chunk
+            .replace(/\(blank line\)/gi, "")
+            .replace(/\n{3,}/g, "\n\n")
+            .replace(/\n\s*\n/g, "\n\n");
 
-        improvedText += chunk;
+          improvedText += chunk;
 
-        updated[index].messages[
-          updated[index].messages.length - 1
-        ].content = improvedText;
+          updated[index].messages[
+            updated[index].messages.length - 1
+          ].content = improvedText;
 
-        setChats([...updated]);
+          setChats([...updated]);
+        }
+      } catch (error: any) {
+        if (error?.name !== "AbortError") {
+          console.error("OpenLura improve stream failed:", error);
+        }
       }
 
+      setStreamController(null);
       setLoading(false);
 
       return;
@@ -548,8 +568,12 @@ const feedbackSummary = {
     .slice(-3),
 };
  
-    const res = await fetch("/api/chat", {
+    const controller = new AbortController();
+setStreamController(controller);
+
+const res = await fetch("/api/chat", {
   method: "POST", // ✅ VERPLICHT
+  signal: controller.signal,
   body: JSON.stringify({
     message: input,
     memory: memory
@@ -573,27 +597,35 @@ const feedbackSummary = {
     updated[index].messages.push({ role: "ai", content: "", variant: responseVariant });
     setChats([...updated]);
 
-    while (true) {
-      const { done, value } = await reader!.read();
-      if (done) break;
+        try {
+      while (true) {
+        const { done, value } = await reader!.read();
+        if (done) break;
 
-      let chunk = decoder.decode(value);
+        let chunk = decoder.decode(value);
 
-      chunk = chunk
-        .replace(/\(blank line\)/gi, "")
-        .replace(/\n{3,}/g, "\n\n")
-        .replace(/\n\s*\n/g, "\n\n");
+        chunk = chunk
+          .replace(/\(blank line\)/gi, "")
+          .replace(/\n{3,}/g, "\n\n")
+          .replace(/\n\s*\n/g, "\n\n");
 
-      aiText += chunk;
+        aiText += chunk;
 
-      updated[index].messages[
-        updated[index].messages.length - 1
-      ].content = aiText;
+        updated[index].messages[
+          updated[index].messages.length - 1
+        ].content = aiText;
 
-      setChats([...updated]);
+        setChats([...updated]);
+      }
+    } catch (error: any) {
+      if (error?.name !== "AbortError") {
+        console.error("OpenLura chat stream failed:", error);
+      }
     }
 
-        // ✅ MEMORY SAVE (weighted)
+    setStreamController(null);
+
+    // ✅ MEMORY SAVE
     if (input.length < 60) {
       const existing = memory.find((m) => m.text === input);
 
@@ -1319,8 +1351,13 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
               </div>
             )}
 
-            <textarea
+                        <textarea
   value={input}
+  onFocus={() => {
+    if (window.innerWidth < 768) {
+      setMobileMenu(false);
+    }
+  }}
   onChange={(e) => {
     setInput(e.target.value);
     e.target.style.height = "auto";
@@ -1339,22 +1376,24 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
   rows={1}
 />
 
-                        <button
+                           <button
   type="button"
-  disabled={!input.trim() && !image}
-  onClick={sendMessage}
+  disabled={!loading && !input.trim() && !image}
+  onClick={loading ? stopStreaming : sendMessage}
   onTouchEnd={(e) => {
-    if (!input.trim() && !image) return;
+    if (!loading && !input.trim() && !image) return;
     e.preventDefault();
-    sendMessage();
+    loading ? stopStreaming() : sendMessage();
   }}
     className={`w-12 h-12 shrink-0 flex items-center justify-center rounded-full text-xl shadow-lg touch-manipulation transition-all active:scale-95 ${
-      !input.trim() && !image
+      loading
+        ? "bg-red-500 text-white"
+        : !input.trim() && !image
         ? "bg-white/10 text-white/30 shadow-none"
         : "bg-gradient-to-r from-purple-500 to-blue-500 text-white shadow-purple-500/20"
     }`}
 >
-  ↑
+  {loading ? "■" : "↑"}
 </button>
           </div>
 

@@ -292,6 +292,41 @@ ${personalRecentIssues.join("\n") || "none"}
     .slice(0, 8)
     .map((rule: string) => `- ${rule}`)
     .join("\n");
+      let responseVariant = "A";
+
+  try {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/feedback`, {
+      cache: "no-store",
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+
+      const variantA = data.filter((f: any) => f.source === "ab_test_A");
+      const variantB = data.filter((f: any) => f.source === "ab_test_B");
+
+      const scoreA =
+        variantA.filter((f: any) => f.type === "up").length -
+        variantA.filter((f: any) => f.type === "down").length;
+
+      const scoreB =
+        variantB.filter((f: any) => f.type === "up").length -
+        variantB.filter((f: any) => f.type === "down").length;
+
+      if (variantA.length < 5 || variantB.length < 5) {
+        responseVariant = Math.random() < 0.5 ? "A" : "B";
+      } else if (scoreA > scoreB) {
+        responseVariant = Math.random() < 0.8 ? "A" : "B";
+      } else if (scoreB > scoreA) {
+        responseVariant = Math.random() < 0.8 ? "B" : "A";
+      } else {
+        responseVariant = Math.random() < 0.5 ? "A" : "B";
+      }
+    }
+  } catch {
+    responseVariant = Math.random() < 0.5 ? "A" : "B";
+  }
+
   const stream = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     stream: true,
@@ -480,6 +515,16 @@ GOOD OUTPUT:
 - Clear + structured + interesting
 - Slight personality without being childish
 
+A/B TEST VARIANT:
+${responseVariant}
+
+VARIANT RULES:
+- If variant is A: be more direct, tighter, and slightly shorter
+- If variant is B: be a bit more structured, slightly more explanatory, and more segmented
+- Keep both variants high quality
+- Do not mention the variant
+- Do not mention testing
+
 FOLLOW THIS STYLE STRICTLY.
         `,
       },
@@ -499,9 +544,10 @@ FOLLOW THIS STYLE STRICTLY.
         controller.close();
       },
     }),
-    {
+        {
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
+        "X-OpenLura-Variant": responseVariant,
       },
     }
   );
