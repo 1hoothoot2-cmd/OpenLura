@@ -514,9 +514,14 @@ Geef alleen direct het betere antwoord.`,
       const improveDecoder = new TextDecoder();
       const improveVariant = improveRes.headers.get("X-OpenLura-Variant") || "unknown";
       const improveSourcesHeader = improveRes.headers.get("X-OpenLura-Sources");
-      const improveSources = improveSourcesHeader
-        ? JSON.parse(decodeURIComponent(improveSourcesHeader))
-        : [];
+            let improveSources: any[] = [];
+      try {
+        improveSources = improveSourcesHeader
+          ? JSON.parse(decodeURIComponent(improveSourcesHeader))
+          : [];
+      } catch {
+        improveSources = [];
+      }
 
       let improvedText = "";
 
@@ -631,9 +636,14 @@ const res = await fetch("/api/chat", {
     const decoder = new TextDecoder();
     const responseVariant = res.headers.get("X-OpenLura-Variant") || "unknown";
     const responseSourcesHeader = res.headers.get("X-OpenLura-Sources");
-    const responseSources = responseSourcesHeader
-      ? JSON.parse(decodeURIComponent(responseSourcesHeader))
-      : [];
+        let responseSources: any[] = [];
+    try {
+      responseSources = responseSourcesHeader
+        ? JSON.parse(decodeURIComponent(responseSourcesHeader))
+        : [];
+    } catch {
+      responseSources = [];
+    }
 
     let aiText = "";
 
