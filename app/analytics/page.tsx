@@ -2,16 +2,13 @@
 import { useEffect, useState } from "react";
 
 export default function AnalyticsPage() {
-    const [feedback, setFeedback] = useState<any[]>([]);
+        const [feedback, setFeedback] = useState<any[]>([]);
     const [activeTab, setActiveTab] = useState("all");
     const [ideaFilter, setIdeaFilter] = useState("all");
     const [analyticsPassword, setAnalyticsPassword] = useState("");
     const [isUnlocked, setIsUnlocked] = useState(false);
     const [authError, setAuthError] = useState("");
-
-    const ANALYTICS_PASSWORD = "@Bodi2023!@#";
-    const ANALYTICS_SESSION_KEY = "openlura_analytics_auth_until";
-    const ANALYTICS_SESSION_MS = 3 * 60 * 60 * 1000;
+    const [authLoading, setAuthLoading] = useState(true);
 
     useEffect(() => {
     if (activeTab !== "ideas") {
@@ -19,16 +16,22 @@ export default function AnalyticsPage() {
     }
   }, [activeTab]);
 
-  useEffect(() => {
-    const savedUntil = Number(
-      sessionStorage.getItem(ANALYTICS_SESSION_KEY) || "0"
-    );
+    useEffect(() => {
+    const checkAnalyticsAccess = async () => {
+      try {
+        const res = await fetch("/api/feedback", {
+          cache: "no-store",
+        });
 
-    if (savedUntil > Date.now()) {
-      setIsUnlocked(true);
-    } else {
-      sessionStorage.removeItem(ANALYTICS_SESSION_KEY);
-    }
+        setIsUnlocked(res.ok);
+      } catch {
+        setIsUnlocked(false);
+      } finally {
+        setAuthLoading(false);
+      }
+    };
+
+    checkAnalyticsAccess();
   }, []);
 
     const filteredFeedback = feedback.filter((f) => {
@@ -71,7 +74,7 @@ export default function AnalyticsPage() {
     "verkeerd",
   ];
 
-  const topComplaints = complaintKeywords
+    const topComplaints = complaintKeywords
     .map((keyword) => ({
       keyword,
       count: improvementTexts.filter((text: string) => text.includes(keyword)).length,
@@ -79,6 +82,48 @@ export default function AnalyticsPage() {
     .filter((item) => item.count > 0)
     .sort((a, b) => b.count - a.count)
     .slice(0, 5);
+
+  const priorityItems = [
+    {
+      label: "Bugs",
+      count: bugIdeas.length,
+      type: "bug",
+      priority:
+        bugIdeas.length >= 5
+          ? "Hoog"
+          : bugIdeas.length >= 2
+          ? "Middel"
+          : bugIdeas.length >= 1
+          ? "Laag"
+          : "Geen",
+    },
+    {
+      label: "AI feedback",
+      count: learningIdeas.length + improvementFeedback.length + negativeFeedback.length,
+      type: "learning",
+      priority:
+        learningIdeas.length + improvementFeedback.length + negativeFeedback.length >= 8
+          ? "Hoog"
+          : learningIdeas.length + improvementFeedback.length + negativeFeedback.length >= 4
+          ? "Middel"
+          : learningIdeas.length + improvementFeedback.length + negativeFeedback.length >= 1
+          ? "Laag"
+          : "Geen",
+    },
+    {
+      label: "Aanpassingen",
+      count: adjustmentIdeas.length,
+      type: "adjustment",
+      priority:
+        adjustmentIdeas.length >= 6
+          ? "Hoog"
+          : adjustmentIdeas.length >= 3
+          ? "Middel"
+          : adjustmentIdeas.length >= 1
+          ? "Laag"
+          : "Geen",
+    },
+  ].sort((a, b) => b.count - a.count);
 
   const feedbackScore =
     feedback.length > 0
@@ -154,6 +199,12 @@ useEffect(() => {
       cache: "no-store",
     });
 
+        if (res.status === 401) {
+      setIsUnlocked(false);
+      setFeedback([]);
+      return;
+    }
+
     if (!res.ok) {
       throw new Error("Feedback ophalen mislukt");
     }
@@ -217,20 +268,53 @@ return () => {
 };
 }, [isUnlocked]);
 
-    const handleUnlock = () => {
-    if (analyticsPassword !== ANALYTICS_PASSWORD) {
-      setAuthError("Verkeerd wachtwoord");
-      return;
-    }
+      const handleUnlock = async () => {
+    try {
+      const res = await fetch("/api/feedback", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "unlock_analytics",
+          password: analyticsPassword,
+        }),
+      });
 
-    const expiresAt = Date.now() + ANALYTICS_SESSION_MS;
-    sessionStorage.setItem(ANALYTICS_SESSION_KEY, String(expiresAt));
-    setIsUnlocked(true);
-    setAuthError("");
-    setAnalyticsPassword("");
+      if (!res.ok) {
+        setAuthError("Verkeerd wachtwoord");
+        return;
+      }
+
+      setIsUnlocked(true);
+      setAuthError("");
+      setAnalyticsPassword("");
+    } catch {
+      setAuthError("Inloggen mislukt");
+    }
   };
 
-    if (!isUnlocked) {
+      if (authLoading) {
+    return (
+      <main className="min-h-screen bg-[#050510] text-white p-6 flex items-center justify-center">
+        <div className="w-full max-w-sm bg-white/10 rounded-2xl p-6 text-center">
+          Analytics laden...
+        </div>
+      </main>
+    );
+  }
+
+    if (authLoading) {
+    return (
+      <main className="min-h-screen bg-[#050510] text-white p-6 flex items-center justify-center">
+        <div className="w-full max-w-sm bg-white/10 rounded-2xl p-6 text-center">
+          Analytics laden...
+        </div>
+      </main>
+    );
+  }
+
+  if (!isUnlocked) {
     return (
       <main className="min-h-screen bg-[#050510] text-white p-6 flex items-center justify-center">
         <div className="w-full max-w-sm bg-white/10 rounded-2xl p-6">
@@ -272,7 +356,20 @@ return () => {
     <main className="min-h-screen bg-[#050510] text-white p-6">
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <h1 className="text-2xl mb-6">📊 OpenLura Analytics</h1>
+        <div className="flex items-center justify-between mb-6">
+  <h1 className="text-2xl">📊 OpenLura Analytics</h1>
+  <button
+    onClick={() => {
+      document.cookie =
+        "openlura_analytics_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+      setIsUnlocked(false);
+      setFeedback([]);
+    }}
+    className="text-xs px-3 py-1 bg-white/10 rounded-lg hover:bg-white/20"
+  >
+    Logout
+  </button>
+</div>
         <p className="text-xs opacity-50 mb-4">
   Environment: {typeof window !== "undefined" ? window.location.origin : ""}
 </p>
@@ -339,9 +436,14 @@ return () => {
     <p className="text-xl">{feedbackScore}%</p>
   </div>
 
-    <div className="p-4 bg-white/10 rounded-xl">
+      <div className="p-4 bg-white/10 rounded-xl">
     <p className="text-xs opacity-60">🧠 Complaints</p>
     <p className="text-xl">{topComplaints.length}</p>
+  </div>
+
+  <div className="p-4 bg-white/10 rounded-xl">
+    <p className="text-xs opacity-60">🔥 Top prioriteit</p>
+    <p className="text-xl">{priorityItems[0]?.label || "Geen"}</p>
   </div>
 
   <button
@@ -418,7 +520,7 @@ return () => {
   </div>
 )}
 
-<div className="grid md:grid-cols-3 gap-4 mb-6">
+<div className="grid md:grid-cols-4 gap-4 mb-6">
   <div className="p-4 bg-white/10 rounded-2xl">
     <h2 className="text-lg mb-3">🚨 Top complaints</h2>
     {topComplaints.length === 0 ? (
@@ -465,7 +567,7 @@ return () => {
     </div>
   </div>
 
-  <div className="p-4 bg-white/10 rounded-2xl">
+    <div className="p-4 bg-white/10 rounded-2xl">
     <h2 className="text-lg mb-3">📌 Actieve filter</h2>
     <p className="text-sm opacity-80 mb-2">
       {activeTab === "all" && "Je ziet nu alle feedback."}
@@ -477,6 +579,20 @@ return () => {
     <p className="text-xs opacity-60">
       Gebruik dit om snel te zien waarom iets 👎 kreeg en wat gebruikers letterlijk teruggeven.
     </p>
+  </div>
+
+  <div className="p-4 bg-white/10 rounded-2xl">
+    <h2 className="text-lg mb-3">🚦 Auto priority</h2>
+    <div className="space-y-2 text-sm">
+      {priorityItems.map((item) => (
+        <div key={item.type} className="flex justify-between">
+          <span>{item.label}</span>
+          <span className="opacity-60">
+            {item.priority} ({item.count})
+          </span>
+        </div>
+      ))}
+    </div>
   </div>
 </div>
 
