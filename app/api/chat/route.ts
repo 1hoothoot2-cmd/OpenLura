@@ -7,6 +7,51 @@ const responseCache = new Map<
 >();
 const RESPONSE_CACHE_TTL_MS = 1000 * 60 * 10;
 
+function detectCasualStyleMismatch(input: {
+  userMessage: string;
+  aiText: string;
+}) {
+  const userText = (input.userMessage || "").toLowerCase().trim();
+  const aiText = (input.aiText || "").trim();
+  const aiLower = aiText.toLowerCase();
+
+  const isCasualUserPrompt =
+    /(\b(en jij|wat zou jij|zou jij|denk je|vind je|haha|hihi|lol|gezellig|leuke vraag|flirty|cute|crush|date)\b|\?)/i.test(
+      userText
+    ) && userText.length <= 240;
+
+  if (!isCasualUserPrompt) return false;
+
+  const paragraphCount = aiText
+    .split(/\n\s*\n/)
+    .map((part) => part.trim())
+    .filter(Boolean).length;
+
+  const heavySignals = [
+    "contextueel",
+    "nuance",
+    "nuances",
+    "persoonlijkheid",
+    "spontaan",
+    "menselijker",
+    "natuurlijker",
+    "inspelen op",
+    "serieus",
+    "diepgang",
+    "reflectie",
+  ];
+
+  const heavySignalCount = heavySignals.filter((signal) =>
+    aiLower.includes(signal)
+  ).length;
+
+  return (
+    aiText.length > 420 ||
+    paragraphCount >= 3 ||
+    heavySignalCount >= 2
+  );
+}
+
 function buildCacheKey(input: {
   message: string;
   personalMemory?: string;
@@ -480,6 +525,7 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
         ));
 
         const shouldUseWebSearch =
+        
       !isSimpleImageAnalysis &&
       (
         !image ||
@@ -495,8 +541,14 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
       /(\?|\b(hoi|hey|haha|hahah|lol|leuk|gezellig|denk je|vind je|zou jij|wat zou jij|en jij|persoonlijk|flirty|date|crush|lief|cute|grappig)\b)/i.test(
         normalizedMessageForRouting
       );
+      
+  !image &&
+  !shouldUseWebSearch &&
+  /(\b(en jij|wat zou jij|zou jij|denk je|vind je|haha|hihi|lol|gezellig|leuke vraag|flirty|cute|crush|date)\b|\?)/i.test(
+    normalizedMessageForRouting
+  );
 
-    const shouldForceFastCompactOutput =
+const shouldForceFastCompactOutput =
       isSimpleImageAnalysis ||
       isSearchStyleRequest ||
       isCasualChatRequest ||
@@ -740,13 +792,9 @@ CRITICAL RULES:
 - For simple image analysis, keep the first answer compact and immediate
 - For search/location/business answers, keep the first answer concise and practical
 - Prefer a fast useful answer first over a long polished answer
-- For casual, playful, personal, or chemistry-style chat:
-  → keep the reply shorter
-  → sound more natural and spontaneous
-  → avoid long self-explanations
-  → usually keep it to 2-5 short paragraphs
-  → when appropriate, lightly bounce the question back
-  → do not become overly poetic, dramatic, or therapist-like
+- For casual, playful, personal, or chemistry-style conversation, keep replies shorter, lighter, and more natural
+- In casual chat, avoid long reflective self-analysis unless the user clearly asks for depth
+- If the user's message is light, social, or flirt-adjacent, do not switch into essay mode
 - Do not ignore the image when one is attached
 - If the image is unclear, say what is visible and what is uncertain
 
@@ -981,7 +1029,7 @@ FOLLOW THIS STYLE STRICTLY.
       ],
     } as any);
 
-  const aiText =
+        let aiText =
     response.output_text ||
     (response.output || [])
       .flatMap((item: any) =>
@@ -998,6 +1046,54 @@ FOLLOW THIS STYLE STRICTLY.
       })
       .join("")
       .trim();
+
+  const shouldRewriteCasualReply =
+    isCasualChatRequest &&
+    detectCasualStyleMismatch({
+      userMessage: message || "",
+      aiText,
+    });
+
+  if (shouldRewriteCasualReply && aiText) {
+    try {
+      const rewrite = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: `You are OpenLura.
+
+Rewrite the assistant draft so it feels more natural for a casual personal chat.
+Rules:
+- Keep the same language as the user
+- Make it shorter
+- Sound warm, light, and spontaneous
+- Avoid essay tone, abstract self-analysis, and overexplaining
+- Usually 2 to 5 short paragraphs max
+- Keep the meaning, just make it feel more human
+- If it fits, lightly bounce the conversation back to the user`,
+          },
+          {
+            role: "user",
+            content: `User message:
+${message || ""}
+
+Current draft:
+${aiText}`,
+          },
+        ],
+      });
+
+      const rewritten =
+        rewrite.choices?.[0]?.message?.content?.trim() || "";
+
+      if (rewritten) {
+        aiText = rewritten;
+      }
+    } catch (error) {
+      console.error("OpenLura casual rewrite failed:", error);
+    }
+  }
 
   const annotationSources: [string, { title: string; url: string }][] = (response.output || [])
     .flatMap((item: any) =>
