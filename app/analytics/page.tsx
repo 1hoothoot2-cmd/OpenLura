@@ -178,11 +178,142 @@ export default function AnalyticsPage() {
       ? Math.round((positiveFeedback.length / (positiveFeedback.length + negativeFeedback.length || 1)) * 100)
       : 0;
 
-    const workflowCounts = {
+            const workflowCounts = {
     nieuw: filteredFeedback.filter((f: any) => (itemStatus[getItemKey(f)] || getAutoStatus(f)) === "nieuw").length,
     bezig: filteredFeedback.filter((f: any) => (itemStatus[getItemKey(f)] || getAutoStatus(f)) === "bezig").length,
     klaar: filteredFeedback.filter((f: any) => (itemStatus[getItemKey(f)] || getAutoStatus(f)) === "klaar").length,
   };
+
+  const autoLearningItems = learningIdeas.filter(
+    (f: any) => f.userMessage === "Auto learning insight"
+  );
+
+  const manualLearningItems = learningIdeas.filter(
+    (f: any) => f.userMessage === "AI insight action"
+  );
+
+  const activeLearningRules: string[] = [
+    topComplaints.some(
+      (c) => c.keyword.includes("korter") || c.keyword.includes("te lang")
+    ) && "Kortere antwoorden actief",
+    topComplaints.some(
+      (c) => c.keyword.includes("duidelijker") || c.keyword.includes("onduidelijk")
+    ) && "Duidelijkere uitleg actief",
+    topComplaints.some((c) => c.keyword.includes("structuur")) &&
+      "Strakkere structuur actief",
+    topComplaints.some((c) => c.keyword.includes("te vaag")) &&
+      "Concretere antwoorden actief",
+    topComplaints.some((c) => c.keyword.includes("meer context")) &&
+      "Meer context actief",
+    priorityItems[0]?.type === "bug" && "Bug focus actief",
+  ].filter(Boolean) as string[];
+
+    const learningWorkflowCounts = {
+    nieuw: learningPool.filter(
+      (f: any) => (itemStatus[getItemKey(f)] || getAutoStatus(f)) === "nieuw"
+    ).length,
+    bezig: learningPool.filter(
+      (f: any) => (itemStatus[getItemKey(f)] || getAutoStatus(f)) === "bezig"
+    ).length,
+    klaar: learningPool.filter(
+      (f: any) => (itemStatus[getItemKey(f)] || getAutoStatus(f)) === "klaar"
+    ).length,
+  };
+
+  const globalLearningPool = learningPool.filter((f: any) => !f._localOnly);
+  const personalLearningPool = learningPool.filter((f: any) => f._localOnly);
+
+  const globalLearningText = globalLearningPool
+    .map((f: any) => `${f.userMessage || ""} ${f.message || ""}`.toLowerCase())
+    .join(" ");
+
+  const personalLearningText = personalLearningPool
+    .map((f: any) => `${f.userMessage || ""} ${f.message || ""}`.toLowerCase())
+    .join(" ");
+
+  const globalActiveLearningRules: string[] = [
+    (globalLearningText.includes("korter") || globalLearningText.includes("te lang")) &&
+      "Kortere antwoorden globaal actief",
+    (globalLearningText.includes("duidelijker") || globalLearningText.includes("onduidelijk")) &&
+      "Duidelijkere uitleg globaal actief",
+    globalLearningText.includes("structuur") && "Betere structuur globaal actief",
+    globalLearningText.includes("te vaag") && "Concretere antwoorden globaal actief",
+    globalLearningText.includes("meer context") && "Meer context globaal actief",
+  ].filter(Boolean) as string[];
+
+  const personalActiveLearningRules: string[] = [
+    (personalLearningText.includes("korter") || personalLearningText.includes("te lang")) &&
+      "Kortere antwoorden persoonlijk actief",
+    (personalLearningText.includes("duidelijker") || personalLearningText.includes("onduidelijk")) &&
+      "Duidelijkere uitleg persoonlijk actief",
+    personalLearningText.includes("structuur") && "Betere structuur persoonlijk actief",
+    personalLearningText.includes("te vaag") && "Concretere antwoorden persoonlijk actief",
+    personalLearningText.includes("meer context") && "Meer context persoonlijk actief",
+  ].filter(Boolean) as string[];
+
+  const globalWeightedSignals = {
+    shorter: globalLearningPool.filter((f: any) =>
+      `${f.userMessage || ""} ${f.message || ""}`.toLowerCase().match(/korter|te lang|too long|shorter/)
+    ).length,
+    clearer: globalLearningPool.filter((f: any) =>
+      `${f.userMessage || ""} ${f.message || ""}`.toLowerCase().match(/duidelijker|onduidelijk|clearer|unclear/)
+    ).length,
+    structure: globalLearningPool.filter((f: any) =>
+      `${f.userMessage || ""} ${f.message || ""}`.toLowerCase().match(/andere structuur|structuur|structure/)
+    ).length,
+  };
+
+  const personalWeightedSignals = {
+    shorter: personalLearningPool.filter((f: any) =>
+      `${f.userMessage || ""} ${f.message || ""}`.toLowerCase().match(/korter|te lang|too long|shorter/)
+    ).length,
+    clearer: personalLearningPool.filter((f: any) =>
+      `${f.userMessage || ""} ${f.message || ""}`.toLowerCase().match(/duidelijker|onduidelijk|clearer|unclear/)
+    ).length,
+    structure: personalLearningPool.filter((f: any) =>
+      `${f.userMessage || ""} ${f.message || ""}`.toLowerCase().match(/andere structuur|structuur|structure/)
+    ).length,
+  };
+
+  useEffect(() => {
+    if (!isUnlocked || feedback.length === 0) return;
+
+    if (
+      topComplaints.some(
+        (c) => c.keyword.includes("korter") || c.keyword.includes("te lang")
+      )
+    ) {
+      pushAutoLearningInsight(
+        "shorter_answers",
+        "AI antwoorden zijn vaak te lang, geef kortere en directere antwoorden"
+      );
+    }
+
+    if (
+      topComplaints.some(
+        (c) => c.keyword.includes("duidelijker") || c.keyword.includes("onduidelijk")
+      )
+    ) {
+      pushAutoLearningInsight(
+        "clearer_explanations",
+        "Users willen duidelijkere uitleg en simpelere formulering in antwoorden"
+      );
+    }
+
+    if (topComplaints.some((c) => c.keyword.includes("structuur"))) {
+      pushAutoLearningInsight(
+        "better_structure",
+        "Users willen een duidelijkere structuur en betere opbouw in antwoorden"
+      );
+    }
+
+    if (priorityItems[0]?.type === "bug") {
+      pushAutoLearningInsight(
+        "bug_priority",
+        "Bugs hebben nu de hoogste prioriteit binnen analytics en moeten eerst opgepakt worden"
+      );
+    }
+  }, [isUnlocked, feedback.length, topComplaints, priorityItems]);
 
 useEffect(() => {
   if (!isUnlocked) return;
@@ -379,12 +510,45 @@ return () => {
     return [f.type || "", f.source || "", f.timestamp || "", f.userMessage || "", f.message || ""].join("::");
   }
 
-    function getAutoStatus(f: any) {
+      function getAutoStatus(f: any) {
     if (f.type === "up") return "klaar";
     return "nieuw";
   }
 
-  const handleInsightAction = async (action: string) => {
+  const pushAutoLearningInsight = async (key: string, message: string) => {
+    const storageKey = "openlura_auto_learning_insights";
+    const existing = JSON.parse(localStorage.getItem(storageKey) || "[]");
+
+    if (existing.includes(key)) return;
+
+    try {
+      const res = await fetch("/api/feedback", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          type: "idea",
+          message,
+          userMessage: "Auto learning insight",
+          source: "idea_feedback_learning",
+        }),
+      });
+
+      if (!res.ok) return;
+
+      localStorage.setItem(
+        storageKey,
+        JSON.stringify([...existing, key])
+      );
+
+      window.dispatchEvent(new Event("openlura_feedback_update"));
+    } catch (error) {
+      console.error("Auto learning sync failed:", error);
+    }
+  };
+
+        const handleInsightAction = async (action: string) => {
     if (action === "focus_bug") {
       const nextBug = bugIdeas.find(
         (f: any) => (itemStatus[getItemKey(f)] || getAutoStatus(f)) === "nieuw"
@@ -433,7 +597,7 @@ return () => {
     }
   };
 
-      const updateItemStatus = async (key: string, status: string) => {
+        const updateItemStatus = async (key: string, status: string) => {
     setItemStatus((prev) => {
       const next = { ...prev, [key]: status };
       localStorage.setItem("openlura_analytics_status", JSON.stringify(next));
@@ -510,10 +674,11 @@ return () => {
       
             <div className="flex items-center justify-between mb-6">
   <h1 className="text-2xl">📊 OpenLura Analytics</h1>
-  <button
+    <button
     onClick={() => {
       document.cookie =
         "openlura_analytics_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+      localStorage.removeItem("openlura_auto_learning_insights");
       setIsUnlocked(false);
       setFeedback([]);
     }}
@@ -842,6 +1007,112 @@ return () => {
   </div>
 </div>
 
+<div className="p-4 bg-white/10 rounded-2xl mb-6">
+  <h2 className="text-lg mb-3">🧠 Learning visibility</h2>
+
+  <div className="grid md:grid-cols-4 gap-3 mb-4 text-sm">
+    <div className="p-3 rounded-xl bg-white/5">
+      <p className="text-xs opacity-60 mb-1">Opgeslagen AI feedback</p>
+      <p className="text-lg">{learningPool.length}</p>
+    </div>
+    <div className="p-3 rounded-xl bg-white/5">
+      <p className="text-xs opacity-60 mb-1">Global learning</p>
+      <p className="text-lg">{globalLearningPool.length}</p>
+    </div>
+    <div className="p-3 rounded-xl bg-white/5">
+      <p className="text-xs opacity-60 mb-1">Personal learning</p>
+      <p className="text-lg">{personalLearningPool.length}</p>
+    </div>
+    <div className="p-3 rounded-xl bg-white/5">
+      <p className="text-xs opacity-60 mb-1">Actieve live rules</p>
+      <p className="text-lg">{activeLearningRules.length}</p>
+    </div>
+  </div>
+
+  <div className="grid md:grid-cols-2 gap-4 text-sm mb-4">
+    <div className="p-3 rounded-xl bg-white/5">
+      <p className="text-xs opacity-60 mb-2">Globaal actief in alle chats</p>
+      {globalActiveLearningRules.length === 0 ? (
+        <p className="opacity-60">Nog geen globale learning rules.</p>
+      ) : (
+        <div className="space-y-2">
+          {globalActiveLearningRules.map((rule, i) => (
+            <p key={i}>🌍 {rule}</p>
+          ))}
+        </div>
+      )}
+    </div>
+
+    <div className="p-3 rounded-xl bg-white/5">
+      <p className="text-xs opacity-60 mb-2">Persoonlijk / lokaal actief</p>
+      {personalActiveLearningRules.length === 0 ? (
+        <p className="opacity-60">Nog geen persoonlijke learning rules.</p>
+      ) : (
+        <div className="space-y-2">
+          {personalActiveLearningRules.map((rule, i) => (
+            <p key={i}>👤 {rule}</p>
+          ))}
+        </div>
+      )}
+    </div>
+  </div>
+
+  <div className="grid md:grid-cols-3 gap-4 text-sm mb-4">
+    <div className="p-3 rounded-xl bg-white/5">
+      <p className="text-xs opacity-60 mb-2">Global weighted signals</p>
+      <div className="space-y-2">
+        <div className="flex justify-between">
+          <span>Korter</span>
+          <span className="opacity-60">{globalWeightedSignals.shorter}</span>
+        </div>
+        <div className="flex justify-between">
+          <span>Duidelijker</span>
+          <span className="opacity-60">{globalWeightedSignals.clearer}</span>
+        </div>
+        <div className="flex justify-between">
+          <span>Structuur</span>
+          <span className="opacity-60">{globalWeightedSignals.structure}</span>
+        </div>
+      </div>
+    </div>
+
+    <div className="p-3 rounded-xl bg-white/5">
+      <p className="text-xs opacity-60 mb-2">Personal weighted signals</p>
+      <div className="space-y-2">
+        <div className="flex justify-between">
+          <span>Korter</span>
+          <span className="opacity-60">{personalWeightedSignals.shorter}</span>
+        </div>
+        <div className="flex justify-between">
+          <span>Duidelijker</span>
+          <span className="opacity-60">{personalWeightedSignals.clearer}</span>
+        </div>
+        <div className="flex justify-between">
+          <span>Structuur</span>
+          <span className="opacity-60">{personalWeightedSignals.structure}</span>
+        </div>
+      </div>
+    </div>
+
+    <div className="p-3 rounded-xl bg-white/5">
+      <p className="text-xs opacity-60 mb-2">AI learning workflow</p>
+      <div className="space-y-2">
+        <div className="flex justify-between">
+          <span>Nieuw</span>
+          <span className="opacity-60">{learningWorkflowCounts.nieuw}</span>
+        </div>
+        <div className="flex justify-between">
+          <span>In behandeling</span>
+          <span className="opacity-60">{learningWorkflowCounts.bezig}</span>
+        </div>
+        <div className="flex justify-between">
+          <span>Klaar</span>
+          <span className="opacity-60">{learningWorkflowCounts.klaar}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 <div className="p-4 bg-white/10 rounded-2xl mb-6">
   <h2 className="text-lg mb-3">🤖 AI Actie Suggesties</h2>
 
