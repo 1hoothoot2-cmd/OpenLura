@@ -620,6 +620,7 @@ const res = await fetch("/api/chat", {
   signal: controller.signal,
   body: JSON.stringify({
     message: input,
+    image,
     memory: memory
       .filter((m) => m.weight > 0.6)
       .map((m) => m.text)

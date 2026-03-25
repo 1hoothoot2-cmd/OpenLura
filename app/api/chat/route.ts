@@ -42,7 +42,7 @@ const openai = new OpenAI({
 });
 
 export async function POST(req: Request) {
-  const { message, memory, personalMemory, location, feedback } = await req.json();
+  const { message, image, memory, personalMemory, location, feedback } = await req.json();
    const serverFeedback = await getRecentServerFeedback();
 
     const normalizedServerFeedback = serverFeedback.map((item: any) => ({
@@ -400,15 +400,22 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
     let responseVariant = "A";
 
   try {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/feedback`, {
-      cache: "no-store",
-    });
+        const res = await fetch(
+      `${supabaseUrl}/rest/v1/openlura_feedback?select=type,source`,
+      {
+        headers: {
+          apikey: supabaseServiceRoleKey!,
+          Authorization: `Bearer ${supabaseServiceRoleKey}`,
+        },
+        cache: "no-store",
+      }
+    );
 
-    if (res.ok) {
-      const data = await res.json();
+        if (res.ok) {
+      const feedbackData = await res.json();
 
-      const variantA = data.filter((f: any) => f.source === "ab_test_A");
-      const variantB = data.filter((f: any) => f.source === "ab_test_B");
+      const variantA = feedbackData.filter((f: any) => f.source === "ab_test_A");
+      const variantB = feedbackData.filter((f: any) => f.source === "ab_test_B");
 
       const scoreA =
         variantA.filter((f: any) => f.type === "up").length -
@@ -432,13 +439,31 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
     responseVariant = Math.random() < 0.5 ? "A" : "B";
   }
 
-  const stream = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    stream: true,
-    messages: [
-      {
-        role: "system",
-        content: `
+        const userContent: any[] = [];
+
+    if (message) {
+      userContent.push({
+        type: "input_text",
+        text: message,
+      });
+    }
+
+    if (image) {
+      userContent.push({
+        type: "input_image",
+        image_url: image,
+      });
+    }
+
+    const response = await openai.responses.create({
+    model: "gpt-4.1-mini",
+    store: false,
+    tools: [{ type: "web_search_preview" }],
+    include: ["web_search_call.action.sources"],
+    text: {
+      verbosity: responseVariant === "A" ? "low" : "medium",
+    },
+    instructions: `
 You are OpenLura.
 
 You improve yourself based on user feedback.
@@ -448,6 +473,10 @@ CRITICAL RULES:
 - NEVER mix languages
 - NEVER write "(blank line)"
 - Learn from feedback: avoid disliked responses and reinforce liked ones
+- Use live web search when the user asks for current, local, location-based, business, travel, venue, opening-hours, review, route, event, or factual web-dependent information
+- When web search is used, ground the answer in the found sources
+- Never invent sources, links, addresses, ratings, opening hours, or locations
+- If the answer depends on fresh web information, prefer searched information over guessing
 
 GLOBAL FEEDBACK CONTEXT:
 ${feedbackContext}
@@ -647,28 +676,75 @@ VARIANT RULES:
 - Do not mention testing
 
 FOLLOW THIS STYLE STRICTLY.
-        `,
+    `,
+    input: [
+      {
+        role: "user",
+        content: [
+          ...(message
+            ? [
+                {
+                  type: "input_text",
+                  text: message,
+                },
+              ]
+            : []),
+          ...(image
+            ? [
+                {
+                  type: "input_image",
+                  image_url: image,
+                },
+              ]
+            : []),
+        ],
       },
-      { role: "user", content: message },
-    ],
+    ] as any,
   });
+
+  const aiText = response.output_text || "";
+
+  const sources = Array.from(
+    new Map(
+      (response.output || [])
+        .flatMap((item: any) =>
+          item.type === "message" ? item.content || [] : []
+        )
+        .flatMap((part: any) =>
+          part.type === "output_text" ? part.annotations || [] : []
+        )
+        .filter((annotation: any) => annotation.type === "url_citation" && annotation.url)
+        .map((annotation: any) => [
+          annotation.url,
+          {
+            title: annotation.title || annotation.url,
+            url: annotation.url,
+          },
+        ])
+    ).values()
+  ).slice(0, 5);
 
   const encoder = new TextEncoder();
 
   return new Response(
     new ReadableStream({
       async start(controller) {
-        for await (const chunk of stream as any) {
-          const text = chunk.choices?.[0]?.delta?.content || "";
-          controller.enqueue(encoder.encode(text));
+        const chunkSize = 80;
+
+        for (let i = 0; i < aiText.length; i += chunkSize) {
+          controller.enqueue(
+            encoder.encode(aiText.slice(i, i + chunkSize))
+          );
         }
+
         controller.close();
       },
     }),
-        {
+    {
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
         "X-OpenLura-Variant": responseVariant,
+        "X-OpenLura-Sources": encodeURIComponent(JSON.stringify(sources)),
       },
     }
   );
