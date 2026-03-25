@@ -1313,12 +1313,20 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                       i === arr.length - 1;
 
                     return (
-                      <div key={i}>
+                                            <div key={i}>
                         <div className={`p-3 rounded-2xl max-w-[75%] whitespace-pre-line ${
                           msg.role === "user"
                             ? "bg-gradient-to-r from-purple-500 to-blue-500 ml-auto text-white"
                             : "bg-white/20"
                         }`}>
+                          {msg.image && (
+                            <img
+                              src={msg.image}
+                              alt="Uploaded"
+                              className="w-full max-w-[240px] max-h-[260px] object-cover rounded-2xl mb-2 border border-white/10"
+                            />
+                          )}
+
                           {msg.content}
                         </div>
 
