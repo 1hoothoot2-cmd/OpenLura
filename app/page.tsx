@@ -17,7 +17,8 @@ export default function Home() {
       const [showFeedbackBox, setShowFeedbackBox] = useState(false);
   const [showClearDeletedConfirm, setShowClearDeletedConfirm] = useState(false);
   const [deleteTargetChatId, setDeleteTargetChatId] = useState<number | null>(null);
-  const [feedbackText, setFeedbackText] = useState("");
+    const [feedbackText, setFeedbackText] = useState("");
+  const [feedbackCategory, setFeedbackCategory] = useState("adjustment");
   const [feedbackUI, setFeedbackUI] = useState<{ [key: string]: string }>({});
   const [feedbackGiven, setFeedbackGiven] = useState<{ [key: string]: boolean }>({});
   const [improvedFeedbackGiven, setImprovedFeedbackGiven] = useState<{ [key: string]: boolean }>({});
@@ -632,12 +633,15 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 }
 };
 
-  const handleIdeaSubmit = () => {
+    const handleIdeaSubmit = () => {
+  if (!feedbackText.trim()) return;
+
   const key = "openlura_ideas";
   const existing = JSON.parse(localStorage.getItem(key) || "[]");
 
-  const ideaEntry = {
-    text: feedbackText,
+    const ideaEntry = {
+    text: feedbackText.trim(),
+    source: `idea_${feedbackCategory}`,
     timestamp: Date.now(),
   };
 
@@ -650,16 +654,18 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
+        body: JSON.stringify({
       type: "idea",
-      message: feedbackText,
+      message: feedbackText.trim(),
       userMessage: "Feedback / Idee",
+      source: `idea_${feedbackCategory}`,
     }),
   }).then(() => {
     window.dispatchEvent(new Event("openlura_feedback_update"));
   });
 
-  setFeedbackText("");
+    setFeedbackText("");
+  setFeedbackCategory("adjustment");
   setShowFeedbackBox(false);
 };
 
@@ -1037,7 +1043,16 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
             {showFeedbackBox && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
           <div className="bg-[#0a0a1f] p-6 rounded-2xl w-[300px]">
-            <h2 className="mb-2">Feedback / Idee</h2>
+                        <h2 className="mb-2">Feedback / Idee</h2>
+            <select
+              value={feedbackCategory}
+              onChange={(e) => setFeedbackCategory(e.target.value)}
+              className="w-full p-2 rounded bg-white/10 mb-3"
+            >
+              <option value="bug">Bug</option>
+              <option value="adjustment">Aanpassing</option>
+              <option value="feedback_learning">AI feedback</option>
+            </select>
             <textarea
               value={feedbackText}
               onChange={(e) => setFeedbackText(e.target.value)}
@@ -1045,17 +1060,23 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
             />
             <div className="flex gap-2">
               <button
-                onClick={() => {
+                                onClick={() => {
                   setShowFeedbackBox(false);
                   setFeedbackText("");
+                  setFeedbackCategory("adjustment");
                 }}
                 className="flex-1 p-2 bg-white/10 rounded-xl"
               >
                 Annuleren
               </button>
-              <button
+                            <button
                 onClick={handleIdeaSubmit}
-                className="flex-1 p-2 bg-purple-500 rounded-xl"
+                disabled={!feedbackText.trim()}
+                className={`flex-1 p-2 rounded-xl ${
+                  feedbackText.trim()
+                    ? "bg-purple-500"
+                    : "bg-white/10 text-white/30"
+                }`}
               >
                 Verstuur
               </button>
