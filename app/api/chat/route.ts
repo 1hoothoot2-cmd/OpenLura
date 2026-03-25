@@ -469,7 +469,7 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
           normalizedMessageForRouting
         ));
 
-    const shouldUseWebSearch =
+        const shouldUseWebSearch =
       !isSimpleImageAnalysis &&
       (
         !image ||
@@ -514,18 +514,18 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
     }
 
     const response = await openai.responses.create({
-    model: "gpt-4.1-mini",
-    store: false,
-    tools: shouldUseWebSearch ? [{ type: "web_search_preview" }] : [],
-    include: shouldUseWebSearch ? ["web_search_call.action.sources"] : [],
-    text: {
-      verbosity: shouldForceFastCompactOutput
-        ? "low"
-        : responseVariant === "A"
-        ? "low"
-        : "medium",
-    },
-    instructions: `
+      model: "gpt-4.1-mini",
+      store: false,
+      tools: shouldUseWebSearch ? [{ type: "web_search_preview" }] : [],
+      include: shouldUseWebSearch ? ["web_search_call.action.sources"] : [],
+      text: {
+        verbosity: shouldForceFastCompactOutput
+          ? "low"
+          : responseVariant === "A"
+          ? "low"
+          : "medium",
+      },
+      instructions: `
 You are OpenLura.
 
 You improve yourself based on user feedback.
@@ -535,6 +535,22 @@ CRITICAL RULES:
 - NEVER mix languages
 - NEVER write "(blank line)"
 - Learn from feedback: avoid disliked responses and reinforce liked ones
+- Use live web search when the user asks for current, local, location-based, business, travel, venue, opening-hours, review, route, event, or factual web-dependent information
+- When web search is used:
+  → ALWAYS include at least 2–3 real sources in the answer
+  → Mention actual names of places, products, or locations
+  → Prefer clickable, real-world useful results (restaurants, places, pages)
+  → If possible, refer to the source naturally in the answer (not only at the bottom)
+
+- Never give generic lists without sources
+- Never give “top 10” style answers without at least some real references
+- If you list places, businesses, cafés, restaurants, venues, or locations, prefer 3 to 5 stronger options instead of long vague lists
+- For location or business recommendations, only mention options that can be supported by web results
+- Make the answer itself explain WHY each option is relevant (not just names)
+- For search answers: prioritize usefulness → what it is, why it fits, and what stands out
+- If sources exist: align the explanation with them so links feel connected
+- Never invent sources, links, addresses, ratings, opening hours, or locations
+- If the answer depends on fresh web information, prefer searched information over guessing
 - If an image is present and no text is provided, treat the request as: "Analyze this image and tell me clearly what it shows"
 - If an image is present and text is also provided, answer the user's question using the image as primary context
 - For simple image questions like "wat is dit", "wie is dit", "what is this", or "who is this", analyze the image directly first and do not rely on web search
@@ -752,30 +768,30 @@ VARIANT RULES:
 
 FOLLOW THIS STYLE STRICTLY.
     `,
-        input: [
-      {
-        role: "user",
-        content: [
-          ...(message
-            ? [
-                {
-                  type: "input_text",
-                  text: message,
-                },
-              ]
-            : []),
-          ...(image
-            ? [
-                {
-                  type: "input_image",
-                  image_url: image,
-                },
-              ]
-            : []),
-        ],
-      },
-    ],
-  } as any);
+      input: [
+        {
+          role: "user",
+          content: [
+            ...(message
+              ? [
+                  {
+                    type: "input_text",
+                    text: message,
+                  },
+                ]
+              : []),
+            ...(image
+              ? [
+                  {
+                    type: "input_image",
+                    image_url: image,
+                  },
+                ]
+              : []),
+          ],
+        },
+      ],
+    } as any);
 
   const aiText =
     response.output_text ||
@@ -850,6 +866,21 @@ FOLLOW THIS STYLE STRICTLY.
   }
 
   const encoder = new TextEncoder();
+
+  if (canUseCache && aiText) {
+    responseCache.set(cacheKey, {
+      text: aiText,
+      sources,
+      timestamp: Date.now(),
+    });
+
+    if (responseCache.size > 100) {
+      const oldestKey = responseCache.keys().next().value as string | undefined;
+      if (oldestKey) {
+        responseCache.delete(oldestKey);
+      }
+    }
+  }
 
   return new Response(
     new ReadableStream({
