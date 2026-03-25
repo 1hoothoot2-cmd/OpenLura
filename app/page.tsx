@@ -1357,19 +1357,42 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                                 )}
                               </div>
 
-                              {Array.isArray(msg.sources) && msg.sources.length > 0 && (
-                                <div className="mt-2 flex flex-wrap gap-2">
-                                  {msg.sources.map((source: any, sourceIndex: number) => (
-                                    <a
-                                      key={source.url || sourceIndex}
-                                      href={source.url}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="text-[11px] px-2 py-1 rounded-full bg-white/5 hover:bg-white/10 text-white/60 hover:text-white/85 transition-colors"
-                                    >
-                                      {source.title || source.url}
-                                    </a>
-                                  ))}
+                                                            {Array.isArray(msg.sources) && msg.sources.length > 0 && (
+                                <div className="mt-2">
+                                  <p className="text-[11px] uppercase tracking-wide text-white/35 mb-2">
+                                    Sources
+                                  </p>
+
+                                  <div className="flex flex-wrap gap-2">
+                                    {msg.sources.map((source: any, sourceIndex: number) => {
+                                      let domain = "";
+
+                                      try {
+                                        domain = new URL(source.url).hostname.replace(/^www\./, "");
+                                      } catch {
+                                        domain = source.url || "";
+                                      }
+
+                                      const title =
+                                        (source.title || domain || source.url || "Source").length > 38
+                                          ? `${(source.title || domain || source.url || "Source").slice(0, 38)}...`
+                                          : source.title || domain || source.url || "Source";
+
+                                      return (
+                                        <a
+                                          key={source.url || sourceIndex}
+                                          href={source.url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-[11px] px-2 py-1 rounded-full bg-white/5 hover:bg-white/10 text-white/60 hover:text-white/85 transition-colors"
+                                          title={source.title || source.url}
+                                        >
+                                          {title}
+                                          {domain ? ` · ${domain}` : ""}
+                                        </a>
+                                      );
+                                    })}
+                                  </div>
                                 </div>
                               )}
                             </>
