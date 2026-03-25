@@ -219,8 +219,31 @@ export default function Home() {
     setShowClearDeletedConfirm(true);
   };
 
-  const confirmClearDeletedChats = () => {
-    setChats((prev) => prev.filter((chat: any) => !chat.deleted));
+    const confirmClearDeletedChats = () => {
+    const remainingChats = chats.filter((chat: any) => !chat.deleted);
+
+    if (remainingChats.length === 0) {
+      const fallbackChat = {
+        id: Date.now(),
+        title: "New Chat",
+        messages: [],
+        pinned: false,
+        archived: false,
+        deleted: false,
+      };
+
+      setChats([fallbackChat]);
+      setActiveChatId(fallbackChat.id);
+    } else {
+      setChats(remainingChats);
+
+      const nextVisibleChat = remainingChats.find(
+        (chat: any) => !chat.archived && !chat.deleted
+      );
+
+      setActiveChatId(nextVisibleChat?.id ?? remainingChats[0]?.id ?? null);
+    }
+
     setShowClearDeletedConfirm(false);
   };
 
@@ -1036,9 +1059,9 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
     activeChat?.messages?.length ? "p-4 pt-20 md:pt-4 space-y-3" : "p-4 pt-20 md:pt-4 flex items-center justify-center"
   }`}
 >
-            {activeChat?.messages?.length === 0 ? (
-              <div className="w-full max-w-2xl text-center px-6">
-                                                <h1 className="text-2xl md:text-4xl font-semibold tracking-tight mb-4 bg-gradient-to-r from-white via-white to-white/60 bg-clip-text text-transparent">
+                        {activeChat?.messages?.length === 0 ? (
+              <div className="w-full max-w-2xl text-center px-6 flex flex-col items-center justify-center h-full -mt-20">
+                                <h1 className="text-2xl md:text-4xl font-semibold tracking-tight mb-4 bg-gradient-to-r from-white via-white to-white/60 bg-clip-text text-transparent">
                   Waar wil je vandaag mee verder?
                 </h1>
                 <p className="text-sm opacity-30">
@@ -1098,9 +1121,19 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
             )}
           </div>
 
-                              <div className="fixed bottom-0 left-0 right-0 md:static z-[90] pointer-events-auto p-3 pb-4 flex gap-2 border-t border-white/10 items-end bg-[#050510] md:bg-transparent">
+                                        <div className={`${
+  activeChat?.messages?.length === 0
+    ? "mt-6 w-full max-w-2xl"
+    : "fixed bottom-0 left-0 right-0 md:static z-[90] p-3 pb-4 border-t border-white/10 bg-[#050510] md:bg-transparent"
+} flex items-end gap-2 rounded-[28px] border border-white/10 bg-white/5 backdrop-blur-xl px-3 py-3 shadow-[0_10px_40px_rgba(0,0,0,0.25)]`}>
 
-            <button onClick={() => fileRef.current?.click()} className="text-xl px-2">+</button>
+                        <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="h-11 w-11 shrink-0 flex items-center justify-center rounded-full bg-white/8 text-lg hover:bg-white/12 transition-colors"
+            >
+              +
+            </button>
 
             <input 
               type="file" 
@@ -1109,12 +1142,21 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
               className="hidden" 
             />
 
-            {/* ✅ IMAGE PREVIEW */}
+                        {/* ✅ IMAGE PREVIEW */}
             {image && (
-              <img 
-                src={image} 
-                className="w-16 h-16 object-cover rounded-xl"
-              />
+              <div className="relative shrink-0">
+                <img
+                  src={image}
+                  className="w-16 h-16 object-cover rounded-2xl border border-white/10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setImage(null)}
+                  className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-black/70 border border-white/10 text-xs flex items-center justify-center"
+                >
+                  ×
+                </button>
+              </div>
             )}
 
             <textarea
@@ -1132,19 +1174,25 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
       sendMessage();
     }
   }}
-  className="flex-1 p-3 bg-white/10 rounded-2xl resize-none min-h-[52px] max-h-[140px] outline-none"
-  placeholder="Ask OpenLura..."
+    className="flex-1 bg-transparent rounded-2xl resize-none min-h-[52px] max-h-[140px] outline-none px-2 py-3 placeholder:text-white/35"
+    placeholder={activeChat?.messages?.length === 0 ? "Ask anything" : "Message OpenLura..."}
   rows={1}
 />
 
                         <button
   type="button"
+  disabled={!input.trim() && !image}
   onClick={sendMessage}
   onTouchEnd={(e) => {
+    if (!input.trim() && !image) return;
     e.preventDefault();
     sendMessage();
   }}
-  className="w-12 h-12 shrink-0 flex items-center justify-center bg-purple-500 rounded-full text-xl touch-manipulation"
+    className={`w-12 h-12 shrink-0 flex items-center justify-center rounded-full text-xl shadow-lg touch-manipulation transition-all active:scale-95 ${
+      !input.trim() && !image
+        ? "bg-white/10 text-white/30 shadow-none"
+        : "bg-gradient-to-r from-purple-500 to-blue-500 text-white shadow-purple-500/20"
+    }`}
 >
   ↑
 </button>
