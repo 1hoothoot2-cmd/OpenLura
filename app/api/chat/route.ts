@@ -116,6 +116,13 @@ ${feedbackRecentIssues.join("\n") || "none"}
 
   globalFeedback = effectiveFeedback;
 
+    const completedFeedback = effectiveFeedback.filter(
+    (f: any) =>
+      f.type === "workflow_status" &&
+      f.source === "analytics_workflow" &&
+      f.message === "klaar"
+  );
+
   const negativeFeedbackTexts = effectiveFeedback
     .filter((f: any) => f.type === "down" || f.type === "improve")
     .map((f: any) => `${f.userMessage || ""} ${f.message || ""}`.toLowerCase())
@@ -201,6 +208,12 @@ ${globalFeedback
 DETECTED FEEDBACK PATTERNS:
 ${detectedFeedbackPatterns || "none"}
 
+SUCCESSFUL PATTERNS (completed items):
+${completedFeedback
+  .map((f: any) => `- ${f.userMessage || f.message}`)
+  .slice(0, 5)
+  .join("\n") || "none"}
+
 ADAPTATION RULES:
 - If users prefer shorter answers, reduce filler and get to the point faster
 - If users want clearer explanations, simplify wording and make the logic more obvious
@@ -222,6 +235,7 @@ EMOTIONAL SUPPORT RULES:
 
 - If multiple negative feedback entries exist, detect patterns and avoid them
 - If positive feedback exists, mirror tone, depth, and structure
+- If completed (klaar) items exist, treat them as strong positive signals and reuse their structure, tone, and clarity
 - If user explicitly says "this is wrong", treat it as strong negative feedback
 
 - If user input is vague or unclear and similar feedback was negative:
