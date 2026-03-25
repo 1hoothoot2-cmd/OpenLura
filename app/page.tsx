@@ -98,7 +98,7 @@ export default function Home() {
     };
   }, []);
 
-  useEffect(() => {
+    useEffect(() => {
     setOpenChatMenuId(null);
   }, [activeChatId]);
   useEffect(() => {
@@ -112,6 +112,50 @@ export default function Home() {
     });
   });
 }, [activeChatId, chats, loading]);
+
+  useEffect(() => {
+    const handlePaste = async (e: ClipboardEvent) => {
+      const items = Array.from(e.clipboardData?.items || []);
+      const imageItem = items.find((item) => item.type.startsWith("image/"));
+      const file = imageItem?.getAsFile();
+
+      if (!file) return;
+
+      e.preventDefault();
+      await setImageFromFile(file);
+    };
+
+    const handleWindowDrop = async (e: DragEvent) => {
+      const file = Array.from(e.dataTransfer?.files || []).find((f) =>
+        f.type.startsWith("image/")
+      );
+
+      if (!file) return;
+
+      e.preventDefault();
+      await setImageFromFile(file);
+    };
+
+    const handleWindowDragOver = (e: DragEvent) => {
+      const hasImage = Array.from(e.dataTransfer?.items || []).some((item) =>
+        item.type.startsWith("image/")
+      );
+
+      if (hasImage) {
+        e.preventDefault();
+      }
+    };
+
+    window.addEventListener("paste", handlePaste);
+    window.addEventListener("drop", handleWindowDrop);
+    window.addEventListener("dragover", handleWindowDragOver);
+
+    return () => {
+      window.removeEventListener("paste", handlePaste);
+      window.removeEventListener("drop", handleWindowDrop);
+      window.removeEventListener("dragover", handleWindowDragOver);
+    };
+  }, []);
 
   const createNewChat = () => {
         const newChat = {
@@ -256,17 +300,65 @@ export default function Home() {
     setShowClearDeletedConfirm(false);
   };
 
-    // ✅ IMAGE HANDLER
-    const handleFile = (e: any) => {
-    const file = e.target.files[0];
-    if (!file) return;
+        // ✅ IMAGE HANDLER
+    const readImageFile = (file: File) =>
+      new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setImage(reader.result as string);
+    const compressImageFile = async (file: File) => {
+      const dataUrl = await readImageFile(file);
+
+      const img = document.createElement("img");
+      img.src = dataUrl;
+
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error("Image load failed"));
+      });
+
+      const maxSize = 1280;
+      let { width, height } = img;
+
+      if (width > maxSize || height > maxSize) {
+        const scale = Math.min(maxSize / width, maxSize / height);
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return dataUrl;
+
+      ctx.drawImage(img, 0, 0, width, height);
+
+      return canvas.toDataURL("image/jpeg", 0.82);
     };
-    reader.readAsDataURL(file);
-  };
+
+    const setImageFromFile = async (file?: File | null) => {
+      if (!file || !file.type?.startsWith("image/")) return;
+
+      try {
+        const compressed = await compressImageFile(file);
+        setImage(compressed);
+      } catch (error) {
+        console.error("OpenLura image processing failed:", error);
+      }
+    };
+
+    const handleFile = async (e: any) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      await setImageFromFile(file);
+      e.target.value = "";
+    };
 
   const getActiveLearningDebug = () => {
     const rawFeedback = JSON.parse(localStorage.getItem("openlura_feedback") || "[]");
@@ -1317,7 +1409,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 
                     return (
                                             <div key={i}>
-                        <div className={`p-3 rounded-2xl max-w-[75%] whitespace-pre-line ${
+                                                <div className={`p-3 rounded-2xl max-w-[75%] whitespace-pre-line ${
                           msg.role === "user"
                             ? "bg-gradient-to-r from-purple-500 to-blue-500 ml-auto text-white"
                             : "bg-white/20"
@@ -1326,11 +1418,13 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                             <img
                               src={msg.image}
                               alt="Uploaded"
-                              className="w-full max-w-[240px] max-h-[260px] object-cover rounded-2xl mb-2 border border-white/10"
+                              className="block w-full max-w-[240px] max-h-[260px] object-cover rounded-2xl border border-white/10"
                             />
                           )}
 
-                          {msg.content}
+                          {msg.content ? (
+                            <div className={msg.image ? "mt-3" : ""}>{msg.content}</div>
+                          ) : null}
                         </div>
 
                         {msg.role === "ai" &&
@@ -1433,8 +1527,9 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
               +
             </button>
 
-            <input 
+                        <input 
               type="file" 
+              accept="image/*"
               ref={fileRef} 
               onChange={handleFile}
               className="hidden" 
