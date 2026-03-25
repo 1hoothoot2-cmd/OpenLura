@@ -9,13 +9,15 @@ export default function AnalyticsPage() {
     if (activeTab === "all") return true;
     if (activeTab === "positive") return f.type === "up";
     if (activeTab === "negative") return f.type === "down";
-    if (activeTab === "improvement") return f.type === "improve";
+        if (activeTab === "improvement") return f.type === "improve";
+    if (activeTab === "ideas") return f.type === "idea";
     return true;
   });
 
   const negativeFeedback = feedback.filter((f) => f.type === "down");
   const positiveFeedback = feedback.filter((f) => f.type === "up");
-  const improvementFeedback = feedback.filter((f) => f.type === "improve");
+    const improvementFeedback = feedback.filter((f) => f.type === "improve");
+  const ideaFeedback = feedback.filter((f) => f.type === "idea");
 
   const improvementTexts = improvementFeedback
     .map((f) => (f.message || "").toLowerCase().trim())
@@ -64,7 +66,12 @@ useEffect(() => {
     return {
       ...item,
       _localOnly: true,
-      type: isImprovementItem ? "improve" : item.type || "down",
+            type:
+        item.type === "idea"
+          ? "idea"
+          : isImprovementItem
+          ? "improve"
+          : item.type || "down",
     };
   });
 
@@ -84,22 +91,33 @@ useEffect(() => {
     console.warn("Analytics server tijdelijk niet bereikbaar");
   }
 
-  const combined = [...data, ...normalizedLocal];
+    const combined = [...data, ...normalizedLocal];
 
   const deduped = combined.filter((item: any, index: number, arr: any[]) => {
+    const itemType = item.type || "down";
+    const itemMessage = (item.message || "").trim();
+    const itemUserMessage = (item.userMessage || "").trim();
+
     return (
       index ===
-      arr.findIndex(
-        (x: any) =>
-          x.timestamp === item.timestamp &&
-          x.message === item.message &&
-          x.userMessage === item.userMessage &&
-          x.type === item.type
-      )
+      arr.findIndex((x: any) => {
+        const sameType = (x.type || "down") === itemType;
+        const sameMessage = ((x.message || "").trim() === itemMessage);
+        const sameUserMessage =
+          ((x.userMessage || "").trim() === itemUserMessage);
+
+        return sameType && sameMessage && sameUserMessage;
+      })
     );
   });
 
-  setFeedback([...deduped]);
+    const sorted = [...deduped].sort((a: any, b: any) => {
+    const timeA = a?.timestamp ? new Date(a.timestamp).getTime() : 0;
+    const timeB = b?.timestamp ? new Date(b.timestamp).getTime() : 0;
+    return timeB - timeA;
+  });
+
+  setFeedback(sorted);
 };
 
     const runLoad = () => {
@@ -110,14 +128,20 @@ useEffect(() => {
 
 runLoad();
 
+const handleVisibilityChange = () => {
+  if (document.visibilityState === "visible") {
+    runLoad();
+  }
+};
+
 window.addEventListener("openlura_feedback_update", runLoad);
 window.addEventListener("focus", runLoad);
-document.addEventListener("visibilitychange", runLoad);
+document.addEventListener("visibilitychange", handleVisibilityChange);
 
 return () => {
   window.removeEventListener("openlura_feedback_update", runLoad);
   window.removeEventListener("focus", runLoad);
-  document.removeEventListener("visibilitychange", runLoad);
+  document.removeEventListener("visibilitychange", handleVisibilityChange);
 };
 }, []);
 
@@ -192,10 +216,20 @@ return () => {
     <p className="text-xl">{feedbackScore}%</p>
   </div>
 
-  <div className="p-4 bg-white/10 rounded-xl">
+    <div className="p-4 bg-white/10 rounded-xl">
     <p className="text-xs opacity-60">🧠 Complaints</p>
     <p className="text-xl">{topComplaints.length}</p>
   </div>
+
+  <button
+    onClick={() => setActiveTab("ideas")}
+    className={`p-4 rounded-xl text-left ${
+      activeTab === "ideas" ? "bg-blue-500/30 ring-1 ring-blue-300/40" : "bg-blue-500/20"
+    }`}
+  >
+    <p className="text-xs opacity-60">💡 Ideeën</p>
+    <p className="text-xl">{ideaFeedback.length}</p>
+  </button>
 
 </div>
 
@@ -218,11 +252,17 @@ return () => {
   >
     Positief
   </button>
-  <button
+    <button
     onClick={() => setActiveTab("improvement")}
     className={`px-4 py-2 rounded-xl ${activeTab === "improvement" ? "bg-yellow-400 text-black" : "bg-white/10 text-white"}`}
   >
     Verbeter
+  </button>
+  <button
+    onClick={() => setActiveTab("ideas")}
+    className={`px-4 py-2 rounded-xl ${activeTab === "ideas" ? "bg-blue-400 text-black" : "bg-white/10 text-white"}`}
+  >
+    Ideeën
   </button>
 </div>
 
@@ -267,7 +307,8 @@ return () => {
       {activeTab === "all" && "Je ziet nu alle feedback."}
       {activeTab === "negative" && "Je ziet nu alleen negatieve antwoorden."}
       {activeTab === "positive" && "Je ziet nu alleen positieve antwoorden."}
-      {activeTab === "improvement" && "Je ziet nu alleen verbeterfeedback van gebruikers."}
+            {activeTab === "improvement" && "Je ziet nu alleen verbeterfeedback van gebruikers."}
+      {activeTab === "ideas" && "Je ziet nu alleen ingestuurde ideeën en algemene feedback."}
     </p>
     <p className="text-xs opacity-60">
       Gebruik dit om snel te zien waarom iets 👎 kreeg en wat gebruikers letterlijk teruggeven.
@@ -283,14 +324,18 @@ return () => {
         {filteredFeedback.map((f, i) => (
   <div key={i} className="p-4 bg-white/10 rounded-2xl">
 
-    <p className="text-xs opacity-60 mb-1">
-      {f.type === "improve" ? "Verbeterfeedback" : "User"}
+        <p className="text-xs opacity-60 mb-1">
+      {f.type === "improve"
+        ? "Verbeterfeedback"
+        : f.type === "idea"
+        ? "Idee / Feedback"
+        : "User"}
     </p>
     <p className="mb-3">
-      {f.type === "improve" ? f.message : f.userMessage}
+      {f.type === "improve" || f.type === "idea" ? f.message : f.userMessage}
     </p>
 
-    {f.type !== "improve" && (
+    {f.type !== "improve" && f.type !== "idea" && (
       <>
         <p className="text-xs opacity-60 mb-1">AI</p>
         <p className="mb-3">{f.message}</p>
@@ -299,11 +344,13 @@ return () => {
 
     <div className="flex justify-between items-center">
       <span
-        className={
+                className={
           f.type === "up"
             ? "text-green-400"
             : f.type === "down"
             ? "text-red-400"
+            : f.type === "idea"
+            ? "text-blue-400"
             : "text-yellow-400"
         }
       >
@@ -311,6 +358,8 @@ return () => {
           ? "👍 Positive"
           : f.type === "down"
           ? "👎 Negative"
+          : f.type === "idea"
+          ? "💡 Idee"
           : "🛠️ Verbeter feedback"}
       </span>
 

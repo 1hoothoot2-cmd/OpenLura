@@ -52,27 +52,34 @@ export async function POST(req: Request) {
     timestamp: item.timestamp,
   }));
 
-  const effectiveFeedback =
-    normalizedServerFeedback.length > 0
-      ? normalizedServerFeedback
-      : feedback
-      ? [
-          {
-            type: "up",
-            message,
-            userMessage: "",
-            timestamp: Date.now(),
-            weight: feedback.likes || 0,
-          },
-          {
-            type: "down",
-            message: (feedback.issues || []).join(" | "),
-            userMessage: (feedback.recentIssues || []).join(" | "),
-            timestamp: Date.now(),
-            weight: feedback.dislikes || 0,
-          },
-        ]
-      : [];
+    const clientFeedback = feedback
+    ? [
+        {
+          type: "up",
+          message,
+          userMessage: "",
+          timestamp: Date.now(),
+          weight: feedback.likes || 0,
+        },
+        {
+          type: "down",
+          message: (feedback.issues || []).join(" | "),
+          userMessage: (feedback.recentIssues || []).join(" | "),
+          timestamp: Date.now(),
+          weight: feedback.dislikes || 0,
+        },
+      ].filter(
+        (item: any) =>
+          (item.type === "up" && item.weight > 0) ||
+          (item.type === "down" &&
+            (item.weight > 0 || item.message || item.userMessage))
+      )
+    : [];
+
+  const effectiveFeedback = [
+    ...normalizedServerFeedback,
+    ...clientFeedback,
+  ];
 
   const feedbackLikes = effectiveFeedback.filter(
     (f: any) => f.type === "up"
