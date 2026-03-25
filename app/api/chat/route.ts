@@ -128,7 +128,7 @@ ${feedbackRecentIssues.join("\n") || "none"}
     .map((f: any) => `${f.userMessage || ""} ${f.message || ""}`.toLowerCase())
     .join(" ");
 
-  const detectedFeedbackPatterns = [
+    const detectedFeedbackPatterns = [
     {
       label: "Users prefer shorter answers",
       active:
@@ -171,6 +171,39 @@ ${feedbackRecentIssues.join("\n") || "none"}
     .filter((item) => item.active)
     .map((item) => `- ${item.label}`)
     .join("\n");
+
+  const activeLearningRules = [
+    (
+      negativeFeedbackTexts.includes("korter") ||
+      negativeFeedbackTexts.includes("te lang") ||
+      negativeFeedbackTexts.includes("too long") ||
+      negativeFeedbackTexts.includes("shorter")
+    ) && "- Keep answers shorter and cut filler aggressively",
+    (
+      negativeFeedbackTexts.includes("duidelijker") ||
+      negativeFeedbackTexts.includes("onduidelijk") ||
+      negativeFeedbackTexts.includes("clearer") ||
+      negativeFeedbackTexts.includes("unclear")
+    ) && "- Use simpler wording and make the explanation easier to follow",
+    (
+      negativeFeedbackTexts.includes("andere structuur") ||
+      negativeFeedbackTexts.includes("structuur") ||
+      negativeFeedbackTexts.includes("structure")
+    ) && "- Use cleaner structure with clearer sections and flow",
+    (
+      negativeFeedbackTexts.includes("te vaag") ||
+      negativeFeedbackTexts.includes("vaag") ||
+      negativeFeedbackTexts.includes("vague")
+    ) && "- Be more concrete, specific, and less generic",
+    (
+      negativeFeedbackTexts.includes("meer context") ||
+      negativeFeedbackTexts.includes("te oppervlakkig") ||
+      negativeFeedbackTexts.includes("more context") ||
+      negativeFeedbackTexts.includes("more depth")
+    ) && "- Add a bit more depth and explain the why more clearly",
+  ]
+    .filter(Boolean)
+    .join("\n");
   const stream = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     stream: true,
@@ -208,8 +241,17 @@ ${globalFeedback
 DETECTED FEEDBACK PATTERNS:
 ${detectedFeedbackPatterns || "none"}
 
+ACTIVE LEARNING RULES:
+${activeLearningRules || "none"}
+
 SUCCESSFUL PATTERNS (completed items):
 ${completedFeedback
+  .filter(
+    (f: any) =>
+      f.type === "up" ||
+      f.type === "improve" ||
+      f.source === "idea_feedback_learning"
+  )
   .map((f: any) => `- ${f.userMessage || f.message}`)
   .slice(0, 5)
   .join("\n") || "none"}
@@ -220,6 +262,8 @@ ADAPTATION RULES:
 - If users want more depth or context, explain the why behind the answer more clearly
 - If users want a different structure, use cleaner sections and a more readable flow
 - If users dislike vague answers, be more concrete and specific
+- Treat ACTIVE LEARNING RULES as live behavior instructions for this reply
+- When ACTIVE LEARNING RULES exist, follow them before default style preferences
 
 INTERPRETATION RULES:
 EMOTIONAL SUPPORT RULES:
