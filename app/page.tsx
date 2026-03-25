@@ -701,6 +701,18 @@ Geef alleen direct het betere antwoord.`,
         }
       }
 
+      if (!improvedText.trim()) {
+        updated[index].messages[
+          updated[index].messages.length - 1
+        ] = {
+          ...updated[index].messages[updated[index].messages.length - 1],
+          content: "OpenLura kon de verbeterde versie nu niet genereren. Probeer het opnieuw.",
+          isStreaming: false,
+        };
+
+        setChats([...updated]);
+      }
+
             setStreamController(null);
       setLoading(false);
       setLoadingStage("idle");
@@ -853,6 +865,18 @@ Geef alleen direct het betere antwoord.`,
       if (error?.name !== "AbortError") {
         console.error("OpenLura chat stream failed:", error);
       }
+    }
+
+    if (!aiText.trim()) {
+      updated[index].messages[
+        updated[index].messages.length - 1
+      ] = {
+        ...updated[index].messages[updated[index].messages.length - 1],
+        content: "OpenLura kon nu geen antwoord genereren. Probeer het opnieuw.",
+        isStreaming: false,
+      };
+
+      setChats([...updated]);
     }
 
     setStreamController(null);
