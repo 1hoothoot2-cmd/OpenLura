@@ -175,6 +175,29 @@ function buildContentLearningState(input: {
   };
 }
 
+function buildSuccessfulResponseReuse(input: {
+  bestResponsePreference?: {
+    response: string;
+    score: number;
+    up: number;
+    down: number;
+  } | null;
+  hasMixedResponseFeedback: boolean;
+}) {
+  const reusableWinner =
+    !!input.bestResponsePreference &&
+    !input.hasMixedResponseFeedback &&
+    (input.bestResponsePreference?.score || 0) >= 2;
+
+  return {
+    reusableWinner,
+    winnerText: reusableWinner ? input.bestResponsePreference?.response || "" : "",
+    winnerScore: input.bestResponsePreference?.score || 0,
+    winnerUp: input.bestResponsePreference?.up || 0,
+    winnerDown: input.bestResponsePreference?.down || 0,
+  };
+}
+
 function shouldBypassFastTextPath(input: {
   isCasualChatRequest: boolean;
   casualSignalStrength: number;
@@ -468,6 +491,11 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
     bestResponsePreference,
   });
 
+  const successfulResponseReuse = buildSuccessfulResponseReuse({
+    bestResponsePreference: contentLearningState.bestResponsePreference,
+    hasMixedResponseFeedback: contentLearningState.hasMixedResponseFeedback,
+  });
+
   globalFeedback = globalLearningFeedback;
 
     const completedFeedback = globalLearningFeedback.filter(
@@ -727,7 +755,7 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
     const shouldUseFastTextRoute =
       shouldUseAdaptiveSpeedMode(fastRouteDecisionInput) &&
       !shouldBypassFastTextPath(fastRouteDecisionInput); 
-      
+
   !shouldBypassFastTextPath({
     isCasualChatRequest,
     casualSignalStrength: cappedLearningStrength.casual,
@@ -1006,6 +1034,14 @@ ${personalFeedbackContext}
 RESPONSE CONTENT PREFERENCE FOR THIS EXACT MESSAGE:
 ${contentLearningState.responsePreferenceContext}
 
+SUCCESSFUL RESPONSE REUSE:
+- reusable winner exists: ${successfulResponseReuse.reusableWinner ? "yes" : "no"}
+- winner score: ${successfulResponseReuse.winnerScore}
+- winner positive votes: ${successfulResponseReuse.winnerUp}
+- winner negative votes: ${successfulResponseReuse.winnerDown}
+- winner text:
+${successfulResponseReuse.winnerText || "none"}
+
 STYLE LEARNING SIGNALS:
 - shorter answers: ${cappedLearningStrength.shorter} (${learningConfidence.shorter})
 - clearer explanations: ${cappedLearningStrength.clearer} (${learningConfidence.clearer})
@@ -1082,6 +1118,9 @@ ADAPTATION RULES:
 - Only use personal preferences as an extra layer unless the user clearly asks for something personal or stylistic
 - If RESPONSE CONTENT PREFERENCE FOR THIS EXACT MESSAGE contains a strong positively rated answer, reuse that style as the default for similar future messages
 - If RESPONSE CONTENT PREFERENCE FOR THIS EXACT MESSAGE shows mixed feedback, do not copy the old answer literally; create a balanced improved version between too short and too verbose
+- If SUCCESSFUL RESPONSE REUSE says reusable winner exists = yes, reuse the winning answer's shape, strengths, and level of usefulness as the starting point
+- Do not copy the winner blindly word-for-word unless the user is clearly asking the exact same thing again
+- Prefer reusing structure, tone, directness, and completeness over literal repetition
 - For simple greetings or repeated casual openers, converge toward the best globally rated phrasing instead of answering randomly
 - When ACTIVE LEARNING RULES exist, follow them before default style preferences
 - When LEARNING INJECTION FROM FEEDBACK exists, apply those rules directly unless they conflict with safety or the user's current request
