@@ -716,15 +716,23 @@ FOLLOW THIS STYLE STRICTLY.
     ],
   } as any);
 
-    const aiText =
+      const aiText =
     response.output_text ||
     (response.output || [])
       .flatMap((item: any) =>
         item.type === "message" ? item.content || [] : []
       )
-      .filter((part: any) => part.type === "output_text")
-      .map((part: any) => part.text || "")
-      .join("");
+      .map((part: any) => {
+        if (part.type !== "output_text") return "";
+
+        if (typeof part.text === "string") return part.text;
+        if (typeof part.text?.value === "string") return part.text.value;
+        if (typeof part.value === "string") return part.value;
+
+        return "";
+      })
+      .join("")
+      .trim();
 
   const annotationSources: [string, { title: string; url: string }][] = (response.output || [])
     .flatMap((item: any) =>
@@ -772,9 +780,15 @@ FOLLOW THIS STYLE STRICTLY.
       async start(controller) {
         const chunkSize = 80;
 
-        for (let i = 0; i < aiText.length; i += chunkSize) {
+                const safeText =
+          aiText ||
+          (image
+            ? "Ik kon de afbeelding nog niet goed uitlezen. Probeer het nog een keer met een kortere vraag zoals: wat staat hierop?"
+            : "Ik kon geen antwoord genereren. Probeer het opnieuw.");
+
+        for (let i = 0; i < safeText.length; i += chunkSize) {
           controller.enqueue(
-            encoder.encode(aiText.slice(i, i + chunkSize))
+            encoder.encode(safeText.slice(i, i + chunkSize))
           );
         }
 
