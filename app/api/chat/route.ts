@@ -172,7 +172,7 @@ ${feedbackRecentIssues.join("\n") || "none"}
     .map((item) => `- ${item.label}`)
     .join("\n");
 
-  const activeLearningRules = [
+    const activeLearningRules = [
     (
       negativeFeedbackTexts.includes("korter") ||
       negativeFeedbackTexts.includes("te lang") ||
@@ -203,6 +203,18 @@ ${feedbackRecentIssues.join("\n") || "none"}
     ) && "- Add a bit more depth and explain the why more clearly",
   ]
     .filter(Boolean)
+    .join("\n");
+
+  const injectedLearningRules = effectiveFeedback
+    .filter(
+      (f: any) =>
+        f.type === "improve" ||
+        f.source === "idea_feedback_learning"
+    )
+    .map((f: any) => (f.message || f.userMessage || "").trim())
+    .filter(Boolean)
+    .slice(0, 8)
+    .map((rule: string) => `- ${rule}`)
     .join("\n");
   const stream = await openai.chat.completions.create({
     model: "gpt-4o-mini",
@@ -244,6 +256,9 @@ ${detectedFeedbackPatterns || "none"}
 ACTIVE LEARNING RULES:
 ${activeLearningRules || "none"}
 
+LEARNING INJECTION FROM FEEDBACK:
+${injectedLearningRules || "none"}
+
 SUCCESSFUL PATTERNS (completed items):
 ${completedFeedback
   .filter(
@@ -263,7 +278,9 @@ ADAPTATION RULES:
 - If users want a different structure, use cleaner sections and a more readable flow
 - If users dislike vague answers, be more concrete and specific
 - Treat ACTIVE LEARNING RULES as live behavior instructions for this reply
+- Treat LEARNING INJECTION FROM FEEDBACK as direct instructions learned from analytics and user feedback
 - When ACTIVE LEARNING RULES exist, follow them before default style preferences
+- When LEARNING INJECTION FROM FEEDBACK exists, apply those rules directly unless they conflict with safety or the user's current request
 
 INTERPRETATION RULES:
 EMOTIONAL SUPPORT RULES:
