@@ -5,6 +5,31 @@ export default function AnalyticsPage() {
     const [feedback, setFeedback] = useState<any[]>([]);
     const [activeTab, setActiveTab] = useState("all");
     const [ideaFilter, setIdeaFilter] = useState("all");
+    const [analyticsPassword, setAnalyticsPassword] = useState("");
+    const [isUnlocked, setIsUnlocked] = useState(false);
+    const [authError, setAuthError] = useState("");
+
+    const ANALYTICS_PASSWORD = "@Bodi2023!@#";
+    const ANALYTICS_SESSION_KEY = "openlura_analytics_auth_until";
+    const ANALYTICS_SESSION_MS = 3 * 60 * 60 * 1000;
+
+    useEffect(() => {
+    if (activeTab !== "ideas") {
+      setIdeaFilter("all");
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    const savedUntil = Number(
+      sessionStorage.getItem(ANALYTICS_SESSION_KEY) || "0"
+    );
+
+    if (savedUntil > Date.now()) {
+      setIsUnlocked(true);
+    } else {
+      sessionStorage.removeItem(ANALYTICS_SESSION_KEY);
+    }
+  }, []);
 
     const filteredFeedback = feedback.filter((f) => {
     if (activeTab === "all") return true;
@@ -61,6 +86,8 @@ export default function AnalyticsPage() {
       : 0;
 
 useEffect(() => {
+  if (!isUnlocked) return;
+
   const load = async () => {
   const localFeedback = JSON.parse(
     localStorage.getItem("openlura_feedback") || "[]"
@@ -188,7 +215,58 @@ return () => {
   window.removeEventListener("focus", runLoad);
   document.removeEventListener("visibilitychange", handleVisibilityChange);
 };
-}, []);
+}, [isUnlocked]);
+
+    const handleUnlock = () => {
+    if (analyticsPassword !== ANALYTICS_PASSWORD) {
+      setAuthError("Verkeerd wachtwoord");
+      return;
+    }
+
+    const expiresAt = Date.now() + ANALYTICS_SESSION_MS;
+    sessionStorage.setItem(ANALYTICS_SESSION_KEY, String(expiresAt));
+    setIsUnlocked(true);
+    setAuthError("");
+    setAnalyticsPassword("");
+  };
+
+    if (!isUnlocked) {
+    return (
+      <main className="min-h-screen bg-[#050510] text-white p-6 flex items-center justify-center">
+        <div className="w-full max-w-sm bg-white/10 rounded-2xl p-6">
+          <h1 className="text-2xl mb-2">🔐 Analytics Admin</h1>
+          <p className="text-sm opacity-60 mb-4">
+            Voer het wachtwoord in om analytics te openen
+          </p>
+
+          <input
+            type="password"
+            value={analyticsPassword}
+            onChange={(e) => {
+              setAnalyticsPassword(e.target.value);
+              if (authError) setAuthError("");
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleUnlock();
+            }}
+            className="w-full p-3 rounded-xl bg-white/10 mb-3 outline-none"
+            placeholder="Wachtwoord"
+          />
+
+          {authError && (
+            <p className="text-red-400 text-sm mb-3">{authError}</p>
+          )}
+
+          <button
+            onClick={handleUnlock}
+            className="w-full p-3 bg-purple-500 rounded-xl"
+          >
+            Ontgrendelen
+          </button>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-[#050510] text-white p-6">
@@ -368,9 +446,21 @@ return () => {
         <span>Verbeterfeedback</span>
         <span className="opacity-60">{improvementFeedback.length}</span>
       </div>
-      <div className="flex justify-between">
+            <div className="flex justify-between">
         <span>Positieve antwoorden</span>
         <span className="opacity-60">{positiveFeedback.length}</span>
+      </div>
+      <div className="flex justify-between">
+        <span>Idea bugs</span>
+        <span className="opacity-60">{bugIdeas.length}</span>
+      </div>
+      <div className="flex justify-between">
+        <span>Idea aanpassingen</span>
+        <span className="opacity-60">{adjustmentIdeas.length}</span>
+      </div>
+      <div className="flex justify-between">
+        <span>Idea AI feedback</span>
+        <span className="opacity-60">{learningIdeas.length}</span>
       </div>
     </div>
   </div>
