@@ -151,36 +151,36 @@ function classifyOpenLuraRoute(input: {
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-async function getRecentServerFeedback() {
+async function fetchSupabaseFeedbackRows(query: string, errorLabel: string) {
   if (!supabaseUrl || !supabaseServiceRoleKey) return [];
 
   try {
-    const res = await fetch(
-            `${supabaseUrl}/rest/v1/openlura_feedback?select=type,message,userMessage,source,timestamp&order=timestamp.desc&limit=30`,
-      {
-        method: "GET",
-        headers: {
-          apikey: supabaseServiceRoleKey,
-          Authorization: `Bearer ${supabaseServiceRoleKey}`,
-        },
-        cache: "no-store",
-      }
-    );
+    const res = await fetch(`${supabaseUrl}/rest/v1/openlura_feedback?${query}`, {
+      method: "GET",
+      headers: {
+        apikey: supabaseServiceRoleKey,
+        Authorization: `Bearer ${supabaseServiceRoleKey}`,
+      },
+      cache: "no-store",
+    });
 
     if (!res.ok) {
-      console.error(
-        "OpenLura server feedback fetch failed:",
-        res.status,
-        await res.text()
-      );
+      console.error(errorLabel, res.status, await res.text());
       return [];
     }
 
     return await res.json();
   } catch (error) {
-    console.error("OpenLura server feedback fetch error:", error);
+    console.error(errorLabel, error);
     return [];
   }
+}
+
+async function getRecentServerFeedback() {
+  return fetchSupabaseFeedbackRows(
+    "select=type,message,userMessage,source,timestamp&order=timestamp.desc&limit=30",
+    "OpenLura server feedback fetch failed:"
+  );
 }
 
 const openai = new OpenAI({
@@ -522,76 +522,56 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
   };
 
   try {
-    const feedbackRes = await fetch(
-      `${supabaseUrl}/rest/v1/openlura_feedback?select=message,type`,
-      {
-        headers: {
-          apikey: supabaseServiceRoleKey!,
-          Authorization: `Bearer ${supabaseServiceRoleKey}`,
-        },
-        cache: "no-store",
-      }
+    const feedbackData = await fetchSupabaseFeedbackRows(
+      "select=message,type",
+      "Global learning fetch failed:"
     );
 
-    if (feedbackRes.ok) {
-      const feedbackData = await feedbackRes.json();
+    feedbackData.forEach((f: any) => {
+      const text = `${f.message || ""}`.toLowerCase();
 
-      feedbackData.forEach((f: any) => {
-        const text = `${f.message || ""}`.toLowerCase();
+      if (f.type === "down" || f.type === "improve" || f.type === "idea") {
+        if (text.match(/korter|te lang|too long|shorter/)) globalSignals.shorter += 1;
+        if (text.match(/duidelijker|onduidelijk|clearer|unclear/)) globalSignals.clearer += 1;
+        if (text.match(/structuur|structure|opbouw/)) globalSignals.structure += 1;
+      }
 
-        if (f.type === "down" || f.type === "improve" || f.type === "idea") {
-          if (text.match(/korter|te lang|too long|shorter/)) globalSignals.shorter += 1;
-          if (text.match(/duidelijker|onduidelijk|clearer|unclear/)) globalSignals.clearer += 1;
-          if (text.match(/structuur|structure|opbouw/)) globalSignals.structure += 1;
-        }
-
-        if (f.type === "up") {
-          if (text.match(/korter|short/)) globalSignals.shorter -= 0.5;
-          if (text.match(/duidelijk|clear/)) globalSignals.clearer -= 0.5;
-        }
-      });
-    }
+      if (f.type === "up") {
+        if (text.match(/korter|short/)) globalSignals.shorter -= 0.5;
+        if (text.match(/duidelijk|clear/)) globalSignals.clearer -= 0.5;
+      }
+    });
   } catch (e) {
-    console.warn("Global learning fetch failed");
+    console.warn("Global learning fetch failed:", e);
   }
 
     let responseVariant = "A";
 
   try {
-        const res = await fetch(
-      `${supabaseUrl}/rest/v1/openlura_feedback?select=type,source`,
-      {
-        headers: {
-          apikey: supabaseServiceRoleKey!,
-          Authorization: `Bearer ${supabaseServiceRoleKey}`,
-        },
-        cache: "no-store",
-      }
+    const feedbackData = await fetchSupabaseFeedbackRows(
+      "select=type,source",
+      "A/B feedback fetch failed:"
     );
 
-        if (res.ok) {
-      const feedbackData = await res.json();
+    const variantA = feedbackData.filter((f: any) => f.source === "ab_test_A");
+    const variantB = feedbackData.filter((f: any) => f.source === "ab_test_B");
 
-      const variantA = feedbackData.filter((f: any) => f.source === "ab_test_A");
-      const variantB = feedbackData.filter((f: any) => f.source === "ab_test_B");
+    const scoreA =
+      variantA.filter((f: any) => f.type === "up").length -
+      variantA.filter((f: any) => f.type === "down").length;
 
-      const scoreA =
-        variantA.filter((f: any) => f.type === "up").length -
-        variantA.filter((f: any) => f.type === "down").length;
+    const scoreB =
+      variantB.filter((f: any) => f.type === "up").length -
+      variantB.filter((f: any) => f.type === "down").length;
 
-      const scoreB =
-        variantB.filter((f: any) => f.type === "up").length -
-        variantB.filter((f: any) => f.type === "down").length;
-
-      if (variantA.length < 5 || variantB.length < 5) {
-        responseVariant = Math.random() < 0.5 ? "A" : "B";
-      } else if (scoreA > scoreB) {
-        responseVariant = Math.random() < 0.8 ? "A" : "B";
-      } else if (scoreB > scoreA) {
-        responseVariant = Math.random() < 0.8 ? "B" : "A";
-      } else {
-        responseVariant = Math.random() < 0.5 ? "A" : "B";
-      }
+    if (variantA.length < 5 || variantB.length < 5) {
+      responseVariant = Math.random() < 0.5 ? "A" : "B";
+    } else if (scoreA > scoreB) {
+      responseVariant = Math.random() < 0.8 ? "A" : "B";
+    } else if (scoreB > scoreA) {
+      responseVariant = Math.random() < 0.8 ? "B" : "A";
+    } else {
+      responseVariant = Math.random() < 0.5 ? "A" : "B";
     }
   } catch {
     responseVariant = Math.random() < 0.5 ? "A" : "B";
