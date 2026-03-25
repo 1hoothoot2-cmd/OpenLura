@@ -638,7 +638,19 @@ Geef alleen direct het betere antwoord.`,
         }),
       });
 
-                  const improveReader = improveRes.body?.getReader();
+      if (!improveRes.ok || !improveRes.body) {
+        updated[index].messages.push({
+          role: "ai",
+          content: "OpenLura kon de verbeterde versie nu niet ophalen. Probeer het opnieuw.",
+        });
+        setChats([...updated]);
+        setStreamController(null);
+        setLoading(false);
+        setLoadingStage("idle");
+        return;
+      }
+
+                  const improveReader = improveRes.body.getReader();
       const improveDecoder = new TextDecoder();
       const improveVariant = improveRes.headers.get("X-OpenLura-Variant") || "unknown";
       const improveSourcesHeader = improveRes.headers.get("X-OpenLura-Sources");
@@ -655,7 +667,7 @@ Geef alleen direct het betere antwoord.`,
 
         updated[index].messages.push({
         role: "ai",
-        content: "…",
+        content: "",
         variant: improveVariant,
         sources: improveSources,
         isStreaming: true,
@@ -777,7 +789,19 @@ Geef alleen direct het betere antwoord.`,
       }),
     });
 
-        const reader = res.body?.getReader();
+    if (!res.ok || !res.body) {
+      updated[index].messages.push({
+        role: "ai",
+        content: "OpenLura kon nu geen antwoord ophalen. Probeer het opnieuw.",
+      });
+      setChats([...updated]);
+      setStreamController(null);
+      setLoading(false);
+      setLoadingStage("idle");
+      return;
+    }
+
+        const reader = res.body.getReader();
     const decoder = new TextDecoder();
     const responseVariant = res.headers.get("X-OpenLura-Variant") || "unknown";
     const responseSourcesHeader = res.headers.get("X-OpenLura-Sources");
@@ -794,7 +818,7 @@ Geef alleen direct het betere antwoord.`,
 
     updated[index].messages.push({
       role: "ai",
-      content: "…",
+      content: "",
       variant: responseVariant,
       sources: responseSources,
       isStreaming: true,
