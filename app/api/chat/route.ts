@@ -193,25 +193,54 @@ ${personalRecentIssues.join("\n") || "none"}
     .map((item) => `- ${item.label}`)
     .join("\n");
 
-        const shorterCount = globalLearningFeedback.filter((f: any) =>
-    `${f.userMessage || ""} ${f.message || ""}`.toLowerCase().match(/korter|te lang|too long|shorter/)
-  ).length;
+          const getDecayWeight = (timestamp: string | number | undefined) => {
+    if (!timestamp) return 0.4;
 
-  const clearerCount = globalLearningFeedback.filter((f: any) =>
-    `${f.userMessage || ""} ${f.message || ""}`.toLowerCase().match(/duidelijker|onduidelijk|clearer|unclear/)
-  ).length;
+    const time = new Date(timestamp).getTime();
+    if (Number.isNaN(time)) return 0.4;
 
-  const structureCount = globalLearningFeedback.filter((f: any) =>
-    `${f.userMessage || ""} ${f.message || ""}`.toLowerCase().match(/andere structuur|structuur|structure/)
-  ).length;
+    const ageDays = (Date.now() - time) / (1000 * 60 * 60 * 24);
 
-  const vagueCount = globalLearningFeedback.filter((f: any) =>
-    `${f.userMessage || ""} ${f.message || ""}`.toLowerCase().match(/te vaag|vaag|vague/)
-  ).length;
+    if (ageDays <= 3) return 1;
+    if (ageDays <= 7) return 0.85;
+    if (ageDays <= 14) return 0.7;
+    if (ageDays <= 30) return 0.5;
+    return 0.25;
+  };
 
-  const contextCount = globalLearningFeedback.filter((f: any) =>
-    `${f.userMessage || ""} ${f.message || ""}`.toLowerCase().match(/meer context|te oppervlakkig|more context|more depth/)
-  ).length;
+  const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
+    return Math.round(
+      items.reduce((sum: number, f: any) => {
+        const text = `${f.userMessage || ""} ${f.message || ""}`.toLowerCase();
+        return pattern.test(text) ? sum + getDecayWeight(f.timestamp) : sum;
+      }, 0)
+    );
+  };
+
+  const shorterCount = getWeightedSignalCount(
+    globalLearningFeedback,
+    /korter|te lang|too long|shorter/
+  );
+
+  const clearerCount = getWeightedSignalCount(
+    globalLearningFeedback,
+    /duidelijker|onduidelijk|clearer|unclear/
+  );
+
+  const structureCount = getWeightedSignalCount(
+    globalLearningFeedback,
+    /andere structuur|structuur|structure/
+  );
+
+  const vagueCount = getWeightedSignalCount(
+    globalLearningFeedback,
+    /te vaag|vaag|vague/
+  );
+
+  const contextCount = getWeightedSignalCount(
+    globalLearningFeedback,
+    /meer context|te oppervlakkig|more context|more depth/
+  );
 
   const activeLearningRules = [
     shorterCount >= 1 &&
@@ -282,7 +311,7 @@ ${detectedFeedbackPatterns || "none"}
 ACTIVE LEARNING RULES:
 ${activeLearningRules || "none"}
 
-WEIGHTED LEARNING SIGNALS:
+WEIGHTED LEARNING SIGNALS (recent feedback weighs more than old feedback):
 - shorter answers: ${shorterCount}
 - clearer explanations: ${clearerCount}
 - better structure: ${structureCount}
@@ -319,6 +348,7 @@ ADAPTATION RULES:
 - When LEARNING INJECTION FROM FEEDBACK exists, apply those rules directly unless they conflict with safety or the user's current request
 - If a weighted learning signal is 3 or higher, apply that rule noticeably stronger in this reply
 - If a weighted learning signal is 5 or higher, treat it as a dominant global preference unless the user asks otherwise
+- Weighted learning signals are recency-based, so follow recent repeated feedback more strongly than older feedback
 
 INTERPRETATION RULES:
 EMOTIONAL SUPPORT RULES:
