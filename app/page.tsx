@@ -510,9 +510,13 @@ Geef alleen direct het betere antwoord.`,
         }),
       });
 
-            const improveReader = improveRes.body?.getReader();
+                  const improveReader = improveRes.body?.getReader();
       const improveDecoder = new TextDecoder();
       const improveVariant = improveRes.headers.get("X-OpenLura-Variant") || "unknown";
+      const improveSourcesHeader = improveRes.headers.get("X-OpenLura-Sources");
+      const improveSources = improveSourcesHeader
+        ? JSON.parse(decodeURIComponent(improveSourcesHeader))
+        : [];
 
       let improvedText = "";
 
@@ -520,6 +524,7 @@ Geef alleen direct het betere antwoord.`,
         role: "ai",
         content: "",
         variant: improveVariant,
+        sources: improveSources,
       });
 
       setChats([...updated]);
@@ -625,10 +630,19 @@ const res = await fetch("/api/chat", {
         const reader = res.body?.getReader();
     const decoder = new TextDecoder();
     const responseVariant = res.headers.get("X-OpenLura-Variant") || "unknown";
+    const responseSourcesHeader = res.headers.get("X-OpenLura-Sources");
+    const responseSources = responseSourcesHeader
+      ? JSON.parse(decodeURIComponent(responseSourcesHeader))
+      : [];
 
     let aiText = "";
 
-    updated[index].messages.push({ role: "ai", content: "", variant: responseVariant });
+    updated[index].messages.push({
+      role: "ai",
+      content: "",
+      variant: responseVariant,
+      sources: responseSources,
+    });
     setChats([...updated]);
 
         try {
@@ -1318,7 +1332,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                                 </div>
                               )}
 
-                              <div className="flex gap-2 mt-1 text-sm opacity-70 items-center">
+                                                            <div className="flex gap-2 mt-1 text-sm opacity-70 items-center">
                                 {!feedbackGiven[activeChatId + "-" + i] && (
                                   <>
                                     <button onClick={() => handleFeedback(activeChatId!, i, "up")}>👍</button>
@@ -1332,6 +1346,22 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                                   </span>
                                 )}
                               </div>
+
+                              {Array.isArray(msg.sources) && msg.sources.length > 0 && (
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                  {msg.sources.map((source: any, sourceIndex: number) => (
+                                    <a
+                                      key={source.url || sourceIndex}
+                                      href={source.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-[11px] px-2 py-1 rounded-full bg-white/5 hover:bg-white/10 text-white/60 hover:text-white/85 transition-colors"
+                                    >
+                                      {source.title || source.url}
+                                    </a>
+                                  ))}
+                                </div>
+                              )}
                             </>
                           )}
                       </div>
