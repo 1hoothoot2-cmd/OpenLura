@@ -1,6 +1,11 @@
 import OpenAI from "openai"; 
 
 let globalFeedback: any[] = [];
+const responseCache = new Map<
+  string,
+  { text: string; sources: { title: string; url: string }[]; timestamp: number }
+>();
+const RESPONSE_CACHE_TTL_MS = 1000 * 60 * 10;
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -473,38 +478,40 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
         )
       );
 
-    const response = await openai.responses.create({
-    model: "gpt-4.1-mini",
-    store: false,
-    tools: shouldUseWebSearch ? [{ type: "web_search_preview" }] : [],
-    include: shouldUseWebSearch ? ["web_search_call.action.sources"] : [],
-    text: {
-      verbosity: responseVariant === "A" ? "low" : "medium",
-    },
-    instructions: `
-You are OpenLura.
-
-You improve yourself based on user feedback.
-
-CRITICAL RULES:
-- Detect the language of the user message and ALWAYS respond in that same language
-- NEVER mix languages
-- NEVER write "(blank line)"
-- Learn from feedback: avoid disliked responses and reinforce liked ones
-    const shouldUseWebSearch =
-      !isSimpleImageAnalysis &&
-      (
-        !image ||
-        /restaurant|cafe|coffee|koffie|location|locatie|where|waar|address|adres|opening|open|review|route|travel|venue|place|plek|business|bedrijf|hotel|map|maps|near|dichtbij|best|beste|news|nieuws|welke plek|which place|waar is dit|where is this|welk restaurant|which restaurant|vind locatie|find location|zoek locatie|search location/i.test(
-          normalizedMessageForRouting
-        )
-      );
-
     const isSearchStyleRequest = shouldUseWebSearch;
     const shouldForceFastCompactOutput =
       isSimpleImageAnalysis ||
       isSearchStyleRequest ||
       normalizedMessageForRouting.length <= 40;
+
+    const canUseCache =
+      !image &&
+      !shouldUseWebSearch &&
+      !!normalizedMessageForRouting &&
+      normalizedMessageForRouting.length <= 120;
+
+    const cacheKey = canUseCache
+      ? JSON.stringify({
+          message: normalizedMessageForRouting,
+          memory: personalMemory || memory || "",
+          variant: shouldForceFastCompactOutput ? "fast" : responseVariant,
+        })
+      : "";
+
+    if (canUseCache) {
+      const cached = responseCache.get(cacheKey);
+
+      if (cached && Date.now() - cached.timestamp < RESPONSE_CACHE_TTL_MS) {
+        return new Response(cached.text, {
+          headers: {
+            "Content-Type": "text/plain; charset=utf-8",
+            "X-OpenLura-Variant": responseVariant,
+            "X-OpenLura-Sources": encodeURIComponent(JSON.stringify(cached.sources || [])),
+            "X-OpenLura-Cache": "HIT",
+          },
+        });
+      }
+    }
 
     const response = await openai.responses.create({
     model: "gpt-4.1-mini",
@@ -518,6 +525,16 @@ CRITICAL RULES:
         ? "low"
         : "medium",
     },
+    instructions: `
+You are OpenLura.
+
+You improve yourself based on user feedback.
+
+CRITICAL RULES:
+- Detect the language of the user message and ALWAYS respond in that same language
+- NEVER mix languages
+- NEVER write "(blank line)"
+- Learn from feedback: avoid disliked responses and reinforce liked ones
 - If an image is present and no text is provided, treat the request as: "Analyze this image and tell me clearly what it shows"
 - If an image is present and text is also provided, answer the user's question using the image as primary context
 - For simple image questions like "wat is dit", "wie is dit", "what is this", or "who is this", analyze the image directly first and do not rely on web search
@@ -760,7 +777,7 @@ FOLLOW THIS STYLE STRICTLY.
     ],
   } as any);
 
-      const aiText =
+  const aiText =
     response.output_text ||
     (response.output || [])
       .flatMap((item: any) =>
@@ -810,12 +827,27 @@ FOLLOW THIS STYLE STRICTLY.
       ]
     );
 
-  const sources = Array.from(
+      const sources = Array.from(
     new Map<string, { title: string; url: string }>([
       ...annotationSources,
       ...webSearchSources,
     ]).values()
   ).slice(0, 5);
+
+  if (canUseCache && aiText) {
+    responseCache.set(cacheKey, {
+      text: aiText,
+      sources,
+      timestamp: Date.now(),
+    });
+
+    if (responseCache.size > 100) {
+      const oldestKey = responseCache.keys().next().value as string | undefined;
+      if (oldestKey) {
+        responseCache.delete(oldestKey);
+      }
+    }
+  }
 
   const encoder = new TextEncoder();
 
