@@ -7,7 +7,8 @@ export default function Home() {
   const [input, setInput] = useState("");
   const [search, setSearch] = useState("");
     const [loading, setLoading] = useState(false);
-  const [streamController, setStreamController] = useState<AbortController | null>(null);
+    const [streamController, setStreamController] = useState<AbortController | null>(null);
+  const [loadingStage, setLoadingStage] = useState<"idle" | "analyzing" | "typing">("idle");
 
     // ✅ MEMORY ARRAY (weighted)
   const [memory, setMemory] = useState<{ text: string; weight: number }[]>([]);
@@ -419,12 +420,13 @@ export default function Home() {
     });
   };
 
-      const stopStreaming = () => {
+            const stopStreaming = () => {
     if (streamController) {
       streamController.abort();
       setStreamController(null);
     }
     setLoading(false);
+    setLoadingStage("idle");
   };
 
   const isRetryInstruction = (text: string) => {
@@ -652,8 +654,9 @@ Geef alleen direct het betere antwoord.`,
         }
       }
 
-      setStreamController(null);
+            setStreamController(null);
       setLoading(false);
+      setLoadingStage("idle");
 
       return;
     }
@@ -675,10 +678,17 @@ Geef alleen direct het betere antwoord.`,
       updated[index].title = inputToSend.slice(0, 30);
     }
 
-    setChats(updated);
+        setChats(updated);
     setInput("");
     setImage(null);
     setLoading(true);
+    setLoadingStage(imageToSend ? "analyzing" : "typing");
+
+    if (imageToSend) {
+      setTimeout(() => {
+        setLoadingStage((current) => (current === "analyzing" ? "typing" : current));
+      }, 1400);
+    }
 
     const rawFeedback = JSON.parse(localStorage.getItem("openlura_feedback") || "[]").slice(-20);
 
@@ -778,8 +788,9 @@ Geef alleen direct het betere antwoord.`,
     }
 
     setStreamController(null);
+    setLoadingStage("idle");
 
-        // ✅ MEMORY SAVE
+    // ✅ MEMORY SAVE
     if (inputToSend.length < 60) {
       const existing = memory.find((m) => m.text === inputToSend);
 
@@ -1504,9 +1515,11 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                     );
                   })}
 
-                {loading && (
+                                {loading && (
                   <div className="opacity-70 text-sm">
-                    OpenLura is typing...
+                    {loadingStage === "analyzing"
+                      ? "OpenLura is analyzing image..."
+                      : "OpenLura is typing..."}
                   </div>
                 )}
               </>
