@@ -46,6 +46,7 @@ export default function Home() {
   const chatMenuRef = useRef<HTMLDivElement>(null);
   const preferredActiveChatIdRef = useRef<number | null>(null);
   const pendingActiveChatIdRef = useRef<number | null>(null);
+  const forcedActiveChatIdRef = useRef<number | null>(null);
   const personalSyncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasLoadedInitialStateRef = useRef(false);
   const hasManualChatSelectionRef = useRef(false);
@@ -60,7 +61,64 @@ export default function Home() {
   const getGreeting = () =>
     greetings[Math.floor(Math.random() * greetings.length)];
 
-        useEffect(() => {
+  const activateChat = (chatId: number) => {
+    hasManualChatSelectionRef.current = true;
+    pendingActiveChatIdRef.current = chatId;
+    preferredActiveChatIdRef.current = chatId;
+    forcedActiveChatIdRef.current = chatId;
+    setActiveChatId(chatId);
+    setOpenChatMenuId(null);
+  };
+
+  const createNewChat = (
+    preset?: Partial<{
+      title: string;
+      messages: { role: string; content: string; image?: string | null }[];
+    }>
+  ) => {
+    const baseTitle =
+      preset?.title || (isPersonalRoute ? "Persoonlijke chat" : "New Chat");
+
+    const newChatId = Date.now() + Math.floor(Math.random() * 1000);
+
+    hasManualChatSelectionRef.current = true;
+    pendingActiveChatIdRef.current = newChatId;
+    preferredActiveChatIdRef.current = newChatId;
+    forcedActiveChatIdRef.current = newChatId;
+    setOpenChatMenuId(null);
+
+    setChats((prev) => {
+      const existingTitles = prev.map((chat: any) =>
+        String(chat.title || "").trim()
+      );
+
+      const buildUniqueTitle = (rawBaseTitle: string) => {
+        if (!existingTitles.includes(rawBaseTitle)) return rawBaseTitle;
+
+        let counter = 2;
+        while (existingTitles.includes(`${rawBaseTitle} ${counter}`)) {
+          counter += 1;
+        }
+
+        return `${rawBaseTitle} ${counter}`;
+      };
+
+      const newChat = {
+        id: newChatId,
+        title: buildUniqueTitle(baseTitle),
+        messages: preset?.messages ? [...preset.messages] : [],
+        pinned: false,
+        archived: false,
+        deleted: false,
+      };
+
+      return [newChat, ...prev];
+    });
+
+    setActiveChatId(newChatId);
+  };
+
+  useEffect(() => {
     const loadState = async () => {
       try {
         let loadedFromServer = false;
@@ -332,61 +390,6 @@ export default function Home() {
     };
   }, []);
 
-  const activateChat = (chatId: number) => {
-  hasManualChatSelectionRef.current = true;
-  pendingActiveChatIdRef.current = chatId;
-  preferredActiveChatIdRef.current = chatId;
-  setActiveChatId(chatId);
-  setOpenChatMenuId(null);
-};
-
-  const createNewChat = (
-  preset?: Partial<{
-    title: string;
-    messages: { role: string; content: string; image?: string | null }[];
-  }>
-) => {
-  const baseTitle =
-    preset?.title || (isPersonalRoute ? "Persoonlijke chat" : "New Chat");
-
-  const newChatId = Date.now() + Math.floor(Math.random() * 1000);
-
-  hasManualChatSelectionRef.current = true;
-  pendingActiveChatIdRef.current = newChatId;
-  preferredActiveChatIdRef.current = newChatId;
-  setOpenChatMenuId(null);
-
-  setChats((prev) => {
-    const existingTitles = prev.map((chat: any) =>
-      String(chat.title || "").trim()
-    );
-
-    const buildUniqueTitle = (rawBaseTitle: string) => {
-      if (!existingTitles.includes(rawBaseTitle)) return rawBaseTitle;
-
-      let counter = 2;
-      while (existingTitles.includes(`${rawBaseTitle} ${counter}`)) {
-        counter += 1;
-      }
-
-      return `${rawBaseTitle} ${counter}`;
-    };
-
-    const newChat = {
-      id: newChatId,
-      title: buildUniqueTitle(baseTitle),
-      messages: preset?.messages ? [...preset.messages] : [],
-      pinned: false,
-      archived: false,
-      deleted: false,
-    };
-
-    return [newChat, ...prev];
-  });
-
-  setActiveChatId(newChatId);
-};
-
 const messageShellClass =
   "w-full min-w-0 max-w-full overflow-hidden";
 const messageBubbleClass =
@@ -501,6 +504,8 @@ const activeChat =
       const nextActiveChatId = nextVisibleChat?.id ?? null;
 
       preferredActiveChatIdRef.current = nextActiveChatId;
+      pendingActiveChatIdRef.current = nextActiveChatId;
+      forcedActiveChatIdRef.current = nextActiveChatId;
       setActiveChatId(nextActiveChatId);
     }
 
@@ -602,6 +607,8 @@ const activeChat =
 
       setChats([fallbackChat]);
       preferredActiveChatIdRef.current = fallbackChat.id;
+      pendingActiveChatIdRef.current = fallbackChat.id;
+      forcedActiveChatIdRef.current = fallbackChat.id;
       setActiveChatId(fallbackChat.id);
     } else {
       setChats(remainingChats);
@@ -612,6 +619,8 @@ const activeChat =
 
       const nextActiveChatId = nextVisibleChat?.id ?? remainingChats[0]?.id ?? null;
       preferredActiveChatIdRef.current = nextActiveChatId;
+      pendingActiveChatIdRef.current = nextActiveChatId;
+      forcedActiveChatIdRef.current = nextActiveChatId;
       setActiveChatId(nextActiveChatId);
     }
 
@@ -1153,6 +1162,7 @@ Geef alleen direct het betere antwoord.`,
       setChats(updated);
       pendingActiveChatIdRef.current = fallbackChat.id;
       preferredActiveChatIdRef.current = fallbackChat.id;
+      forcedActiveChatIdRef.current = fallbackChat.id;
       setActiveChatId(fallbackChat.id);
     }
 
@@ -1998,7 +2008,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 
                     return (
                       <div key={i} className={messageShellClass}>
-                        <div className={`${messageBubbleClass} p-3 rounded-2xl max-w-[75%] whitespace-pre-line ${
+                        <div className={`${messageBubbleClass} min-w-0 max-w-[75%] overflow-hidden p-3 rounded-2xl whitespace-pre-line ${
                           msg.role === "user"
                             ? "bg-gradient-to-r from-purple-500 to-blue-500 ml-auto text-white"
                             : "bg-white/20"
@@ -2135,15 +2145,18 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                     href={source.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block min-w-0 max-w-full overflow-hidden p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all border border-white/10"
+                    className="block w-full min-w-0 max-w-full overflow-hidden p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all border border-white/10"
                     title={source.title || source.url}
                   >
-                    <p className="text-sm text-white/90 break-words [overflow-wrap:anywhere]">
+                    <p
+                      className="text-sm text-white/90 break-words"
+                      style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
+                    >
                       {title}
                     </p>
                     <p
-                      className="text-xs text-white/40 mt-1 break-all"
-                      style={{ overflowWrap: "anywhere" }}
+                      className="text-xs text-white/40 mt-1 break-all max-w-full overflow-hidden"
+                      style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
                     >
                       {domain}
                     </p>
