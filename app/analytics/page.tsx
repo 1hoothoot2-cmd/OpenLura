@@ -48,6 +48,40 @@ export default function AnalyticsPage() {
     return match?.[1] || "unknown";
   };
 
+  const getAutoDebugSignalType = (f: any) => {
+    const source = String(f.source || "");
+
+    if (source.includes("auto_debug_casual_mismatch")) {
+      return "casual_mismatch";
+    }
+
+    if (source.includes("auto_debug_possible_search_miss")) {
+      return "possible_search_miss";
+    }
+
+    if (source.includes("auto_debug_possible_image_context_miss")) {
+      return "possible_image_context_miss";
+    }
+
+    if (source.includes("auto_debug_weak_source_support")) {
+      return "weak_source_support";
+    }
+
+    if (source.includes("auto_debug_too_verbose_for_image_route")) {
+      return "too_verbose_for_image_route";
+    }
+
+    return "unknown";
+  };
+
+  const getUserScope = (f: any) => {
+    if (f.userScope === "admin" || f.userScope === "guest") {
+      return f.userScope;
+    }
+
+    return f._localOnly ? "guest" : "guest";
+  };
+
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
   <div className="p-4 bg-white/10 rounded-2xl">
     <p className="text-xs opacity-60">Server items</p>

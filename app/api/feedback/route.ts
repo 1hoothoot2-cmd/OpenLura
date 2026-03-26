@@ -1,4 +1,4 @@
-import { createHmac } from "crypto";
+import { createHmac, timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -13,11 +13,53 @@ const analyticsSessionSecret =
   "openlura-analytics-session-secret";
 const ANALYTICS_COOKIE_NAME = "openlura_analytics_session";
 const ANALYTICS_SESSION_MAX_AGE = 60 * 60 * 3;
+const ADMIN_COOKIE_NAME = "openlura_admin_session";
+const adminSessionSecret =
+  process.env.ADMIN_SESSION_SECRET ||
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  "openlura-admin-session-secret";
 
 function signAnalyticsSession(expiresAt: string) {
   return createHmac("sha256", analyticsSessionSecret)
     .update(expiresAt)
     .digest("hex");
+}
+
+function signAdminSession(expiresAt: string) {
+  return createHmac("sha256", adminSessionSecret).update(expiresAt).digest("hex");
+}
+
+function isValidAdminSession(value?: string | null) {
+  if (!value) return false;
+
+  const [expiresAt, signature] = value.split(".");
+  if (!expiresAt || !signature) return false;
+  if (Number(expiresAt) <= Date.now()) return false;
+
+  const expected = signAdminSession(expiresAt);
+
+  try {
+    return timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+  } catch {
+    return false;
+  }
+}
+
+function getCookieValue(req: Request, name: string) {
+  return (
+    req.headers
+      .get("cookie")
+      ?.split(";")
+      .map((part) => part.trim())
+      .find((part) => part.startsWith(`${name}=`))
+      ?.split("=")[1] ?? null
+  );
+}
+
+function getUserScopeFromRequest(req: Request) {
+  return isValidAdminSession(getCookieValue(req, ADMIN_COOKIE_NAME))
+    ? "admin"
+    : "guest";
 }
 
 function createAnalyticsSessionValue() {
@@ -53,7 +95,8 @@ function getSupabaseConfig() {
 export async function POST(req: Request) {
   try {
     const { feedbackTableUrl, supabaseServiceRoleKey } = getSupabaseConfig();
-        const data = await req.json();
+    const data = await req.json();
+    const userScope = getUserScopeFromRequest(req);
 
     if (data?.action === "unlock_analytics") {
       if (String(data.password ?? "") !== analyticsAdminPassword) {
@@ -91,6 +134,7 @@ export async function POST(req: Request) {
         message: data.status ?? null,
         userMessage: data.itemKey ?? null,
         source: "analytics_workflow",
+        userScope,
         timestamp: new Date().toISOString(),
       };
 
@@ -180,6 +224,7 @@ export async function POST(req: Request) {
       userMessage: data.userMessage ?? null,
       source: inferredIdeaSource,
       learningType: data.learningType ?? null,
+      userScope,
       timestamp: new Date().toISOString(),
     };
 

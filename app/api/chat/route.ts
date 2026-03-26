@@ -452,7 +452,7 @@ async function fetchSupabaseFeedbackRows(query: string, errorLabel: string) {
 
 async function getRecentServerFeedback() {
   return fetchSupabaseFeedbackRows(
-    "select=type,message,userMessage,source,learningType,timestamp&order=timestamp.desc&limit=30",
+    "select=type,message,userMessage,source,learningType,userScope,timestamp&order=timestamp.desc&limit=30",
     "OpenLura server feedback fetch failed:"
   );
 }
@@ -552,6 +552,8 @@ export async function POST(req: Request) {
     userMessage: item.userMessage,
     source: item.source,
     learningType: inferFeedbackLearningType(item),
+    userScope: item.userScope || "guest",
+    weight: item.userScope === "admin" ? 1.35 : 1,
     timestamp: item.timestamp,
   }));
 
@@ -801,7 +803,12 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
         }
 
         const text = `${f.userMessage || ""} ${f.message || ""}`.toLowerCase();
-        return pattern.test(text) ? sum + getDecayWeight(f.timestamp) : sum;
+        const baseWeight =
+          typeof f.weight === "number" && Number.isFinite(f.weight) ? f.weight : 1;
+
+        return pattern.test(text)
+          ? sum + getDecayWeight(f.timestamp) * baseWeight
+          : sum;
       }, 0)
     );
   };
