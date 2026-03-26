@@ -13,6 +13,7 @@ export default function AnalyticsPage() {
     const [workflowFilter, setWorkflowFilter] = useState("all");
     const [learningTypeFilter, setLearningTypeFilter] = useState("all");
     const [autoDebugConfidenceFilter, setAutoDebugConfidenceFilter] = useState("all");
+    const [autoDebugRouteFilter, setAutoDebugRouteFilter] = useState("all");
 
       useEffect(() => {
     if (activeTab !== "ideas") {
@@ -25,6 +26,7 @@ export default function AnalyticsPage() {
 
     if (activeTab !== "auto_debug") {
       setAutoDebugConfidenceFilter("all");
+      setAutoDebugRouteFilter("all");
     }
   }, [activeTab]);
 
@@ -104,6 +106,14 @@ export default function AnalyticsPage() {
       activeTab === "auto_debug" &&
       autoDebugConfidenceFilter !== "all" &&
       getAutoDebugConfidence(f) !== autoDebugConfidenceFilter
+    ) {
+      return false;
+    }
+
+    if (
+      activeTab === "auto_debug" &&
+      autoDebugRouteFilter !== "all" &&
+      getAutoDebugRouteType(f) !== autoDebugRouteFilter
     ) {
       return false;
     }
@@ -1088,32 +1098,67 @@ return () => {
 </div>
 
 {activeTab === "auto_debug" && (
-  <div className="mb-6 flex flex-wrap gap-2">
-    <button
-      onClick={() => setAutoDebugConfidenceFilter("all")}
-      className={`px-4 py-2 rounded-xl ${autoDebugConfidenceFilter === "all" ? "bg-white text-black" : "bg-white/10 text-white"}`}
-    >
-      Alle confidence
-    </button>
-    <button
-      onClick={() => setAutoDebugConfidenceFilter("high")}
-      className={`px-4 py-2 rounded-xl ${autoDebugConfidenceFilter === "high" ? "bg-red-400 text-black" : "bg-white/10 text-white"}`}
-    >
-      High
-    </button>
-    <button
-      onClick={() => setAutoDebugConfidenceFilter("medium")}
-      className={`px-4 py-2 rounded-xl ${autoDebugConfidenceFilter === "medium" ? "bg-yellow-400 text-black" : "bg-white/10 text-white"}`}
-    >
-      Medium
-    </button>
-    <button
-      onClick={() => setAutoDebugConfidenceFilter("low")}
-      className={`px-4 py-2 rounded-xl ${autoDebugConfidenceFilter === "low" ? "bg-blue-400 text-black" : "bg-white/10 text-white"}`}
-    >
-      Low
-    </button>
-  </div>
+  <>
+    <div className="mb-4 flex flex-wrap gap-2">
+      <button
+        onClick={() => setAutoDebugConfidenceFilter("all")}
+        className={`px-4 py-2 rounded-xl ${autoDebugConfidenceFilter === "all" ? "bg-white text-black" : "bg-white/10 text-white"}`}
+      >
+        Alle confidence
+      </button>
+      <button
+        onClick={() => setAutoDebugConfidenceFilter("high")}
+        className={`px-4 py-2 rounded-xl ${autoDebugConfidenceFilter === "high" ? "bg-red-400 text-black" : "bg-white/10 text-white"}`}
+      >
+        High
+      </button>
+      <button
+        onClick={() => setAutoDebugConfidenceFilter("medium")}
+        className={`px-4 py-2 rounded-xl ${autoDebugConfidenceFilter === "medium" ? "bg-yellow-400 text-black" : "bg-white/10 text-white"}`}
+      >
+        Medium
+      </button>
+      <button
+        onClick={() => setAutoDebugConfidenceFilter("low")}
+        className={`px-4 py-2 rounded-xl ${autoDebugConfidenceFilter === "low" ? "bg-blue-400 text-black" : "bg-white/10 text-white"}`}
+      >
+        Low
+      </button>
+    </div>
+
+    <div className="mb-6 flex flex-wrap gap-2">
+      <button
+        onClick={() => setAutoDebugRouteFilter("all")}
+        className={`px-4 py-2 rounded-xl ${autoDebugRouteFilter === "all" ? "bg-white text-black" : "bg-white/10 text-white"}`}
+      >
+        Alle routes
+      </button>
+      <button
+        onClick={() => setAutoDebugRouteFilter("fast_text")}
+        className={`px-4 py-2 rounded-xl ${autoDebugRouteFilter === "fast_text" ? "bg-purple-400 text-black" : "bg-white/10 text-white"}`}
+      >
+        Fast text
+      </button>
+      <button
+        onClick={() => setAutoDebugRouteFilter("fast_image")}
+        className={`px-4 py-2 rounded-xl ${autoDebugRouteFilter === "fast_image" ? "bg-pink-400 text-black" : "bg-white/10 text-white"}`}
+      >
+        Fast image
+      </button>
+      <button
+        onClick={() => setAutoDebugRouteFilter("search")}
+        className={`px-4 py-2 rounded-xl ${autoDebugRouteFilter === "search" ? "bg-cyan-400 text-black" : "bg-white/10 text-white"}`}
+      >
+        Search
+      </button>
+      <button
+        onClick={() => setAutoDebugRouteFilter("default")}
+        className={`px-4 py-2 rounded-xl ${autoDebugRouteFilter === "default" ? "bg-green-400 text-black" : "bg-white/10 text-white"}`}
+      >
+        Default
+      </button>
+    </div>
+  </>
 )}
 
 <div className="grid md:grid-cols-4 gap-4 mb-6">
@@ -1215,9 +1260,9 @@ return () => {
     </p>
     <p className="text-xs opacity-60">
       {activeTab === "auto_debug"
-        ? autoDebugConfidenceFilter === "all"
-          ? "Auto Debug confidence filter staat op alles."
-          : `Je filtert nu op ${autoDebugConfidenceFilter} confidence auto-debug signalen.`
+        ? autoDebugConfidenceFilter === "all" && autoDebugRouteFilter === "all"
+          ? "Auto Debug filters staan op alles."
+          : `Auto Debug filters: confidence = ${autoDebugConfidenceFilter}, route = ${autoDebugRouteFilter}.`
         : learningTypeFilter === "all"
         ? "Learning type filter staat op alles."
         : learningTypeFilter === "style"
