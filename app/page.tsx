@@ -1449,6 +1449,15 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
           >
             🧠 Persoonlijke omgeving
           </button>
+
+          <button
+            onClick={() => {
+              window.location.href = "/analytics";
+            }}
+            className="w-full p-2 rounded-xl bg-white/10 hover:bg-white/20"
+          >
+            🔐 Admin login
+          </button>
         </div>
       </div>
 {mobileMenu && (
