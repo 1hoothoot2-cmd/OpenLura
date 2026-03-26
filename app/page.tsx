@@ -47,6 +47,7 @@ export default function Home() {
   const preferredActiveChatIdRef = useRef<number | null>(null);
   const pendingActiveChatIdRef = useRef<number | null>(null);
   const forcedActiveChatIdRef = useRef<number | null>(null);
+  const isBootstrappingChatRef = useRef(false);
   const personalSyncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasLoadedInitialStateRef = useRef(false);
   const hasManualChatSelectionRef = useRef(false);
@@ -76,6 +77,8 @@ export default function Home() {
       messages: { role: string; content: string; image?: string | null }[];
     }>
   ) => {
+    isBootstrappingChatRef.current = false;
+
     const baseTitle =
       preset?.title || (isPersonalRoute ? "Persoonlijke chat" : "New Chat");
 
@@ -419,21 +422,59 @@ const activeChat =
     }
 
     if (visibleChats.length === 0) {
-      if (isPersonalRoute) {
-        createNewChat({
-          title: "Persoonlijke omgeving",
-          messages: [
-            {
-              role: "ai",
-              content:
-                "👋 Welkom in je persoonlijke omgeving. Hier testen we privé memory, verbeterpunten en training van jouw AI-gedrag.",
-            },
-          ],
-        });
-      } else {
-        createNewChat();
+      if (isBootstrappingChatRef.current) {
+        return;
       }
+
+      isBootstrappingChatRef.current = true;
+
+      const bootstrapChatId = Date.now() + Math.floor(Math.random() * 1000);
+      const bootstrapChat = {
+        id: bootstrapChatId,
+        title: isPersonalRoute ? "Persoonlijke omgeving" : "New Chat",
+        messages: isPersonalRoute
+          ? [
+              {
+                role: "ai",
+                content:
+                  "👋 Welkom in je persoonlijke omgeving. Hier testen we privé memory, verbeterpunten en training van jouw AI-gedrag.",
+              },
+            ]
+          : [],
+        pinned: false,
+        archived: false,
+        deleted: false,
+      };
+
+      hasManualChatSelectionRef.current = false;
+      pendingActiveChatIdRef.current = bootstrapChatId;
+      preferredActiveChatIdRef.current = bootstrapChatId;
+      forcedActiveChatIdRef.current = bootstrapChatId;
+      setOpenChatMenuId(null);
+      setChats([bootstrapChat]);
+      setActiveChatId(bootstrapChatId);
       return;
+    }
+
+    isBootstrappingChatRef.current = false;
+
+    const forcedId = forcedActiveChatIdRef.current;
+
+    if (forcedId !== null) {
+      const forcedVisible = visibleChats.some(
+        (chat: any) => chat.id === forcedId
+      );
+
+      if (forcedVisible) {
+        if (activeChatId !== forcedId) {
+          setActiveChatId(forcedId);
+          return;
+        }
+
+        preferredActiveChatIdRef.current = forcedId;
+        pendingActiveChatIdRef.current = null;
+        return;
+      }
     }
 
     const pendingId = pendingActiveChatIdRef.current;
@@ -454,6 +495,7 @@ const activeChat =
 
       preferredActiveChatIdRef.current = pendingId;
       pendingActiveChatIdRef.current = null;
+      forcedActiveChatIdRef.current = pendingId;
       return;
     }
 
@@ -463,6 +505,7 @@ const activeChat =
 
     if (currentActiveStillVisible) {
       preferredActiveChatIdRef.current = activeChatId;
+      forcedActiveChatIdRef.current = activeChatId;
       return;
     }
 
@@ -474,12 +517,16 @@ const activeChat =
     ) {
       if (activeChatId !== preferredId) {
         setActiveChatId(preferredId);
+        return;
       }
+
+      forcedActiveChatIdRef.current = preferredId;
       return;
     }
 
     const fallbackId = visibleChats[0]?.id ?? null;
     preferredActiveChatIdRef.current = fallbackId;
+    forcedActiveChatIdRef.current = fallbackId;
     setActiveChatId(fallbackId);
   }, [isPersonalRoute, personalStateLoaded, chats, activeChatId]);
 
@@ -605,6 +652,7 @@ const activeChat =
         deleted: false,
       };
 
+      isBootstrappingChatRef.current = false;
       setChats([fallbackChat]);
       preferredActiveChatIdRef.current = fallbackChat.id;
       pendingActiveChatIdRef.current = fallbackChat.id;
@@ -618,6 +666,7 @@ const activeChat =
       );
 
       const nextActiveChatId = nextVisibleChat?.id ?? remainingChats[0]?.id ?? null;
+      isBootstrappingChatRef.current = false;
       preferredActiveChatIdRef.current = nextActiveChatId;
       pendingActiveChatIdRef.current = nextActiveChatId;
       forcedActiveChatIdRef.current = nextActiveChatId;
