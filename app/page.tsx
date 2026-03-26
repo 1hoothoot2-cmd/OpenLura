@@ -1419,12 +1419,23 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
           </div>
         </div>
 
-        <button
-          onClick={() => setShowFeedbackBox(true)}
-          className="mt-3 p-2 rounded-xl bg-white/10 hover:bg-white/20"
-        >
-          💡 Feedback / Idee
-        </button>
+        <div className="mt-3 space-y-2">
+          <button
+            onClick={() => setShowFeedbackBox(true)}
+            className="w-full p-2 rounded-xl bg-white/10 hover:bg-white/20"
+          >
+            💡 Feedback / Idee
+          </button>
+
+          <button
+            onClick={() => {
+              window.location.href = "/analytics";
+            }}
+            className="w-full p-2 rounded-xl bg-white/10 hover:bg-white/20"
+          >
+            🔐 Admin login / Analytics
+          </button>
+        </div>
       </div>
 {mobileMenu && (
   <div
