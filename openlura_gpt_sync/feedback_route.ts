@@ -19,6 +19,68 @@ const adminSessionSecret =
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
   "openlura-admin-session-secret";
 
+function getBearerTokenFromRequest(req: Request) {
+  const authHeader = req.headers.get("authorization") || "";
+  const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
+  if (bearerMatch?.[1]) return bearerMatch[1].trim();
+
+  const directCookie =
+    getCookieValue(req, "sb-access-token") ||
+    getCookieValue(req, "supabase-access-token");
+
+  if (directCookie) return decodeURIComponent(directCookie);
+
+  const packedCookie =
+    getCookieValue(req, "supabase-auth-token") ||
+    getCookieValue(req, "sb-auth-token");
+
+  if (!packedCookie) return null;
+
+  try {
+    const decoded = decodeURIComponent(packedCookie);
+    const parsed = JSON.parse(decoded);
+
+    if (typeof parsed === "string") return parsed;
+    if (Array.isArray(parsed) && typeof parsed[0] === "string") return parsed[0];
+    if (typeof parsed?.access_token === "string") return parsed.access_token;
+  } catch {}
+
+  return null;
+}
+
+async function fetchSupabaseAuthUser(accessToken?: string | null) {
+  if (!supabaseUrl || !supabaseServiceRoleKey || !accessToken) return null;
+
+  try {
+    const res = await fetch(`${supabaseUrl}/auth/v1/user`, {
+      method: "GET",
+      headers: {
+        apikey: supabaseServiceRoleKey,
+        Authorization: `Bearer ${accessToken}`,
+      },
+      cache: "no-store",
+    });
+
+    if (!res.ok) return null;
+
+    return await res.json();
+  } catch (error) {
+    console.error("Feedback auth user fetch failed:", error);
+    return null;
+  }
+}
+
+async function resolveFeedbackUserId(req: Request) {
+  const accessToken = getBearerTokenFromRequest(req);
+  const authUser = await fetchSupabaseAuthUser(accessToken);
+
+  const headerUserId =
+    req.headers.get("x-openlura-user-id") ||
+    req.headers.get("x-user-id");
+
+  return authUser?.id || headerUserId || null;
+}
+
 function signAnalyticsSession(expiresAt: string) {
   return createHmac("sha256", analyticsSessionSecret)
     .update(expiresAt)
@@ -97,6 +159,9 @@ export async function POST(req: Request) {
     const { feedbackTableUrl, supabaseServiceRoleKey } = getSupabaseConfig();
     const data = await req.json();
     const userScope = getUserScopeFromRequest(req);
+    const resolvedUserId = await resolveFeedbackUserId(req);
+    const isPersonalEnvironment =
+      req.headers.get("x-openlura-personal-env") === "true" || !!resolvedUserId;
 
     if (data?.action === "unlock_analytics") {
       if (String(data.password ?? "") !== analyticsAdminPassword) {
@@ -135,6 +200,7 @@ export async function POST(req: Request) {
         userMessage: data.itemKey ?? null,
         source: "analytics_workflow",
         userScope,
+        user_id: resolvedUserId,
         timestamp: new Date().toISOString(),
       };
 
@@ -224,11 +290,12 @@ export async function POST(req: Request) {
       userMessage: data.userMessage ?? null,
       source: inferredIdeaSource,
       learningType: data.learningType ?? null,
-      userScope,
+      userScope: isPersonalEnvironment ? "personal" : userScope,
+      user_id: resolvedUserId,
       timestamp: new Date().toISOString(),
     };
 
-    const res = await fetch(feedbackTableUrl, {
+    let res = await fetch(feedbackTableUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -242,7 +309,39 @@ export async function POST(req: Request) {
 
     if (!res.ok) {
       const errorText = await res.text();
-      console.error("Supabase POST failed:", res.status, errorText);
+
+      if (errorText.toLowerCase().includes("user_id")) {
+        const { user_id, ...fallbackEntry } = entry;
+
+        res = await fetch(feedbackTableUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            apikey: supabaseServiceRoleKey,
+            Authorization: `Bearer ${supabaseServiceRoleKey}`,
+            Prefer: "return=representation",
+          } as HeadersInit,
+          body: JSON.stringify(fallbackEntry),
+          cache: "no-store",
+        });
+      } else {
+        console.error("Supabase POST failed:", res.status, errorText);
+
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Feedback opslaan mislukt",
+            supabaseStatus: res.status,
+            supabaseError: errorText,
+          },
+          { status: 500 }
+        );
+      }
+    }
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error("Supabase POST fallback failed:", res.status, errorText);
 
       return NextResponse.json(
         {
@@ -258,7 +357,14 @@ export async function POST(req: Request) {
     const saved = await res.json();
 
    return NextResponse.json(
-      { success: true, item: saved?.[0] ?? entry },
+      {
+        success: true,
+        item: saved?.[0] ?? entry,
+        runtime: {
+          userId: resolvedUserId,
+          personal: isPersonalEnvironment,
+        },
+      },
       {
         headers: {
           "Cache-Control": "no-store",
@@ -301,7 +407,7 @@ export async function GET(req: Request) {
     const { feedbackTableUrl, supabaseServiceRoleKey } = getSupabaseConfig();
 
     const res = await fetch(
-            `${feedbackTableUrl}?select=*&order=timestamp.desc`,
+      `${feedbackTableUrl}?select=*&order=timestamp.desc`,
       {
         method: "GET",
         headers: {

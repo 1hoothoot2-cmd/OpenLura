@@ -340,26 +340,37 @@ export default function Home() {
 
   const activeChat = chats.find((c: any) => c.id === activeChatId);
 
+const messageShellClass =
+  "w-full min-w-0 overflow-hidden";
+const messageBubbleClass =
+  "min-w-0 max-w-full overflow-hidden break-words [overflow-wrap:anywhere] break-all";
+const composerShellClass =
+  "w-full min-w-0 shrink-0 border-t border-white/10 bg-black/70 backdrop-blur";
+const composerInnerClass =
+  "mx-auto w-full max-w-4xl min-w-0 px-3 pb-[max(env(safe-area-inset-bottom),12px)] pt-3 md:px-4";
+const composerInputClass =
+  "w-full min-w-0 resize-none overflow-x-hidden break-words [overflow-wrap:anywhere]";
+
   useEffect(() => {
-    if (!isPersonalRoute) return;
-    if (!personalStateLoaded && chats.length === 0) return;
-
-    const visiblePersonalChats = chats.filter(
-      (chat: any) => !chat.archived && !chat.deleted
-    );
-
-    if (visiblePersonalChats.length > 0) {
-  // ❗ BELANGRIJK: respecteer user selectie
-  const stillExists = visiblePersonalChats.some(
-    (chat: any) => chat.id === activeChatId
+  const visibleChats = chats.filter(
+    (chat: any) => !chat.archived && !chat.deleted
   );
 
-  if (!stillExists) {
-    setActiveChatId(visiblePersonalChats[0].id);
-  }
+  if (isPersonalRoute) {
+    if (!personalStateLoaded && chats.length === 0) return;
 
-  return;
-}
+    if (visibleChats.length > 0) {
+      // ❗ BELANGRIJK: respecteer user selectie
+      const stillExists = visibleChats.some(
+        (chat: any) => chat.id === activeChatId
+      );
+
+      if (!stillExists) {
+        setActiveChatId(visibleChats[0].id);
+      }
+
+      return;
+    }
 
     createNewChat({
       title: "Persoonlijke omgeving",
@@ -371,7 +382,23 @@ export default function Home() {
         },
       ],
     });
-  }, [isPersonalRoute, personalStateLoaded, chats, activeChatId]);
+
+    return;
+  }
+
+  if (visibleChats.length === 0) {
+    createNewChat();
+    return;
+  }
+
+  const stillExists = visibleChats.some(
+    (chat: any) => chat.id === activeChatId
+  );
+
+  if (!stillExists) {
+    setActiveChatId(visibleChats[0].id);
+  }
+}, [isPersonalRoute, personalStateLoaded, chats, activeChatId]);
 
   const updateChatMeta = (
     chatId: number,
@@ -1851,7 +1878,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 
                     <div
   ref={messagesRef}
-  className={`flex-1 min-w-0 overflow-x-hidden overflow-y-auto pb-52 md:pb-4 ${
+  className={`${messageShellClass} flex-1 overflow-x-hidden overflow-y-auto pb-52 md:pb-4 ${
     activeChat?.messages?.length ? "p-4 pt-20 md:pt-4 space-y-3" : "p-4 pt-20 md:pt-4 flex items-center justify-center"
   }`}
 >
@@ -1882,8 +1909,8 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                       : { style: [], content: [] };
 
                     return (
-                                              <div key={i} className="min-w-0">
-                                                <div className={`min-w-0 p-3 rounded-2xl max-w-[75%] whitespace-pre-line break-words overflow-hidden ${
+                      <div key={i} className={messageShellClass}>
+                        <div className={`${messageBubbleClass} p-3 rounded-2xl max-w-[75%] whitespace-pre-line ${
                           msg.role === "user"
                             ? "bg-gradient-to-r from-purple-500 to-blue-500 ml-auto text-white"
                             : "bg-white/20"
@@ -1898,9 +1925,8 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 
                           {msg.content ? (
   <div
-    className={`${msg.image ? "mt-3" : ""} break-words`}
-    style={{ wordBreak: "break-word", overflowWrap: "anywhere" }}
-  >
+  className={`${msg.image ? "mt-3 " : ""}${messageBubbleClass}`}
+>
     {msg.isStreaming && msg.content === "…" ? (
       <span className="opacity-50">thinking...</span>
     ) : (
@@ -2015,7 +2041,9 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                     className="block min-w-0 max-w-full overflow-hidden p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all border border-white/10"
                     title={source.title || source.url}
                   >
-                    <p className="text-sm text-white/90 break-words">{title}</p>
+                    <p className="text-sm text-white/90 break-words [overflow-wrap:anywhere]">
+                      {title}
+                    </p>
                     <p
                       className="text-xs text-white/40 mt-1 break-all"
                       style={{ overflowWrap: "anywhere" }}
@@ -2045,11 +2073,13 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
             )}
           </div>
 
-                                        <div className={`${
-  activeChat?.messages?.length === 0
-    ? "mt-6 w-full max-w-2xl"
-    : "fixed bottom-0 left-0 right-0 md:static z-[90] p-3 pb-4 border-t border-white/10 bg-[#050510] md:bg-transparent"
-} flex w-full min-w-0 items-end gap-2 rounded-[28px] border border-white/10 bg-white/5 backdrop-blur-xl px-3 py-3 shadow-[0_10px_40px_rgba(0,0,0,0.25)]`}>
+                                        <div
+  className={`${
+    activeChat?.messages?.length === 0
+      ? "mt-6 w-full max-w-2xl"
+      : composerShellClass + " fixed bottom-0 left-0 right-0 md:static z-[90] p-3 pb-4 md:border-0 bg-[#050510] md:bg-transparent"
+  } flex w-full min-w-0 items-end gap-2 rounded-[28px] border border-white/10 bg-white/5 backdrop-blur-xl px-3 py-3 shadow-[0_10px_40px_rgba(0,0,0,0.25)]`}
+>
 
                         <button
               type="button"
@@ -2104,8 +2134,8 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
       sendMessage();
     }
   }}
-    className="flex-1 min-w-0 bg-transparent rounded-2xl resize-none min-h-[52px] max-h-[140px] outline-none px-2 py-3 placeholder:text-white/35"
-    placeholder={activeChat?.messages?.length === 0 ? "Ask anything" : "Message OpenLura..."}
+  className={`${composerInputClass} flex-1 bg-transparent rounded-2xl min-h-[52px] max-h-[140px] outline-none px-2 py-3 placeholder:text-white/35`}
+  placeholder={activeChat?.messages?.length === 0 ? "Ask anything" : "Message OpenLura..."}
   rows={1}
 />
 

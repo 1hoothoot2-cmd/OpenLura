@@ -1031,6 +1031,7 @@ export async function POST(req: Request) {
       source: item.source,
       learningType: inferFeedbackLearningType(item),
       userScope: item.userScope || "guest",
+      user_id: item.user_id ?? null,
       weight: item.userScope === "admin" ? 1.35 : 1,
       timestamp: item.timestamp,
     }));
@@ -1042,6 +1043,7 @@ export async function POST(req: Request) {
     source: item.source || "personal_feedback_runtime",
     learningType: inferFeedbackLearningType(item),
     userScope: "personal",
+    user_id: item.user_id ?? personalUserId ?? null,
     weight: 1.5,
     timestamp: item.timestamp,
   }));
@@ -1077,10 +1079,13 @@ export async function POST(req: Request) {
 
                 const globalLearningFeedback = normalizedServerFeedback.filter(
     (item: any) =>
-      item.type === "up" ||
-      item.type === "down" ||
-      item.type === "improve" ||
-      item.source === "idea_feedback_learning"
+      !item.user_id &&
+      (
+        item.type === "up" ||
+        item.type === "down" ||
+        item.type === "improve" ||
+        item.source === "idea_feedback_learning"
+      )
   );
 
   const personalLearningFeedback = [
@@ -1707,7 +1712,7 @@ Do not use web search for this path.`,
       ? JSON.stringify({
           message: normalizedMessageForRouting,
           memory: resolvedPersonalMemory,
-          learningScope
+          learningScope,
           variant: shouldForceFastCompactOutput ? "fast" : responseVariant,
         })
       : "";

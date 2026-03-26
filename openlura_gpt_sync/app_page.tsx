@@ -305,16 +305,33 @@ export default function Home() {
       messages: { role: string; content: string; image?: string | null }[];
     }>
   ) => {
-        const newChat = {
-      id: Date.now(),
-      title: preset?.title || "New Chat",
-      messages: preset?.messages || [],
+    const buildUniqueTitle = (baseTitle: string) => {
+      const existingTitles = chats.map((chat: any) => String(chat.title || "").trim());
+      const hasBase = existingTitles.includes(baseTitle);
+
+      if (!hasBase) return baseTitle;
+
+      let counter = 2;
+      while (existingTitles.includes(`${baseTitle} ${counter}`)) {
+        counter += 1;
+      }
+
+      return `${baseTitle} ${counter}`;
+    };
+
+    const baseTitle =
+      preset?.title || (isPersonalRoute ? "Persoonlijke chat" : "New Chat");
+
+    const newChat = {
+      id: Date.now() + Math.floor(Math.random() * 1000),
+      title: buildUniqueTitle(baseTitle),
+      messages: preset?.messages ? [...preset.messages] : [],
       pinned: false,
       archived: false,
       deleted: false,
     };
 
-        setChats((prev) => [newChat, ...prev]);
+    setChats((prev) => [newChat, ...prev]);
     setActiveChatId(newChat.id);
     setOpenChatMenuId(null);
   };
@@ -323,18 +340,35 @@ export default function Home() {
 
   const activeChat = chats.find((c: any) => c.id === activeChatId);
 
+const messageShellClass =
+  "w-full min-w-0 overflow-hidden";
+const messageBubbleClass =
+  "min-w-0 max-w-full overflow-hidden break-words [overflow-wrap:anywhere] break-all";
+const composerShellClass =
+  "w-full min-w-0 shrink-0 border-t border-white/10 bg-black/70 backdrop-blur";
+const composerInnerClass =
+  "mx-auto w-full max-w-4xl min-w-0 px-3 pb-[max(env(safe-area-inset-bottom),12px)] pt-3 md:px-4";
+const composerInputClass =
+  "w-full min-w-0 resize-none overflow-x-hidden break-words [overflow-wrap:anywhere]";
+
   useEffect(() => {
-    if (!isPersonalRoute) return;
+  const visibleChats = chats.filter(
+    (chat: any) => !chat.archived && !chat.deleted
+  );
+
+  if (isPersonalRoute) {
     if (!personalStateLoaded && chats.length === 0) return;
 
-    const existingPersonalChat = chats.find(
-      (chat: any) => chat.title === "Persoonlijke omgeving"
-    );
+    if (visibleChats.length > 0) {
+      // ❗ BELANGRIJK: respecteer user selectie
+      const stillExists = visibleChats.some(
+        (chat: any) => chat.id === activeChatId
+      );
 
-    if (existingPersonalChat) {
-      if (activeChatId !== existingPersonalChat.id) {
-        setActiveChatId(existingPersonalChat.id);
+      if (!stillExists) {
+        setActiveChatId(visibleChats[0].id);
       }
+
       return;
     }
 
@@ -348,7 +382,23 @@ export default function Home() {
         },
       ],
     });
-  }, [isPersonalRoute, personalStateLoaded, chats.length, activeChatId]);
+
+    return;
+  }
+
+  if (visibleChats.length === 0) {
+    createNewChat();
+    return;
+  }
+
+  const stillExists = visibleChats.some(
+    (chat: any) => chat.id === activeChatId
+  );
+
+  if (!stillExists) {
+    setActiveChatId(visibleChats[0].id);
+  }
+}, [isPersonalRoute, personalStateLoaded, chats, activeChatId]);
 
   const updateChatMeta = (
     chatId: number,
@@ -452,8 +502,16 @@ export default function Home() {
     if (remainingChats.length === 0) {
       const fallbackChat = {
         id: Date.now(),
-        title: "New Chat",
-        messages: [],
+        title: isPersonalRoute ? "Persoonlijke omgeving" : "New Chat",
+        messages: isPersonalRoute
+          ? [
+              {
+                role: "ai",
+                content:
+                  "👋 Welkom in je persoonlijke omgeving. Hier testen we privé memory, verbeterpunten en training van jouw AI-gedrag.",
+              },
+            ]
+          : [],
         pinned: false,
         archived: false,
         deleted: false,
@@ -628,8 +686,7 @@ export default function Home() {
     return isStyleSignal ? "style" : "content";
   };
 
-  const isPersonalEnvironment =
-    isPersonalRoute && activeChat?.title === "Persoonlijke omgeving";
+  const isPersonalEnvironment = isPersonalRoute;
 
   const getPersonalEnvironmentInsights = () => {
     if (!activeChatId) {
@@ -993,7 +1050,24 @@ Geef alleen direct het betere antwoord.`,
         if (!input && !image) return;
 
     let updated = [...chats];
-    const index = updated.findIndex((c) => c.id === activeChatId);
+    let index = updated.findIndex((c) => c.id === activeChatId);
+
+    if (index === -1) {
+      const fallbackChat = {
+        id: Date.now() + Math.floor(Math.random() * 1000),
+        title: isPersonalRoute ? "Persoonlijke chat" : "New Chat",
+        messages: [],
+        pinned: false,
+        archived: false,
+        deleted: false,
+      };
+
+      updated = [fallbackChat, ...updated];
+      index = 0;
+      setChats(updated);
+      setActiveChatId(fallbackChat.id);
+    }
+
     const inputToSend = input;
     const imageToSend = image;
 
@@ -1005,7 +1079,11 @@ Geef alleen direct het betere antwoord.`,
 
     // ✅ AUTO TITLE
     if (updated[index].messages.length === 1) {
-      updated[index].title = inputToSend.slice(0, 30);
+      if (inputToSend.trim()) {
+        updated[index].title = inputToSend.trim().slice(0, 30);
+      } else if (imageToSend) {
+        updated[index].title = "Afbeelding";
+      }
     }
 
     setChats(updated);
@@ -1795,12 +1873,12 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
         </div>
       )}
 
-      <div className="flex-1 flex items-stretch justify-center md:p-4 pt-0">
-        <div className="w-full max-w-2xl h-full md:h-[90%] flex flex-col bg-white/10 md:rounded-3xl backdrop-blur-2xl">
+      <div className="flex-1 min-w-0 flex items-stretch justify-center md:p-4 pt-0">
+        <div className="w-full min-w-0 max-w-2xl h-full md:h-[90%] flex flex-col bg-white/10 md:rounded-3xl backdrop-blur-2xl">
 
                     <div
   ref={messagesRef}
-  className={`flex-1 overflow-y-auto pb-52 md:pb-4 ${
+  className={`${messageShellClass} flex-1 overflow-x-hidden overflow-y-auto pb-52 md:pb-4 ${
     activeChat?.messages?.length ? "p-4 pt-20 md:pt-4 space-y-3" : "p-4 pt-20 md:pt-4 flex items-center justify-center"
   }`}
 >
@@ -1831,8 +1909,8 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                       : { style: [], content: [] };
 
                     return (
-                                            <div key={i}>
-                                                <div className={`p-3 rounded-2xl max-w-[75%] whitespace-pre-line ${
+                      <div key={i} className={messageShellClass}>
+                        <div className={`${messageBubbleClass} p-3 rounded-2xl max-w-[75%] whitespace-pre-line ${
                           msg.role === "user"
                             ? "bg-gradient-to-r from-purple-500 to-blue-500 ml-auto text-white"
                             : "bg-white/20"
@@ -1846,11 +1924,31 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                           )}
 
                           {msg.content ? (
-  <div className={msg.image ? "mt-3" : ""}>
+  <div
+  className={`${msg.image ? "mt-3 " : ""}${messageBubbleClass}`}
+>
     {msg.isStreaming && msg.content === "…" ? (
       <span className="opacity-50">thinking...</span>
     ) : (
-      msg.content
+      msg.content.split(/(\s+)/).map((part: string, idx: number) => {
+        const isUrl = /^https?:\/\/\S+$/i.test(part);
+
+        if (isUrl) {
+          return (
+            <a
+              key={idx}
+              href={part}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-300 underline break-all"
+            >
+              {part}
+            </a>
+          );
+        }
+
+        return <span key={idx}>{part}</span>;
+      })
     )}
   </div>
 ) : null}
@@ -1940,11 +2038,18 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                     href={source.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all border border-white/10"
+                    className="block min-w-0 max-w-full overflow-hidden p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all border border-white/10"
                     title={source.title || source.url}
                   >
-                    <p className="text-sm text-white/90 truncate">{title}</p>
-                    <p className="text-xs text-white/40 mt-1">{domain}</p>
+                    <p className="text-sm text-white/90 break-words [overflow-wrap:anywhere]">
+                      {title}
+                    </p>
+                    <p
+                      className="text-xs text-white/40 mt-1 break-all"
+                      style={{ overflowWrap: "anywhere" }}
+                    >
+                      {domain}
+                    </p>
                   </a>
                 );
               })}
@@ -1968,11 +2073,13 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
             )}
           </div>
 
-                                        <div className={`${
-  activeChat?.messages?.length === 0
-    ? "mt-6 w-full max-w-2xl"
-    : "fixed bottom-0 left-0 right-0 md:static z-[90] p-3 pb-4 border-t border-white/10 bg-[#050510] md:bg-transparent"
-} flex items-end gap-2 rounded-[28px] border border-white/10 bg-white/5 backdrop-blur-xl px-3 py-3 shadow-[0_10px_40px_rgba(0,0,0,0.25)]`}>
+                                        <div
+  className={`${
+    activeChat?.messages?.length === 0
+      ? "mt-6 w-full max-w-2xl"
+      : composerShellClass + " fixed bottom-0 left-0 right-0 md:static z-[90] p-3 pb-4 md:border-0 bg-[#050510] md:bg-transparent"
+  } flex w-full min-w-0 items-end gap-2 rounded-[28px] border border-white/10 bg-white/5 backdrop-blur-xl px-3 py-3 shadow-[0_10px_40px_rgba(0,0,0,0.25)]`}
+>
 
                         <button
               type="button"
@@ -2027,8 +2134,8 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
       sendMessage();
     }
   }}
-    className="flex-1 bg-transparent rounded-2xl resize-none min-h-[52px] max-h-[140px] outline-none px-2 py-3 placeholder:text-white/35"
-    placeholder={activeChat?.messages?.length === 0 ? "Ask anything" : "Message OpenLura..."}
+  className={`${composerInputClass} flex-1 bg-transparent rounded-2xl min-h-[52px] max-h-[140px] outline-none px-2 py-3 placeholder:text-white/35`}
+  placeholder={activeChat?.messages?.length === 0 ? "Ask anything" : "Message OpenLura..."}
   rows={1}
 />
 
