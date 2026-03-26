@@ -189,11 +189,16 @@ export default function Home() {
     };
   }, []);
 
-  const createNewChat = () => {
+  const createNewChat = (
+    preset?: Partial<{
+      title: string;
+      messages: { role: string; content: string; image?: string | null }[];
+    }>
+  ) => {
         const newChat = {
       id: Date.now(),
-      title: "New Chat",
-      messages: [],
+      title: preset?.title || "New Chat",
+      messages: preset?.messages || [],
       pinned: false,
       archived: false,
       deleted: false,
@@ -1429,11 +1434,20 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 
           <button
             onClick={() => {
-              window.location.href = "/analytics";
+              createNewChat({
+                title: "Persoonlijke omgeving",
+                messages: [
+                  {
+                    role: "ai",
+                    content:
+                      "👋 Dit is je persoonlijke omgeving. Hier kunnen we memory, verbeterpunten en toekomstige account-achtige personalisatie testen binnen je chatflow.",
+                  },
+                ],
+              });
             }}
             className="w-full p-2 rounded-xl bg-white/10 hover:bg-white/20"
           >
-            🔐 Admin login / Analytics
+            🧠 Persoonlijke omgeving
           </button>
         </div>
       </div>
