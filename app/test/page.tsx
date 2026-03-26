@@ -57,6 +57,8 @@ export default function Home() {
         useEffect(() => {
     const loadState = async () => {
       try {
+        let loadedFromServer = false;
+
         if (isPersonalRoute) {
           try {
             const res = await fetch("/api/personal-state", {
@@ -99,6 +101,7 @@ export default function Home() {
                 }
               }
 
+              loadedFromServer = serverChats.length > 0 || serverMemory.length > 0;
               setPersonalStateLoaded(true);
             }
           } catch (error) {
@@ -109,7 +112,7 @@ export default function Home() {
         const saved = localStorage.getItem(chatStorageKey);
         const mem = localStorage.getItem(memoryStorageKey);
 
-        if ((!isPersonalRoute || !personalStateLoaded) && saved) {
+        if (!loadedFromServer && saved) {
           const parsed = JSON.parse(saved);
           const normalizedChats = parsed.map((chat: any) => ({
             ...chat,
@@ -134,7 +137,7 @@ export default function Home() {
           createNewChat();
         }
 
-        if ((!isPersonalRoute || !personalStateLoaded) && mem) {
+        if (!loadedFromServer && mem) {
           const parsed = JSON.parse(mem);
           if (parsed.length && typeof parsed[0] === "string") {
             setMemory(parsed.map((m: string) => ({ text: m, weight: 0.5 })));
@@ -158,7 +161,7 @@ export default function Home() {
     };
 
     loadState();
-  }, [chatStorageKey, memoryStorageKey, isPersonalRoute, personalStateLoaded]);
+  }, [chatStorageKey, memoryStorageKey, isPersonalRoute]);
 
       useEffect(() => {
     const persistState = async () => {
@@ -180,7 +183,7 @@ export default function Home() {
 
         localStorage.setItem(chatStorageKey, JSON.stringify(safeChats));
 
-        if (isPersonalRoute) {
+        if (isPersonalRoute && personalStateLoaded) {
           await fetch("/api/personal-state", {
             method: "POST",
             headers: {
@@ -198,7 +201,7 @@ export default function Home() {
     };
 
     persistState();
-  }, [chats, chatStorageKey, isPersonalRoute, memory]);
+  }, [chats, chatStorageKey, isPersonalRoute, memory, personalStateLoaded]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -249,20 +252,7 @@ export default function Home() {
       }
     };
 
-    const clearPersonalAccess = () => {
-      fetch("/api/auth", {
-        method: "DELETE",
-        keepalive: true,
-      }).catch(() => {});
-    };
-
     verifyPersonalAccess();
-    window.addEventListener("pagehide", clearPersonalAccess);
-
-    return () => {
-      window.removeEventListener("pagehide", clearPersonalAccess);
-      clearPersonalAccess();
-    };
   }, [isPersonalRoute]);
 
   useEffect(() => {
@@ -334,7 +324,8 @@ export default function Home() {
   const activeChat = chats.find((c: any) => c.id === activeChatId);
 
   useEffect(() => {
-    if (!isPersonalRoute || chats.length === 0) return;
+    if (!isPersonalRoute) return;
+    if (!personalStateLoaded && chats.length === 0) return;
 
     const existingPersonalChat = chats.find(
       (chat: any) => chat.title === "Persoonlijke omgeving"
@@ -357,7 +348,7 @@ export default function Home() {
         },
       ],
     });
-  }, [isPersonalRoute, chats.length]);
+  }, [isPersonalRoute, personalStateLoaded, chats.length, activeChatId]);
 
   const updateChatMeta = (
     chatId: number,
@@ -834,6 +825,7 @@ export default function Home() {
               userMessage: "Direct improvement feedback",
               source: "improvement_reply",
               learningType: classifyLearningSignal(input),
+              environment: isPersonalRoute ? "personal" : "default",
             }),
           });
 
@@ -1041,7 +1033,11 @@ setChats([...updated]);
       requestAnimationFrame(() => resolve());
     });
 
-    const rawFeedback = JSON.parse(localStorage.getItem("openlura_feedback") || "[]").slice(-20);
+    const rawFeedback = JSON.parse(
+      localStorage.getItem(
+        isPersonalRoute ? "openlura_personal_feedback" : "openlura_feedback"
+      ) || "[]"
+    ).slice(-20);
 
     // geef recente feedback meer gewicht
     const weightedFeedback = rawFeedback.map((f: any, i: number) => ({
@@ -1194,14 +1190,16 @@ updated[index].messages[
         .slice(0, 10);
 
       setMemory(newMemory);
-      localStorage.setItem("openlura_memory", JSON.stringify(newMemory));
+      localStorage.setItem(memoryStorageKey, JSON.stringify(newMemory));
     }
 
     setLoading(false);
   };
   const handleFeedback = async (chatId: number, msgIndex: number, type: string) => {
 console.log("FEEDBACK CLICKED", { chatId, msgIndex, type });
-  const key = "openlura_feedback";
+  const key = isPersonalRoute
+    ? "openlura_personal_feedback"
+    : "openlura_feedback";
   const existing = JSON.parse(localStorage.getItem(key) || "[]");
 
   const chat = chats.find(c => c.id === chatId);
@@ -1248,6 +1246,7 @@ console.log("FEEDBACK CLICKED", { chatId, msgIndex, type });
         type === "down"
           ? classifyLearningSignal(`${prevMessage?.content || ""} ${message?.content || ""}`)
           : "content",
+      environment: isPersonalRoute ? "personal" : "default",
     }),
   });
 

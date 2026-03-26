@@ -252,20 +252,7 @@ export default function Home() {
       }
     };
 
-    const clearPersonalAccess = () => {
-      fetch("/api/auth", {
-        method: "DELETE",
-        keepalive: true,
-      }).catch(() => {});
-    };
-
     verifyPersonalAccess();
-    window.addEventListener("pagehide", clearPersonalAccess);
-
-    return () => {
-      window.removeEventListener("pagehide", clearPersonalAccess);
-      clearPersonalAccess();
-    };
   }, [isPersonalRoute]);
 
   useEffect(() => {
@@ -838,6 +825,7 @@ export default function Home() {
               userMessage: "Direct improvement feedback",
               source: "improvement_reply",
               learningType: classifyLearningSignal(input),
+              environment: isPersonalRoute ? "personal" : "default",
             }),
           });
 
@@ -1258,6 +1246,7 @@ console.log("FEEDBACK CLICKED", { chatId, msgIndex, type });
         type === "down"
           ? classifyLearningSignal(`${prevMessage?.content || ""} ${message?.content || ""}`)
           : "content",
+      environment: isPersonalRoute ? "personal" : "default",
     }),
   });
 
