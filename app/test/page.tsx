@@ -48,6 +48,7 @@ export default function Home() {
   const pendingActiveChatIdRef = useRef<number | null>(null);
   const personalSyncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasLoadedInitialStateRef = useRef(false);
+  const hasManualChatSelectionRef = useRef(false);
   const [openChatMenuId, setOpenChatMenuId] = useState<number | null>(null);
 
   const greetings = [
@@ -77,29 +78,31 @@ export default function Home() {
               const serverMemory = Array.isArray(data?.memory) ? data.memory : [];
 
               if (serverChats.length > 0) {
-                const normalizedChats = serverChats.map((chat: any) => ({
-                  ...chat,
-                  pinned: chat.pinned ?? false,
-                  archived: chat.archived ?? false,
-                  deleted: chat.deleted ?? false,
-                  messages: Array.isArray(chat.messages)
-                    ? chat.messages.map((msg: any) => ({
-                        ...msg,
-                        image: msg.image === "[image-uploaded]" ? null : msg.image ?? null,
-                      }))
-                    : [],
-                }));
+  const normalizedChats = serverChats.map((chat: any) => ({
+    ...chat,
+    pinned: chat.pinned ?? false,
+    archived: chat.archived ?? false,
+    deleted: chat.deleted ?? false,
+    messages: Array.isArray(chat.messages)
+      ? chat.messages.map((msg: any) => ({
+          ...msg,
+          image: msg.image === "[image-uploaded]" ? null : msg.image ?? null,
+        }))
+      : [],
+  }));
 
-                setChats(normalizedChats);
+  if (!hasManualChatSelectionRef.current) {
+    setChats(normalizedChats);
 
-                const nextActiveChatId =
-                  normalizedChats.find(
-                    (chat: any) => !chat.archived && !chat.deleted
-                  )?.id ?? null;
+    const nextActiveChatId =
+      normalizedChats.find(
+        (chat: any) => !chat.archived && !chat.deleted
+      )?.id ?? null;
 
-                preferredActiveChatIdRef.current = nextActiveChatId;
-                setActiveChatId(nextActiveChatId);
-              }
+    preferredActiveChatIdRef.current = nextActiveChatId;
+    setActiveChatId(nextActiveChatId);
+  }
+}
 
               if (serverMemory.length > 0) {
                 if (typeof serverMemory[0] === "string") {
@@ -121,32 +124,34 @@ export default function Home() {
         const mem = localStorage.getItem(memoryStorageKey);
 
         if (!loadedFromServer && saved) {
-          const parsed = JSON.parse(saved);
-          const normalizedChats = parsed.map((chat: any) => ({
-            ...chat,
-            pinned: chat.pinned ?? false,
-            archived: chat.archived ?? false,
-            deleted: chat.deleted ?? false,
-            messages: Array.isArray(chat.messages)
-              ? chat.messages.map((msg: any) => ({
-                  ...msg,
-                  image: msg.image === "[image-uploaded]" ? null : msg.image ?? null,
-                }))
-              : [],
-          }));
+  const parsed = JSON.parse(saved);
+  const normalizedChats = parsed.map((chat: any) => ({
+    ...chat,
+    pinned: chat.pinned ?? false,
+    archived: chat.archived ?? false,
+    deleted: chat.deleted ?? false,
+    messages: Array.isArray(chat.messages)
+      ? chat.messages.map((msg: any) => ({
+          ...msg,
+          image: msg.image === "[image-uploaded]" ? null : msg.image ?? null,
+        }))
+      : [],
+  }));
 
-          setChats(normalizedChats);
+  if (!hasManualChatSelectionRef.current) {
+    setChats(normalizedChats);
 
-          const nextActiveChatId =
-            normalizedChats.find(
-              (chat: any) => !chat.archived && !chat.deleted
-            )?.id ?? null;
+    const nextActiveChatId =
+      normalizedChats.find(
+        (chat: any) => !chat.archived && !chat.deleted
+      )?.id ?? null;
 
-          preferredActiveChatIdRef.current = nextActiveChatId;
-          setActiveChatId(nextActiveChatId);
-        } else if (!saved && !isPersonalRoute) {
-          createNewChat();
-        }
+    preferredActiveChatIdRef.current = nextActiveChatId;
+    setActiveChatId(nextActiveChatId);
+  }
+} else if (!saved && !isPersonalRoute && !hasManualChatSelectionRef.current) {
+  createNewChat();
+}
 
         if (!loadedFromServer && mem) {
           const parsed = JSON.parse(mem);
@@ -328,53 +333,59 @@ export default function Home() {
   }, []);
 
   const activateChat = (chatId: number) => {
-    pendingActiveChatIdRef.current = chatId;
-    preferredActiveChatIdRef.current = chatId;
-    setActiveChatId(chatId);
-    setOpenChatMenuId(null);
-  };
+  hasManualChatSelectionRef.current = true;
+  pendingActiveChatIdRef.current = chatId;
+  preferredActiveChatIdRef.current = chatId;
+  setActiveChatId(chatId);
+  setOpenChatMenuId(null);
+};
 
   const createNewChat = (
-    preset?: Partial<{
-      title: string;
-      messages: { role: string; content: string; image?: string | null }[];
-    }>
-  ) => {
-    const baseTitle =
-      preset?.title || (isPersonalRoute ? "Persoonlijke chat" : "New Chat");
+  preset?: Partial<{
+    title: string;
+    messages: { role: string; content: string; image?: string | null }[];
+  }>
+) => {
+  const baseTitle =
+    preset?.title || (isPersonalRoute ? "Persoonlijke chat" : "New Chat");
 
-    const newChatId = Date.now() + Math.floor(Math.random() * 1000);
+  const newChatId = Date.now() + Math.floor(Math.random() * 1000);
 
-    setChats((prev) => {
-      const existingTitles = prev.map((chat: any) =>
-        String(chat.title || "").trim()
-      );
+  hasManualChatSelectionRef.current = true;
+  pendingActiveChatIdRef.current = newChatId;
+  preferredActiveChatIdRef.current = newChatId;
+  setOpenChatMenuId(null);
 
-      const buildUniqueTitle = (rawBaseTitle: string) => {
-        if (!existingTitles.includes(rawBaseTitle)) return rawBaseTitle;
+  setChats((prev) => {
+    const existingTitles = prev.map((chat: any) =>
+      String(chat.title || "").trim()
+    );
 
-        let counter = 2;
-        while (existingTitles.includes(`${rawBaseTitle} ${counter}`)) {
-          counter += 1;
-        }
+    const buildUniqueTitle = (rawBaseTitle: string) => {
+      if (!existingTitles.includes(rawBaseTitle)) return rawBaseTitle;
 
-        return `${rawBaseTitle} ${counter}`;
-      };
+      let counter = 2;
+      while (existingTitles.includes(`${rawBaseTitle} ${counter}`)) {
+        counter += 1;
+      }
 
-      const newChat = {
-        id: newChatId,
-        title: buildUniqueTitle(baseTitle),
-        messages: preset?.messages ? [...preset.messages] : [],
-        pinned: false,
-        archived: false,
-        deleted: false,
-      };
+      return `${rawBaseTitle} ${counter}`;
+    };
 
-      return [newChat, ...prev];
-    });
+    const newChat = {
+      id: newChatId,
+      title: buildUniqueTitle(baseTitle),
+      messages: preset?.messages ? [...preset.messages] : [],
+      pinned: false,
+      archived: false,
+      deleted: false,
+    };
 
-    activateChat(newChatId);
-  };
+    return [newChat, ...prev];
+  });
+
+  setActiveChatId(newChatId);
+};
 
 const messageShellClass =
   "w-full min-w-0 overflow-hidden";
@@ -396,77 +407,73 @@ const activeChat =
   ) ?? null;
 
     useEffect(() => {
-    const visibleChats = chats.filter(
-      (chat: any) => !chat.archived && !chat.deleted
+  const visibleChats = chats.filter(
+    (chat: any) => !chat.archived && !chat.deleted
+  );
+
+  if (isPersonalRoute && !personalStateLoaded && chats.length === 0) {
+    return;
+  }
+
+  if (visibleChats.length === 0) {
+    if (isPersonalRoute) {
+      createNewChat({
+        title: "Persoonlijke omgeving",
+        messages: [
+          {
+            role: "ai",
+            content:
+              "👋 Welkom in je persoonlijke omgeving. Hier testen we privé memory, verbeterpunten en training van jouw AI-gedrag.",
+          },
+        ],
+      });
+    } else {
+      createNewChat();
+    }
+    return;
+  }
+
+  const pendingId = pendingActiveChatIdRef.current;
+
+  if (pendingId !== null) {
+    const pendingChat = visibleChats.find(
+      (chat: any) => chat.id === pendingId
     );
 
-    if (isPersonalRoute && !personalStateLoaded && chats.length === 0) {
-      return;
-    }
-
-    if (visibleChats.length === 0) {
-      if (isPersonalRoute) {
-        createNewChat({
-          title: "Persoonlijke omgeving",
-          messages: [
-            {
-              role: "ai",
-              content:
-                "👋 Welkom in je persoonlijke omgeving. Hier testen we privé memory, verbeterpunten en training van jouw AI-gedrag.",
-            },
-          ],
-        });
-      } else {
-        createNewChat();
-      }
-      return;
-    }
-
-    const pendingId = pendingActiveChatIdRef.current;
-
-    if (pendingId !== null) {
-      const pendingVisible = visibleChats.some(
-        (chat: any) => chat.id === pendingId
-      );
-
-      if (!pendingVisible) {
-        return;
-      }
-
+    if (pendingChat) {
       if (activeChatId !== pendingId) {
         setActiveChatId(pendingId);
         return;
       }
 
-      pendingActiveChatIdRef.current = null;
       preferredActiveChatIdRef.current = pendingId;
+      pendingActiveChatIdRef.current = null;
       return;
     }
+  }
 
-    const preferredId = preferredActiveChatIdRef.current;
+  if (
+    activeChatId !== null &&
+    visibleChats.some((chat: any) => chat.id === activeChatId)
+  ) {
+    preferredActiveChatIdRef.current = activeChatId;
+    return;
+  }
 
-    if (
-      preferredId !== null &&
-      visibleChats.some((chat: any) => chat.id === preferredId)
-    ) {
-      if (activeChatId !== preferredId) {
-        setActiveChatId(preferredId);
-      }
-      return;
-    }
+  const preferredId = preferredActiveChatIdRef.current;
+  const nextActiveChatId =
+    preferredId !== null &&
+    visibleChats.some((chat: any) => chat.id === preferredId)
+      ? preferredId
+      : visibleChats[0].id;
 
-    const currentActiveStillVisible =
-      activeChatId !== null &&
-      visibleChats.some((chat: any) => chat.id === activeChatId);
+  if (activeChatId !== nextActiveChatId) {
+    setActiveChatId(nextActiveChatId);
+    return;
+  }
 
-    if (currentActiveStillVisible) {
-      return;
-    }
-
-    const fallbackId = visibleChats[0].id;
-    preferredActiveChatIdRef.current = fallbackId;
-    setActiveChatId(fallbackId);
-  }, [isPersonalRoute, personalStateLoaded, chats]);
+  preferredActiveChatIdRef.current = nextActiveChatId;
+}, [isPersonalRoute, personalStateLoaded, chats, activeChatId]);
 
   const updateChatMeta = (
     chatId: number,
