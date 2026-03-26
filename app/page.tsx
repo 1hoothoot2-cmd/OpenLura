@@ -1,7 +1,10 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
+import { usePathname } from "next/navigation";
 
 export default function Home() {
+  const pathname = usePathname();
+  const isPersonalRoute = pathname === "/persoonlijke-omgeving";
   const [chats, setChats] = useState<any[]>([]);
   const [activeChatId, setActiveChatId] = useState<number | null>(null);
   const [input, setInput] = useState("");
@@ -25,6 +28,11 @@ export default function Home() {
   const [feedbackGiven, setFeedbackGiven] = useState<{ [key: string]: boolean }>({});
   const [improvedFeedbackGiven, setImprovedFeedbackGiven] = useState<{ [key: string]: boolean }>({});
   const [awaitingImprovement, setAwaitingImprovement] = useState<{ [key: number]: boolean }>({});
+  const [showLoginBox, setShowLoginBox] = useState(false);
+  const [loginUsername, setLoginUsername] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
+  const [loginLoading, setLoginLoading] = useState(false);
   
   const fileRef = useRef<HTMLInputElement>(null);
     const messagesRef = useRef<HTMLDivElement>(null);
@@ -146,6 +154,40 @@ export default function Home() {
 }, [activeChatId, chats, loading]);
 
   useEffect(() => {
+    if (!isPersonalRoute) return;
+
+    const verifyPersonalAccess = async () => {
+      try {
+        const res = await fetch("/api/auth", {
+          method: "GET",
+          cache: "no-store",
+        });
+
+        if (!res.ok) {
+          window.location.href = "/";
+        }
+      } catch {
+        window.location.href = "/";
+      }
+    };
+
+    const clearPersonalAccess = () => {
+      fetch("/api/auth", {
+        method: "DELETE",
+        keepalive: true,
+      }).catch(() => {});
+    };
+
+    verifyPersonalAccess();
+    window.addEventListener("pagehide", clearPersonalAccess);
+
+    return () => {
+      window.removeEventListener("pagehide", clearPersonalAccess);
+      clearPersonalAccess();
+    };
+  }, [isPersonalRoute]);
+
+  useEffect(() => {
     const handlePaste = async (e: ClipboardEvent) => {
       const items = Array.from(e.clipboardData?.items || []);
       const imageItem = items.find((item) => item.type.startsWith("image/"));
@@ -212,6 +254,32 @@ export default function Home() {
     const [openChatMenuId, setOpenChatMenuId] = useState<number | null>(null);
 
   const activeChat = chats.find((c: any) => c.id === activeChatId);
+
+  useEffect(() => {
+    if (!isPersonalRoute || chats.length === 0) return;
+
+    const existingPersonalChat = chats.find(
+      (chat: any) => chat.title === "Persoonlijke omgeving"
+    );
+
+    if (existingPersonalChat) {
+      if (activeChatId !== existingPersonalChat.id) {
+        setActiveChatId(existingPersonalChat.id);
+      }
+      return;
+    }
+
+    createNewChat({
+      title: "Persoonlijke omgeving",
+      messages: [
+        {
+          role: "ai",
+          content:
+            "👋 Welkom in je persoonlijke omgeving. Hier testen we privé memory, verbeterpunten en training van jouw AI-gedrag.",
+        },
+      ],
+    });
+  }, [isPersonalRoute, chats.length]);
 
   const updateChatMeta = (
     chatId: number,
@@ -487,7 +555,8 @@ export default function Home() {
     return isStyleSignal ? "style" : "content";
   };
 
-  const isPersonalEnvironment = activeChat?.title === "Persoonlijke omgeving";
+  const isPersonalEnvironment =
+    isPersonalRoute && activeChat?.title === "Persoonlijke omgeving";
 
   const getPersonalEnvironmentInsights = () => {
     if (!activeChatId) {
@@ -544,6 +613,40 @@ export default function Home() {
     }
     setLoading(false);
     setLoadingStage("idle");
+  };
+
+  const handlePersonalLogin = async () => {
+    setLoginLoading(true);
+    setLoginError("");
+
+    try {
+      const res = await fetch("/api/auth", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username: loginUsername,
+          password: loginPassword,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data?.success) {
+        setLoginError(data?.error || "Inloggen mislukt");
+        return;
+      }
+
+      setShowLoginBox(false);
+      setLoginUsername("");
+      setLoginPassword("");
+      window.location.href = "/persoonlijke-omgeving";
+    } catch {
+      setLoginError("Inloggen mislukt");
+    } finally {
+      setLoginLoading(false);
+    }
   };
 
   const isRetryInstruction = (text: string) => {
@@ -1487,32 +1590,17 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
             💡 Feedback / Idee
           </button>
 
-          <button
-            onClick={() => {
-              createNewChat({
-                title: "Persoonlijke omgeving",
-                messages: [
-                  {
-                    role: "ai",
-                    content:
-                      "👋 Dit is je persoonlijke omgeving. Hier kunnen we memory, verbeterpunten en toekomstige account-achtige personalisatie testen binnen je chatflow.",
-                  },
-                ],
-              });
-            }}
-            className="w-full p-2 rounded-xl bg-white/10 hover:bg-white/20"
-          >
-            🧠 Persoonlijke omgeving
-          </button>
-
-          <button
-            onClick={() => {
-              window.location.href = "/analytics";
-            }}
-            className="w-full p-2 rounded-xl bg-white/10 hover:bg-white/20"
-          >
-            🔐 Admin login
-          </button>
+          {!isPersonalRoute && (
+            <button
+              onClick={() => {
+                setShowLoginBox(true);
+                setLoginError("");
+              }}
+              className="w-full p-2 rounded-xl bg-white/10 hover:bg-white/20"
+            >
+              🔐 Log in
+            </button>
+          )}
         </div>
       </div>
 {mobileMenu && (
@@ -1964,6 +2052,70 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
             </div>
           </div>
         </aside>
+      )}
+
+      {showLoginBox && !isPersonalRoute && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-3xl bg-[#111322] border border-white/10 p-6">
+            <div className="mb-4">
+              <p className="text-xs uppercase tracking-wide opacity-50">
+                Beveiligde toegang
+              </p>
+              <h2 className="text-xl font-semibold mt-1">Log in</h2>
+              <p className="text-sm opacity-60 mt-2">
+                Meld je aan om je persoonlijke omgeving te openen.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <input
+                value={loginUsername}
+                onChange={(e) => setLoginUsername(e.target.value)}
+                placeholder="Gebruikersnaam"
+                className="w-full p-3 rounded-2xl bg-white/10 border border-white/10 outline-none"
+              />
+
+              <input
+                type="password"
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+                placeholder="Wachtwoord"
+                className="w-full p-3 rounded-2xl bg-white/10 border border-white/10 outline-none"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !loginLoading) {
+                    handlePersonalLogin();
+                  }
+                }}
+              />
+
+              {loginError && (
+                <p className="text-sm text-red-300">{loginError}</p>
+              )}
+            </div>
+
+            <div className="mt-5 flex gap-2">
+              <button
+                onClick={() => {
+                  setShowLoginBox(false);
+                  setLoginError("");
+                  setLoginUsername("");
+                  setLoginPassword("");
+                }}
+                className="flex-1 p-3 rounded-2xl bg-white/10 hover:bg-white/20"
+              >
+                Annuleren
+              </button>
+
+              <button
+                onClick={handlePersonalLogin}
+                disabled={loginLoading}
+                className="flex-1 p-3 rounded-2xl bg-white text-black hover:bg-white/90 disabled:opacity-60"
+              >
+                {loginLoading ? "Inloggen..." : "Log in"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </main>
   );
