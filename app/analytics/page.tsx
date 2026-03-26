@@ -91,6 +91,20 @@ export default function AnalyticsPage() {
   const autoDebugFeedback = feedback.filter((f: any) => f.type === "auto_debug");
   const ideaFeedback = feedback.filter((f: any) => f.type === "idea");
     const bugIdeas = ideaFeedback.filter((f: any) => f.source === "idea_bug");
+
+  const autoDebugSignalCounts = {
+    casualMismatch: autoDebugFeedback.filter((f: any) => f.source === "auto_debug_casual_mismatch").length,
+    searchMiss: autoDebugFeedback.filter((f: any) => f.source === "auto_debug_possible_search_miss").length,
+    imageContextMiss: autoDebugFeedback.filter((f: any) => f.source === "auto_debug_possible_image_context_miss").length,
+    weakSourceSupport: autoDebugFeedback.filter((f: any) => f.source === "auto_debug_weak_source_support").length,
+    verboseImageRoute: autoDebugFeedback.filter((f: any) => f.source === "auto_debug_too_verbose_for_image_route").length,
+  };
+
+  const autoDebugConfidenceCounts = {
+    high: autoDebugFeedback.filter((f: any) => String(f.message || "").toLowerCase().startsWith("[high]")).length,
+    medium: autoDebugFeedback.filter((f: any) => String(f.message || "").toLowerCase().startsWith("[medium]")).length,
+    low: autoDebugFeedback.filter((f: any) => String(f.message || "").toLowerCase().startsWith("[low]")).length,
+  };
   const adjustmentIdeas = ideaFeedback.filter((f: any) => f.source === "idea_adjustment");
   const learningIdeas = ideaFeedback.filter((f: any) => f.source === "idea_feedback_learning");
 
@@ -1089,6 +1103,28 @@ return () => {
     </div>
   </div>
 
+  <div className="p-4 bg-white/10 rounded-2xl">
+    <h2 className="text-lg mb-3">🤖 Auto Debug</h2>
+    <div className="space-y-2 text-sm">
+      <div className="flex justify-between">
+        <span>Totaal signalen</span>
+        <span className="opacity-60">{autoDebugFeedback.length}</span>
+      </div>
+      <div className="flex justify-between">
+        <span>High confidence</span>
+        <span className="opacity-60">{autoDebugConfidenceCounts.high}</span>
+      </div>
+      <div className="flex justify-between">
+        <span>Medium confidence</span>
+        <span className="opacity-60">{autoDebugConfidenceCounts.medium}</span>
+      </div>
+      <div className="flex justify-between">
+        <span>Low confidence</span>
+        <span className="opacity-60">{autoDebugConfidenceCounts.low}</span>
+      </div>
+    </div>
+  </div>
+
     <div className="p-4 bg-white/10 rounded-2xl">
     <h2 className="text-lg mb-3">📌 Actieve filter</h2>
     <p className="text-sm opacity-80 mb-2">
@@ -1135,6 +1171,37 @@ return () => {
         <span>Klaar</span>
         <span className="opacity-60">{workflowCounts.klaar}</span>
       </div>
+    </div>
+  </div>
+</div>
+
+<div className="p-4 bg-white/10 rounded-2xl mb-6">
+  <h2 className="text-lg mb-3">🧭 Auto Debug signalen</h2>
+
+  <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-3 text-sm">
+    <div className="p-3 rounded-xl bg-white/5">
+      <p className="text-xs opacity-60 mb-2">Casual mismatch</p>
+      <p className="text-lg">{autoDebugSignalCounts.casualMismatch}</p>
+    </div>
+
+    <div className="p-3 rounded-xl bg-white/5">
+      <p className="text-xs opacity-60 mb-2">Possible search miss</p>
+      <p className="text-lg">{autoDebugSignalCounts.searchMiss}</p>
+    </div>
+
+    <div className="p-3 rounded-xl bg-white/5">
+      <p className="text-xs opacity-60 mb-2">Image context miss</p>
+      <p className="text-lg">{autoDebugSignalCounts.imageContextMiss}</p>
+    </div>
+
+    <div className="p-3 rounded-xl bg-white/5">
+      <p className="text-xs opacity-60 mb-2">Weak source support</p>
+      <p className="text-lg">{autoDebugSignalCounts.weakSourceSupport}</p>
+    </div>
+
+    <div className="p-3 rounded-xl bg-white/5">
+      <p className="text-xs opacity-60 mb-2">Verbose image route</p>
+      <p className="text-lg">{autoDebugSignalCounts.verboseImageRoute}</p>
     </div>
   </div>
 </div>
@@ -1436,7 +1503,11 @@ return () => {
         : "User"}
     </p>
     <p className="mb-3">
-      {f.type === "improve" || f.type === "idea" ? f.message : f.userMessage}
+      {f.type === "auto_debug"
+        ? f.message
+        : f.type === "improve" || f.type === "idea"
+        ? f.message
+        : f.userMessage}
     </p>
 
     {f.type !== "improve" && f.type !== "idea" && (
@@ -1466,6 +1537,8 @@ return () => {
           ? "👍 Positive"
           : f.type === "down"
           ? "👎 Negative"
+          : f.type === "auto_debug"
+          ? "🧪 Auto Debug"
           : f.type === "idea"
           ? f.source === "idea_bug"
             ? "🐞 Bug"
