@@ -1163,7 +1163,7 @@ return () => {
       {activeTab === "negative" && "Je ziet nu alleen negatieve antwoorden."}
       {activeTab === "positive" && "Je ziet nu alleen positieve antwoorden."}
             {activeTab === "improvement" && "Je ziet nu alleen verbeterfeedback van gebruikers."}
-      {activeTab === "auto_debug" && "Je ziet nu automatisch gedetecteerde product- en route-signalen."}
+      {activeTab === "auto_debug" && "Je ziet nu automatisch gedetecteerde product- en route-signalen, opgeschoond tegen korte duplicate herhaling."}
       {activeTab === "ideas" && "Je ziet nu alleen ingestuurde ideeën en algemene feedback."}
     </p>
     <p className="text-xs opacity-60">

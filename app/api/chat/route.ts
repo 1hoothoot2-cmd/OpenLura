@@ -457,6 +457,20 @@ async function getRecentServerFeedback() {
   );
 }
 
+function buildAutoDebugSignature(input: {
+  userMessage?: string;
+  signalSource: string;
+  learningType: "style" | "content";
+  confidence: "low" | "medium" | "high";
+}) {
+  return JSON.stringify({
+    userMessage: (input.userMessage || "").trim().toLowerCase(),
+    signalSource: input.signalSource,
+    learningType: input.learningType,
+    confidence: input.confidence,
+  });
+}
+
 async function storeAutoDebugSignals(input: {
   userMessage?: string;
   aiText?: string;
