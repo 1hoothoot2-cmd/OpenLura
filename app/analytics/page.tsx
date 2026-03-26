@@ -11,10 +11,15 @@ export default function AnalyticsPage() {
                 const [authLoading, setAuthLoading] = useState(true);
     const [itemStatus, setItemStatus] = useState<{ [key: string]: string }>({});
     const [workflowFilter, setWorkflowFilter] = useState("all");
+    const [learningTypeFilter, setLearningTypeFilter] = useState("all");
 
       useEffect(() => {
     if (activeTab !== "ideas") {
       setIdeaFilter("all");
+    }
+
+    if (activeTab === "positive") {
+      setLearningTypeFilter("all");
     }
   }, [activeTab]);
 
@@ -53,10 +58,23 @@ export default function AnalyticsPage() {
       return false;
     }
 
+    const resolvedLearningType = inferLearningType(f);
+    const supportsLearningTypeFilter =
+      f.type === "down" || f.type === "improve" || f.source === "idea_feedback_learning";
+
+    if (
+      learningTypeFilter !== "all" &&
+      supportsLearningTypeFilter &&
+      resolvedLearningType !== learningTypeFilter
+    ) {
+      return false;
+    }
+
     if (activeTab === "all") return true;
     if (activeTab === "positive") return f.type === "up";
     if (activeTab === "negative") return f.type === "down";
     if (activeTab === "improvement") return f.type === "improve";
+    if (activeTab === "auto_debug") return f.type === "auto_debug";
     if (activeTab === "ideas") {
       if (f.type !== "idea") return false;
       if (ideaFilter === "all") return true;
@@ -70,6 +88,7 @@ export default function AnalyticsPage() {
           const negativeFeedback = feedback.filter((f: any) => f.type === "down");
   const positiveFeedback = feedback.filter((f: any) => f.type === "up");
   const improvementFeedback = feedback.filter((f: any) => f.type === "improve");
+  const autoDebugFeedback = feedback.filter((f: any) => f.type === "auto_debug");
   const ideaFeedback = feedback.filter((f: any) => f.type === "idea");
     const bugIdeas = ideaFeedback.filter((f: any) => f.source === "idea_bug");
   const adjustmentIdeas = ideaFeedback.filter((f: any) => f.source === "idea_adjustment");
@@ -812,6 +831,16 @@ return () => {
     <p className="text-xl">{improvementFeedback.length}</p>
   </button>
 
+  <button
+    onClick={() => setActiveTab("auto_debug")}
+    className={`p-4 rounded-xl text-left ${
+      activeTab === "auto_debug" ? "bg-purple-500/30 ring-1 ring-purple-300/40" : "bg-purple-500/20"
+    }`}
+  >
+    <p className="text-xs opacity-60">🧪 Auto Debug</p>
+    <p className="text-xl">{autoDebugFeedback.length}</p>
+  </button>
+
   <div className="p-4 bg-white/10 rounded-xl">
     <p className="text-xs opacity-60">📈 Score</p>
     <p className="text-xl">{feedbackScore}%</p>
@@ -866,6 +895,12 @@ return () => {
     Verbeter
   </button>
   <button
+    onClick={() => setActiveTab("auto_debug")}
+    className={`px-4 py-2 rounded-xl ${activeTab === "auto_debug" ? "bg-purple-400 text-black" : "bg-white/10 text-white"}`}
+  >
+    Auto Debug
+  </button>
+  <button
     onClick={() => setActiveTab("ideas")}
     className={`px-4 py-2 rounded-xl ${activeTab === "ideas" ? "bg-blue-400 text-black" : "bg-white/10 text-white"}`}
   >
@@ -915,7 +950,11 @@ return () => {
   >
     Nieuw ({feedback.filter((f: any) => {
       const status = itemStatus[getItemKey(f)] || getAutoStatus(f);
+      const resolvedLearningType = inferLearningType(f);
+      const supportsLearningTypeFilter =
+        f.type === "down" || f.type === "improve" || f.source === "idea_feedback_learning";
       if (status !== "nieuw") return false;
+      if (learningTypeFilter !== "all" && supportsLearningTypeFilter && resolvedLearningType !== learningTypeFilter) return false;
       if (activeTab === "all") return true;
       if (activeTab === "positive") return f.type === "up";
       if (activeTab === "negative") return f.type === "down";
@@ -936,7 +975,11 @@ return () => {
   >
     In behandeling ({feedback.filter((f: any) => {
       const status = itemStatus[getItemKey(f)] || getAutoStatus(f);
+      const resolvedLearningType = inferLearningType(f);
+      const supportsLearningTypeFilter =
+        f.type === "down" || f.type === "improve" || f.source === "idea_feedback_learning";
       if (status !== "bezig") return false;
+      if (learningTypeFilter !== "all" && supportsLearningTypeFilter && resolvedLearningType !== learningTypeFilter) return false;
       if (activeTab === "all") return true;
       if (activeTab === "positive") return f.type === "up";
       if (activeTab === "negative") return f.type === "down";
@@ -957,7 +1000,11 @@ return () => {
   >
     Klaar ({feedback.filter((f: any) => {
       const status = itemStatus[getItemKey(f)] || getAutoStatus(f);
+      const resolvedLearningType = inferLearningType(f);
+      const supportsLearningTypeFilter =
+        f.type === "down" || f.type === "improve" || f.source === "idea_feedback_learning";
       if (status !== "klaar") return false;
+      if (learningTypeFilter !== "all" && supportsLearningTypeFilter && resolvedLearningType !== learningTypeFilter) return false;
       if (activeTab === "all") return true;
       if (activeTab === "positive") return f.type === "up";
       if (activeTab === "negative") return f.type === "down";
@@ -971,6 +1018,27 @@ return () => {
       }
       return true;
     }).length})
+  </button>
+</div>
+
+<div className="mb-6 flex flex-wrap gap-2">
+  <button
+    onClick={() => setLearningTypeFilter("all")}
+    className={`px-4 py-2 rounded-xl ${learningTypeFilter === "all" ? "bg-white text-black" : "bg-white/10 text-white"}`}
+  >
+    Alle learning
+  </button>
+  <button
+    onClick={() => setLearningTypeFilter("style")}
+    className={`px-4 py-2 rounded-xl ${learningTypeFilter === "style" ? "bg-purple-400 text-black" : "bg-white/10 text-white"}`}
+  >
+    Style
+  </button>
+  <button
+    onClick={() => setLearningTypeFilter("content")}
+    className={`px-4 py-2 rounded-xl ${learningTypeFilter === "content" ? "bg-cyan-400 text-black" : "bg-white/10 text-white"}`}
+  >
+    Content
   </button>
 </div>
 
@@ -1028,10 +1096,13 @@ return () => {
       {activeTab === "negative" && "Je ziet nu alleen negatieve antwoorden."}
       {activeTab === "positive" && "Je ziet nu alleen positieve antwoorden."}
             {activeTab === "improvement" && "Je ziet nu alleen verbeterfeedback van gebruikers."}
+      {activeTab === "auto_debug" && "Je ziet nu automatisch gedetecteerde product- en route-signalen."}
       {activeTab === "ideas" && "Je ziet nu alleen ingestuurde ideeën en algemene feedback."}
     </p>
     <p className="text-xs opacity-60">
-      Gebruik dit om snel te zien waarom iets 👎 kreeg en wat gebruikers letterlijk teruggeven.
+      {learningTypeFilter === "all" && "Learning type filter staat op alles."}
+      {learningTypeFilter === "style" && "Je filtert nu op stijlfeedback zoals tone, lengte, duidelijkheid en structuur."}
+      {learningTypeFilter === "content" && "Je filtert nu op contentfeedback zoals antwoordvorm en succesvolle antwoordpatronen."}
     </p>
   </div>
 

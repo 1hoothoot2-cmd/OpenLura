@@ -52,6 +52,106 @@ function detectCasualStyleMismatch(input: {
   );
 }
 
+function detectAutoDebugSignals(input: {
+  userMessage?: string;
+  aiText?: string;
+  image?: string | null;
+  usedWebSearch: boolean;
+  sources: { title: string; url: string }[];
+  isCasualChatRequest: boolean;
+  isSimpleImageAnalysis: boolean;
+  responseVariant: string;
+}) {
+  const userText = (input.userMessage || "").toLowerCase().trim();
+  const aiText = (input.aiText || "").trim();
+
+  const signals: {
+    type: string;
+    confidence: "low" | "medium" | "high";
+    message: string;
+    learningType: "style" | "content";
+  }[] = [];
+
+  const likelySearchIntent =
+    /restaurant|cafe|coffee|koffie|location|locatie|where|waar|address|adres|opening|open|review|route|travel|venue|place|plek|business|bedrijf|hotel|map|maps|near|dichtbij|best|beste|news|nieuws|welke plek|which place|waar is dit|where is this|welk restaurant|which restaurant|vind locatie|find location|zoek locatie|search location/i.test(
+      userText
+    );
+
+  if (
+    input.isCasualChatRequest &&
+    detectCasualStyleMismatch({
+      userMessage: input.userMessage || "",
+      aiText,
+    })
+  ) {
+    signals.push({
+      type: "casual_mismatch",
+      confidence: "high",
+      message: "Casual prompt likely answered too formally or too long.",
+      learningType: "style",
+    });
+  }
+
+  if (
+    likelySearchIntent &&
+    !input.usedWebSearch &&
+    !input.isSimpleImageAnalysis
+  ) {
+    signals.push({
+      type: "possible_search_miss",
+      confidence: "medium",
+      message: "Prompt looked search-dependent but web search did not run.",
+      learningType: "content",
+    });
+  }
+
+  if (
+    input.usedWebSearch &&
+    (!Array.isArray(input.sources) || input.sources.length === 0)
+  ) {
+    signals.push({
+      type: "weak_source_support",
+      confidence: "high",
+      message: "Web search route ran but no sources were attached.",
+      learningType: "content",
+    });
+  }
+
+  if (
+    input.image &&
+    !input.isSimpleImageAnalysis &&
+    aiText &&
+    !/image|afbeelding|foto|plaatje|screenshot|visual|visueel|see|visible|shows|laat zien|ik zie/i.test(
+      aiText.toLowerCase()
+    )
+  ) {
+    signals.push({
+      type: "possible_image_context_miss",
+      confidence: "medium",
+      message: "Image was attached but the reply may not reference visual context clearly.",
+      learningType: "content",
+    });
+  }
+
+  if (
+    input.isSimpleImageAnalysis &&
+    aiText.length > 500
+  ) {
+    signals.push({
+      type: "too_verbose_for_image_route",
+      confidence: "medium",
+      message: "Simple image analysis reply may be too long for the route.",
+      learningType: "style",
+    });
+  }
+
+  return signals.map((signal) => ({
+    ...signal,
+    source: `auto_debug_${signal.type}`,
+    variant: input.responseVariant,
+  }));
+}
+
 function buildCacheKey(input: {
   message: string;
   personalMemory?: string;
@@ -353,6 +453,54 @@ async function getRecentServerFeedback() {
     "select=type,message,userMessage,source,learningType,timestamp&order=timestamp.desc&limit=30",
     "OpenLura server feedback fetch failed:"
   );
+}
+
+async function storeAutoDebugSignals(input: {
+  userMessage?: string;
+  aiText?: string;
+  signals: {
+    type: string;
+    confidence: "low" | "medium" | "high";
+    message: string;
+    learningType: "style" | "content";
+    source: string;
+    variant: string;
+  }[];
+}) {
+  if (!supabaseUrl || !supabaseServiceRoleKey || input.signals.length === 0) {
+    return;
+  }
+
+  const rows = input.signals.map((signal) => ({
+    chatId: null,
+    msgIndex: null,
+    type: "auto_debug",
+    message: `[${signal.confidence}] ${signal.message}`,
+    userMessage: input.userMessage || null,
+    source: signal.source,
+    learningType: signal.learningType,
+    timestamp: new Date().toISOString(),
+  }));
+
+  try {
+    const res = await fetch(`${supabaseUrl}/rest/v1/openlura_feedback`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: supabaseServiceRoleKey,
+        Authorization: `Bearer ${supabaseServiceRoleKey}`,
+        Prefer: "return=minimal",
+      },
+      body: JSON.stringify(rows),
+      cache: "no-store",
+    });
+
+    if (!res.ok) {
+      console.error("Auto debug signal save failed:", res.status, await res.text());
+    }
+  } catch (error) {
+    console.error("Auto debug signal save error:", error);
+  }
 }
 
 function inferFeedbackLearningType(item: {
@@ -1439,6 +1587,23 @@ ${aiText}`,
       ...webSearchSources,
     ]).values()
   ).slice(0, 5);
+
+  const autoDebugSignals = detectAutoDebugSignals({
+    userMessage: message || "",
+    aiText,
+    image,
+    usedWebSearch: shouldUseWebSearch,
+    sources,
+    isCasualChatRequest,
+    isSimpleImageAnalysis,
+    responseVariant,
+  });
+
+  await storeAutoDebugSignals({
+    userMessage: message || "",
+    aiText,
+    signals: autoDebugSignals,
+  });
 
   if (canUseCache && aiText) {
     responseCache.set(cacheKey, {
