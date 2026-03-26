@@ -299,95 +299,120 @@ export default function Home() {
     };
   }, []);
 
+  const activateChat = (chatId: number) => {
+    setActiveChatId(chatId);
+    setOpenChatMenuId(null);
+  };
+
   const createNewChat = (
     preset?: Partial<{
       title: string;
       messages: { role: string; content: string; image?: string | null }[];
     }>
   ) => {
-    const buildUniqueTitle = (baseTitle: string) => {
-      const existingTitles = chats.map((chat: any) => String(chat.title || "").trim());
-      const hasBase = existingTitles.includes(baseTitle);
-
-      if (!hasBase) return baseTitle;
-
-      let counter = 2;
-      while (existingTitles.includes(`${baseTitle} ${counter}`)) {
-        counter += 1;
-      }
-
-      return `${baseTitle} ${counter}`;
-    };
-
     const baseTitle =
       preset?.title || (isPersonalRoute ? "Persoonlijke chat" : "New Chat");
 
-    const newChat = {
-      id: Date.now() + Math.floor(Math.random() * 1000),
-      title: buildUniqueTitle(baseTitle),
-      messages: preset?.messages ? [...preset.messages] : [],
-      pinned: false,
-      archived: false,
-      deleted: false,
-    };
+    const newChatId = Date.now() + Math.floor(Math.random() * 1000);
 
-    setChats((prev) => [newChat, ...prev]);
-    setActiveChatId(newChat.id);
-    setOpenChatMenuId(null);
+    setChats((prev) => {
+      const existingTitles = prev.map((chat: any) => String(chat.title || "").trim());
+
+      const buildUniqueTitle = (rawBaseTitle: string) => {
+        if (!existingTitles.includes(rawBaseTitle)) return rawBaseTitle;
+
+        let counter = 2;
+        while (existingTitles.includes(`${rawBaseTitle} ${counter}`)) {
+          counter += 1;
+        }
+
+        return `${rawBaseTitle} ${counter}`;
+      };
+
+      const newChat = {
+        id: newChatId,
+        title: buildUniqueTitle(baseTitle),
+        messages: preset?.messages ? [...preset.messages] : [],
+        pinned: false,
+        archived: false,
+        deleted: false,
+      };
+
+      return [newChat, ...prev];
+    });
+
+    activateChat(newChatId);
   };
 
     const [openChatMenuId, setOpenChatMenuId] = useState<number | null>(null);
 
-  const activeChat = chats.find((c: any) => c.id === activeChatId);
+  const activeChat =
+  chats.find(
+    (c: any) =>
+      c.id === activeChatId &&
+      !c.archived &&
+      !c.deleted
+  ) ?? null;
+
+const messageShellClass =
+  "w-full min-w-0 overflow-hidden";
+const messageBubbleClass =
+  "min-w-0 max-w-full overflow-hidden break-words [overflow-wrap:anywhere] break-all";
+const composerShellClass =
+  "w-full min-w-0 shrink-0 border-t border-white/10 bg-black/70 backdrop-blur";
+const composerInnerClass =
+  "mx-auto w-full max-w-4xl min-w-0 px-3 pb-[max(env(safe-area-inset-bottom),12px)] pt-3 md:px-4";
+const composerInputClass =
+  "w-full min-w-0 resize-none overflow-x-hidden break-words [overflow-wrap:anywhere]";
 
   useEffect(() => {
-  const visibleChats = chats.filter(
-    (chat: any) => !chat.archived && !chat.deleted
-  );
+    const visibleChats = chats.filter(
+      (chat: any) => !chat.archived && !chat.deleted
+    );
 
-  if (isPersonalRoute) {
-    if (!personalStateLoaded && chats.length === 0) return;
+    if (isPersonalRoute) {
+      if (!personalStateLoaded && chats.length === 0) return;
 
-    if (visibleChats.length > 0) {
-      // ❗ BELANGRIJK: respecteer user selectie
-      const stillExists = visibleChats.some(
-        (chat: any) => chat.id === activeChatId
-      );
+      if (visibleChats.length === 0) {
+        if (activeChatId !== null) {
+          setActiveChatId(null);
+        }
 
-      if (!stillExists) {
-        setActiveChatId(visibleChats[0].id);
+        createNewChat({
+          title: "Persoonlijke omgeving",
+          messages: [
+            {
+              role: "ai",
+              content:
+                "👋 Welkom in je persoonlijke omgeving. Hier testen we privé memory, verbeterpunten en training van jouw AI-gedrag.",
+            },
+          ],
+        });
+
+        return;
+      }
+    } else if (visibleChats.length === 0) {
+      if (activeChatId !== null) {
+        setActiveChatId(null);
       }
 
+      createNewChat();
       return;
     }
 
-    createNewChat({
-      title: "Persoonlijke omgeving",
-      messages: [
-        {
-          role: "ai",
-          content:
-            "👋 Welkom in je persoonlijke omgeving. Hier testen we privé memory, verbeterpunten en training van jouw AI-gedrag.",
-        },
-      ],
-    });
+    if (activeChatId === null) {
+      setActiveChatId(visibleChats[0].id);
+      return;
+    }
 
-    return;
-  }
+    const activeStillVisible = visibleChats.some(
+      (chat: any) => chat.id === activeChatId
+    );
 
-  if (visibleChats.length === 0) {
-    createNewChat();
-    return;
-  }
-
-  const stillExists = visibleChats.some(
-    (chat: any) => chat.id === activeChatId
-  );
-
-  if (!stillExists) {
-    setActiveChatId(visibleChats[0].id);
-  }
-}, [isPersonalRoute, personalStateLoaded, chats, activeChatId]);
+    if (!activeStillVisible) {
+      setActiveChatId(visibleChats[0].id);
+    }
+  }, [isPersonalRoute, personalStateLoaded, chats, activeChatId]);
 
   const updateChatMeta = (
     chatId: number,
@@ -1867,7 +1892,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 
                     <div
   ref={messagesRef}
-  className={`flex-1 min-w-0 overflow-x-hidden overflow-y-auto pb-52 md:pb-4 ${
+  className={`${messageShellClass} flex-1 overflow-x-hidden overflow-y-auto pb-52 md:pb-4 ${
     activeChat?.messages?.length ? "p-4 pt-20 md:pt-4 space-y-3" : "p-4 pt-20 md:pt-4 flex items-center justify-center"
   }`}
 >
@@ -1898,8 +1923,8 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                       : { style: [], content: [] };
 
                     return (
-                                              <div key={i} className="min-w-0">
-                                                <div className={`min-w-0 p-3 rounded-2xl max-w-[75%] whitespace-pre-line break-words overflow-hidden ${
+                      <div key={i} className={messageShellClass}>
+                        <div className={`${messageBubbleClass} p-3 rounded-2xl max-w-[75%] whitespace-pre-line ${
                           msg.role === "user"
                             ? "bg-gradient-to-r from-purple-500 to-blue-500 ml-auto text-white"
                             : "bg-white/20"
@@ -1914,9 +1939,8 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 
                           {msg.content ? (
   <div
-    className={`${msg.image ? "mt-3" : ""} break-words`}
-    style={{ wordBreak: "break-word", overflowWrap: "anywhere" }}
-  >
+  className={`${msg.image ? "mt-3 " : ""}${messageBubbleClass}`}
+>
     {msg.isStreaming && msg.content === "…" ? (
       <span className="opacity-50">thinking...</span>
     ) : (
@@ -2031,7 +2055,9 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                     className="block min-w-0 max-w-full overflow-hidden p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all border border-white/10"
                     title={source.title || source.url}
                   >
-                    <p className="text-sm text-white/90 break-words">{title}</p>
+                    <p className="text-sm text-white/90 break-words [overflow-wrap:anywhere]">
+                      {title}
+                    </p>
                     <p
                       className="text-xs text-white/40 mt-1 break-all"
                       style={{ overflowWrap: "anywhere" }}
@@ -2061,11 +2087,13 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
             )}
           </div>
 
-                                        <div className={`${
-  activeChat?.messages?.length === 0
-    ? "mt-6 w-full max-w-2xl"
-    : "fixed bottom-0 left-0 right-0 md:static z-[90] p-3 pb-4 border-t border-white/10 bg-[#050510] md:bg-transparent"
-} flex w-full min-w-0 items-end gap-2 rounded-[28px] border border-white/10 bg-white/5 backdrop-blur-xl px-3 py-3 shadow-[0_10px_40px_rgba(0,0,0,0.25)]`}>
+                                        <div
+  className={`${
+    activeChat?.messages?.length === 0
+      ? "mt-6 w-full max-w-2xl"
+      : composerShellClass + " fixed bottom-0 left-0 right-0 md:static z-[90] p-3 pb-4 md:border-0 bg-[#050510] md:bg-transparent"
+  } flex w-full min-w-0 items-end gap-2 rounded-[28px] border border-white/10 bg-white/5 backdrop-blur-xl px-3 py-3 shadow-[0_10px_40px_rgba(0,0,0,0.25)]`}
+>
 
                         <button
               type="button"
@@ -2120,8 +2148,8 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
       sendMessage();
     }
   }}
-    className="flex-1 min-w-0 bg-transparent rounded-2xl resize-none min-h-[52px] max-h-[140px] outline-none px-2 py-3 placeholder:text-white/35"
-    placeholder={activeChat?.messages?.length === 0 ? "Ask anything" : "Message OpenLura..."}
+  className={`${composerInputClass} flex-1 bg-transparent rounded-2xl min-h-[52px] max-h-[140px] outline-none px-2 py-3 placeholder:text-white/35`}
+  placeholder={activeChat?.messages?.length === 0 ? "Ask anything" : "Message OpenLura..."}
   rows={1}
 />
 

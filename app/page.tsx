@@ -299,46 +299,60 @@ export default function Home() {
     };
   }, []);
 
+  const activateChat = (chatId: number) => {
+    setActiveChatId(chatId);
+    setOpenChatMenuId(null);
+  };
+
   const createNewChat = (
     preset?: Partial<{
       title: string;
       messages: { role: string; content: string; image?: string | null }[];
     }>
   ) => {
-    const buildUniqueTitle = (baseTitle: string) => {
-      const existingTitles = chats.map((chat: any) => String(chat.title || "").trim());
-      const hasBase = existingTitles.includes(baseTitle);
-
-      if (!hasBase) return baseTitle;
-
-      let counter = 2;
-      while (existingTitles.includes(`${baseTitle} ${counter}`)) {
-        counter += 1;
-      }
-
-      return `${baseTitle} ${counter}`;
-    };
-
     const baseTitle =
       preset?.title || (isPersonalRoute ? "Persoonlijke chat" : "New Chat");
 
-    const newChat = {
-      id: Date.now() + Math.floor(Math.random() * 1000),
-      title: buildUniqueTitle(baseTitle),
-      messages: preset?.messages ? [...preset.messages] : [],
-      pinned: false,
-      archived: false,
-      deleted: false,
-    };
+    const newChatId = Date.now() + Math.floor(Math.random() * 1000);
 
-    setChats((prev) => [newChat, ...prev]);
-    setActiveChatId(newChat.id);
-    setOpenChatMenuId(null);
+    setChats((prev) => {
+      const existingTitles = prev.map((chat: any) => String(chat.title || "").trim());
+
+      const buildUniqueTitle = (rawBaseTitle: string) => {
+        if (!existingTitles.includes(rawBaseTitle)) return rawBaseTitle;
+
+        let counter = 2;
+        while (existingTitles.includes(`${rawBaseTitle} ${counter}`)) {
+          counter += 1;
+        }
+
+        return `${rawBaseTitle} ${counter}`;
+      };
+
+      const newChat = {
+        id: newChatId,
+        title: buildUniqueTitle(baseTitle),
+        messages: preset?.messages ? [...preset.messages] : [],
+        pinned: false,
+        archived: false,
+        deleted: false,
+      };
+
+      return [newChat, ...prev];
+    });
+
+    activateChat(newChatId);
   };
 
     const [openChatMenuId, setOpenChatMenuId] = useState<number | null>(null);
 
-  const activeChat = chats.find((c: any) => c.id === activeChatId);
+  const activeChat =
+  chats.find(
+    (c: any) =>
+      c.id === activeChatId &&
+      !c.archived &&
+      !c.deleted
+  ) ?? null;
 
 const messageShellClass =
   "w-full min-w-0 overflow-hidden";
@@ -352,53 +366,53 @@ const composerInputClass =
   "w-full min-w-0 resize-none overflow-x-hidden break-words [overflow-wrap:anywhere]";
 
   useEffect(() => {
-  const visibleChats = chats.filter(
-    (chat: any) => !chat.archived && !chat.deleted
-  );
+    const visibleChats = chats.filter(
+      (chat: any) => !chat.archived && !chat.deleted
+    );
 
-  if (isPersonalRoute) {
-    if (!personalStateLoaded && chats.length === 0) return;
+    if (isPersonalRoute) {
+      if (!personalStateLoaded && chats.length === 0) return;
 
-    if (visibleChats.length > 0) {
-      // ❗ BELANGRIJK: respecteer user selectie
-      const stillExists = visibleChats.some(
-        (chat: any) => chat.id === activeChatId
-      );
+      if (visibleChats.length === 0) {
+        if (activeChatId !== null) {
+          setActiveChatId(null);
+        }
 
-      if (!stillExists) {
-        setActiveChatId(visibleChats[0].id);
+        createNewChat({
+          title: "Persoonlijke omgeving",
+          messages: [
+            {
+              role: "ai",
+              content:
+                "👋 Welkom in je persoonlijke omgeving. Hier testen we privé memory, verbeterpunten en training van jouw AI-gedrag.",
+            },
+          ],
+        });
+
+        return;
+      }
+    } else if (visibleChats.length === 0) {
+      if (activeChatId !== null) {
+        setActiveChatId(null);
       }
 
+      createNewChat();
       return;
     }
 
-    createNewChat({
-      title: "Persoonlijke omgeving",
-      messages: [
-        {
-          role: "ai",
-          content:
-            "👋 Welkom in je persoonlijke omgeving. Hier testen we privé memory, verbeterpunten en training van jouw AI-gedrag.",
-        },
-      ],
-    });
+    if (activeChatId === null) {
+      setActiveChatId(visibleChats[0].id);
+      return;
+    }
 
-    return;
-  }
+    const activeStillVisible = visibleChats.some(
+      (chat: any) => chat.id === activeChatId
+    );
 
-  if (visibleChats.length === 0) {
-    createNewChat();
-    return;
-  }
-
-  const stillExists = visibleChats.some(
-    (chat: any) => chat.id === activeChatId
-  );
-
-  if (!stillExists) {
-    setActiveChatId(visibleChats[0].id);
-  }
-}, [isPersonalRoute, personalStateLoaded, chats, activeChatId]);
+    if (!activeStillVisible) {
+      setActiveChatId(visibleChats[0].id);
+    }
+  }, [isPersonalRoute, personalStateLoaded, chats, activeChatId]);
 
   const updateChatMeta = (
     chatId: number,
