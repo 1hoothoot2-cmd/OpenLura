@@ -74,12 +74,16 @@ export default function AnalyticsPage() {
     return "unknown";
   };
 
-  const getUserScope = (f: any) => {
+    const getUserScope = (f: any) => {
     if (f.userScope === "admin" || f.userScope === "guest") {
       return f.userScope;
     }
 
-    return f._localOnly ? "guest" : "guest";
+    if (f._localOnly) {
+      return "guest";
+    }
+
+    return "guest";
   };
 
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
@@ -589,6 +593,7 @@ useEffect(() => {
       _localOnly: true,
       type: normalizedType,
       source: normalizedSource,
+      userScope: "guest",
     };
   });
 
@@ -637,9 +642,15 @@ useEffect(() => {
     return next;
   });
 
-  const normalServerFeedback = data.filter(
-    (item: any) => item.type !== "workflow_status"
-  );
+  const normalServerFeedback = data
+    .filter((item: any) => item.type !== "workflow_status")
+    .map((item: any) => ({
+      ...item,
+      userScope:
+        item.userScope === "admin" || item.userScope === "guest"
+          ? item.userScope
+          : "guest",
+    }));
 
   const combined = [...normalServerFeedback, ...normalizedLocal];
 

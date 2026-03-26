@@ -1,4 +1,5 @@
 import OpenAI from "openai"; 
+import { createHmac, timingSafeEqual } from "crypto";
 
 let globalFeedback: any[] = [];
 const responseCache = new Map<
@@ -6,6 +7,11 @@ const responseCache = new Map<
   { text: string; sources: { title: string; url: string }[]; timestamp: number }
 >();
 const RESPONSE_CACHE_TTL_MS = 1000 * 60 * 10;
+const ADMIN_COOKIE_NAME = "openlura_admin_session";
+const adminSessionSecret =
+  process.env.ADMIN_SESSION_SECRET ||
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  "openlura-admin-session-secret";
 
 function detectCasualStyleMismatch(input: {
   userMessage: string;
@@ -182,6 +188,85 @@ function buildStyleLearningSignals(input: {
   };
 }
 
+function buildActiveLearningRules(input: {
+  learningConfidence: {
+    shorter: string;
+    clearer: string;
+    structure: string;
+    vague: string;
+    context: string;
+    casual: string;
+  };
+  cappedLearningStrength: {
+    shorter: number;
+    clearer: number;
+    structure: number;
+    vague: number;
+    context: number;
+    casual: number;
+  };
+}) {
+  const isActive = (strength: number, confidence: string) =>
+    confidence === "High" || (confidence === "Medium" && strength >= 3);
+
+  const isSoft = (strength: number, confidence: string) =>
+    !isActive(strength, confidence) &&
+    (confidence === "Medium" || (confidence === "Low" && strength >= 1));
+
+  return {
+    shorter: isActive(
+      input.cappedLearningStrength.shorter,
+      input.learningConfidence.shorter
+    ),
+    clearer: isActive(
+      input.cappedLearningStrength.clearer,
+      input.learningConfidence.clearer
+    ),
+    structured: isActive(
+      input.cappedLearningStrength.structure,
+      input.learningConfidence.structure
+    ),
+    moreConcrete: isActive(
+      input.cappedLearningStrength.vague,
+      input.learningConfidence.vague
+    ),
+    moreContext: isActive(
+      input.cappedLearningStrength.context,
+      input.learningConfidence.context
+    ),
+    casualTone: isActive(
+      input.cappedLearningStrength.casual,
+      input.learningConfidence.casual
+    ),
+    soft: {
+      shorter: isSoft(
+        input.cappedLearningStrength.shorter,
+        input.learningConfidence.shorter
+      ),
+      clearer: isSoft(
+        input.cappedLearningStrength.clearer,
+        input.learningConfidence.clearer
+      ),
+      structured: isSoft(
+        input.cappedLearningStrength.structure,
+        input.learningConfidence.structure
+      ),
+      moreConcrete: isSoft(
+        input.cappedLearningStrength.vague,
+        input.learningConfidence.vague
+      ),
+      moreContext: isSoft(
+        input.cappedLearningStrength.context,
+        input.learningConfidence.context
+      ),
+      casualTone: isSoft(
+        input.cappedLearningStrength.casual,
+        input.learningConfidence.casual
+      ),
+    },
+  };
+}
+
 function buildResponseStyleProfile(input: {
   isCasualChatRequest: boolean;
   shouldUseWebSearch: boolean;
@@ -202,10 +287,26 @@ function buildResponseStyleProfile(input: {
     context: number;
     casual: number;
   };
+  activeLearningRules: {
+    shorter: boolean;
+    clearer: boolean;
+    structured: boolean;
+    moreConcrete: boolean;
+    moreContext: boolean;
+    casualTone: boolean;
+    soft: {
+      shorter: boolean;
+      clearer: boolean;
+      structured: boolean;
+      moreConcrete: boolean;
+      moreContext: boolean;
+      casualTone: boolean;
+    };
+  };
 }) {
   const tone =
     input.isCasualChatRequest
-      ? input.cappedLearningStrength.casual >= 2
+      ? input.activeLearningRules.casualTone
         ? "casual_light"
         : "casual_balanced"
       : input.shouldUseWebSearch
@@ -215,31 +316,40 @@ function buildResponseStyleProfile(input: {
       : "default_premium";
 
   const brevity =
-    input.cappedLearningStrength.shorter >= 3
+    input.activeLearningRules.shorter
       ? "tight"
-      : input.isCasualChatRequest || input.isSimpleImageAnalysis
+      : input.activeLearningRules.soft.shorter ||
+        input.isCasualChatRequest ||
+        input.isSimpleImageAnalysis
       ? "compact"
       : "balanced";
 
   const structure =
     input.shouldUseWebSearch
       ? "shortlist"
-      : input.cappedLearningStrength.structure >= 2
+      : input.activeLearningRules.structured
       ? "structured"
-      : input.isCasualChatRequest
+      : input.activeLearningRules.soft.structured || input.isCasualChatRequest
       ? "minimal"
       : "balanced";
 
   const clarity =
-    input.cappedLearningStrength.clearer >= 2 || input.cappedLearningStrength.vague >= 2
+    input.activeLearningRules.clearer || input.activeLearningRules.moreConcrete
       ? "high"
+      : input.activeLearningRules.soft.clearer ||
+        input.activeLearningRules.soft.moreConcrete
+      ? "elevated"
       : "normal";
 
   const depth =
-    input.cappedLearningStrength.context >= 2 &&
+    input.activeLearningRules.moreContext &&
     !input.isCasualChatRequest &&
     !input.isSimpleImageAnalysis
       ? "expanded"
+      : input.activeLearningRules.soft.moreContext &&
+        !input.isCasualChatRequest &&
+        !input.isSimpleImageAnalysis
+      ? "standard_plus"
       : "standard";
 
   return {
@@ -275,6 +385,22 @@ function buildSharedStyleInstructionBlock(input: {
     context: number;
     casual: number;
   };
+  activeLearningRules: {
+    shorter: boolean;
+    clearer: boolean;
+    structured: boolean;
+    moreConcrete: boolean;
+    moreContext: boolean;
+    casualTone: boolean;
+    soft: {
+      shorter: boolean;
+      clearer: boolean;
+      structured: boolean;
+      moreConcrete: boolean;
+      moreContext: boolean;
+      casualTone: boolean;
+    };
+  };
 }) {
   return `Response style profile:
 - tone: ${input.responseStyleProfile.tone}
@@ -282,6 +408,14 @@ function buildSharedStyleInstructionBlock(input: {
 - structure: ${input.responseStyleProfile.structure}
 - clarity: ${input.responseStyleProfile.clarity}
 - depth: ${input.responseStyleProfile.depth}
+
+Active learning rules:
+- shorter replies: ${input.activeLearningRules.shorter ? "strong" : input.activeLearningRules.soft.shorter ? "light" : "off"}
+- clearer wording: ${input.activeLearningRules.clearer ? "strong" : input.activeLearningRules.soft.clearer ? "light" : "off"}
+- better structure: ${input.activeLearningRules.structured ? "strong" : input.activeLearningRules.soft.structured ? "light" : "off"}
+- more concrete answers: ${input.activeLearningRules.moreConcrete ? "strong" : input.activeLearningRules.soft.moreConcrete ? "light" : "off"}
+- more context: ${input.activeLearningRules.moreContext ? "strong" : input.activeLearningRules.soft.moreContext ? "light" : "off"}
+- casual natural tone: ${input.activeLearningRules.casualTone ? "strong" : input.activeLearningRules.soft.casualTone ? "light" : "off"}
 
 Style pressure:
 - shorter: ${input.cappedLearningStrength.shorter}
@@ -471,9 +605,47 @@ function buildAutoDebugSignature(input: {
   });
 }
 
+function signAdminSession(expiresAt: string) {
+  return createHmac("sha256", adminSessionSecret).update(expiresAt).digest("hex");
+}
+
+function isValidAdminSession(value?: string | null) {
+  if (!value) return false;
+
+  const [expiresAt, signature] = value.split(".");
+  if (!expiresAt || !signature) return false;
+  if (Number(expiresAt) <= Date.now()) return false;
+
+  const expected = signAdminSession(expiresAt);
+
+  try {
+    return timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+  } catch {
+    return false;
+  }
+}
+
+function getCookieValue(req: Request, name: string) {
+  return (
+    req.headers
+      .get("cookie")
+      ?.split(";")
+      .map((part) => part.trim())
+      .find((part) => part.startsWith(`${name}=`))
+      ?.split("=")[1] ?? null
+  );
+}
+
+function getUserScopeFromRequest(req: Request) {
+  return isValidAdminSession(getCookieValue(req, ADMIN_COOKIE_NAME))
+    ? "admin"
+    : "guest";
+}
+
 async function storeAutoDebugSignals(input: {
   userMessage?: string;
   aiText?: string;
+  userScope?: "admin" | "guest";
   signals: {
     type: string;
     confidence: "low" | "medium" | "high";
@@ -488,16 +660,51 @@ async function storeAutoDebugSignals(input: {
     return;
   }
 
-  const rows = input.signals.map((signal) => ({
-    chatId: null,
-    msgIndex: null,
-    type: "auto_debug",
-    message: `[${signal.confidence}] ${signal.message}`,
-    userMessage: input.userMessage || null,
-    source: `${signal.source}__route_${signal.routeType}__variant_${signal.variant}`,
-    learningType: signal.learningType,
-    timestamp: new Date().toISOString(),
-  }));
+  const recentRows = await fetchSupabaseFeedbackRows(
+    "select=type,message,userMessage,source,learningType,timestamp&eq.type=auto_debug&order=timestamp.desc&limit=50",
+    "OpenLura recent auto debug fetch failed:"
+  );
+
+  const recentSignatures = new Set(
+    recentRows.map((item: any) =>
+      buildAutoDebugSignature({
+        userMessage: item.userMessage,
+        signalSource: String(item.source || "").split("__route_")[0],
+        learningType: inferFeedbackLearningType(item),
+        confidence:
+          String(item.message || "")
+            .toLowerCase()
+            .match(/^\[(high|medium|low)\]/)?.[1] as "low" | "medium" | "high" || "low",
+      })
+    )
+  );
+
+  const rows = input.signals
+    .filter((signal) => {
+      const signature = buildAutoDebugSignature({
+        userMessage: input.userMessage,
+        signalSource: signal.source,
+        learningType: signal.learningType,
+        confidence: signal.confidence,
+      });
+
+      return !recentSignatures.has(signature);
+    })
+    .map((signal) => ({
+      chatId: null,
+      msgIndex: null,
+      type: "auto_debug",
+      message: `[${signal.confidence}] ${signal.message}`,
+      userMessage: input.userMessage || null,
+      source: `${signal.source}__route_${signal.routeType}__variant_${signal.variant}`,
+      learningType: signal.learningType,
+      userScope: input.userScope || "guest",
+      timestamp: new Date().toISOString(),
+    }));
+
+  if (rows.length === 0) {
+    return;
+  }
 
   try {
     const res = await fetch(`${supabaseUrl}/rest/v1/openlura_feedback`, {
@@ -544,7 +751,8 @@ const openai = new OpenAI({
 
 export async function POST(req: Request) {
   const { message, image, memory, personalMemory, location, feedback } = await req.json();
-   const serverFeedback = await getRecentServerFeedback();
+  const userScope = getUserScopeFromRequest(req);
+  const serverFeedback = await getRecentServerFeedback();
 
     const normalizedServerFeedback = serverFeedback.map((item: any) => ({
     type: item.type,
@@ -856,7 +1064,7 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
     casual: getSignalConfidence(casualCount),
   };
 
-    const cappedLearningStrength = {
+        const cappedLearningStrength = {
     shorter: Math.min(shorterCount, 8),
     clearer: Math.min(clearerCount, 8),
     structure: Math.min(structureCount, 8),
@@ -865,19 +1073,24 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
     casual: Math.min(casualCount, 8),
   };
 
-      const activeLearningRules = [
+  const resolvedActiveLearningRules = buildActiveLearningRules({
+    learningConfidence,
+    cappedLearningStrength,
+  });
+
+    const activeLearningRules = [
     shorterCount >= 1 &&
-      `- Keep answers shorter and cut filler aggressively (strength: ${cappedLearningStrength.shorter}, confidence: ${learningConfidence.shorter})`,
+      `- Prefer shorter, tighter answers with less filler (strength: ${cappedLearningStrength.shorter}, confidence: ${learningConfidence.shorter}, mode: ${resolvedActiveLearningRules.shorter ? "strong" : resolvedActiveLearningRules.soft.shorter ? "light" : "off"})`,
     clearerCount >= 1 &&
-      `- Use simpler wording and make the explanation easier to follow (strength: ${cappedLearningStrength.clearer}, confidence: ${learningConfidence.clearer})`,
+      `- Use simpler wording and make the explanation easier to follow (strength: ${cappedLearningStrength.clearer}, confidence: ${learningConfidence.clearer}, mode: ${resolvedActiveLearningRules.clearer ? "strong" : resolvedActiveLearningRules.soft.clearer ? "light" : "off"})`,
     structureCount >= 1 &&
-      `- Use cleaner structure with clearer sections and flow (strength: ${cappedLearningStrength.structure}, confidence: ${learningConfidence.structure})`,
+      `- Use cleaner structure with clearer sections and flow (strength: ${cappedLearningStrength.structure}, confidence: ${learningConfidence.structure}, mode: ${resolvedActiveLearningRules.structured ? "strong" : resolvedActiveLearningRules.soft.structured ? "light" : "off"})`,
     vagueCount >= 1 &&
-      `- Be more concrete, specific, and less generic (strength: ${cappedLearningStrength.vague}, confidence: ${learningConfidence.vague})`,
+      `- Be more concrete, specific, and less generic (strength: ${cappedLearningStrength.vague}, confidence: ${learningConfidence.vague}, mode: ${resolvedActiveLearningRules.moreConcrete ? "strong" : resolvedActiveLearningRules.soft.moreConcrete ? "light" : "off"})`,
     contextCount >= 1 &&
-      `- Add a bit more depth and explain the why more clearly (strength: ${cappedLearningStrength.context}, confidence: ${learningConfidence.context})`,
+      `- Add a bit more depth and explain the why more clearly (strength: ${cappedLearningStrength.context}, confidence: ${learningConfidence.context}, mode: ${resolvedActiveLearningRules.moreContext ? "strong" : resolvedActiveLearningRules.soft.moreContext ? "light" : "off"})`,
     casualCount >= 1 &&
-      `- In casual conversation, sound lighter, shorter, and more natural instead of formal or essay-like (strength: ${cappedLearningStrength.casual}, confidence: ${learningConfidence.casual})`,
+      `- In casual conversation, sound lighter, shorter, and more natural instead of formal or essay-like (strength: ${cappedLearningStrength.casual}, confidence: ${learningConfidence.casual}, mode: ${resolvedActiveLearningRules.casualTone ? "strong" : resolvedActiveLearningRules.soft.casualTone ? "light" : "off"})`,
   ]
     .filter(Boolean)
     .join("\n");
@@ -979,11 +1192,13 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
       isSimpleImageAnalysis,
       learningConfidence,
       cappedLearningStrength,
+      activeLearningRules: resolvedActiveLearningRules,
     });
 
     const sharedStyleInstructionBlock = buildSharedStyleInstructionBlock({
       responseStyleProfile,
       cappedLearningStrength,
+      activeLearningRules: resolvedActiveLearningRules,
     });
 
     const fastRouteDecisionInput = {
@@ -1633,9 +1848,10 @@ ${aiText}`,
     routeType: resolvedRouteType,
   });
 
-  await storeAutoDebugSignals({
-    userMessage: message || "",
+      await storeAutoDebugSignals({
+    userMessage: message,
     aiText,
+    userScope,
     signals: autoDebugSignals,
   });
 
