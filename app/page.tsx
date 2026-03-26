@@ -426,49 +426,50 @@ const activeChat =
 
     const pendingId = pendingActiveChatIdRef.current;
 
-    if (pendingId !== null) {
-      const pendingVisible = visibleChats.some(
-        (chat: any) => chat.id === pendingId
-      );
+if (pendingId !== null) {
+  const pendingVisible = visibleChats.some(
+    (chat: any) => chat.id === pendingId
+  );
 
-      if (!pendingVisible) {
-        return;
-      }
+  if (!pendingVisible) {
+    return;
+  }
 
-      if (activeChatId !== pendingId) {
-        setActiveChatId(pendingId);
-        return;
-      }
+  if (activeChatId !== pendingId) {
+    setActiveChatId(pendingId);
+    return;
+  }
 
-      pendingActiveChatIdRef.current = null;
-      preferredActiveChatIdRef.current = pendingId;
-      return;
-    }
+  pendingActiveChatIdRef.current = null;
+  preferredActiveChatIdRef.current = pendingId;
+  return;
+}
 
-    const preferredId = preferredActiveChatIdRef.current;
+const currentActiveStillVisible =
+  activeChatId !== null &&
+  visibleChats.some((chat: any) => chat.id === activeChatId);
 
-    if (
-      preferredId !== null &&
-      visibleChats.some((chat: any) => chat.id === preferredId)
-    ) {
-      if (activeChatId !== preferredId) {
-        setActiveChatId(preferredId);
-      }
-      return;
-    }
+if (currentActiveStillVisible) {
+  preferredActiveChatIdRef.current = activeChatId;
+  return;
+}
 
-    const currentActiveStillVisible =
-      activeChatId !== null &&
-      visibleChats.some((chat: any) => chat.id === activeChatId);
+const preferredId = preferredActiveChatIdRef.current;
 
-    if (currentActiveStillVisible) {
-      return;
-    }
+if (
+  preferredId !== null &&
+  visibleChats.some((chat: any) => chat.id === preferredId)
+) {
+  if (activeChatId !== preferredId) {
+    setActiveChatId(preferredId);
+  }
+  return;
+}
 
-    const fallbackId = visibleChats[0].id;
-    preferredActiveChatIdRef.current = fallbackId;
-    setActiveChatId(fallbackId);
-  }, [isPersonalRoute, personalStateLoaded, chats]);
+const fallbackId = visibleChats[0].id;
+preferredActiveChatIdRef.current = fallbackId;
+setActiveChatId(fallbackId);
+  }, [isPersonalRoute, personalStateLoaded, chats, activeChatId]);
 
   const updateChatMeta = (
     chatId: number,
