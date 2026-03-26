@@ -14,21 +14,7 @@ export default function AnalyticsPage() {
     const [learningTypeFilter, setLearningTypeFilter] = useState("all");
     const [autoDebugConfidenceFilter, setAutoDebugConfidenceFilter] = useState("all");
     const [autoDebugRouteFilter, setAutoDebugRouteFilter] = useState("all");
-
-      useEffect(() => {
-    if (activeTab !== "ideas") {
-      setIdeaFilter("all");
-    }
-
-    if (activeTab === "positive") {
-      setLearningTypeFilter("all");
-    }
-
-    if (activeTab !== "auto_debug") {
-      setAutoDebugConfidenceFilter("all");
-      setAutoDebugRouteFilter("all");
-    }
-  }, [activeTab]);
+    const [autoDebugSignalFilter, setAutoDebugSignalFilter] = useState("all");
 
   useEffect(() => {
     const saved = localStorage.getItem("openlura_analytics_status");
@@ -62,6 +48,34 @@ export default function AnalyticsPage() {
     return match?.[1] || "unknown";
   };
 
+  const getAutoDebugSignalType = (f: any) => {
+    const source = String(f.source || "");
+
+    if (source.includes("auto_debug_casual_mismatch")) return "casual_mismatch";
+    if (source.includes("auto_debug_possible_search_miss")) return "search_miss";
+    if (source.includes("auto_debug_possible_image_context_miss")) return "image_context_miss";
+    if (source.includes("auto_debug_weak_source_support")) return "weak_source_support";
+    if (source.includes("auto_debug_too_verbose_for_image_route")) return "verbose_image_route";
+
+    return "unknown";
+  };
+
+  useEffect(() => {
+    if (activeTab !== "ideas") {
+      setIdeaFilter("all");
+    }
+
+    if (activeTab === "positive") {
+      setLearningTypeFilter("all");
+    }
+
+    if (activeTab !== "auto_debug") {
+      setAutoDebugConfidenceFilter("all");
+      setAutoDebugRouteFilter("all");
+      setAutoDebugSignalFilter("all");
+    }
+  }, [activeTab]);
+
     useEffect(() => {
     const checkAnalyticsAccess = async () => {
       try {
@@ -92,7 +106,10 @@ export default function AnalyticsPage() {
 
     const resolvedLearningType = inferLearningType(f);
     const supportsLearningTypeFilter =
-      f.type === "down" || f.type === "improve" || f.source === "idea_feedback_learning";
+      f.type === "down" ||
+      f.type === "improve" ||
+      f.type === "auto_debug" ||
+      f.source === "idea_feedback_learning";
 
     if (
       learningTypeFilter !== "all" &&
@@ -114,6 +131,14 @@ export default function AnalyticsPage() {
       activeTab === "auto_debug" &&
       autoDebugRouteFilter !== "all" &&
       getAutoDebugRouteType(f) !== autoDebugRouteFilter
+    ) {
+      return false;
+    }
+
+    if (
+      activeTab === "auto_debug" &&
+      autoDebugSignalFilter !== "all" &&
+      getAutoDebugSignalType(f) !== autoDebugSignalFilter
     ) {
       return false;
     }
@@ -141,11 +166,11 @@ export default function AnalyticsPage() {
     const bugIdeas = ideaFeedback.filter((f: any) => f.source === "idea_bug");
 
   const autoDebugSignalCounts = {
-    casualMismatch: autoDebugFeedback.filter((f: any) => f.source === "auto_debug_casual_mismatch").length,
-    searchMiss: autoDebugFeedback.filter((f: any) => f.source === "auto_debug_possible_search_miss").length,
-    imageContextMiss: autoDebugFeedback.filter((f: any) => f.source === "auto_debug_possible_image_context_miss").length,
-    weakSourceSupport: autoDebugFeedback.filter((f: any) => f.source === "auto_debug_weak_source_support").length,
-    verboseImageRoute: autoDebugFeedback.filter((f: any) => f.source === "auto_debug_too_verbose_for_image_route").length,
+    casualMismatch: autoDebugFeedback.filter((f: any) => String(f.source || "").includes("auto_debug_casual_mismatch")).length,
+    searchMiss: autoDebugFeedback.filter((f: any) => String(f.source || "").includes("auto_debug_possible_search_miss")).length,
+    imageContextMiss: autoDebugFeedback.filter((f: any) => String(f.source || "").includes("auto_debug_possible_image_context_miss")).length,
+    weakSourceSupport: autoDebugFeedback.filter((f: any) => String(f.source || "").includes("auto_debug_weak_source_support")).length,
+    verboseImageRoute: autoDebugFeedback.filter((f: any) => String(f.source || "").includes("auto_debug_too_verbose_for_image_route")).length,
   };
 
   const autoDebugConfidenceCounts = {
@@ -1126,7 +1151,7 @@ return () => {
       </button>
     </div>
 
-    <div className="mb-6 flex flex-wrap gap-2">
+    <div className="mb-4 flex flex-wrap gap-2">
       <button
         onClick={() => setAutoDebugRouteFilter("all")}
         className={`px-4 py-2 rounded-xl ${autoDebugRouteFilter === "all" ? "bg-white text-black" : "bg-white/10 text-white"}`}
@@ -1156,6 +1181,45 @@ return () => {
         className={`px-4 py-2 rounded-xl ${autoDebugRouteFilter === "default" ? "bg-green-400 text-black" : "bg-white/10 text-white"}`}
       >
         Default
+      </button>
+    </div>
+
+    <div className="mb-6 flex flex-wrap gap-2 items-start">
+      <button
+        onClick={() => setAutoDebugSignalFilter("all")}
+        className={`px-3 py-2 rounded-xl text-sm ${autoDebugSignalFilter === "all" ? "bg-white text-black" : "bg-white/10 text-white"}`}
+      >
+        Alle signalen
+      </button>
+      <button
+        onClick={() => setAutoDebugSignalFilter("casual_mismatch")}
+        className={`px-3 py-2 rounded-xl text-sm ${autoDebugSignalFilter === "casual_mismatch" ? "bg-orange-400 text-black" : "bg-white/10 text-white"}`}
+      >
+        Casual mismatch
+      </button>
+      <button
+        onClick={() => setAutoDebugSignalFilter("search_miss")}
+        className={`px-3 py-2 rounded-xl text-sm ${autoDebugSignalFilter === "search_miss" ? "bg-cyan-400 text-black" : "bg-white/10 text-white"}`}
+      >
+        Search miss
+      </button>
+      <button
+        onClick={() => setAutoDebugSignalFilter("image_context_miss")}
+        className={`px-3 py-2 rounded-xl text-sm ${autoDebugSignalFilter === "image_context_miss" ? "bg-pink-400 text-black" : "bg-white/10 text-white"}`}
+      >
+        Image miss
+      </button>
+      <button
+        onClick={() => setAutoDebugSignalFilter("weak_source_support")}
+        className={`px-3 py-2 rounded-xl text-sm ${autoDebugSignalFilter === "weak_source_support" ? "bg-yellow-400 text-black" : "bg-white/10 text-white"}`}
+      >
+        Weak sources
+      </button>
+      <button
+        onClick={() => setAutoDebugSignalFilter("verbose_image_route")}
+        className={`px-3 py-2 rounded-xl text-sm ${autoDebugSignalFilter === "verbose_image_route" ? "bg-red-400 text-black" : "bg-white/10 text-white"}`}
+      >
+        Verbose image
       </button>
     </div>
   </>
@@ -1260,9 +1324,11 @@ return () => {
     </p>
     <p className="text-xs opacity-60">
       {activeTab === "auto_debug"
-        ? autoDebugConfidenceFilter === "all" && autoDebugRouteFilter === "all"
+        ? autoDebugConfidenceFilter === "all" &&
+          autoDebugRouteFilter === "all" &&
+          autoDebugSignalFilter === "all"
           ? "Auto Debug filters staan op alles."
-          : `Auto Debug filters: confidence = ${autoDebugConfidenceFilter}, route = ${autoDebugRouteFilter}.`
+          : `Auto Debug filters: confidence = ${autoDebugConfidenceFilter}, route = ${autoDebugRouteFilter}, signaal = ${autoDebugSignalFilter}.`
         : learningTypeFilter === "all"
         ? "Learning type filter staat op alles."
         : learningTypeFilter === "style"
