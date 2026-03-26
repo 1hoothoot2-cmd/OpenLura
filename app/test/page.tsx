@@ -377,7 +377,7 @@ const activeChat =
       !c.deleted
   ) ?? null;
 
-  useEffect(() => {
+    useEffect(() => {
     const visibleChats = chats.filter(
       (chat: any) => !chat.archived && !chat.deleted
     );
@@ -417,10 +417,7 @@ const activeChat =
 
       pendingActiveChatIdRef.current = null;
       preferredActiveChatIdRef.current = pendingId;
-
-      if (activeChatId !== pendingId) {
-        setActiveChatId(pendingId);
-      }
+      setActiveChatId(pendingId);
       return;
     }
 
@@ -430,26 +427,22 @@ const activeChat =
       preferredId !== null &&
       visibleChats.some((chat: any) => chat.id === preferredId)
     ) {
-      if (activeChatId !== preferredId) {
-        setActiveChatId(preferredId);
-      }
+      setActiveChatId(preferredId);
       return;
     }
 
-    if (
+    const currentActiveStillVisible =
       activeChatId !== null &&
-      visibleChats.some((chat: any) => chat.id === activeChatId)
-    ) {
+      visibleChats.some((chat: any) => chat.id === activeChatId);
+
+    if (currentActiveStillVisible) {
       return;
     }
 
     const fallbackId = visibleChats[0].id;
     preferredActiveChatIdRef.current = fallbackId;
-
-    if (activeChatId !== fallbackId) {
-      setActiveChatId(fallbackId);
-    }
-  }, [isPersonalRoute, personalStateLoaded, chats, activeChatId]);
+    setActiveChatId(fallbackId);
+  }, [isPersonalRoute, personalStateLoaded, chats]);
 
   const updateChatMeta = (
     chatId: number,
