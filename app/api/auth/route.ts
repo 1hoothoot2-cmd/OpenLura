@@ -47,6 +47,13 @@ export async function POST(req: Request) {
     const password = String(body?.password ?? "");
 
     if (!adminUsername || !adminPasswordHash) {
+      console.error("OpenLura admin auth missing env:", {
+        hasAdminUsername: !!adminUsername,
+        hasAdminPasswordHash: !!adminPasswordHash,
+        hasAdminSessionSecret: !!adminSessionSecret,
+        nodeEnv: process.env.NODE_ENV,
+      });
+
       return NextResponse.json(
         { success: false, error: "Admin auth not configured" },
         { status: 500 }
@@ -59,6 +66,11 @@ export async function POST(req: Request) {
         { status: 401 }
       );
     }
+
+    console.log("OpenLura admin env loaded:", {
+      username: adminUsername,
+      hashLength: adminPasswordHash.length,
+    });
 
     const validPassword = await bcrypt.compare(password, adminPasswordHash);
 
