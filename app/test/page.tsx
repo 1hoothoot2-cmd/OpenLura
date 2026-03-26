@@ -42,8 +42,11 @@ export default function Home() {
   const [loginLoading, setLoginLoading] = useState(false);
   
   const fileRef = useRef<HTMLInputElement>(null);
-    const messagesRef = useRef<HTMLDivElement>(null);
+  const messagesRef = useRef<HTMLDivElement>(null);
   const chatMenuRef = useRef<HTMLDivElement>(null);
+  const preferredActiveChatIdRef = useRef<number | null>(null);
+  const pendingActiveChatIdRef = useRef<number | null>(null);
+  const [openChatMenuId, setOpenChatMenuId] = useState<number | null>(null);
 
   const greetings = [
     "👋 Hey! Waar kan ik je mee helpen?",
@@ -86,11 +89,14 @@ export default function Home() {
                 }));
 
                 setChats(normalizedChats);
-                setActiveChatId(
+
+                const nextActiveChatId =
                   normalizedChats.find(
                     (chat: any) => !chat.archived && !chat.deleted
-                  )?.id ?? null
-                );
+                  )?.id ?? null;
+
+                preferredActiveChatIdRef.current = nextActiveChatId;
+                setActiveChatId(nextActiveChatId);
               }
 
               if (serverMemory.length > 0) {
@@ -128,11 +134,14 @@ export default function Home() {
           }));
 
           setChats(normalizedChats);
-          setActiveChatId(
+
+          const nextActiveChatId =
             normalizedChats.find(
               (chat: any) => !chat.archived && !chat.deleted
-            )?.id ?? null
-          );
+            )?.id ?? null;
+
+          preferredActiveChatIdRef.current = nextActiveChatId;
+          setActiveChatId(nextActiveChatId);
         } else if (!saved && !isPersonalRoute) {
           createNewChat();
         }
@@ -219,9 +228,10 @@ export default function Home() {
     };
   }, []);
 
-    useEffect(() => {
+  useEffect(() => {
     setOpenChatMenuId(null);
   }, [activeChatId]);
+
   useEffect(() => {
   const el = messagesRef.current;
   if (!el) return;
@@ -300,6 +310,8 @@ export default function Home() {
   }, []);
 
   const activateChat = (chatId: number) => {
+    pendingActiveChatIdRef.current = chatId;
+    preferredActiveChatIdRef.current = chatId;
     setActiveChatId(chatId);
     setOpenChatMenuId(null);
   };
@@ -316,7 +328,9 @@ export default function Home() {
     const newChatId = Date.now() + Math.floor(Math.random() * 1000);
 
     setChats((prev) => {
-      const existingTitles = prev.map((chat: any) => String(chat.title || "").trim());
+      const existingTitles = prev.map((chat: any) =>
+        String(chat.title || "").trim()
+      );
 
       const buildUniqueTitle = (rawBaseTitle: string) => {
         if (!existingTitles.includes(rawBaseTitle)) return rawBaseTitle;
@@ -344,16 +358,6 @@ export default function Home() {
     activateChat(newChatId);
   };
 
-    const [openChatMenuId, setOpenChatMenuId] = useState<number | null>(null);
-
-  const activeChat =
-  chats.find(
-    (c: any) =>
-      c.id === activeChatId &&
-      !c.archived &&
-      !c.deleted
-  ) ?? null;
-
 const messageShellClass =
   "w-full min-w-0 overflow-hidden";
 const messageBubbleClass =
@@ -365,19 +369,25 @@ const composerInnerClass =
 const composerInputClass =
   "w-full min-w-0 resize-none overflow-x-hidden break-words [overflow-wrap:anywhere]";
 
+const activeChat =
+  chats.find(
+    (c: any) =>
+      c.id === activeChatId &&
+      !c.archived &&
+      !c.deleted
+  ) ?? null;
+
   useEffect(() => {
     const visibleChats = chats.filter(
       (chat: any) => !chat.archived && !chat.deleted
     );
 
-    if (isPersonalRoute) {
-      if (!personalStateLoaded && chats.length === 0) return;
+    if (isPersonalRoute && !personalStateLoaded && chats.length === 0) {
+      return;
+    }
 
-      if (visibleChats.length === 0) {
-        if (activeChatId !== null) {
-          setActiveChatId(null);
-        }
-
+    if (visibleChats.length === 0) {
+      if (isPersonalRoute) {
         createNewChat({
           title: "Persoonlijke omgeving",
           messages: [
@@ -388,29 +398,56 @@ const composerInputClass =
             },
           ],
         });
+      } else {
+        createNewChat();
+      }
+      return;
+    }
 
+    const pendingId = pendingActiveChatIdRef.current;
+
+    if (pendingId !== null) {
+      const pendingVisible = visibleChats.some(
+        (chat: any) => chat.id === pendingId
+      );
+
+      if (!pendingVisible) {
         return;
       }
-    } else if (visibleChats.length === 0) {
-      if (activeChatId !== null) {
-        setActiveChatId(null);
+
+      pendingActiveChatIdRef.current = null;
+      preferredActiveChatIdRef.current = pendingId;
+
+      if (activeChatId !== pendingId) {
+        setActiveChatId(pendingId);
       }
-
-      createNewChat();
       return;
     }
 
-    if (activeChatId === null) {
-      setActiveChatId(visibleChats[0].id);
+    const preferredId = preferredActiveChatIdRef.current;
+
+    if (
+      preferredId !== null &&
+      visibleChats.some((chat: any) => chat.id === preferredId)
+    ) {
+      if (activeChatId !== preferredId) {
+        setActiveChatId(preferredId);
+      }
       return;
     }
 
-    const activeStillVisible = visibleChats.some(
-      (chat: any) => chat.id === activeChatId
-    );
+    if (
+      activeChatId !== null &&
+      visibleChats.some((chat: any) => chat.id === activeChatId)
+    ) {
+      return;
+    }
 
-    if (!activeStillVisible) {
-      setActiveChatId(visibleChats[0].id);
+    const fallbackId = visibleChats[0].id;
+    preferredActiveChatIdRef.current = fallbackId;
+
+    if (activeChatId !== fallbackId) {
+      setActiveChatId(fallbackId);
     }
   }, [isPersonalRoute, personalStateLoaded, chats, activeChatId]);
 
@@ -432,7 +469,10 @@ const composerInputClass =
       const nextVisibleChat = updatedChats.find(
         (chat: any) => !chat.archived && !chat.deleted
       );
-      setActiveChatId(nextVisibleChat?.id ?? null);
+      const nextActiveChatId = nextVisibleChat?.id ?? null;
+
+      preferredActiveChatIdRef.current = nextActiveChatId;
+      setActiveChatId(nextActiveChatId);
     }
 
     setOpenChatMenuId(null);
@@ -532,6 +572,7 @@ const composerInputClass =
       };
 
       setChats([fallbackChat]);
+      preferredActiveChatIdRef.current = fallbackChat.id;
       setActiveChatId(fallbackChat.id);
     } else {
       setChats(remainingChats);
@@ -540,7 +581,9 @@ const composerInputClass =
         (chat: any) => !chat.archived && !chat.deleted
       );
 
-      setActiveChatId(nextVisibleChat?.id ?? remainingChats[0]?.id ?? null);
+      const nextActiveChatId = nextVisibleChat?.id ?? remainingChats[0]?.id ?? null;
+      preferredActiveChatIdRef.current = nextActiveChatId;
+      setActiveChatId(nextActiveChatId);
     }
 
     setShowClearDeletedConfirm(false);
@@ -1079,6 +1122,8 @@ Geef alleen direct het betere antwoord.`,
       updated = [fallbackChat, ...updated];
       index = 0;
       setChats(updated);
+      pendingActiveChatIdRef.current = fallbackChat.id;
+      preferredActiveChatIdRef.current = fallbackChat.id;
       setActiveChatId(fallbackChat.id);
     }
 
@@ -1505,7 +1550,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                 >
                                     <div
                     onClick={() => {
-                      setActiveChatId(chat.id);
+                      activateChat(chat.id);
                       setMobileMenu(false);
                     }}
                                         className="pr-8 cursor-pointer flex items-center gap-2 min-w-0"
@@ -1583,7 +1628,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                 >
                   <div
                     onClick={() => {
-                      setActiveChatId(chat.id);
+                      activateChat(chat.id);
                       setMobileMenu(false);
                     }}
                                         className="pr-8 cursor-pointer truncate"
@@ -1656,7 +1701,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                 >
                   <div
                     onClick={() => {
-                      setActiveChatId(chat.id);
+                      activateChat(chat.id);
                       setMobileMenu(false);
                     }}
                     className="pr-8 cursor-pointer opacity-80"
