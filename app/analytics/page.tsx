@@ -12,6 +12,7 @@ export default function AnalyticsPage() {
     const [itemStatus, setItemStatus] = useState<{ [key: string]: string }>({});
     const [workflowFilter, setWorkflowFilter] = useState("all");
     const [learningTypeFilter, setLearningTypeFilter] = useState("all");
+    const [autoDebugConfidenceFilter, setAutoDebugConfidenceFilter] = useState("all");
 
       useEffect(() => {
     if (activeTab !== "ideas") {
@@ -20,6 +21,10 @@ export default function AnalyticsPage() {
 
     if (activeTab === "positive") {
       setLearningTypeFilter("all");
+    }
+
+    if (activeTab !== "auto_debug") {
+      setAutoDebugConfidenceFilter("all");
     }
   }, [activeTab]);
 
@@ -47,6 +52,11 @@ export default function AnalyticsPage() {
   const getAutoDebugRouteType = (f: any) => {
     const source = String(f.source || "");
     const match = source.match(/__route_(fast_text|fast_image|search|default)/);
+    return match?.[1] || "unknown";
+  };
+
+  const getAutoDebugConfidence = (f: any) => {
+    const match = String(f.message || "").toLowerCase().match(/^\[(high|medium|low)\]/);
     return match?.[1] || "unknown";
   };
 
@@ -90,6 +100,14 @@ export default function AnalyticsPage() {
       return false;
     }
 
+    if (
+      activeTab === "auto_debug" &&
+      autoDebugConfidenceFilter !== "all" &&
+      getAutoDebugConfidence(f) !== autoDebugConfidenceFilter
+    ) {
+      return false;
+    }
+
     if (activeTab === "all") return true;
     if (activeTab === "positive") return f.type === "up";
     if (activeTab === "negative") return f.type === "down";
@@ -121,9 +139,9 @@ export default function AnalyticsPage() {
   };
 
   const autoDebugConfidenceCounts = {
-    high: autoDebugFeedback.filter((f: any) => String(f.message || "").toLowerCase().startsWith("[high]")).length,
-    medium: autoDebugFeedback.filter((f: any) => String(f.message || "").toLowerCase().startsWith("[medium]")).length,
-    low: autoDebugFeedback.filter((f: any) => String(f.message || "").toLowerCase().startsWith("[low]")).length,
+    high: autoDebugFeedback.filter((f: any) => getAutoDebugConfidence(f) === "high").length,
+    medium: autoDebugFeedback.filter((f: any) => getAutoDebugConfidence(f) === "medium").length,
+    low: autoDebugFeedback.filter((f: any) => getAutoDebugConfidence(f) === "low").length,
   };
 
   const autoDebugRouteCounts = {
@@ -1069,6 +1087,35 @@ return () => {
   </button>
 </div>
 
+{activeTab === "auto_debug" && (
+  <div className="mb-6 flex flex-wrap gap-2">
+    <button
+      onClick={() => setAutoDebugConfidenceFilter("all")}
+      className={`px-4 py-2 rounded-xl ${autoDebugConfidenceFilter === "all" ? "bg-white text-black" : "bg-white/10 text-white"}`}
+    >
+      Alle confidence
+    </button>
+    <button
+      onClick={() => setAutoDebugConfidenceFilter("high")}
+      className={`px-4 py-2 rounded-xl ${autoDebugConfidenceFilter === "high" ? "bg-red-400 text-black" : "bg-white/10 text-white"}`}
+    >
+      High
+    </button>
+    <button
+      onClick={() => setAutoDebugConfidenceFilter("medium")}
+      className={`px-4 py-2 rounded-xl ${autoDebugConfidenceFilter === "medium" ? "bg-yellow-400 text-black" : "bg-white/10 text-white"}`}
+    >
+      Medium
+    </button>
+    <button
+      onClick={() => setAutoDebugConfidenceFilter("low")}
+      className={`px-4 py-2 rounded-xl ${autoDebugConfidenceFilter === "low" ? "bg-blue-400 text-black" : "bg-white/10 text-white"}`}
+    >
+      Low
+    </button>
+  </div>
+)}
+
 <div className="grid md:grid-cols-4 gap-4 mb-6">
   <div className="p-4 bg-white/10 rounded-2xl">
     <h2 className="text-lg mb-3">🚨 Top complaints</h2>
@@ -1167,9 +1214,15 @@ return () => {
       {activeTab === "ideas" && "Je ziet nu alleen ingestuurde ideeën en algemene feedback."}
     </p>
     <p className="text-xs opacity-60">
-      {learningTypeFilter === "all" && "Learning type filter staat op alles."}
-      {learningTypeFilter === "style" && "Je filtert nu op stijlfeedback zoals tone, lengte, duidelijkheid en structuur."}
-      {learningTypeFilter === "content" && "Je filtert nu op contentfeedback zoals antwoordvorm en succesvolle antwoordpatronen."}
+      {activeTab === "auto_debug"
+        ? autoDebugConfidenceFilter === "all"
+          ? "Auto Debug confidence filter staat op alles."
+          : `Je filtert nu op ${autoDebugConfidenceFilter} confidence auto-debug signalen.`
+        : learningTypeFilter === "all"
+        ? "Learning type filter staat op alles."
+        : learningTypeFilter === "style"
+        ? "Je filtert nu op stijlfeedback zoals tone, lengte, duidelijkheid en structuur."
+        : "Je filtert nu op contentfeedback zoals antwoordvorm en succesvolle antwoordpatronen."}
     </p>
   </div>
 
