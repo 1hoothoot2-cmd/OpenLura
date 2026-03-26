@@ -487,6 +487,56 @@ export default function Home() {
     return isStyleSignal ? "style" : "content";
   };
 
+  const isPersonalEnvironment = activeChat?.title === "Persoonlijke omgeving";
+
+  const getPersonalEnvironmentInsights = () => {
+    if (!activeChatId) {
+      return {
+        memoryCount: 0,
+        improvementCount: 0,
+        negativeCount: 0,
+        positiveCount: 0,
+        styleSignals: [] as string[],
+        contentSignals: [] as string[],
+      };
+    }
+
+    const rawFeedback = JSON.parse(localStorage.getItem("openlura_feedback") || "[]");
+    const personalFeedback = rawFeedback.filter(
+      (f: any) =>
+        f.chatId === activeChatId ||
+        f.environment === "personal" ||
+        f.source === "personal_environment"
+    );
+
+    const combinedText = personalFeedback
+      .map((f: any) => `${f.userMessage || ""} ${f.message || ""}`.toLowerCase())
+      .join(" ");
+
+    const styleSignals = [
+      (combinedText.includes("korter") || combinedText.includes("te lang")) && "korter antwoorden",
+      (combinedText.includes("duidelijker") || combinedText.includes("onduidelijk")) && "duidelijkere uitleg",
+      (combinedText.includes("structuur") || combinedText.includes("structure")) && "betere structuur",
+      (combinedText.includes("te vaag") || combinedText.includes("vaag")) && "concreter antwoorden",
+      (combinedText.includes("meer context") || combinedText.includes("more context")) && "meer context geven",
+    ].filter(Boolean) as string[];
+
+    const contentSignals = [
+      memory.some((m) => m.weight > 0.6) && "persoonlijke memory actief",
+      personalFeedback.some((f: any) => f.type === "up") && "positieve antwoordpatronen aanwezig",
+      personalFeedback.some((f: any) => f.type === "improve") && "verbeterfeedback aanwezig",
+    ].filter(Boolean) as string[];
+
+    return {
+      memoryCount: memory.filter((m) => m.weight > 0.6).length,
+      improvementCount: personalFeedback.filter((f: any) => f.type === "improve").length,
+      negativeCount: personalFeedback.filter((f: any) => f.type === "down").length,
+      positiveCount: personalFeedback.filter((f: any) => f.type === "up").length,
+      styleSignals: styleSignals.slice(0, 4),
+      contentSignals: contentSignals.slice(0, 3),
+    };
+  };
+
             const stopStreaming = () => {
     if (streamController) {
       streamController.abort();
@@ -1092,7 +1142,10 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 
     const ideaEntry = {
     text: feedbackText.trim(),
-    source: `idea_${feedbackCategory}`,
+    source: isPersonalEnvironment ? "personal_environment" : `idea_${feedbackCategory}`,
+    category: feedbackCategory,
+    chatId: activeChatId,
+    environment: isPersonalEnvironment ? "personal" : "default",
     timestamp: Date.now(),
   };
 
@@ -1106,10 +1159,12 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
       "Content-Type": "application/json",
     },
         body: JSON.stringify({
+      chatId: activeChatId,
       type: "idea",
       message: feedbackText.trim(),
-      userMessage: "Feedback / Idee",
-      source: `idea_${feedbackCategory}`,
+      userMessage: isPersonalEnvironment ? "Persoonlijke omgeving feedback" : "Feedback / Idee",
+      source: isPersonalEnvironment ? "personal_environment" : `idea_${feedbackCategory}`,
+      environment: isPersonalEnvironment ? "personal" : "default",
     }),
   }).then(() => {
     window.dispatchEvent(new Event("openlura_feedback_update"));
@@ -1826,6 +1881,90 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
         </div>
       </div>
 
+      {isPersonalEnvironment && (
+        <aside className="hidden xl:flex w-[320px] p-4 pr-5">
+          <div className="w-full h-full md:h-[90%] bg-white/10 rounded-3xl backdrop-blur-2xl p-4 flex flex-col">
+            <div className="mb-4">
+              <p className="text-xs uppercase tracking-wide opacity-50">
+                Persoonlijke omgeving
+              </p>
+              <h2 className="text-lg font-semibold mt-1">
+                Training dashboard
+              </h2>
+              <p className="text-sm opacity-60 mt-2">
+                Alleen zichtbaar in deze omgeving op desktop.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mb-4 text-sm">
+              <div className="p-3 rounded-2xl bg-white/5">
+                <p className="text-xs opacity-50">Memory</p>
+                <p className="text-xl mt-1">{getPersonalEnvironmentInsights().memoryCount}</p>
+              </div>
+              <div className="p-3 rounded-2xl bg-white/5">
+                <p className="text-xs opacity-50">Verbeteringen</p>
+                <p className="text-xl mt-1">{getPersonalEnvironmentInsights().improvementCount}</p>
+              </div>
+              <div className="p-3 rounded-2xl bg-white/5">
+                <p className="text-xs opacity-50">Negatief</p>
+                <p className="text-xl mt-1">{getPersonalEnvironmentInsights().negativeCount}</p>
+              </div>
+              <div className="p-3 rounded-2xl bg-white/5">
+                <p className="text-xs opacity-50">Positief</p>
+                <p className="text-xl mt-1">{getPersonalEnvironmentInsights().positiveCount}</p>
+              </div>
+            </div>
+
+            <div className="mb-4 p-3 rounded-2xl bg-white/5">
+              <p className="text-xs uppercase tracking-wide opacity-50 mb-2">
+                Actieve stijlpunten
+              </p>
+              {getPersonalEnvironmentInsights().styleSignals.length === 0 ? (
+                <p className="text-sm opacity-50">Nog geen duidelijke stijl-signalen</p>
+              ) : (
+                <div className="space-y-2 text-sm">
+                  {getPersonalEnvironmentInsights().styleSignals.map((item, idx) => (
+                    <p key={idx}>• {item}</p>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="mb-4 p-3 rounded-2xl bg-white/5">
+              <p className="text-xs uppercase tracking-wide opacity-50 mb-2">
+                Persoonlijke AI status
+              </p>
+              {getPersonalEnvironmentInsights().contentSignals.length === 0 ? (
+                <p className="text-sm opacity-50">Nog geen persoonlijke content-signalen</p>
+              ) : (
+                <div className="space-y-2 text-sm">
+                  {getPersonalEnvironmentInsights().contentSignals.map((item, idx) => (
+                    <p key={idx}>• {item}</p>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-auto space-y-2">
+              <button
+                onClick={() => setShowFeedbackBox(true)}
+                className="w-full p-3 rounded-2xl bg-white/10 hover:bg-white/20 text-left"
+              >
+                ✍️ Voeg persoonlijk verbeterpunt toe
+              </button>
+
+              <button
+                onClick={() => {
+                  window.location.href = "/analytics";
+                }}
+                className="w-full p-3 rounded-2xl bg-white/10 hover:bg-white/20 text-left"
+              >
+                📊 Open analytics
+              </button>
+            </div>
+          </div>
+        </aside>
+      )}
     </main>
   );
 }
