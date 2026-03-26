@@ -239,16 +239,16 @@ export default function Home() {
 
     const verifyPersonalAccess = async () => {
       try {
-        const res = await fetch("/api/auth", {
+        const res = await fetch("/api/personal-state", {
           method: "GET",
           cache: "no-store",
         });
 
-        if (!res.ok) {
+        if (res.status === 401) {
           window.location.href = "/";
         }
-      } catch {
-        window.location.href = "/";
+      } catch (error) {
+        console.error("OpenLura personal access verify failed:", error);
       }
     };
 
