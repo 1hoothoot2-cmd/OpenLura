@@ -5,6 +5,12 @@ import { usePathname } from "next/navigation";
 export default function Home() {
   const pathname = usePathname();
   const isPersonalRoute = pathname === "/persoonlijke-omgeving";
+  const chatStorageKey = isPersonalRoute
+    ? "openlura_personal_chats"
+    : "openlura_chats";
+  const memoryStorageKey = isPersonalRoute
+    ? "openlura_personal_memory"
+    : "openlura_memory";
   const [chats, setChats] = useState<any[]>([]);
   const [activeChatId, setActiveChatId] = useState<number | null>(null);
   const [input, setInput] = useState("");
@@ -47,10 +53,10 @@ export default function Home() {
   const getGreeting = () =>
     greetings[Math.floor(Math.random() * greetings.length)];
 
-        useEffect(() => {
+      useEffect(() => {
     try {
-      const saved = localStorage.getItem("openlura_chats");
-      const mem = localStorage.getItem("openlura_memory");
+      const saved = localStorage.getItem(chatStorageKey);
+      const mem = localStorage.getItem(memoryStorageKey);
 
       if (saved) {
         const parsed = JSON.parse(saved);
@@ -88,7 +94,7 @@ export default function Home() {
       }
     } catch (error) {
       console.error("OpenLura load failed:", error);
-      localStorage.removeItem("openlura_chats");
+      localStorage.removeItem(chatStorageKey);
       createNewChat();
     }
 
@@ -97,7 +103,7 @@ export default function Home() {
     } else {
       setMobileMenu(false);
     }
-  }, []);
+  }, [chatStorageKey, memoryStorageKey]);
 
       useEffect(() => {
     try {
@@ -116,11 +122,11 @@ export default function Home() {
         }),
       }));
 
-      localStorage.setItem("openlura_chats", JSON.stringify(safeChats));
+      localStorage.setItem(chatStorageKey, JSON.stringify(safeChats));
     } catch (error) {
       console.error("OpenLura chat persistence failed:", error);
     }
-  }, [chats]);
+  }, [chats, chatStorageKey]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -466,7 +472,11 @@ export default function Home() {
     };
 
   const getActiveLearningDebug = () => {
-    const rawFeedback = JSON.parse(localStorage.getItem("openlura_feedback") || "[]");
+    const rawFeedback = JSON.parse(
+      localStorage.getItem(
+        isPersonalRoute ? "openlura_personal_feedback" : "openlura_feedback"
+      ) || "[]"
+    );
     const feedbackText = rawFeedback
       .map((f: any) => `${f.userMessage || ""} ${f.message || ""}`.toLowerCase())
       .join(" ");
@@ -540,7 +550,7 @@ export default function Home() {
         : [...prev, { text: text.trim(), weight: Math.max(0.1, Math.min(0.5 + delta, 1)) }];
 
       next = next.sort((a, b) => b.weight - a.weight).slice(0, 10);
-      localStorage.setItem("openlura_memory", JSON.stringify(next));
+      localStorage.setItem(memoryStorageKey, JSON.stringify(next));
       return next;
     });
   };
@@ -570,7 +580,11 @@ export default function Home() {
       };
     }
 
-    const rawFeedback = JSON.parse(localStorage.getItem("openlura_feedback") || "[]");
+    const rawFeedback = JSON.parse(
+      localStorage.getItem(
+        isPersonalRoute ? "openlura_personal_feedback" : "openlura_feedback"
+      ) || "[]"
+    );
     const personalFeedback = rawFeedback.filter(
       (f: any) =>
         f.chatId === activeChatId ||
@@ -702,7 +716,9 @@ export default function Home() {
           )?.content || "";
 
       if (!retryRequest) {
-        const localFeedbackKey = "openlura_feedback";
+        const localFeedbackKey = isPersonalRoute
+          ? "openlura_personal_feedback"
+          : "openlura_feedback";
         const existingFeedback = JSON.parse(localStorage.getItem(localFeedbackKey) || "[]");
 
         existingFeedback.push({
@@ -2043,7 +2059,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 
               <button
                 onClick={() => {
-                  window.location.href = "/analytics";
+                  window.open("/analytics", "_blank", "noopener,noreferrer");
                 }}
                 className="w-full p-3 rounded-2xl bg-white/10 hover:bg-white/20 text-left"
               >
