@@ -335,48 +335,50 @@ export default function Home() {
   };
 
   const createNewChat = (
-    preset?: Partial<{
-      title: string;
-      messages: { role: string; content: string; image?: string | null }[];
-    }>
-  ) => {
-    const baseTitle =
-      preset?.title || (isPersonalRoute ? "Persoonlijke chat" : "New Chat");
+  preset?: Partial<{
+    title: string;
+    messages: { role: string; content: string; image?: string | null }[];
+  }>
+) => {
+  const baseTitle =
+    preset?.title || (isPersonalRoute ? "Persoonlijke chat" : "New Chat");
 
-    const newChatId = Date.now() + Math.floor(Math.random() * 1000);
-    pendingActiveChatIdRef.current = newChatId;
-preferredActiveChatIdRef.current = newChatId;
-setActiveChatId(newChatId);
-setOpenChatMenuId(null);
+  const newChatId = Date.now() + Math.floor(Math.random() * 1000);
 
-    setChats((prev) => {
-      const existingTitles = prev.map((chat: any) =>
-        String(chat.title || "").trim()
-      );
+  pendingActiveChatIdRef.current = newChatId;
+  preferredActiveChatIdRef.current = newChatId;
+  setOpenChatMenuId(null);
 
-      const buildUniqueTitle = (rawBaseTitle: string) => {
-        if (!existingTitles.includes(rawBaseTitle)) return rawBaseTitle;
+  setChats((prev) => {
+    const existingTitles = prev.map((chat: any) =>
+      String(chat.title || "").trim()
+    );
 
-        let counter = 2;
-        while (existingTitles.includes(`${rawBaseTitle} ${counter}`)) {
-          counter += 1;
-        }
+    const buildUniqueTitle = (rawBaseTitle: string) => {
+      if (!existingTitles.includes(rawBaseTitle)) return rawBaseTitle;
 
-        return `${rawBaseTitle} ${counter}`;
-      };
+      let counter = 2;
+      while (existingTitles.includes(`${rawBaseTitle} ${counter}`)) {
+        counter += 1;
+      }
 
-      const newChat = {
-        id: newChatId,
-        title: buildUniqueTitle(baseTitle),
-        messages: preset?.messages ? [...preset.messages] : [],
-        pinned: false,
-        archived: false,
-        deleted: false,
-      };
+      return `${rawBaseTitle} ${counter}`;
+    };
 
-      return [newChat, ...prev];
-    });
-  };
+    const newChat = {
+      id: newChatId,
+      title: buildUniqueTitle(baseTitle),
+      messages: preset?.messages ? [...preset.messages] : [],
+      pinned: false,
+      archived: false,
+      deleted: false,
+    };
+
+    return [newChat, ...prev];
+  });
+
+  setActiveChatId(newChatId);
+};
 
 const messageShellClass =
   "w-full min-w-0 overflow-hidden";
@@ -398,78 +400,73 @@ const activeChat =
   ) ?? null;
 
     useEffect(() => {
-    const visibleChats = chats.filter(
-      (chat: any) => !chat.archived && !chat.deleted
-    );
-
-    if (isPersonalRoute && !personalStateLoaded && chats.length === 0) {
-      return;
-    }
-
-    if (visibleChats.length === 0) {
-      if (isPersonalRoute) {
-        createNewChat({
-          title: "Persoonlijke omgeving",
-          messages: [
-            {
-              role: "ai",
-              content:
-                "👋 Welkom in je persoonlijke omgeving. Hier testen we privé memory, verbeterpunten en training van jouw AI-gedrag.",
-            },
-          ],
-        });
-      } else {
-        createNewChat();
-      }
-      return;
-    }
-
-    const pendingId = pendingActiveChatIdRef.current;
-
-if (pendingId !== null) {
-  const pendingVisible = visibleChats.some(
-    (chat: any) => chat.id === pendingId
+  const visibleChats = chats.filter(
+    (chat: any) => !chat.archived && !chat.deleted
   );
 
-  if (!pendingVisible) {
+  if (isPersonalRoute && !personalStateLoaded && chats.length === 0) {
     return;
   }
 
-  if (activeChatId !== pendingId) {
-    setActiveChatId(pendingId);
+  if (visibleChats.length === 0) {
+    if (isPersonalRoute) {
+      createNewChat({
+        title: "Persoonlijke omgeving",
+        messages: [
+          {
+            role: "ai",
+            content:
+              "👋 Welkom in je persoonlijke omgeving. Hier testen we privé memory, verbeterpunten en training van jouw AI-gedrag.",
+          },
+        ],
+      });
+    } else {
+      createNewChat();
+    }
     return;
   }
 
-  pendingActiveChatIdRef.current = null;
-  preferredActiveChatIdRef.current = pendingId;
-  return;
-}
+  const pendingId = pendingActiveChatIdRef.current;
 
-const currentActiveStillVisible =
-  activeChatId !== null &&
-  visibleChats.some((chat: any) => chat.id === activeChatId);
+  if (pendingId !== null) {
+    const pendingChat = visibleChats.find(
+      (chat: any) => chat.id === pendingId
+    );
 
-if (currentActiveStillVisible) {
-  preferredActiveChatIdRef.current = activeChatId;
-  return;
-}
+    if (pendingChat) {
+      if (activeChatId !== pendingId) {
+        setActiveChatId(pendingId);
+        return;
+      }
 
-const preferredId = preferredActiveChatIdRef.current;
-
-if (
-  preferredId !== null &&
-  visibleChats.some((chat: any) => chat.id === preferredId)
-) {
-  if (activeChatId !== preferredId) {
-    setActiveChatId(preferredId);
+      preferredActiveChatIdRef.current = pendingId;
+      pendingActiveChatIdRef.current = null;
+      return;
+    }
   }
-  return;
-}
 
-const fallbackId = visibleChats[0].id;
-preferredActiveChatIdRef.current = fallbackId;
-setActiveChatId(fallbackId);
-  }, [isPersonalRoute, personalStateLoaded, chats, activeChatId]);
+  if (
+    activeChatId !== null &&
+    visibleChats.some((chat: any) => chat.id === activeChatId)
+  ) {
+    preferredActiveChatIdRef.current = activeChatId;
+    return;
+  }
+
+  const preferredId = preferredActiveChatIdRef.current;
+  const nextActiveChatId =
+    preferredId !== null &&
+    visibleChats.some((chat: any) => chat.id === preferredId)
+      ? preferredId
+      : visibleChats[0].id;
+
+  if (activeChatId !== nextActiveChatId) {
+    setActiveChatId(nextActiveChatId);
+    return;
+  }
+
+  preferredActiveChatIdRef.current = nextActiveChatId;
+}, [isPersonalRoute, personalStateLoaded, chats, activeChatId]);
 
   const updateChatMeta = (
     chatId: number,
