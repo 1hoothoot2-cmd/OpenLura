@@ -1827,11 +1827,15 @@ return () => {
             ? "🧠 AI feedback"
             : "💡 Aanpassing"
           : "🛠️ Verbeter feedback"}
-        ? autoDebugConfidenceFilter === "all" &&
-          autoDebugRouteFilter === "all" &&
-          autoDebugSignalFilter === "all"
-          ? "Auto Debug filters staan op alles."
-          : `Auto Debug filters: confidence = ${autoDebugConfidenceFilter}, route = ${autoDebugRouteFilter}, signaal = ${autoDebugSignalFilter}.`
+        {f.type === "auto_debug" && (
+          <span className="ml-2 text-xs opacity-70">
+            {autoDebugConfidenceFilter === "all" &&
+            autoDebugRouteFilter === "all" &&
+            autoDebugSignalFilter === "all"
+              ? "• filters: alles"
+              : `• ${autoDebugConfidenceFilter} / ${autoDebugRouteFilter} / ${autoDebugSignalFilter}`}
+          </span>
+        )}
       </span>
 
       <div className="flex items-center gap-2 ml-auto">

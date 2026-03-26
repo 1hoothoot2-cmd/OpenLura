@@ -11,6 +11,7 @@ export default function Home() {
   const memoryStorageKey = isPersonalRoute
     ? "openlura_personal_memory"
     : "openlura_memory";
+  const [personalStateLoaded, setPersonalStateLoaded] = useState(false);
   const [chats, setChats] = useState<any[]>([]);
   const [activeChatId, setActiveChatId] = useState<number | null>(null);
   const [input, setInput] = useState("");
@@ -53,80 +54,154 @@ export default function Home() {
   const getGreeting = () =>
     greetings[Math.floor(Math.random() * greetings.length)];
 
-      useEffect(() => {
-    try {
-      const saved = localStorage.getItem(chatStorageKey);
-      const mem = localStorage.getItem(memoryStorageKey);
+        useEffect(() => {
+    const loadState = async () => {
+      try {
+        let loadedFromServer = false;
 
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        const normalizedChats = parsed.map((chat: any) => ({
-          ...chat,
-          pinned: chat.pinned ?? false,
-          archived: chat.archived ?? false,
-          deleted: chat.deleted ?? false,
-          messages: Array.isArray(chat.messages)
-            ? chat.messages.map((msg: any) => ({
-                ...msg,
-                image: msg.image === "[image-uploaded]" ? null : msg.image ?? null,
-              }))
-            : [],
-        }));
+        if (isPersonalRoute) {
+          try {
+            const res = await fetch("/api/personal-state", {
+              method: "GET",
+              cache: "no-store",
+            });
 
-        setChats(normalizedChats);
-        setActiveChatId(
-          normalizedChats.find(
-            (chat: any) => !chat.archived && !chat.deleted
-          )?.id ?? null
-        );
-      } else {
-        createNewChat();
-      }
+            if (res.ok) {
+              const data = await res.json();
+              const serverChats = Array.isArray(data?.chats) ? data.chats : [];
+              const serverMemory = Array.isArray(data?.memory) ? data.memory : [];
 
-      // ✅ MEMORY LOAD FIX
-      if (mem) {
-        const parsed = JSON.parse(mem);
-        if (parsed.length && typeof parsed[0] === "string") {
-          setMemory(parsed.map((m: string) => ({ text: m, weight: 0.5 })));
-        } else {
-          setMemory(parsed);
+              if (serverChats.length > 0) {
+                const normalizedChats = serverChats.map((chat: any) => ({
+                  ...chat,
+                  pinned: chat.pinned ?? false,
+                  archived: chat.archived ?? false,
+                  deleted: chat.deleted ?? false,
+                  messages: Array.isArray(chat.messages)
+                    ? chat.messages.map((msg: any) => ({
+                        ...msg,
+                        image: msg.image === "[image-uploaded]" ? null : msg.image ?? null,
+                      }))
+                    : [],
+                }));
+
+                setChats(normalizedChats);
+                setActiveChatId(
+                  normalizedChats.find(
+                    (chat: any) => !chat.archived && !chat.deleted
+                  )?.id ?? null
+                );
+              }
+
+              if (serverMemory.length > 0) {
+                if (typeof serverMemory[0] === "string") {
+                  setMemory(serverMemory.map((m: string) => ({ text: m, weight: 0.5 })));
+                } else {
+                  setMemory(serverMemory);
+                }
+              }
+
+              loadedFromServer = serverChats.length > 0 || serverMemory.length > 0;
+              setPersonalStateLoaded(true);
+            }
+          } catch (error) {
+            console.error("OpenLura personal server load failed:", error);
+          }
+        }
+
+        const saved = localStorage.getItem(chatStorageKey);
+        const mem = localStorage.getItem(memoryStorageKey);
+
+        if (!loadedFromServer && saved) {
+          const parsed = JSON.parse(saved);
+          const normalizedChats = parsed.map((chat: any) => ({
+            ...chat,
+            pinned: chat.pinned ?? false,
+            archived: chat.archived ?? false,
+            deleted: chat.deleted ?? false,
+            messages: Array.isArray(chat.messages)
+              ? chat.messages.map((msg: any) => ({
+                  ...msg,
+                  image: msg.image === "[image-uploaded]" ? null : msg.image ?? null,
+                }))
+              : [],
+          }));
+
+          setChats(normalizedChats);
+          setActiveChatId(
+            normalizedChats.find(
+              (chat: any) => !chat.archived && !chat.deleted
+            )?.id ?? null
+          );
+        } else if (!saved && !isPersonalRoute) {
+          createNewChat();
+        }
+
+        if (!loadedFromServer && mem) {
+          const parsed = JSON.parse(mem);
+          if (parsed.length && typeof parsed[0] === "string") {
+            setMemory(parsed.map((m: string) => ({ text: m, weight: 0.5 })));
+          } else {
+            setMemory(parsed);
+          }
+        }
+      } catch (error) {
+        console.error("OpenLura load failed:", error);
+        localStorage.removeItem(chatStorageKey);
+        if (!isPersonalRoute) {
+          createNewChat();
         }
       }
-    } catch (error) {
-      console.error("OpenLura load failed:", error);
-      localStorage.removeItem(chatStorageKey);
-      createNewChat();
-    }
 
-    if (window.innerWidth >= 768) {
-      setMobileMenu(true);
-    } else {
-      setMobileMenu(false);
-    }
-  }, [chatStorageKey, memoryStorageKey]);
+      if (window.innerWidth >= 768) {
+        setMobileMenu(true);
+      } else {
+        setMobileMenu(false);
+      }
+    };
+
+    loadState();
+  }, [chatStorageKey, memoryStorageKey, isPersonalRoute]);
 
       useEffect(() => {
-    try {
-      const safeChats = chats.map((chat: any) => ({
-        ...chat,
-        messages: (chat.messages || []).map((msg: any) => {
-          if (!msg.image) return msg;
+    const persistState = async () => {
+      try {
+        const safeChats = chats.map((chat: any) => ({
+          ...chat,
+          messages: (chat.messages || []).map((msg: any) => {
+            if (!msg.image) return msg;
 
-          return {
-            ...msg,
-            image:
-              typeof msg.image === "string" && msg.image.startsWith("data:")
-                ? "[image-uploaded]"
-                : msg.image,
-          };
-        }),
-      }));
+            return {
+              ...msg,
+              image:
+                typeof msg.image === "string" && msg.image.startsWith("data:")
+                  ? "[image-uploaded]"
+                  : msg.image,
+            };
+          }),
+        }));
 
-      localStorage.setItem(chatStorageKey, JSON.stringify(safeChats));
-    } catch (error) {
-      console.error("OpenLura chat persistence failed:", error);
-    }
-  }, [chats, chatStorageKey]);
+        localStorage.setItem(chatStorageKey, JSON.stringify(safeChats));
+
+        if (isPersonalRoute && personalStateLoaded) {
+          await fetch("/api/personal-state", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              chats: safeChats,
+              memory,
+            }),
+          });
+        }
+      } catch (error) {
+        console.error("OpenLura chat persistence failed:", error);
+      }
+    };
+
+    persistState();
+  }, [chats, chatStorageKey, isPersonalRoute, memory, personalStateLoaded]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -262,7 +337,8 @@ export default function Home() {
   const activeChat = chats.find((c: any) => c.id === activeChatId);
 
   useEffect(() => {
-    if (!isPersonalRoute || chats.length === 0) return;
+    if (!isPersonalRoute) return;
+    if (!personalStateLoaded && chats.length === 0) return;
 
     const existingPersonalChat = chats.find(
       (chat: any) => chat.title === "Persoonlijke omgeving"
@@ -285,7 +361,7 @@ export default function Home() {
         },
       ],
     });
-  }, [isPersonalRoute, chats.length]);
+  }, [isPersonalRoute, personalStateLoaded, chats.length, activeChatId]);
 
   const updateChatMeta = (
     chatId: number,
@@ -969,7 +1045,11 @@ setChats([...updated]);
       requestAnimationFrame(() => resolve());
     });
 
-    const rawFeedback = JSON.parse(localStorage.getItem("openlura_feedback") || "[]").slice(-20);
+    const rawFeedback = JSON.parse(
+      localStorage.getItem(
+        isPersonalRoute ? "openlura_personal_feedback" : "openlura_feedback"
+      ) || "[]"
+    ).slice(-20);
 
     // geef recente feedback meer gewicht
     const weightedFeedback = rawFeedback.map((f: any, i: number) => ({
@@ -1122,14 +1202,16 @@ updated[index].messages[
         .slice(0, 10);
 
       setMemory(newMemory);
-      localStorage.setItem("openlura_memory", JSON.stringify(newMemory));
+      localStorage.setItem(memoryStorageKey, JSON.stringify(newMemory));
     }
 
     setLoading(false);
   };
   const handleFeedback = async (chatId: number, msgIndex: number, type: string) => {
 console.log("FEEDBACK CLICKED", { chatId, msgIndex, type });
-  const key = "openlura_feedback";
+  const key = isPersonalRoute
+    ? "openlura_personal_feedback"
+    : "openlura_feedback";
   const existing = JSON.parse(localStorage.getItem(key) || "[]");
 
   const chat = chats.find(c => c.id === chatId);

@@ -1,7 +1,17 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
+import { usePathname } from "next/navigation";
 
 export default function Home() {
+  const pathname = usePathname();
+  const isPersonalRoute = pathname === "/persoonlijke-omgeving";
+  const chatStorageKey = isPersonalRoute
+    ? "openlura_personal_chats"
+    : "openlura_chats";
+  const memoryStorageKey = isPersonalRoute
+    ? "openlura_personal_memory"
+    : "openlura_memory";
+  const [personalStateLoaded, setPersonalStateLoaded] = useState(false);
   const [chats, setChats] = useState<any[]>([]);
   const [activeChatId, setActiveChatId] = useState<number | null>(null);
   const [input, setInput] = useState("");
@@ -25,6 +35,11 @@ export default function Home() {
   const [feedbackGiven, setFeedbackGiven] = useState<{ [key: string]: boolean }>({});
   const [improvedFeedbackGiven, setImprovedFeedbackGiven] = useState<{ [key: string]: boolean }>({});
   const [awaitingImprovement, setAwaitingImprovement] = useState<{ [key: number]: boolean }>({});
+  const [showLoginBox, setShowLoginBox] = useState(false);
+  const [loginUsername, setLoginUsername] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
+  const [loginLoading, setLoginLoading] = useState(false);
   
   const fileRef = useRef<HTMLInputElement>(null);
     const messagesRef = useRef<HTMLDivElement>(null);
@@ -40,79 +55,150 @@ export default function Home() {
     greetings[Math.floor(Math.random() * greetings.length)];
 
         useEffect(() => {
-    try {
-      const saved = localStorage.getItem("openlura_chats");
-      const mem = localStorage.getItem("openlura_memory");
+    const loadState = async () => {
+      try {
+        if (isPersonalRoute) {
+          try {
+            const res = await fetch("/api/personal-state", {
+              method: "GET",
+              cache: "no-store",
+            });
 
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        const normalizedChats = parsed.map((chat: any) => ({
-          ...chat,
-          pinned: chat.pinned ?? false,
-          archived: chat.archived ?? false,
-          deleted: chat.deleted ?? false,
-          messages: Array.isArray(chat.messages)
-            ? chat.messages.map((msg: any) => ({
-                ...msg,
-                image: msg.image === "[image-uploaded]" ? null : msg.image ?? null,
-              }))
-            : [],
-        }));
+            if (res.ok) {
+              const data = await res.json();
+              const serverChats = Array.isArray(data?.chats) ? data.chats : [];
+              const serverMemory = Array.isArray(data?.memory) ? data.memory : [];
 
-        setChats(normalizedChats);
-        setActiveChatId(
-          normalizedChats.find(
-            (chat: any) => !chat.archived && !chat.deleted
-          )?.id ?? null
-        );
-      } else {
-        createNewChat();
-      }
+              if (serverChats.length > 0) {
+                const normalizedChats = serverChats.map((chat: any) => ({
+                  ...chat,
+                  pinned: chat.pinned ?? false,
+                  archived: chat.archived ?? false,
+                  deleted: chat.deleted ?? false,
+                  messages: Array.isArray(chat.messages)
+                    ? chat.messages.map((msg: any) => ({
+                        ...msg,
+                        image: msg.image === "[image-uploaded]" ? null : msg.image ?? null,
+                      }))
+                    : [],
+                }));
 
-      // ✅ MEMORY LOAD FIX
-      if (mem) {
-        const parsed = JSON.parse(mem);
-        if (parsed.length && typeof parsed[0] === "string") {
-          setMemory(parsed.map((m: string) => ({ text: m, weight: 0.5 })));
-        } else {
-          setMemory(parsed);
+                setChats(normalizedChats);
+                setActiveChatId(
+                  normalizedChats.find(
+                    (chat: any) => !chat.archived && !chat.deleted
+                  )?.id ?? null
+                );
+              }
+
+              if (serverMemory.length > 0) {
+                if (typeof serverMemory[0] === "string") {
+                  setMemory(serverMemory.map((m: string) => ({ text: m, weight: 0.5 })));
+                } else {
+                  setMemory(serverMemory);
+                }
+              }
+
+              setPersonalStateLoaded(true);
+            }
+          } catch (error) {
+            console.error("OpenLura personal server load failed:", error);
+          }
+        }
+
+        const saved = localStorage.getItem(chatStorageKey);
+        const mem = localStorage.getItem(memoryStorageKey);
+
+        if ((!isPersonalRoute || !personalStateLoaded) && saved) {
+          const parsed = JSON.parse(saved);
+          const normalizedChats = parsed.map((chat: any) => ({
+            ...chat,
+            pinned: chat.pinned ?? false,
+            archived: chat.archived ?? false,
+            deleted: chat.deleted ?? false,
+            messages: Array.isArray(chat.messages)
+              ? chat.messages.map((msg: any) => ({
+                  ...msg,
+                  image: msg.image === "[image-uploaded]" ? null : msg.image ?? null,
+                }))
+              : [],
+          }));
+
+          setChats(normalizedChats);
+          setActiveChatId(
+            normalizedChats.find(
+              (chat: any) => !chat.archived && !chat.deleted
+            )?.id ?? null
+          );
+        } else if (!saved && !isPersonalRoute) {
+          createNewChat();
+        }
+
+        if ((!isPersonalRoute || !personalStateLoaded) && mem) {
+          const parsed = JSON.parse(mem);
+          if (parsed.length && typeof parsed[0] === "string") {
+            setMemory(parsed.map((m: string) => ({ text: m, weight: 0.5 })));
+          } else {
+            setMemory(parsed);
+          }
+        }
+      } catch (error) {
+        console.error("OpenLura load failed:", error);
+        localStorage.removeItem(chatStorageKey);
+        if (!isPersonalRoute) {
+          createNewChat();
         }
       }
-    } catch (error) {
-      console.error("OpenLura load failed:", error);
-      localStorage.removeItem("openlura_chats");
-      createNewChat();
-    }
 
-    if (window.innerWidth >= 768) {
-      setMobileMenu(true);
-    } else {
-      setMobileMenu(false);
-    }
-  }, []);
+      if (window.innerWidth >= 768) {
+        setMobileMenu(true);
+      } else {
+        setMobileMenu(false);
+      }
+    };
+
+    loadState();
+  }, [chatStorageKey, memoryStorageKey, isPersonalRoute, personalStateLoaded]);
 
       useEffect(() => {
-    try {
-      const safeChats = chats.map((chat: any) => ({
-        ...chat,
-        messages: (chat.messages || []).map((msg: any) => {
-          if (!msg.image) return msg;
+    const persistState = async () => {
+      try {
+        const safeChats = chats.map((chat: any) => ({
+          ...chat,
+          messages: (chat.messages || []).map((msg: any) => {
+            if (!msg.image) return msg;
 
-          return {
-            ...msg,
-            image:
-              typeof msg.image === "string" && msg.image.startsWith("data:")
-                ? "[image-uploaded]"
-                : msg.image,
-          };
-        }),
-      }));
+            return {
+              ...msg,
+              image:
+                typeof msg.image === "string" && msg.image.startsWith("data:")
+                  ? "[image-uploaded]"
+                  : msg.image,
+            };
+          }),
+        }));
 
-      localStorage.setItem("openlura_chats", JSON.stringify(safeChats));
-    } catch (error) {
-      console.error("OpenLura chat persistence failed:", error);
-    }
-  }, [chats]);
+        localStorage.setItem(chatStorageKey, JSON.stringify(safeChats));
+
+        if (isPersonalRoute) {
+          await fetch("/api/personal-state", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              chats: safeChats,
+              memory,
+            }),
+          });
+        }
+      } catch (error) {
+        console.error("OpenLura chat persistence failed:", error);
+      }
+    };
+
+    persistState();
+  }, [chats, chatStorageKey, isPersonalRoute, memory]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -144,6 +230,40 @@ export default function Home() {
     });
   });
 }, [activeChatId, chats, loading]);
+
+  useEffect(() => {
+    if (!isPersonalRoute) return;
+
+    const verifyPersonalAccess = async () => {
+      try {
+        const res = await fetch("/api/auth", {
+          method: "GET",
+          cache: "no-store",
+        });
+
+        if (!res.ok) {
+          window.location.href = "/";
+        }
+      } catch {
+        window.location.href = "/";
+      }
+    };
+
+    const clearPersonalAccess = () => {
+      fetch("/api/auth", {
+        method: "DELETE",
+        keepalive: true,
+      }).catch(() => {});
+    };
+
+    verifyPersonalAccess();
+    window.addEventListener("pagehide", clearPersonalAccess);
+
+    return () => {
+      window.removeEventListener("pagehide", clearPersonalAccess);
+      clearPersonalAccess();
+    };
+  }, [isPersonalRoute]);
 
   useEffect(() => {
     const handlePaste = async (e: ClipboardEvent) => {
@@ -189,11 +309,16 @@ export default function Home() {
     };
   }, []);
 
-  const createNewChat = () => {
+  const createNewChat = (
+    preset?: Partial<{
+      title: string;
+      messages: { role: string; content: string; image?: string | null }[];
+    }>
+  ) => {
         const newChat = {
       id: Date.now(),
-      title: "New Chat",
-      messages: [],
+      title: preset?.title || "New Chat",
+      messages: preset?.messages || [],
       pinned: false,
       archived: false,
       deleted: false,
@@ -207,6 +332,32 @@ export default function Home() {
     const [openChatMenuId, setOpenChatMenuId] = useState<number | null>(null);
 
   const activeChat = chats.find((c: any) => c.id === activeChatId);
+
+  useEffect(() => {
+    if (!isPersonalRoute || chats.length === 0) return;
+
+    const existingPersonalChat = chats.find(
+      (chat: any) => chat.title === "Persoonlijke omgeving"
+    );
+
+    if (existingPersonalChat) {
+      if (activeChatId !== existingPersonalChat.id) {
+        setActiveChatId(existingPersonalChat.id);
+      }
+      return;
+    }
+
+    createNewChat({
+      title: "Persoonlijke omgeving",
+      messages: [
+        {
+          role: "ai",
+          content:
+            "👋 Welkom in je persoonlijke omgeving. Hier testen we privé memory, verbeterpunten en training van jouw AI-gedrag.",
+        },
+      ],
+    });
+  }, [isPersonalRoute, chats.length]);
 
   const updateChatMeta = (
     chatId: number,
@@ -393,7 +544,11 @@ export default function Home() {
     };
 
   const getActiveLearningDebug = () => {
-    const rawFeedback = JSON.parse(localStorage.getItem("openlura_feedback") || "[]");
+    const rawFeedback = JSON.parse(
+      localStorage.getItem(
+        isPersonalRoute ? "openlura_personal_feedback" : "openlura_feedback"
+      ) || "[]"
+    );
     const feedbackText = rawFeedback
       .map((f: any) => `${f.userMessage || ""} ${f.message || ""}`.toLowerCase())
       .join(" ");
@@ -467,7 +622,7 @@ export default function Home() {
         : [...prev, { text: text.trim(), weight: Math.max(0.1, Math.min(0.5 + delta, 1)) }];
 
       next = next.sort((a, b) => b.weight - a.weight).slice(0, 10);
-      localStorage.setItem("openlura_memory", JSON.stringify(next));
+      localStorage.setItem(memoryStorageKey, JSON.stringify(next));
       return next;
     });
   };
@@ -482,6 +637,61 @@ export default function Home() {
     return isStyleSignal ? "style" : "content";
   };
 
+  const isPersonalEnvironment =
+    isPersonalRoute && activeChat?.title === "Persoonlijke omgeving";
+
+  const getPersonalEnvironmentInsights = () => {
+    if (!activeChatId) {
+      return {
+        memoryCount: 0,
+        improvementCount: 0,
+        negativeCount: 0,
+        positiveCount: 0,
+        styleSignals: [] as string[],
+        contentSignals: [] as string[],
+      };
+    }
+
+    const rawFeedback = JSON.parse(
+      localStorage.getItem(
+        isPersonalRoute ? "openlura_personal_feedback" : "openlura_feedback"
+      ) || "[]"
+    );
+    const personalFeedback = rawFeedback.filter(
+      (f: any) =>
+        f.chatId === activeChatId ||
+        f.environment === "personal" ||
+        f.source === "personal_environment"
+    );
+
+    const combinedText = personalFeedback
+      .map((f: any) => `${f.userMessage || ""} ${f.message || ""}`.toLowerCase())
+      .join(" ");
+
+    const styleSignals = [
+      (combinedText.includes("korter") || combinedText.includes("te lang")) && "korter antwoorden",
+      (combinedText.includes("duidelijker") || combinedText.includes("onduidelijk")) && "duidelijkere uitleg",
+      (combinedText.includes("structuur") || combinedText.includes("structure")) && "betere structuur",
+      (combinedText.includes("te vaag") || combinedText.includes("vaag")) && "concreter antwoorden",
+      (combinedText.includes("meer context") || combinedText.includes("more context")) && "meer context geven",
+    ].filter(Boolean) as string[];
+
+    const contentSignals = [
+      memory.some((m) => m.weight > 0.6) && "persoonlijke memory actief",
+      personalFeedback.some((f: any) => f.type === "up") && "positieve antwoordpatronen aanwezig",
+      personalFeedback.some((f: any) => f.type === "improve") && "verbeterfeedback aanwezig",
+    ].filter(Boolean) as string[];
+
+    return {
+      memoryCount: memory.filter((m) => m.weight > 0.6).length,
+      improvementCount: personalFeedback.filter((f: any) => f.type === "improve").length,
+      negativeCount: personalFeedback.filter((f: any) => f.type === "down").length,
+      positiveCount: personalFeedback.filter((f: any) => f.type === "up").length,
+      styleSignals: styleSignals.slice(0, 4),
+      contentSignals: contentSignals.slice(0, 3),
+    };
+  };
+
             const stopStreaming = () => {
     if (streamController) {
       streamController.abort();
@@ -489,6 +699,40 @@ export default function Home() {
     }
     setLoading(false);
     setLoadingStage("idle");
+  };
+
+  const handlePersonalLogin = async () => {
+    setLoginLoading(true);
+    setLoginError("");
+
+    try {
+      const res = await fetch("/api/auth", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username: loginUsername,
+          password: loginPassword,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data?.success) {
+        setLoginError(data?.error || "Inloggen mislukt");
+        return;
+      }
+
+      setShowLoginBox(false);
+      setLoginUsername("");
+      setLoginPassword("");
+      window.location.href = "/persoonlijke-omgeving";
+    } catch {
+      setLoginError("Inloggen mislukt");
+    } finally {
+      setLoginLoading(false);
+    }
   };
 
   const isRetryInstruction = (text: string) => {
@@ -544,7 +788,9 @@ export default function Home() {
           )?.content || "";
 
       if (!retryRequest) {
-        const localFeedbackKey = "openlura_feedback";
+        const localFeedbackKey = isPersonalRoute
+          ? "openlura_personal_feedback"
+          : "openlura_feedback";
         const existingFeedback = JSON.parse(localStorage.getItem(localFeedbackKey) || "[]");
 
         existingFeedback.push({
@@ -1087,7 +1333,10 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 
     const ideaEntry = {
     text: feedbackText.trim(),
-    source: `idea_${feedbackCategory}`,
+    source: isPersonalEnvironment ? "personal_environment" : `idea_${feedbackCategory}`,
+    category: feedbackCategory,
+    chatId: activeChatId,
+    environment: isPersonalEnvironment ? "personal" : "default",
     timestamp: Date.now(),
   };
 
@@ -1101,10 +1350,12 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
       "Content-Type": "application/json",
     },
         body: JSON.stringify({
+      chatId: activeChatId,
       type: "idea",
       message: feedbackText.trim(),
-      userMessage: "Feedback / Idee",
-      source: `idea_${feedbackCategory}`,
+      userMessage: isPersonalEnvironment ? "Persoonlijke omgeving feedback" : "Feedback / Idee",
+      source: isPersonalEnvironment ? "personal_environment" : `idea_${feedbackCategory}`,
+      environment: isPersonalEnvironment ? "personal" : "default",
     }),
   }).then(() => {
     window.dispatchEvent(new Event("openlura_feedback_update"));
@@ -1427,14 +1678,17 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
             💡 Feedback / Idee
           </button>
 
-          <button
-            onClick={() => {
-              window.location.href = "/analytics";
-            }}
-            className="w-full p-2 rounded-xl bg-white/10 hover:bg-white/20"
-          >
-            🔐 Admin login / Analytics
-          </button>
+          {!isPersonalRoute && (
+            <button
+              onClick={() => {
+                setShowLoginBox(true);
+                setLoginError("");
+              }}
+              className="w-full p-2 rounded-xl bg-white/10 hover:bg-white/20"
+            >
+              🔐 Log in
+            </button>
+          )}
         </div>
       </div>
 {mobileMenu && (
@@ -1803,6 +2057,154 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
         </div>
       </div>
 
+      {isPersonalEnvironment && (
+        <aside className="hidden xl:flex w-[320px] p-4 pr-5">
+          <div className="w-full h-full md:h-[90%] bg-white/10 rounded-3xl backdrop-blur-2xl p-4 flex flex-col">
+            <div className="mb-4">
+              <p className="text-xs uppercase tracking-wide opacity-50">
+                Persoonlijke omgeving
+              </p>
+              <h2 className="text-lg font-semibold mt-1">
+                Training dashboard
+              </h2>
+              <p className="text-sm opacity-60 mt-2">
+                Alleen zichtbaar in deze omgeving op desktop.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mb-4 text-sm">
+              <div className="p-3 rounded-2xl bg-white/5">
+                <p className="text-xs opacity-50">Memory</p>
+                <p className="text-xl mt-1">{getPersonalEnvironmentInsights().memoryCount}</p>
+              </div>
+              <div className="p-3 rounded-2xl bg-white/5">
+                <p className="text-xs opacity-50">Verbeteringen</p>
+                <p className="text-xl mt-1">{getPersonalEnvironmentInsights().improvementCount}</p>
+              </div>
+              <div className="p-3 rounded-2xl bg-white/5">
+                <p className="text-xs opacity-50">Negatief</p>
+                <p className="text-xl mt-1">{getPersonalEnvironmentInsights().negativeCount}</p>
+              </div>
+              <div className="p-3 rounded-2xl bg-white/5">
+                <p className="text-xs opacity-50">Positief</p>
+                <p className="text-xl mt-1">{getPersonalEnvironmentInsights().positiveCount}</p>
+              </div>
+            </div>
+
+            <div className="mb-4 p-3 rounded-2xl bg-white/5">
+              <p className="text-xs uppercase tracking-wide opacity-50 mb-2">
+                Actieve stijlpunten
+              </p>
+              {getPersonalEnvironmentInsights().styleSignals.length === 0 ? (
+                <p className="text-sm opacity-50">Nog geen duidelijke stijl-signalen</p>
+              ) : (
+                <div className="space-y-2 text-sm">
+                  {getPersonalEnvironmentInsights().styleSignals.map((item, idx) => (
+                    <p key={idx}>• {item}</p>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="mb-4 p-3 rounded-2xl bg-white/5">
+              <p className="text-xs uppercase tracking-wide opacity-50 mb-2">
+                Persoonlijke AI status
+              </p>
+              {getPersonalEnvironmentInsights().contentSignals.length === 0 ? (
+                <p className="text-sm opacity-50">Nog geen persoonlijke content-signalen</p>
+              ) : (
+                <div className="space-y-2 text-sm">
+                  {getPersonalEnvironmentInsights().contentSignals.map((item, idx) => (
+                    <p key={idx}>• {item}</p>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-auto space-y-2">
+              <button
+                onClick={() => setShowFeedbackBox(true)}
+                className="w-full p-3 rounded-2xl bg-white/10 hover:bg-white/20 text-left"
+              >
+                ✍️ Voeg persoonlijk verbeterpunt toe
+              </button>
+
+              <button
+                onClick={() => {
+                  window.open("/analytics", "_blank", "noopener,noreferrer");
+                }}
+                className="w-full p-3 rounded-2xl bg-white/10 hover:bg-white/20 text-left"
+              >
+                📊 Open analytics
+              </button>
+            </div>
+          </div>
+        </aside>
+      )}
+
+      {showLoginBox && !isPersonalRoute && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-3xl bg-[#111322] border border-white/10 p-6">
+            <div className="mb-4">
+              <p className="text-xs uppercase tracking-wide opacity-50">
+                Beveiligde toegang
+              </p>
+              <h2 className="text-xl font-semibold mt-1">Log in</h2>
+              <p className="text-sm opacity-60 mt-2">
+                Meld je aan om je persoonlijke omgeving te openen.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <input
+                value={loginUsername}
+                onChange={(e) => setLoginUsername(e.target.value)}
+                placeholder="Gebruikersnaam"
+                className="w-full p-3 rounded-2xl bg-white/10 border border-white/10 outline-none"
+              />
+
+              <input
+                type="password"
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+                placeholder="Wachtwoord"
+                className="w-full p-3 rounded-2xl bg-white/10 border border-white/10 outline-none"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !loginLoading) {
+                    handlePersonalLogin();
+                  }
+                }}
+              />
+
+              {loginError && (
+                <p className="text-sm text-red-300">{loginError}</p>
+              )}
+            </div>
+
+            <div className="mt-5 flex gap-2">
+              <button
+                onClick={() => {
+                  setShowLoginBox(false);
+                  setLoginError("");
+                  setLoginUsername("");
+                  setLoginPassword("");
+                }}
+                className="flex-1 p-3 rounded-2xl bg-white/10 hover:bg-white/20"
+              >
+                Annuleren
+              </button>
+
+              <button
+                onClick={handlePersonalLogin}
+                disabled={loginLoading}
+                className="flex-1 p-3 rounded-2xl bg-white text-black hover:bg-white/90 disabled:opacity-60"
+              >
+                {loginLoading ? "Inloggen..." : "Log in"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
