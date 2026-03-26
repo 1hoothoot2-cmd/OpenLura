@@ -30,6 +30,26 @@ export default function AnalyticsPage() {
     }
   }, []);
 
+  const inferLearningType = (f: any) => {
+    if (f.learningType === "style" || f.learningType === "content") {
+      return f.learningType;
+    }
+
+    const text = `${f.userMessage || ""} ${f.message || ""}`.toLowerCase();
+
+    const isStyleSignal = !!text.match(
+      /korter|te lang|too long|shorter|duidelijker|onduidelijk|clearer|unclear|andere structuur|structuur|structure|te vaag|vaag|vague|meer context|more context|more depth|te serieus|te formeel|menselijker|spontaner|luchtiger|more natural|too formal|too long for chat/
+    );
+
+    return isStyleSignal ? "style" : "content";
+  };
+
+  const getAutoDebugRouteType = (f: any) => {
+    const source = String(f.source || "");
+    const match = source.match(/__route_(fast_text|fast_image|search|default)/);
+    return match?.[1] || "unknown";
+  };
+
     useEffect(() => {
     const checkAnalyticsAccess = async () => {
       try {
@@ -105,6 +125,13 @@ export default function AnalyticsPage() {
     medium: autoDebugFeedback.filter((f: any) => String(f.message || "").toLowerCase().startsWith("[medium]")).length,
     low: autoDebugFeedback.filter((f: any) => String(f.message || "").toLowerCase().startsWith("[low]")).length,
   };
+
+  const autoDebugRouteCounts = {
+    fastText: autoDebugFeedback.filter((f: any) => getAutoDebugRouteType(f) === "fast_text").length,
+    fastImage: autoDebugFeedback.filter((f: any) => getAutoDebugRouteType(f) === "fast_image").length,
+    search: autoDebugFeedback.filter((f: any) => getAutoDebugRouteType(f) === "search").length,
+    default: autoDebugFeedback.filter((f: any) => getAutoDebugRouteType(f) === "default").length,
+  };
   const adjustmentIdeas = ideaFeedback.filter((f: any) => f.source === "idea_adjustment");
   const learningIdeas = ideaFeedback.filter((f: any) => f.source === "idea_feedback_learning");
 
@@ -159,6 +186,14 @@ export default function AnalyticsPage() {
     ...improvementFeedback,
     ...negativeFeedback,
   ];
+
+  const styleLearningPool = learningPool.filter(
+    (f: any) => inferLearningType(f) === "style"
+  );
+
+  const contentLearningPool = learningPool.filter(
+    (f: any) => inferLearningType(f) === "content"
+  );
 
   const learningNewCount = learningPool.filter(
     (f: any) => (itemStatus[getItemKey(f)] || getAutoStatus(f)) === "nieuw"
@@ -276,28 +311,6 @@ export default function AnalyticsPage() {
   const personalLearningText = personalLearningPool
     .map((f: any) => `${f.userMessage || ""} ${f.message || ""}`.toLowerCase())
     .join(" ");
-
-  const inferLearningType = (f: any) => {
-    if (f.learningType === "style" || f.learningType === "content") {
-      return f.learningType;
-    }
-
-    const text = `${f.userMessage || ""} ${f.message || ""}`.toLowerCase();
-
-    const isStyleSignal = !!text.match(
-      /korter|te lang|too long|shorter|duidelijker|onduidelijk|clearer|unclear|andere structuur|structuur|structure|te vaag|vaag|vague|meer context|more context|more depth|te serieus|te formeel|menselijker|spontaner|luchtiger|more natural|too formal|too long for chat/
-    );
-
-    return isStyleSignal ? "style" : "content";
-  };
-
-  const styleLearningPool = learningPool.filter(
-    (f: any) => inferLearningType(f) === "style"
-  );
-
-  const contentLearningPool = learningPool.filter(
-    (f: any) => inferLearningType(f) === "content"
-  );
 
   const globalActiveLearningRules: string[] = [
     (globalLearningText.includes("korter") || globalLearningText.includes("te lang")) &&
@@ -1122,6 +1135,24 @@ return () => {
         <span>Low confidence</span>
         <span className="opacity-60">{autoDebugConfidenceCounts.low}</span>
       </div>
+      <div className="pt-2 border-t border-white/10 space-y-2">
+        <div className="flex justify-between">
+          <span>Fast text</span>
+          <span className="opacity-60">{autoDebugRouteCounts.fastText}</span>
+        </div>
+        <div className="flex justify-between">
+          <span>Fast image</span>
+          <span className="opacity-60">{autoDebugRouteCounts.fastImage}</span>
+        </div>
+        <div className="flex justify-between">
+          <span>Search</span>
+          <span className="opacity-60">{autoDebugRouteCounts.search}</span>
+        </div>
+        <div className="flex justify-between">
+          <span>Default</span>
+          <span className="opacity-60">{autoDebugRouteCounts.default}</span>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -1498,6 +1529,8 @@ return () => {
         <p className="text-xs opacity-60 mb-1">
       {f.type === "improve"
         ? "Verbeterfeedback"
+        : f.type === "auto_debug"
+        ? "Auto Debug signaal"
         : f.type === "idea"
         ? "Idee / Feedback"
         : "User"}
@@ -1510,7 +1543,7 @@ return () => {
         : f.userMessage}
     </p>
 
-    {f.type !== "improve" && f.type !== "idea" && (
+    {f.type !== "improve" && f.type !== "idea" && f.type !== "auto_debug" && (
       <>
         <p className="text-xs opacity-60 mb-1">AI</p>
         <p className="mb-3">{f.message}</p>
@@ -1546,9 +1579,10 @@ return () => {
             ? "🧠 AI feedback"
             : "💡 Aanpassing"
           : "🛠️ Verbeter feedback"}
-        {(f.type === "down" || f.type === "improve" || f.source === "idea_feedback_learning") && (
+        {(f.type === "down" || f.type === "improve" || f.source === "idea_feedback_learning" || f.type === "auto_debug") && (
           <span className="ml-2 text-xs opacity-60">
             [{inferLearningType(f) === "style" ? "style" : "content"}]
+            {f.type === "auto_debug" ? ` • ${getAutoDebugRouteType(f)}` : ""}
           </span>
         )}
       </span>
