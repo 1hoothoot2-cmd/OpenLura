@@ -157,6 +157,39 @@ function buildResponseStyleProfile(input: {
   };
 }
 
+function buildSharedStyleInstructionBlock(input: {
+  responseStyleProfile: {
+    tone: string;
+    brevity: string;
+    structure: string;
+    clarity: string;
+    depth: string;
+  };
+  cappedLearningStrength: {
+    shorter: number;
+    clearer: number;
+    structure: number;
+    vague: number;
+    context: number;
+    casual: number;
+  };
+}) {
+  return `Response style profile:
+- tone: ${input.responseStyleProfile.tone}
+- brevity: ${input.responseStyleProfile.brevity}
+- structure: ${input.responseStyleProfile.structure}
+- clarity: ${input.responseStyleProfile.clarity}
+- depth: ${input.responseStyleProfile.depth}
+
+Style pressure:
+- shorter: ${input.cappedLearningStrength.shorter}
+- clearer: ${input.cappedLearningStrength.clearer}
+- structure: ${input.cappedLearningStrength.structure}
+- vague reduction: ${input.cappedLearningStrength.vague}
+- more context: ${input.cappedLearningStrength.context}
+- casual tone: ${input.cappedLearningStrength.casual}`;
+}
+
 function buildContentLearningState(input: {
   responsePreferenceContext: string;
   hasMixedResponseFeedback: boolean;
@@ -742,6 +775,11 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
       cappedLearningStrength,
     });
 
+    const sharedStyleInstructionBlock = buildSharedStyleInstructionBlock({
+      responseStyleProfile,
+      cappedLearningStrength,
+    });
+
     const fastRouteDecisionInput = {
       shouldUseFastTextPath,
       isCasualChatRequest,
@@ -797,14 +835,9 @@ Keep short prompts fast, natural, and direct.
 Do not use long structure for greetings or tiny prompts.
 Keep the answer useful but compact.
 
-Fast-path style profile:
-- tone: ${responseStyleProfile.tone}
-- brevity: ${responseStyleProfile.brevity}
-- structure: ${responseStyleProfile.structure}
-- clarity: ${responseStyleProfile.clarity}
-- depth: ${responseStyleProfile.depth}
+${sharedStyleInstructionBlock}
 
-Fast-path style rules:
+Fast-path rules:
 - Prefer shorter replies when possible
 - Be clearer and less vague
 - If the prompt is casual, sound light and natural
@@ -813,12 +846,7 @@ Fast-path style rules:
 - If structure is minimal, keep formatting very light
 - If structure is shortlist, prioritize the strongest options only
 
-Personal memory: ${personalMemory || memory || "none"}
-Active fast-path style pressure:
-- shorter: ${cappedLearningStrength.shorter}
-- clearer: ${cappedLearningStrength.clearer}
-- vague reduction: ${cappedLearningStrength.vague}
-- casual tone: ${cappedLearningStrength.casual}`,
+Personal memory: ${personalMemory || memory || "none"}`,
           },
           {
             role: "user",
@@ -1051,11 +1079,7 @@ STYLE LEARNING SIGNALS:
 - casual/natural chat tone: ${cappedLearningStrength.casual} (${learningConfidence.casual})
 
 RESPONSE STYLE PROFILE:
-- tone: ${responseStyleProfile.tone}
-- brevity: ${responseStyleProfile.brevity}
-- structure: ${responseStyleProfile.structure}
-- clarity: ${responseStyleProfile.clarity}
-- depth: ${responseStyleProfile.depth}
+${sharedStyleInstructionBlock}
 
 GLOBAL LEARNING:
 Total sessions: ${globalFeedback.length}
@@ -1129,7 +1153,7 @@ ADAPTATION RULES:
 - Low confidence signals should only be applied lightly as a soft preference
 - Ignore signals with confidence None
 - Weighted learning signals are recency-based, so follow recent repeated feedback more strongly than older feedback
-- Follow RESPONSE STYLE PROFILE as the default presentation layer for this answer
+- Follow the shared style instruction block as the default presentation layer for this answer
 - If tone is casual_light, keep the answer warm, short, and natural
 - If tone is practical_grounded, prioritize usefulness and concrete details
 - If tone is visual_direct, answer directly from what is visible

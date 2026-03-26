@@ -244,6 +244,24 @@ export default function AnalyticsPage() {
     .map((f: any) => `${f.userMessage || ""} ${f.message || ""}`.toLowerCase())
     .join(" ");
 
+  const styleLearningPool = learningPool.filter((f: any) =>
+    `${f.userMessage || ""} ${f.message || ""}`
+      .toLowerCase()
+      .match(
+        /korter|te lang|too long|shorter|duidelijker|onduidelijk|clearer|unclear|andere structuur|structuur|structure|te vaag|vaag|vague|meer context|more context|more depth|te serieus|te formeel|menselijker|spontaner|luchtiger|more natural|too formal|too long for chat/
+      )
+  );
+
+  const contentLearningPool = learningPool.filter((f: any) => {
+    const text = `${f.userMessage || ""} ${f.message || ""}`.toLowerCase();
+
+    const isStyleSignal = !!text.match(
+      /korter|te lang|too long|shorter|duidelijker|onduidelijk|clearer|unclear|andere structuur|structuur|structure|te vaag|vaag|vague|meer context|more context|more depth|te serieus|te formeel|menselijker|spontaner|luchtiger|more natural|too formal|too long for chat/
+    );
+
+    return !isStyleSignal;
+  });
+
   const globalActiveLearningRules: string[] = [
     (globalLearningText.includes("korter") || globalLearningText.includes("te lang")) &&
       "Kortere antwoorden globaal actief",
@@ -274,6 +292,18 @@ export default function AnalyticsPage() {
     structure: globalLearningPool.filter((f: any) =>
       `${f.userMessage || ""} ${f.message || ""}`.toLowerCase().match(/andere structuur|structuur|structure/)
     ).length,
+  };
+
+  const styleLearningCounts = {
+    global: globalLearningPool.filter((f: any) => styleLearningPool.includes(f)).length,
+    personal: personalLearningPool.filter((f: any) => styleLearningPool.includes(f)).length,
+    total: styleLearningPool.length,
+  };
+
+  const contentLearningCounts = {
+    global: globalLearningPool.filter((f: any) => contentLearningPool.includes(f)).length,
+    personal: personalLearningPool.filter((f: any) => contentLearningPool.includes(f)).length,
+    total: contentLearningPool.length,
   };
 
     const personalWeightedSignals = {
@@ -1037,7 +1067,7 @@ return () => {
 <div className="p-4 bg-white/10 rounded-2xl mb-6">
   <h2 className="text-lg mb-3">🧠 Learning visibility</h2>
 
-  <div className="grid md:grid-cols-4 gap-3 mb-4 text-sm">
+  <div className="grid md:grid-cols-3 lg:grid-cols-6 gap-3 mb-4 text-sm">
     <div className="p-3 rounded-xl bg-white/5">
       <p className="text-xs opacity-60 mb-1">Opgeslagen AI feedback</p>
       <p className="text-lg">{learningPool.length}</p>
@@ -1049,6 +1079,14 @@ return () => {
     <div className="p-3 rounded-xl bg-white/5">
       <p className="text-xs opacity-60 mb-1">Personal learning</p>
       <p className="text-lg">{personalLearningPool.length}</p>
+    </div>
+    <div className="p-3 rounded-xl bg-white/5">
+      <p className="text-xs opacity-60 mb-1">Style learning</p>
+      <p className="text-lg">{styleLearningCounts.total}</p>
+    </div>
+    <div className="p-3 rounded-xl bg-white/5">
+      <p className="text-xs opacity-60 mb-1">Content learning</p>
+      <p className="text-lg">{contentLearningCounts.total}</p>
     </div>
     <div className="p-3 rounded-xl bg-white/5">
       <p className="text-xs opacity-60 mb-1">Actieve live rules</p>
@@ -1081,6 +1119,44 @@ return () => {
           ))}
         </div>
       )}
+    </div>
+  </div>
+
+  <div className="grid md:grid-cols-2 gap-4 text-sm mb-4">
+    <div className="p-3 rounded-xl bg-white/5">
+      <p className="text-xs opacity-60 mb-2">Style learning split</p>
+      <div className="space-y-2">
+        <div className="flex justify-between">
+          <span>Totaal</span>
+          <span className="opacity-60">{styleLearningCounts.total}</span>
+        </div>
+        <div className="flex justify-between">
+          <span>Globaal</span>
+          <span className="opacity-60">{styleLearningCounts.global}</span>
+        </div>
+        <div className="flex justify-between">
+          <span>Persoonlijk</span>
+          <span className="opacity-60">{styleLearningCounts.personal}</span>
+        </div>
+      </div>
+    </div>
+
+    <div className="p-3 rounded-xl bg-white/5">
+      <p className="text-xs opacity-60 mb-2">Content learning split</p>
+      <div className="space-y-2">
+        <div className="flex justify-between">
+          <span>Totaal</span>
+          <span className="opacity-60">{contentLearningCounts.total}</span>
+        </div>
+        <div className="flex justify-between">
+          <span>Globaal</span>
+          <span className="opacity-60">{contentLearningCounts.global}</span>
+        </div>
+        <div className="flex justify-between">
+          <span>Persoonlijk</span>
+          <span className="opacity-60">{contentLearningCounts.personal}</span>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -1177,6 +1253,9 @@ return () => {
           <span className="opacity-60">{learningWorkflowCounts.klaar}</span>
         </div>
       </div>
+      <p className="text-[11px] opacity-50 mt-3">
+        Style learning = tone, length, clarity, structure. Content learning = preferred answer shape and successful response patterns.
+      </p>
     </div>
   </div>
 </div>
