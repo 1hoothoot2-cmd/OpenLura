@@ -436,11 +436,20 @@ function buildContentLearningState(input: {
     down: number;
   };
 }) {
+  const bestResponseScore = input.bestResponsePreference?.score || 0;
+
   return {
     responsePreferenceContext: input.responsePreferenceContext,
     hasMixedResponseFeedback: input.hasMixedResponseFeedback,
     bestResponsePreference: input.bestResponsePreference || null,
     hasContentPreference: !!input.bestResponsePreference,
+    shouldApplyContentPreference:
+      !!input.bestResponsePreference &&
+      !input.hasMixedResponseFeedback &&
+      bestResponseScore >= 2,
+    shouldOnlyUseContentAsHint:
+      !!input.bestResponsePreference &&
+      (input.hasMixedResponseFeedback || bestResponseScore < 2),
   };
 }
 
@@ -473,14 +482,18 @@ function shouldBypassFastTextPath(input: {
   hasContentPreference: boolean;
   hasMixedResponseFeedback: boolean;
   bestResponsePreferenceScore: number;
+  shouldApplyContentPreference?: boolean;
 }) {
   const casualNeedsLearnedBehavior =
     input.isCasualChatRequest && input.casualSignalStrength >= 2;
 
   const strongExactMessagePreference =
-    input.hasContentPreference &&
-    !input.hasMixedResponseFeedback &&
-    input.bestResponsePreferenceScore >= 2;
+    input.shouldApplyContentPreference ??
+    (
+      input.hasContentPreference &&
+      !input.hasMixedResponseFeedback &&
+      input.bestResponsePreferenceScore >= 2
+    );
 
   return casualNeedsLearnedBehavior || strongExactMessagePreference;
 }
@@ -492,10 +505,14 @@ function shouldUseAdaptiveSpeedMode(input: {
   hasContentPreference: boolean;
   hasMixedResponseFeedback: boolean;
   bestResponsePreferenceScore: number;
+  shouldApplyContentPreference?: boolean;
 }) {
   if (input.hasMixedResponseFeedback) return false;
 
-  if (input.hasContentPreference && input.bestResponsePreferenceScore >= 2) {
+  if (
+    input.shouldApplyContentPreference ??
+    (input.hasContentPreference && input.bestResponsePreferenceScore >= 2)
+  ) {
     return false;
   }
 
@@ -1209,6 +1226,8 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
       hasMixedResponseFeedback: contentLearningState.hasMixedResponseFeedback,
       bestResponsePreferenceScore:
         contentLearningState.bestResponsePreference?.score || 0,
+      shouldApplyContentPreference:
+        contentLearningState.shouldApplyContentPreference,
     };
 
     const shouldUseFastTextRoute =
@@ -1223,15 +1242,6 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
         : shouldUseWebSearch
         ? "search"
         : "default"; 
-
-  !shouldBypassFastTextPath({
-    isCasualChatRequest,
-    casualSignalStrength: cappedLearningStrength.casual,
-    hasContentPreference: contentLearningState.hasContentPreference,
-    hasMixedResponseFeedback: contentLearningState.hasMixedResponseFeedback,
-    bestResponsePreferenceScore:
-      contentLearningState.bestResponsePreference?.score || 0,
-  });
 
         if (shouldUseFastTextRoute) {
       const cacheKey = buildCacheKey({
