@@ -42,8 +42,13 @@ export default function Home() {
   const [loginLoading, setLoginLoading] = useState(false);
   
   const fileRef = useRef<HTMLInputElement>(null);
-    const messagesRef = useRef<HTMLDivElement>(null);
+  const messagesRef = useRef<HTMLDivElement>(null);
   const chatMenuRef = useRef<HTMLDivElement>(null);
+  const preferredActiveChatIdRef = useRef<number | null>(null);
+  const pendingActiveChatIdRef = useRef<number | null>(null);
+  const personalSyncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasLoadedInitialStateRef = useRef(false);
+  const [openChatMenuId, setOpenChatMenuId] = useState<number | null>(null);
 
   const greetings = [
     "👋 Hey! Waar kan ik je mee helpen?",
@@ -86,11 +91,14 @@ export default function Home() {
                 }));
 
                 setChats(normalizedChats);
-                setActiveChatId(
+
+                const nextActiveChatId =
                   normalizedChats.find(
                     (chat: any) => !chat.archived && !chat.deleted
-                  )?.id ?? null
-                );
+                  )?.id ?? null;
+
+                preferredActiveChatIdRef.current = nextActiveChatId;
+                setActiveChatId(nextActiveChatId);
               }
 
               if (serverMemory.length > 0) {
@@ -128,11 +136,14 @@ export default function Home() {
           }));
 
           setChats(normalizedChats);
-          setActiveChatId(
+
+          const nextActiveChatId =
             normalizedChats.find(
               (chat: any) => !chat.archived && !chat.deleted
-            )?.id ?? null
-          );
+            )?.id ?? null;
+
+          preferredActiveChatIdRef.current = nextActiveChatId;
+          setActiveChatId(nextActiveChatId);
         } else if (!saved && !isPersonalRoute) {
           createNewChat();
         }
@@ -160,47 +171,63 @@ export default function Home() {
       }
     };
 
-    loadState();
+    loadState().finally(() => {
+      hasLoadedInitialStateRef.current = true;
+    });
   }, [chatStorageKey, memoryStorageKey, isPersonalRoute]);
 
-      useEffect(() => {
-    const persistState = async () => {
+  useEffect(() => {
+    const safeChats = chats.map((chat: any) => ({
+      ...chat,
+      messages: (chat.messages || []).map((msg: any) => {
+        if (!msg.image) return msg;
+
+        return {
+          ...msg,
+          image:
+            typeof msg.image === "string" && msg.image.startsWith("data:")
+              ? "[image-uploaded]"
+              : msg.image,
+        };
+      }),
+    }));
+
+    try {
+      localStorage.setItem(chatStorageKey, JSON.stringify(safeChats));
+    } catch (error) {
+      console.error("OpenLura local chat persistence failed:", error);
+    }
+
+    if (!isPersonalRoute || !personalStateLoaded || !hasLoadedInitialStateRef.current) {
+      return;
+    }
+
+    if (personalSyncTimeoutRef.current) {
+      clearTimeout(personalSyncTimeoutRef.current);
+    }
+
+    personalSyncTimeoutRef.current = setTimeout(async () => {
       try {
-        const safeChats = chats.map((chat: any) => ({
-          ...chat,
-          messages: (chat.messages || []).map((msg: any) => {
-            if (!msg.image) return msg;
-
-            return {
-              ...msg,
-              image:
-                typeof msg.image === "string" && msg.image.startsWith("data:")
-                  ? "[image-uploaded]"
-                  : msg.image,
-            };
+        await fetch("/api/personal-state", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            chats: safeChats,
+            memory,
           }),
-        }));
-
-        localStorage.setItem(chatStorageKey, JSON.stringify(safeChats));
-
-        if (isPersonalRoute && personalStateLoaded) {
-          await fetch("/api/personal-state", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              chats: safeChats,
-              memory,
-            }),
-          });
-        }
+        });
       } catch (error) {
-        console.error("OpenLura chat persistence failed:", error);
+        console.error("OpenLura personal sync failed:", error);
+      }
+    }, 700);
+
+    return () => {
+      if (personalSyncTimeoutRef.current) {
+        clearTimeout(personalSyncTimeoutRef.current);
       }
     };
-
-    persistState();
   }, [chats, chatStorageKey, isPersonalRoute, memory, personalStateLoaded]);
 
   useEffect(() => {
@@ -219,9 +246,10 @@ export default function Home() {
     };
   }, []);
 
-    useEffect(() => {
+  useEffect(() => {
     setOpenChatMenuId(null);
   }, [activeChatId]);
+
   useEffect(() => {
   const el = messagesRef.current;
   if (!el) return;
@@ -299,46 +327,54 @@ export default function Home() {
     };
   }, []);
 
+  const activateChat = (chatId: number) => {
+    pendingActiveChatIdRef.current = chatId;
+    preferredActiveChatIdRef.current = chatId;
+    setActiveChatId(chatId);
+    setOpenChatMenuId(null);
+  };
+
   const createNewChat = (
     preset?: Partial<{
       title: string;
       messages: { role: string; content: string; image?: string | null }[];
     }>
   ) => {
-    const buildUniqueTitle = (baseTitle: string) => {
-      const existingTitles = chats.map((chat: any) => String(chat.title || "").trim());
-      const hasBase = existingTitles.includes(baseTitle);
-
-      if (!hasBase) return baseTitle;
-
-      let counter = 2;
-      while (existingTitles.includes(`${baseTitle} ${counter}`)) {
-        counter += 1;
-      }
-
-      return `${baseTitle} ${counter}`;
-    };
-
     const baseTitle =
       preset?.title || (isPersonalRoute ? "Persoonlijke chat" : "New Chat");
 
-    const newChat = {
-      id: Date.now() + Math.floor(Math.random() * 1000),
-      title: buildUniqueTitle(baseTitle),
-      messages: preset?.messages ? [...preset.messages] : [],
-      pinned: false,
-      archived: false,
-      deleted: false,
-    };
+    const newChatId = Date.now() + Math.floor(Math.random() * 1000);
 
-    setChats((prev) => [newChat, ...prev]);
-    setActiveChatId(newChat.id);
-    setOpenChatMenuId(null);
+    setChats((prev) => {
+      const existingTitles = prev.map((chat: any) =>
+        String(chat.title || "").trim()
+      );
+
+      const buildUniqueTitle = (rawBaseTitle: string) => {
+        if (!existingTitles.includes(rawBaseTitle)) return rawBaseTitle;
+
+        let counter = 2;
+        while (existingTitles.includes(`${rawBaseTitle} ${counter}`)) {
+          counter += 1;
+        }
+
+        return `${rawBaseTitle} ${counter}`;
+      };
+
+      const newChat = {
+        id: newChatId,
+        title: buildUniqueTitle(baseTitle),
+        messages: preset?.messages ? [...preset.messages] : [],
+        pinned: false,
+        archived: false,
+        deleted: false,
+      };
+
+      return [newChat, ...prev];
+    });
+
+    activateChat(newChatId);
   };
-
-    const [openChatMenuId, setOpenChatMenuId] = useState<number | null>(null);
-
-  const activeChat = chats.find((c: any) => c.id === activeChatId);
 
 const messageShellClass =
   "w-full min-w-0 overflow-hidden";
@@ -351,54 +387,86 @@ const composerInnerClass =
 const composerInputClass =
   "w-full min-w-0 resize-none overflow-x-hidden break-words [overflow-wrap:anywhere]";
 
-  useEffect(() => {
-  const visibleChats = chats.filter(
-    (chat: any) => !chat.archived && !chat.deleted
-  );
+const activeChat =
+  chats.find(
+    (c: any) =>
+      c.id === activeChatId &&
+      !c.archived &&
+      !c.deleted
+  ) ?? null;
 
-  if (isPersonalRoute) {
-    if (!personalStateLoaded && chats.length === 0) return;
+    useEffect(() => {
+    const visibleChats = chats.filter(
+      (chat: any) => !chat.archived && !chat.deleted
+    );
 
-    if (visibleChats.length > 0) {
-      // ❗ BELANGRIJK: respecteer user selectie
-      const stillExists = visibleChats.some(
-        (chat: any) => chat.id === activeChatId
-      );
-
-      if (!stillExists) {
-        setActiveChatId(visibleChats[0].id);
-      }
-
+    if (isPersonalRoute && !personalStateLoaded && chats.length === 0) {
       return;
     }
 
-    createNewChat({
-      title: "Persoonlijke omgeving",
-      messages: [
-        {
-          role: "ai",
-          content:
-            "👋 Welkom in je persoonlijke omgeving. Hier testen we privé memory, verbeterpunten en training van jouw AI-gedrag.",
-        },
-      ],
-    });
+    if (visibleChats.length === 0) {
+      if (isPersonalRoute) {
+        createNewChat({
+          title: "Persoonlijke omgeving",
+          messages: [
+            {
+              role: "ai",
+              content:
+                "👋 Welkom in je persoonlijke omgeving. Hier testen we privé memory, verbeterpunten en training van jouw AI-gedrag.",
+            },
+          ],
+        });
+      } else {
+        createNewChat();
+      }
+      return;
+    }
 
-    return;
-  }
+    const pendingId = pendingActiveChatIdRef.current;
 
-  if (visibleChats.length === 0) {
-    createNewChat();
-    return;
-  }
+    if (pendingId !== null) {
+      const pendingVisible = visibleChats.some(
+        (chat: any) => chat.id === pendingId
+      );
 
-  const stillExists = visibleChats.some(
-    (chat: any) => chat.id === activeChatId
-  );
+      if (!pendingVisible) {
+        return;
+      }
 
-  if (!stillExists) {
-    setActiveChatId(visibleChats[0].id);
-  }
-}, [isPersonalRoute, personalStateLoaded, chats, activeChatId]);
+      if (activeChatId !== pendingId) {
+        setActiveChatId(pendingId);
+        return;
+      }
+
+      pendingActiveChatIdRef.current = null;
+      preferredActiveChatIdRef.current = pendingId;
+      return;
+    }
+
+    const preferredId = preferredActiveChatIdRef.current;
+
+    if (
+      preferredId !== null &&
+      visibleChats.some((chat: any) => chat.id === preferredId)
+    ) {
+      if (activeChatId !== preferredId) {
+        setActiveChatId(preferredId);
+      }
+      return;
+    }
+
+    const currentActiveStillVisible =
+      activeChatId !== null &&
+      visibleChats.some((chat: any) => chat.id === activeChatId);
+
+    if (currentActiveStillVisible) {
+      return;
+    }
+
+    const fallbackId = visibleChats[0].id;
+    preferredActiveChatIdRef.current = fallbackId;
+    setActiveChatId(fallbackId);
+  }, [isPersonalRoute, personalStateLoaded, chats]);
 
   const updateChatMeta = (
     chatId: number,
@@ -418,7 +486,10 @@ const composerInputClass =
       const nextVisibleChat = updatedChats.find(
         (chat: any) => !chat.archived && !chat.deleted
       );
-      setActiveChatId(nextVisibleChat?.id ?? null);
+      const nextActiveChatId = nextVisibleChat?.id ?? null;
+
+      preferredActiveChatIdRef.current = nextActiveChatId;
+      setActiveChatId(nextActiveChatId);
     }
 
     setOpenChatMenuId(null);
@@ -518,6 +589,7 @@ const composerInputClass =
       };
 
       setChats([fallbackChat]);
+      preferredActiveChatIdRef.current = fallbackChat.id;
       setActiveChatId(fallbackChat.id);
     } else {
       setChats(remainingChats);
@@ -526,7 +598,9 @@ const composerInputClass =
         (chat: any) => !chat.archived && !chat.deleted
       );
 
-      setActiveChatId(nextVisibleChat?.id ?? remainingChats[0]?.id ?? null);
+      const nextActiveChatId = nextVisibleChat?.id ?? remainingChats[0]?.id ?? null;
+      preferredActiveChatIdRef.current = nextActiveChatId;
+      setActiveChatId(nextActiveChatId);
     }
 
     setShowClearDeletedConfirm(false);
@@ -1065,6 +1139,8 @@ Geef alleen direct het betere antwoord.`,
       updated = [fallbackChat, ...updated];
       index = 0;
       setChats(updated);
+      pendingActiveChatIdRef.current = fallbackChat.id;
+      preferredActiveChatIdRef.current = fallbackChat.id;
       setActiveChatId(fallbackChat.id);
     }
 
@@ -1491,7 +1567,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                 >
                                     <div
                     onClick={() => {
-                      setActiveChatId(chat.id);
+                      activateChat(chat.id);
                       setMobileMenu(false);
                     }}
                                         className="pr-8 cursor-pointer flex items-center gap-2 min-w-0"
@@ -1569,7 +1645,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                 >
                   <div
                     onClick={() => {
-                      setActiveChatId(chat.id);
+                      activateChat(chat.id);
                       setMobileMenu(false);
                     }}
                                         className="pr-8 cursor-pointer truncate"
@@ -1642,7 +1718,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                 >
                   <div
                     onClick={() => {
-                      setActiveChatId(chat.id);
+                      activateChat(chat.id);
                       setMobileMenu(false);
                     }}
                     className="pr-8 cursor-pointer opacity-80"

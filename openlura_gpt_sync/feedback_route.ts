@@ -154,6 +154,19 @@ function getSupabaseConfig() {
   };
 }
 
+function isFeedbackSchemaMismatch(status: number, errorText: string) {
+  return (
+    status === 400 &&
+    (
+      errorText.includes("PGRST204") ||
+      errorText.includes("42703") ||
+      errorText.toLowerCase().includes("user_id") ||
+      errorText.toLowerCase().includes("column") ||
+      errorText.toLowerCase().includes("could not find the")
+    )
+  );
+}
+
 export async function POST(req: Request) {
   try {
     const { feedbackTableUrl, supabaseServiceRoleKey } = getSupabaseConfig();
@@ -192,19 +205,19 @@ export async function POST(req: Request) {
     }
 
         if (data?.action === "update_workflow_status") {
-      const entry = {
-        chatId: data.chatId ?? null,
-        msgIndex: data.msgIndex ?? null,
-        type: "workflow_status",
-        message: data.status ?? null,
-        userMessage: data.itemKey ?? null,
-        source: "analytics_workflow",
-        userScope,
-        user_id: resolvedUserId,
-        timestamp: new Date().toISOString(),
-      };
+          const entry = {
+      chatId: data.chatId ?? null,
+      msgIndex: data.msgIndex ?? null,
+      type: data.type ?? null,
+      message: data.message ?? null,
+      userMessage: data.userMessage ?? null,
+      source: data.source ?? null,
+      userScope: isPersonalEnvironment ? "personal" : userScope,
+      user_id: resolvedUserId,
+      timestamp: new Date().toISOString(),
+    };
 
-      const res = await fetch(feedbackTableUrl, {
+      let res = await fetch(feedbackTableUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -218,7 +231,39 @@ export async function POST(req: Request) {
 
       if (!res.ok) {
         const errorText = await res.text();
-        console.error("Supabase workflow POST failed:", res.status, errorText);
+
+        if (isFeedbackSchemaMismatch(res.status, errorText)) {
+          const { user_id, ...fallbackEntry } = entry;
+
+  res = await fetch(feedbackTableUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: supabaseServiceRoleKey,
+      Authorization: `Bearer ${supabaseServiceRoleKey}`,
+      Prefer: "return=representation",
+    } as HeadersInit,
+    body: JSON.stringify(fallbackEntry),
+    cache: "no-store",
+  });
+} else {
+          console.error("Supabase workflow POST failed:", res.status, errorText);
+
+          return NextResponse.json(
+            {
+              success: false,
+              error: "Workflow status opslaan mislukt",
+              supabaseStatus: res.status,
+              supabaseError: errorText,
+            },
+            { status: 500 }
+          );
+        }
+      }
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error("Supabase workflow POST fallback failed:", res.status, errorText);
 
         return NextResponse.json(
           {
@@ -288,8 +333,7 @@ export async function POST(req: Request) {
       type: data.type ?? null,
       message: data.message ?? null,
       userMessage: data.userMessage ?? null,
-      source: inferredIdeaSource,
-      learningType: data.learningType ?? null,
+      source: data.source ?? null,
       userScope: isPersonalEnvironment ? "personal" : userScope,
       user_id: resolvedUserId,
       timestamp: new Date().toISOString(),
@@ -310,21 +354,21 @@ export async function POST(req: Request) {
     if (!res.ok) {
       const errorText = await res.text();
 
-      if (errorText.toLowerCase().includes("user_id")) {
-        const { user_id, ...fallbackEntry } = entry;
+     if (isFeedbackSchemaMismatch(res.status, errorText)) {
+          const { user_id, ...fallbackEntry } = entry;
 
-        res = await fetch(feedbackTableUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            apikey: supabaseServiceRoleKey,
-            Authorization: `Bearer ${supabaseServiceRoleKey}`,
-            Prefer: "return=representation",
-          } as HeadersInit,
-          body: JSON.stringify(fallbackEntry),
-          cache: "no-store",
-        });
-      } else {
+  res = await fetch(feedbackTableUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: supabaseServiceRoleKey,
+      Authorization: `Bearer ${supabaseServiceRoleKey}`,
+      Prefer: "return=representation",
+    } as HeadersInit,
+    body: JSON.stringify(fallbackEntry),
+    cache: "no-store",
+  });
+} else {
         console.error("Supabase POST failed:", res.status, errorText);
 
         return NextResponse.json(

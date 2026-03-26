@@ -344,6 +344,10 @@ export default function Home() {
       preset?.title || (isPersonalRoute ? "Persoonlijke chat" : "New Chat");
 
     const newChatId = Date.now() + Math.floor(Math.random() * 1000);
+    pendingActiveChatIdRef.current = newChatId;
+preferredActiveChatIdRef.current = newChatId;
+setActiveChatId(newChatId);
+setOpenChatMenuId(null);
 
     setChats((prev) => {
       const existingTitles = prev.map((chat: any) =>
@@ -372,8 +376,6 @@ export default function Home() {
 
       return [newChat, ...prev];
     });
-
-    activateChat(newChatId);
   };
 
 const messageShellClass =
