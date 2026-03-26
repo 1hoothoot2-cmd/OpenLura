@@ -163,10 +163,12 @@ function detectAutoDebugSignals(input: {
 function buildCacheKey(input: {
   message: string;
   personalMemory?: string;
+  learningScope?: string;
 }) {
   return JSON.stringify({
     message: input.message.trim().toLowerCase(),
     personalMemory: (input.personalMemory || "").trim().toLowerCase(),
+    learningScope: (input.learningScope || "global").trim().toLowerCase(),
   });
 }
 
@@ -575,6 +577,230 @@ function classifyOpenLuraRoute(input: {
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const personalStateTable =
+  process.env.OPENLURA_PERSONAL_STATE_TABLE || "openlura_personal_state";
+
+type OpenLuraFeedbackRow = {
+  type?: string | null;
+  message?: string | null;
+  userMessage?: string | null;
+  source?: string | null;
+  learningType?: string | null;
+  userScope?: string | null;
+  timestamp?: string | number | null;
+  weight?: number;
+};
+
+type OpenLuraPersonalState = {
+  userId: string | null;
+  memory: string;
+  feedback: OpenLuraFeedbackRow[];
+  raw: any;
+};
+
+type OpenLuraPersonalRuntimeContext = {
+  isPersonalEnvironment: boolean;
+  personalUserId: string | null;
+  personalState: OpenLuraPersonalState;
+  personalFeedbackRows: OpenLuraFeedbackRow[];
+  resolvedPersonalMemory: string;
+  learningScope: string;
+};
+
+function getBearerTokenFromRequest(req: Request) {
+  const authHeader = req.headers.get("authorization") || "";
+  const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
+  if (bearerMatch?.[1]) return bearerMatch[1].trim();
+
+  const directCookie =
+    getCookieValue(req, "sb-access-token") ||
+    getCookieValue(req, "supabase-access-token");
+
+  if (directCookie) return decodeURIComponent(directCookie);
+
+  const packedCookie =
+    getCookieValue(req, "supabase-auth-token") ||
+    getCookieValue(req, "sb-auth-token");
+
+  if (!packedCookie) return null;
+
+  try {
+    const decoded = decodeURIComponent(packedCookie);
+    const parsed = JSON.parse(decoded);
+    if (typeof parsed === "string") return parsed;
+    if (Array.isArray(parsed) && typeof parsed[0] === "string") return parsed[0];
+    if (typeof parsed?.access_token === "string") return parsed.access_token;
+  } catch {}
+
+  return null;
+}
+
+async function fetchSupabaseAuthUser(accessToken?: string | null) {
+  if (!supabaseUrl || !supabaseServiceRoleKey || !accessToken) return null;
+
+  try {
+    const res = await fetch(`${supabaseUrl}/auth/v1/user`, {
+      method: "GET",
+      headers: {
+        apikey: supabaseServiceRoleKey,
+        Authorization: `Bearer ${accessToken}`,
+      },
+      cache: "no-store",
+    });
+
+    if (!res.ok) {
+      return null;
+    }
+
+    return await res.json();
+  } catch (error) {
+    console.error("OpenLura auth user fetch failed:", error);
+    return null;
+  }
+}
+
+async function fetchSupabasePersonalState(userId?: string | null) {
+  if (!supabaseUrl || !supabaseServiceRoleKey || !userId) {
+    return {
+      userId: null,
+      memory: "",
+      feedback: [],
+      raw: null,
+    } satisfies OpenLuraPersonalState;
+  }
+
+  const tryQueries = [
+    `select=*&eq.user_id=${encodeURIComponent(userId)}&limit=1`,
+    `select=*&eq.id=${encodeURIComponent(userId)}&limit=1`,
+  ];
+
+  for (const query of tryQueries) {
+    try {
+      const res = await fetch(
+        `${supabaseUrl}/rest/v1/${personalStateTable}?${query}`,
+        {
+          method: "GET",
+          headers: {
+            apikey: supabaseServiceRoleKey,
+            Authorization: `Bearer ${supabaseServiceRoleKey}`,
+          },
+          cache: "no-store",
+        }
+      );
+
+      if (!res.ok) continue;
+
+      const rows = await res.json();
+      const row = Array.isArray(rows) ? rows[0] : null;
+
+      if (!row) continue;
+
+      const nestedFeedback = Array.isArray(row.feedback)
+        ? row.feedback
+        : Array.isArray(row.learning_feedback)
+        ? row.learning_feedback
+        : Array.isArray(row.personal_feedback)
+        ? row.personal_feedback
+        : [];
+
+      const memoryText =
+        typeof row.personalMemory === "string"
+          ? row.personalMemory
+          : typeof row.memory === "string"
+          ? row.memory
+          : typeof row.profile_memory === "string"
+          ? row.profile_memory
+          : typeof row.state?.memory === "string"
+          ? row.state.memory
+          : "";
+
+      return {
+        userId,
+        memory: memoryText,
+        feedback: nestedFeedback,
+        raw: row,
+      } satisfies OpenLuraPersonalState;
+    } catch (error) {
+      console.error("OpenLura personal state fetch failed:", error);
+    }
+  }
+
+  return {
+    userId,
+    memory: "",
+    feedback: [],
+    raw: null,
+  } satisfies OpenLuraPersonalState;
+}
+
+function mergeLearningFeedbackLayers(input: {
+  globalFeedback: OpenLuraFeedbackRow[];
+  personalFeedback: OpenLuraFeedbackRow[];
+}) {
+  const normalizeLayerRows = (
+    rows: OpenLuraFeedbackRow[],
+    layer: "global" | "personal"
+  ) =>
+    rows.map((item) => ({
+      ...item,
+      userScope:
+        layer === "personal" ? "personal" : item.userScope || "guest",
+      weight:
+        (typeof item.weight === "number" && Number.isFinite(item.weight)
+          ? item.weight
+          : 1) * (layer === "personal" ? 1.75 : 1),
+      source:
+        item.source ||
+        (layer === "personal" ? "personal_runtime" : "global_runtime"),
+      learningLayer: layer,
+      timestamp: item.timestamp || new Date().toISOString(),
+    }));
+
+  return [
+    ...normalizeLayerRows(input.globalFeedback, "global"),
+    ...normalizeLayerRows(input.personalFeedback, "personal"),
+  ];
+}
+
+async function resolvePersonalRuntimeContext(input: {
+  req: Request;
+  personalMemory?: string;
+  memory?: string;
+}) {
+  const accessToken = getBearerTokenFromRequest(input.req);
+  const authUser = await fetchSupabaseAuthUser(accessToken);
+  const headerPersonalUserId = input.req.headers.get("x-openlura-user-id");
+  const explicitPersonalEnvHeader =
+    input.req.headers.get("x-openlura-personal-env") === "true";
+
+  const personalUserId = authUser?.id || headerPersonalUserId || null;
+  const personalState = await fetchSupabasePersonalState(personalUserId);
+  const personalFeedbackRows = await getPersonalFeedbackRows(personalUserId);
+
+  const isPersonalEnvironment =
+    explicitPersonalEnvHeader ||
+    !!personalUserId ||
+    !!input.personalMemory ||
+    !!personalState.memory ||
+    personalState.feedback.length > 0 ||
+    personalFeedbackRows.length > 0;
+
+  const resolvedPersonalMemory =
+    input.personalMemory || personalState.memory || input.memory || "";
+
+  const learningScope = isPersonalEnvironment
+    ? `personal:${personalUserId || "active"}`
+    : "global";
+
+  return {
+    isPersonalEnvironment,
+    personalUserId,
+    personalState,
+    personalFeedbackRows,
+    resolvedPersonalMemory,
+    learningScope,
+  } satisfies OpenLuraPersonalRuntimeContext;
+}
 
 async function fetchSupabaseFeedbackRows(query: string, errorLabel: string) {
   if (!supabaseUrl || !supabaseServiceRoleKey) return [];
@@ -603,8 +829,19 @@ async function fetchSupabaseFeedbackRows(query: string, errorLabel: string) {
 
 async function getRecentServerFeedback() {
   return fetchSupabaseFeedbackRows(
-    "select=type,message,userMessage,source,learningType,userScope,timestamp&order=timestamp.desc&limit=30",
+    "select=type,message,userMessage,source,learningType,userScope,timestamp,user_id&order=timestamp.desc&limit=30",
     "OpenLura server feedback fetch failed:"
+  );
+}
+
+async function getPersonalFeedbackRows(userId?: string | null) {
+  if (!userId) return [];
+
+  return fetchSupabaseFeedbackRows(
+    `select=type,message,userMessage,source,learningType,userScope,timestamp,user_id&eq.user_id=${encodeURIComponent(
+      userId
+    )}&order=timestamp.desc&limit=60`,
+    "OpenLura personal feedback fetch failed:"
   );
 }
 
@@ -769,16 +1006,43 @@ const openai = new OpenAI({
 export async function POST(req: Request) {
   const { message, image, memory, personalMemory, location, feedback } = await req.json();
   const userScope = getUserScopeFromRequest(req);
+
+  const {
+    isPersonalEnvironment,
+    personalUserId,
+    personalState,
+    personalFeedbackRows,
+    resolvedPersonalMemory,
+    learningScope,
+  } = await resolvePersonalRuntimeContext({
+    req,
+    personalMemory,
+    memory,
+  });
+
   const serverFeedback = await getRecentServerFeedback();
 
-    const normalizedServerFeedback = serverFeedback.map((item: any) => ({
+    const normalizedServerFeedback = serverFeedback
+    .filter((item: any) => !item.user_id)
+    .map((item: any) => ({
+      type: item.type,
+      message: item.message,
+      userMessage: item.userMessage,
+      source: item.source,
+      learningType: inferFeedbackLearningType(item),
+      userScope: item.userScope || "guest",
+      weight: item.userScope === "admin" ? 1.35 : 1,
+      timestamp: item.timestamp,
+    }));
+
+  const normalizedPersonalFeedbackRows = personalFeedbackRows.map((item: any) => ({
     type: item.type,
     message: item.message,
     userMessage: item.userMessage,
-    source: item.source,
+    source: item.source || "personal_feedback_runtime",
     learningType: inferFeedbackLearningType(item),
-    userScope: item.userScope || "guest",
-    weight: item.userScope === "admin" ? 1.35 : 1,
+    userScope: "personal",
+    weight: 1.5,
     timestamp: item.timestamp,
   }));
 
@@ -819,13 +1083,18 @@ export async function POST(req: Request) {
       item.source === "idea_feedback_learning"
   );
 
-  const personalLearningFeedback = clientFeedback;
+  const personalLearningFeedback = [
+    ...normalizedPersonalFeedbackRows,
+    ...personalState.feedback,
+    ...clientFeedback,
+  ];
 
-  // GLOBAL FIRST (true AI learning)
-const effectiveFeedback = globalLearningFeedback;
+  const effectiveFeedback = mergeLearningFeedbackLayers({
+    globalFeedback: globalLearningFeedback,
+    personalFeedback: isPersonalEnvironment ? personalLearningFeedback : [],
+  });
 
-// PERSONAL alleen als extra laag (optioneel)
-const personalLayer = personalLearningFeedback;
+  const personalLayer = isPersonalEnvironment ? personalLearningFeedback : [];
 
   const feedbackLikes = globalLearningFeedback.filter(
     (f: any) => f.type === "up"
@@ -879,7 +1148,7 @@ ${personalRecentIssues.join("\n") || "none"}
 
   const normalizedMessage = normalizePromptText(message || "");
 
-  const matchingGlobalResponses = globalLearningFeedback.filter((f: any) => {
+  const matchingGlobalResponses = effectiveFeedback.filter((f: any) => {
     const promptText = normalizePromptText(f.userMessage || "");
     return promptText === normalizedMessage && !!(f.message || "").trim();
   });
@@ -894,11 +1163,29 @@ ${personalRecentIssues.join("\n") || "none"}
           response: responseText,
           up: 0,
           down: 0,
+          personalUp: 0,
+          personalDown: 0,
         };
       }
 
-      if (item.type === "up") acc[responseText].up += 1;
-      if (item.type === "down") acc[responseText].down += 1;
+      const weight =
+        typeof item.weight === "number" && Number.isFinite(item.weight)
+          ? item.weight
+          : 1;
+
+      if (item.type === "up") {
+        acc[responseText].up += weight;
+        if (item.learningLayer === "personal") {
+          acc[responseText].personalUp += weight;
+        }
+      }
+
+      if (item.type === "down") {
+        acc[responseText].down += weight;
+        if (item.learningLayer === "personal") {
+          acc[responseText].personalDown += weight;
+        }
+      }
 
       return acc;
     },
@@ -910,9 +1197,12 @@ ${personalRecentIssues.join("\n") || "none"}
       ...item,
       score: item.up - item.down,
       total: item.up + item.down,
+      personalScore: item.personalUp - item.personalDown,
     }))
     .sort((a: any, b: any) => {
+      if (b.personalScore !== a.personalScore) return b.personalScore - a.personalScore;
       if (b.score !== a.score) return b.score - a.score;
+      if (b.personalUp !== a.personalUp) return b.personalUp - a.personalUp;
       if (b.up !== a.up) return b.up - a.up;
       return b.total - a.total;
     });
@@ -1054,7 +1344,7 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
     return "None";
   };
 
-  const feedbackSignals = getFeedbackSignals(globalLearningFeedback);
+  const feedbackSignals = getFeedbackSignals(effectiveFeedback);
 
   const styleLearningSignals = buildStyleLearningSignals({
     shorter: feedbackSignals.shorter,
@@ -1246,19 +1536,21 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
         if (shouldUseFastTextRoute) {
       const cacheKey = buildCacheKey({
         message: message || "",
-        personalMemory: personalMemory || memory || "",
+        personalMemory: resolvedPersonalMemory,
+        learningScope,
       });
 
       const cached = responseCache.get(cacheKey);
 
       if (cached && Date.now() - cached.timestamp < RESPONSE_CACHE_TTL_MS) {
         return new Response(cached.text, {
-          headers: {
-            "Content-Type": "text/plain; charset=utf-8",
-            "X-OpenLura-Variant": responseVariant,
-            "X-OpenLura-Sources": encodeURIComponent(JSON.stringify(cached.sources || [])),
-            "X-OpenLura-Speed": "fast_text_cache",
-          },
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "X-OpenLura-Variant": responseVariant,
+        "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
+        "X-OpenLura-Speed": "fast_text",
+        "X-OpenLura-Learning-Scope": learningScope,
+      },
         });
       }
 
@@ -1286,7 +1578,8 @@ Fast-path rules:
 - If structure is minimal, keep formatting very light
 - If structure is shortlist, prioritize the strongest options only
 
-Personal memory: ${personalMemory || memory || "none"}`,
+Personal memory: ${resolvedPersonalMemory || "none"}
+Learning scope: ${isPersonalEnvironment ? `personal:${personalUserId || "active"}` : "global"}`,
           },
           {
             role: "user",
@@ -1310,7 +1603,8 @@ Personal memory: ${personalMemory || memory || "none"}`,
 
             const cacheKey = buildCacheKey({
               message: message || "",
-              personalMemory: personalMemory || memory || "",
+              personalMemory: resolvedPersonalMemory,
+        learningScope,
             });
 
             if (fullText.trim()) {
@@ -1332,12 +1626,13 @@ Personal memory: ${personalMemory || memory || "none"}`,
           },
         }),
         {
-          headers: {
-            "Content-Type": "text/plain; charset=utf-8",
-            "X-OpenLura-Variant": responseVariant,
-            "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
-            "X-OpenLura-Speed": "fast_text",
-          },
+       headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "X-OpenLura-Variant": responseVariant,
+        "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
+        "X-OpenLura-Speed": "fast_image",
+        "X-OpenLura-Learning-Scope": learningScope,
+      },
         }
       );
     }
@@ -1411,7 +1706,8 @@ Do not use web search for this path.`,
     const cacheKey = canUseCache
       ? JSON.stringify({
           message: normalizedMessageForRouting,
-          memory: personalMemory || memory || "",
+          memory: resolvedPersonalMemory,
+          learningScope
           variant: shouldForceFastCompactOutput ? "fast" : responseVariant,
         })
       : "";
@@ -1499,6 +1795,13 @@ ${feedbackContext}
 PERSONAL FEEDBACK CONTEXT:
 ${personalFeedbackContext}
 
+PERSONAL ENVIRONMENT:
+- active: ${isPersonalEnvironment ? "yes" : "no"}
+- user id: ${personalUserId || "none"}
+- learning scope: ${learningScope}
+- supabase personal state: ${personalState.raw ? "loaded" : "not_found"}
+- personal feedback rows loaded: ${normalizedPersonalFeedbackRows.length}
+
 RESPONSE CONTENT PREFERENCE FOR THIS EXACT MESSAGE:
 ${contentLearningState.responsePreferenceContext}
 
@@ -1556,6 +1859,12 @@ ${injectedLearningRules || "none"}
 
 PERSONAL CONTEXT (single user bias):
 ${personalLayer.length > 0 ? "present" : "none"}
+
+RUNTIME LEARNING PRIORITY:
+- personal learning active: ${isPersonalEnvironment ? "yes" : "no"}
+- priority order: ${isPersonalEnvironment ? "personal > feedback > global" : "feedback > global"}
+- personal runtime feedback rows: ${normalizedPersonalFeedbackRows.length}
+- personal state feedback rows: ${Array.isArray(personalState.feedback) ? personalState.feedback.length : 0}
 SUCCESSFUL PATTERNS (completed items):
 ${completedFeedback
   .filter(
@@ -1576,10 +1885,11 @@ ADAPTATION RULES:
 - If users dislike vague answers, be more concrete and specific
 - Treat ACTIVE LEARNING RULES as global behavior instructions learned from all users
 - Treat LEARNING INJECTION FROM FEEDBACK as global instructions learned from analytics and shared feedback
-- Treat PERSONAL FEEDBACK CONTEXT and User memory as a weak preference layer
-- ALWAYS prioritize GLOBAL LEARNING over personal feedback unless explicitly asked
-- For general questions, prioritize global learning before personal preferences
-- Only use personal preferences as an extra layer unless the user clearly asks for something personal or stylistic
+- Treat GLOBAL LEARNING as the default base layer
+- Treat PERSONAL FEEDBACK CONTEXT, personal state, and User memory as the personal override layer when PERSONAL ENVIRONMENT is active
+- If PERSONAL ENVIRONMENT is active, prioritize personal learning over global learning when tone, structure, style, or exact-answer preference conflict
+- If PERSONAL ENVIRONMENT is not active, use global learning only
+- Use global learning as fallback consensus, not as an override against active personal learning
 - If RESPONSE CONTENT PREFERENCE FOR THIS EXACT MESSAGE contains a strong positively rated answer, reuse that style as the default for similar future messages
 - If RESPONSE CONTENT PREFERENCE FOR THIS EXACT MESSAGE shows mixed feedback, do not copy the old answer literally; create a balanced improved version between too short and too verbose
 - If SUCCESSFUL RESPONSE REUSE says reusable winner exists = yes, reuse the winning answer's shape, strengths, and level of usefulness as the starting point
@@ -1686,7 +1996,7 @@ BEHAVIOR:
 - If useful, add small “insider” tips
 
 CONTEXT:
-Personal user memory: ${personalMemory || memory || "none"}
+Personal user memory: ${resolvedPersonalMemory || "none"}
 User location: ${location ? JSON.stringify(location) : "unknown"}
 
 BAD OUTPUT:
@@ -1907,6 +2217,7 @@ ${aiText}`,
         "Content-Type": "text/plain; charset=utf-8",
         "X-OpenLura-Variant": responseVariant,
         "X-OpenLura-Sources": encodeURIComponent(JSON.stringify(sources)),
+        "X-OpenLura-Learning-Scope": learningScope,
       },
     }
   );

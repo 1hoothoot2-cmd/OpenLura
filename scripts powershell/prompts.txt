@@ -1,0 +1,5 @@
+npm run dev
+
+git add .
+>> git commit -m "add feedback main page"
+>> git push
