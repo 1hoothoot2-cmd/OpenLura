@@ -307,7 +307,8 @@ export default function Home() {
   ) => {
         const newChat = {
       id: Date.now(),
-      title: preset?.title || "New Chat",
+      title:
+        preset?.title || (isPersonalRoute ? "Persoonlijke chat" : "New Chat"),
       messages: preset?.messages || [],
       pinned: false,
       archived: false,
@@ -327,13 +328,13 @@ export default function Home() {
     if (!isPersonalRoute) return;
     if (!personalStateLoaded && chats.length === 0) return;
 
-    const existingPersonalChat = chats.find(
-      (chat: any) => chat.title === "Persoonlijke omgeving"
+    const visiblePersonalChats = chats.filter(
+      (chat: any) => !chat.archived && !chat.deleted
     );
 
-    if (existingPersonalChat) {
-      if (activeChatId !== existingPersonalChat.id) {
-        setActiveChatId(existingPersonalChat.id);
+    if (visiblePersonalChats.length > 0) {
+      if (!activeChatId) {
+        setActiveChatId(visiblePersonalChats[0].id);
       }
       return;
     }
@@ -348,7 +349,7 @@ export default function Home() {
         },
       ],
     });
-  }, [isPersonalRoute, personalStateLoaded, chats.length, activeChatId]);
+  }, [isPersonalRoute, personalStateLoaded, chats, activeChatId]);
 
   const updateChatMeta = (
     chatId: number,
@@ -452,8 +453,16 @@ export default function Home() {
     if (remainingChats.length === 0) {
       const fallbackChat = {
         id: Date.now(),
-        title: "New Chat",
-        messages: [],
+        title: isPersonalRoute ? "Persoonlijke omgeving" : "New Chat",
+        messages: isPersonalRoute
+          ? [
+              {
+                role: "ai",
+                content:
+                  "👋 Welkom in je persoonlijke omgeving. Hier testen we privé memory, verbeterpunten en training van jouw AI-gedrag.",
+              },
+            ]
+          : [],
         pinned: false,
         archived: false,
         deleted: false,
@@ -628,8 +637,7 @@ export default function Home() {
     return isStyleSignal ? "style" : "content";
   };
 
-  const isPersonalEnvironment =
-    isPersonalRoute && activeChat?.title === "Persoonlijke omgeving";
+  const isPersonalEnvironment = isPersonalRoute;
 
   const getPersonalEnvironmentInsights = () => {
     if (!activeChatId) {
