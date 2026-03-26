@@ -48,17 +48,32 @@ export default function AnalyticsPage() {
     return match?.[1] || "unknown";
   };
 
-  const getAutoDebugSignalType = (f: any) => {
-    const source = String(f.source || "");
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+  <div className="p-4 bg-white/10 rounded-2xl">
+    <p className="text-xs opacity-60">Server items</p>
+    <p className="text-xl">{feedback.filter((f) => !f._localOnly).length}</p>
+  </div>
 
-    if (source.includes("auto_debug_casual_mismatch")) return "casual_mismatch";
-    if (source.includes("auto_debug_possible_search_miss")) return "search_miss";
-    if (source.includes("auto_debug_possible_image_context_miss")) return "image_context_miss";
-    if (source.includes("auto_debug_weak_source_support")) return "weak_source_support";
-    if (source.includes("auto_debug_too_verbose_for_image_route")) return "verbose_image_route";
+  <div className="p-4 bg-white/10 rounded-2xl">
+    <p className="text-xs opacity-60">Lokale items</p>
+    <p className="text-xl">{feedback.filter((f) => f._localOnly).length}</p>
+  </div>
 
-    return "unknown";
-  };
+  <div className="p-4 bg-white/10 rounded-2xl">
+    <p className="text-xs opacity-60">Admin items</p>
+    <p className="text-xl">{feedback.filter((f) => getUserScope(f) === "admin").length}</p>
+  </div>
+
+  <div className="p-4 bg-white/10 rounded-2xl">
+    <p className="text-xs opacity-60">Guest items</p>
+    <p className="text-xl">{feedback.filter((f) => getUserScope(f) === "guest").length}</p>
+  </div>
+
+  <div className="p-4 bg-white/10 rounded-2xl">
+    <p className="text-xs opacity-60">Totaal zichtbaar</p>
+    <p className="text-xl">{feedback.length}</p>
+  </div>
+</div>
 
   useEffect(() => {
     if (activeTab !== "ideas") {
@@ -185,6 +200,12 @@ export default function AnalyticsPage() {
     search: autoDebugFeedback.filter((f: any) => getAutoDebugRouteType(f) === "search").length,
     default: autoDebugFeedback.filter((f: any) => getAutoDebugRouteType(f) === "default").length,
   };
+
+  const autoDebugLearningTypeCounts = {
+    style: autoDebugFeedback.filter((f: any) => inferLearningType(f) === "style").length,
+    content: autoDebugFeedback.filter((f: any) => inferLearningType(f) === "content").length,
+  };
+
   const adjustmentIdeas = ideaFeedback.filter((f: any) => f.source === "idea_adjustment");
   const learningIdeas = ideaFeedback.filter((f: any) => f.source === "idea_feedback_learning");
 
@@ -1399,6 +1420,24 @@ return () => {
       <p className="text-lg">{autoDebugSignalCounts.verboseImageRoute}</p>
     </div>
   </div>
+
+  <div className="grid md:grid-cols-2 gap-3 text-sm mt-4">
+    <div className="p-3 rounded-xl bg-white/5">
+      <p className="text-xs opacity-60 mb-2">Auto Debug style</p>
+      <p className="text-lg">{autoDebugLearningTypeCounts.style}</p>
+      <p className="text-[11px] opacity-50 mt-2">
+        Tone, length, structure, clarity
+      </p>
+    </div>
+
+    <div className="p-3 rounded-xl bg-white/5">
+      <p className="text-xs opacity-60 mb-2">Auto Debug content</p>
+      <p className="text-lg">{autoDebugLearningTypeCounts.content}</p>
+      <p className="text-[11px] opacity-50 mt-2">
+        Route choice, search/source usage, image context
+      </p>
+    </div>
+  </div>
 </div>
 
 <div className="p-4 bg-white/10 rounded-2xl mb-6">
@@ -1743,12 +1782,11 @@ return () => {
             ? "🧠 AI feedback"
             : "💡 Aanpassing"
           : "🛠️ Verbeter feedback"}
-        {(f.type === "down" || f.type === "improve" || f.source === "idea_feedback_learning" || f.type === "auto_debug") && (
-          <span className="ml-2 text-xs opacity-60">
-            [{inferLearningType(f) === "style" ? "style" : "content"}]
-            {f.type === "auto_debug" ? ` • ${getAutoDebugRouteType(f)}` : ""}
-          </span>
-        )}
+        ? autoDebugConfidenceFilter === "all" &&
+          autoDebugRouteFilter === "all" &&
+          autoDebugSignalFilter === "all"
+          ? "Auto Debug filters staan op alles."
+          : `Auto Debug filters: confidence = ${autoDebugConfidenceFilter}, route = ${autoDebugRouteFilter}, signaal = ${autoDebugSignalFilter}.`
       </span>
 
       <div className="flex items-center gap-2 ml-auto">

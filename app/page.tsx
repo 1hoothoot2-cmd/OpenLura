@@ -25,13 +25,6 @@ export default function Home() {
   const [feedbackGiven, setFeedbackGiven] = useState<{ [key: string]: boolean }>({});
   const [improvedFeedbackGiven, setImprovedFeedbackGiven] = useState<{ [key: string]: boolean }>({});
   const [awaitingImprovement, setAwaitingImprovement] = useState<{ [key: number]: boolean }>({});
-  const [showAdminLoginBox, setShowAdminLoginBox] = useState(false);
-  const [adminUsername, setAdminUsername] = useState("");
-  const [adminPassword, setAdminPassword] = useState("");
-  const [adminAuthLoading, setAdminAuthLoading] = useState(false);
-  const [adminAuthError, setAdminAuthError] = useState("");
-  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
-  const [adminIdentity, setAdminIdentity] = useState<string | null>(null);
   
   const fileRef = useRef<HTMLInputElement>(null);
     const messagesRef = useRef<HTMLDivElement>(null);
@@ -96,25 +89,6 @@ export default function Home() {
     } else {
       setMobileMenu(false);
     }
-
-    fetch("/api/auth", {
-      cache: "no-store",
-    })
-      .then(async (res) => {
-        if (!res.ok) {
-          setIsAdminAuthenticated(false);
-          setAdminIdentity(null);
-          return;
-        }
-
-        const data = await res.json();
-        setIsAdminAuthenticated(!!data?.authenticated);
-        setAdminIdentity(data?.username || "admin");
-      })
-      .catch(() => {
-        setIsAdminAuthenticated(false);
-        setAdminIdentity(null);
-      });
   }, []);
 
       useEffect(() => {
@@ -233,7 +207,6 @@ export default function Home() {
     const [openChatMenuId, setOpenChatMenuId] = useState<number | null>(null);
 
   const activeChat = chats.find((c: any) => c.id === activeChatId);
-  const activeUserLearningScope = isAdminAuthenticated ? "admin" : "guest";
 
   const updateChatMeta = (
     chatId: number,
@@ -1106,62 +1079,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 }
 };
 
-    const handleAdminLogin = async () => {
-    if (!adminUsername.trim() || !adminPassword) return;
-
-    setAdminAuthLoading(true);
-    setAdminAuthError("");
-
-    try {
-      const res = await fetch("/api/auth", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          username: adminUsername.trim(),
-          password: adminPassword,
-        }),
-      });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        setAdminAuthError(data?.error || "Login mislukt");
-        return;
-      }
-
-      setIsAdminAuthenticated(true);
-      setAdminIdentity(data?.username || adminUsername.trim());
-      setShowAdminLoginBox(false);
-      setAdminUsername("");
-      setAdminPassword("");
-      setAdminAuthError("");
-    } catch {
-      setAdminAuthError("Login mislukt");
-    } finally {
-      setAdminAuthLoading(false);
-    }
-  };
-
-  const handleAdminLogout = async () => {
-    try {
-      await fetch("/api/auth", {
-        method: "DELETE",
-      });
-    } catch (error) {
-      console.error("Admin logout failed:", error);
-    }
-
-    setIsAdminAuthenticated(false);
-    setAdminIdentity(null);
-    setAdminUsername("");
-    setAdminPassword("");
-    setAdminAuthError("");
-    setShowAdminLoginBox(false);
-  };
-
-  const handleIdeaSubmit = () => {
+    const handleIdeaSubmit = () => {
   if (!feedbackText.trim()) return;
 
   const key = "openlura_ideas";
@@ -1507,26 +1425,6 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
         >
           💡 Feedback / Idee
         </button>
-
-        <button
-          onClick={() => {
-            if (isAdminAuthenticated) {
-              handleAdminLogout();
-            } else {
-              setShowAdminLoginBox(true);
-              setAdminAuthError("");
-            }
-          }}
-          className={`mt-3 p-2 rounded-xl ${
-            isAdminAuthenticated
-              ? "bg-green-500/20 hover:bg-green-500/30 text-green-200"
-              : "bg-white/10 hover:bg-white/20"
-          }`}
-        >
-          {isAdminAuthenticated
-            ? `🔐 Admin: ${adminIdentity || "ingelogd"}`
-            : "🔐 Admin login"}
-        </button>
       </div>
 {mobileMenu && (
   <div
@@ -1633,270 +1531,6 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
         </div>
       )}
 
-      {showAdminLoginBox && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-[#0a0a1f] p-6 rounded-2xl w-[320px]">
-            <h2 className="mb-2">Admin login</h2>
-            <p className="text-sm opacity-70 mb-4">
-              Log in om je admin account te koppelen aan OpenLura.
-            </p>
-
-            <input
-              value={adminUsername}
-              onChange={(e) => {
-                setAdminUsername(e.target.value);
-                if (adminAuthError) setAdminAuthError("");
-              }}
-              className="w-full p-2 rounded bg-white/10 mb-3"
-              placeholder="Gebruikersnaam"
-            />
-
-            <input
-              type="password"
-              value={adminPassword}
-              onChange={(e) => {
-                setAdminPassword(e.target.value);
-                if (adminAuthError) setAdminAuthError("");
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !adminAuthLoading) {
-                  handleAdminLogin();
-                }
-              }}
-              className="w-full p-2 rounded bg-white/10 mb-3"
-              placeholder="Wachtwoord"
-            />
-
-            {adminAuthError && (
-              <p className="text-sm text-red-400 mb-3">{adminAuthError}</p>
-            )}
-
-            <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  setShowAdminLoginBox(false);
-                  setAdminPassword("");
-                  setAdminAuthError("");
-                }}
-                className="flex-1 p-2 bg-white/10 rounded-xl"
-              >
-                Annuleren
-              </button>
-
-              <button
-                onClick={handleAdminLogin}
-                disabled={!adminUsername.trim() || !adminPassword || adminAuthLoading}
-                className={`flex-1 p-2 rounded-xl ${
-                  adminUsername.trim() && adminPassword && !adminAuthLoading
-                    ? "bg-purple-500"
-                    : "bg-white/10 text-white/30"
-                }`}
-              >
-                {adminAuthLoading ? "Inloggen..." : "Login"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showAdminLoginBox && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-[#0a0a1f] p-6 rounded-2xl w-[320px]">
-            <h2 className="mb-2">Admin login</h2>
-            <p className="text-sm opacity-70 mb-4">
-              Log in om je admin account te koppelen aan OpenLura.
-            </p>
-
-            <input
-              value={adminUsername}
-              onChange={(e) => {
-                setAdminUsername(e.target.value);
-                if (adminAuthError) setAdminAuthError("");
-              }}
-              className="w-full p-2 rounded bg-white/10 mb-3"
-              placeholder="Gebruikersnaam"
-            />
-
-            <input
-              type="password"
-              value={adminPassword}
-              onChange={(e) => {
-                setAdminPassword(e.target.value);
-                if (adminAuthError) setAdminAuthError("");
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !adminAuthLoading) {
-                  handleAdminLogin();
-                }
-              }}
-              className="w-full p-2 rounded bg-white/10 mb-3"
-              placeholder="Wachtwoord"
-            />
-
-            {adminAuthError && (
-              <p className="text-sm text-red-400 mb-3">{adminAuthError}</p>
-            )}
-
-            <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  setShowAdminLoginBox(false);
-                  setAdminPassword("");
-                  setAdminAuthError("");
-                }}
-                className="flex-1 p-2 bg-white/10 rounded-xl"
-              >
-                Annuleren
-              </button>
-
-              <button
-                onClick={handleAdminLogin}
-                disabled={!adminUsername.trim() || !adminPassword || adminAuthLoading}
-                className={`flex-1 p-2 rounded-xl ${
-                  adminUsername.trim() && adminPassword && !adminAuthLoading
-                    ? "bg-purple-500"
-                    : "bg-white/10 text-white/30"
-                }`}
-              >
-                {adminAuthLoading ? "Inloggen..." : "Login"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showAdminLoginBox && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-[#0a0a1f] p-6 rounded-2xl w-[320px]">
-            <h2 className="mb-2">Admin login</h2>
-            <p className="text-sm opacity-70 mb-4">
-              Log in om je admin account te koppelen aan OpenLura.
-            </p>
-
-            <input
-              value={adminUsername}
-              onChange={(e) => {
-                setAdminUsername(e.target.value);
-                if (adminAuthError) setAdminAuthError("");
-              }}
-              className="w-full p-2 rounded bg-white/10 mb-3"
-              placeholder="Gebruikersnaam"
-            />
-
-            <input
-              type="password"
-              value={adminPassword}
-              onChange={(e) => {
-                setAdminPassword(e.target.value);
-                if (adminAuthError) setAdminAuthError("");
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !adminAuthLoading) {
-                  handleAdminLogin();
-                }
-              }}
-              className="w-full p-2 rounded bg-white/10 mb-3"
-              placeholder="Wachtwoord"
-            />
-
-            {adminAuthError && (
-              <p className="text-sm text-red-400 mb-3">{adminAuthError}</p>
-            )}
-
-            <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  setShowAdminLoginBox(false);
-                  setAdminPassword("");
-                  setAdminAuthError("");
-                }}
-                className="flex-1 p-2 bg-white/10 rounded-xl"
-              >
-                Annuleren
-              </button>
-
-              <button
-                onClick={handleAdminLogin}
-                disabled={!adminUsername.trim() || !adminPassword || adminAuthLoading}
-                className={`flex-1 p-2 rounded-xl ${
-                  adminUsername.trim() && adminPassword && !adminAuthLoading
-                    ? "bg-purple-500"
-                    : "bg-white/10 text-white/30"
-                }`}
-              >
-                {adminAuthLoading ? "Inloggen..." : "Login"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showAdminLoginBox && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-[#0a0a1f] p-6 rounded-2xl w-[320px]">
-            <h2 className="mb-2">Admin login</h2>
-            <p className="text-sm opacity-70 mb-4">
-              Log in om je admin account te koppelen aan OpenLura.
-            </p>
-
-            <input
-              value={adminUsername}
-              onChange={(e) => {
-                setAdminUsername(e.target.value);
-                if (adminAuthError) setAdminAuthError("");
-              }}
-              className="w-full p-2 rounded bg-white/10 mb-3"
-              placeholder="Gebruikersnaam"
-            />
-
-            <input
-              type="password"
-              value={adminPassword}
-              onChange={(e) => {
-                setAdminPassword(e.target.value);
-                if (adminAuthError) setAdminAuthError("");
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !adminAuthLoading) {
-                  handleAdminLogin();
-                }
-              }}
-              className="w-full p-2 rounded bg-white/10 mb-3"
-              placeholder="Wachtwoord"
-            />
-
-            {adminAuthError && (
-              <p className="text-sm text-red-400 mb-3">{adminAuthError}</p>
-            )}
-
-            <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  setShowAdminLoginBox(false);
-                  setAdminPassword("");
-                  setAdminAuthError("");
-                }}
-                className="flex-1 p-2 bg-white/10 rounded-xl"
-              >
-                Annuleren
-              </button>
-
-              <button
-                onClick={handleAdminLogin}
-                disabled={!adminUsername.trim() || !adminPassword || adminAuthLoading}
-                className={`flex-1 p-2 rounded-xl ${
-                  adminUsername.trim() && adminPassword && !adminAuthLoading
-                    ? "bg-purple-500"
-                    : "bg-white/10 text-white/30"
-                }`}
-              >
-                {adminAuthLoading ? "Inloggen..." : "Login"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       <div className="flex-1 flex items-stretch justify-center md:p-4 pt-0">
         <div className="w-full max-w-2xl h-full md:h-[90%] flex flex-col bg-white/10 md:rounded-3xl backdrop-blur-2xl">
 
@@ -1966,10 +1600,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                             <>
                               {isLastAI && (
                                 <div className="mt-2 p-2 rounded-xl bg-white/5 text-xs opacity-70">
-                                  <p className="mb-1">🧠 AI Learning actief:</p>
-                                  <p className="mb-2 opacity-60">
-                                    scope: {activeUserLearningScope}
-                                  </p>
+                                  <p className="mb-2">🧠 AI Learning actief:</p>
 
                                   {activeLearningDebug.style.length === 0 &&
                                   activeLearningDebug.content.length === 0 ? (
