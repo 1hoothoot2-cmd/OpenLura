@@ -61,6 +61,7 @@ function detectAutoDebugSignals(input: {
   isCasualChatRequest: boolean;
   isSimpleImageAnalysis: boolean;
   responseVariant: string;
+  routeType: "fast_text" | "fast_image" | "search" | "default";
 }) {
   const userText = (input.userMessage || "").toLowerCase().trim();
   const aiText = (input.aiText || "").trim();
@@ -149,6 +150,7 @@ function detectAutoDebugSignals(input: {
     ...signal,
     source: `auto_debug_${signal.type}`,
     variant: input.responseVariant,
+    routeType: input.routeType,
   }));
 }
 
@@ -465,6 +467,7 @@ async function storeAutoDebugSignals(input: {
     learningType: "style" | "content";
     source: string;
     variant: string;
+    routeType: "fast_text" | "fast_image" | "search" | "default";
   }[];
 }) {
   if (!supabaseUrl || !supabaseServiceRoleKey || input.signals.length === 0) {
@@ -477,7 +480,7 @@ async function storeAutoDebugSignals(input: {
     type: "auto_debug",
     message: `[${signal.confidence}] ${signal.message}`,
     userMessage: input.userMessage || null,
-    source: signal.source,
+    source: `${signal.source}__route_${signal.routeType}__variant_${signal.variant}`,
     learningType: signal.learningType,
     timestamp: new Date().toISOString(),
   }));
@@ -974,7 +977,16 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
 
     const shouldUseFastTextRoute =
       shouldUseAdaptiveSpeedMode(fastRouteDecisionInput) &&
-      !shouldBypassFastTextPath(fastRouteDecisionInput); 
+      !shouldBypassFastTextPath(fastRouteDecisionInput);
+
+    const resolvedRouteType: "fast_text" | "fast_image" | "search" | "default" =
+      shouldUseFastTextRoute
+        ? "fast_text"
+        : isSimpleImageAnalysis && image
+        ? "fast_image"
+        : shouldUseWebSearch
+        ? "search"
+        : "default"; 
 
   !shouldBypassFastTextPath({
     isCasualChatRequest,
@@ -1597,6 +1609,7 @@ ${aiText}`,
     isCasualChatRequest,
     isSimpleImageAnalysis,
     responseVariant,
+    routeType: resolvedRouteType,
   });
 
   await storeAutoDebugSignals({
