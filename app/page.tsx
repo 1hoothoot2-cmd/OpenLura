@@ -398,7 +398,7 @@ export default function Home() {
       .map((f: any) => `${f.userMessage || ""} ${f.message || ""}`.toLowerCase())
       .join(" ");
 
-    const rules = [
+    const styleRules = [
       (
         feedbackText.includes("korter") ||
         feedbackText.includes("te lang") ||
@@ -425,10 +425,31 @@ export default function Home() {
         feedbackText.includes("more context") ||
         feedbackText.includes("more depth")
       ) && "meer context waar nodig",
-      memory.some((m) => m.weight > 0.6) && "persoonlijke memory actief",
+      (
+        feedbackText.includes("te serieus") ||
+        feedbackText.includes("te formeel") ||
+        feedbackText.includes("menselijker") ||
+        feedbackText.includes("spontaner") ||
+        feedbackText.includes("luchtiger") ||
+        feedbackText.includes("more natural") ||
+        feedbackText.includes("too formal") ||
+        feedbackText.includes("too long for chat")
+      ) && "lossere casual stijl",
     ].filter(Boolean) as string[];
 
-    return rules.slice(0, 4);
+    const contentRules = [
+      memory.some((m) => m.weight > 0.6) && "persoonlijke memory actief",
+      rawFeedback.some(
+        (f: any) =>
+          f.type === "up" &&
+          (f.source?.includes("ab_test_") || f.source === "improvement_reply")
+      ) && "succesvolle antwoordpatronen opgeslagen",
+    ].filter(Boolean) as string[];
+
+    return {
+      style: styleRules.slice(0, 4),
+      content: contentRules.slice(0, 2),
+    };
   };
 
   const updateMemoryWeight = (text: string, delta: number) => {
@@ -449,6 +470,16 @@ export default function Home() {
       localStorage.setItem("openlura_memory", JSON.stringify(next));
       return next;
     });
+  };
+
+  const classifyLearningSignal = (text: string) => {
+    const normalized = (text || "").toLowerCase();
+
+    const isStyleSignal = /korter|te lang|shorter|too long|duidelijker|onduidelijk|clearer|unclear|structuur|structure|te vaag|vaag|vague|meer context|more context|more depth|te serieus|te formeel|menselijker|spontaner|luchtiger|more natural|too formal|too long for chat/.test(
+      normalized
+    );
+
+    return isStyleSignal ? "style" : "content";
   };
 
             const stopStreaming = () => {
@@ -524,6 +555,7 @@ export default function Home() {
           userMessage: "Direct improvement feedback",
           timestamp: Date.now(),
           source: "improvement_reply",
+          learningType: classifyLearningSignal(input),
         });
 
         localStorage.setItem(localFeedbackKey, JSON.stringify(existingFeedback));
@@ -555,6 +587,7 @@ export default function Home() {
               message: input,
               userMessage: "Direct improvement feedback",
               source: "improvement_reply",
+              learningType: classifyLearningSignal(input),
             }),
           });
 
@@ -940,6 +973,10 @@ console.log("FEEDBACK CLICKED", { chatId, msgIndex, type });
     userMessage: prevMessage?.content,
     source: message?.variant ? `ab_test_${message.variant}` : null,
     timestamp: Date.now(),
+    learningType:
+      type === "down"
+        ? classifyLearningSignal(`${prevMessage?.content || ""} ${message?.content || ""}`)
+        : "content",
   });
 
     localStorage.setItem(key, JSON.stringify(existing));
@@ -961,6 +998,10 @@ console.log("FEEDBACK CLICKED", { chatId, msgIndex, type });
       message: message?.content,
       userMessage: prevMessage?.content,
       source: message?.variant ? `ab_test_${message.variant}` : null,
+      learningType:
+        type === "down"
+          ? classifyLearningSignal(`${prevMessage?.content || ""} ${message?.content || ""}`)
+          : "content",
     }),
   });
 
@@ -1521,6 +1562,9 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                     const isLastAI =
                       msg.role === "ai" &&
                       i === arr.length - 1;
+                    const activeLearningDebug = isLastAI
+                      ? getActiveLearningDebug()
+                      : { style: [], content: [] };
 
                     return (
                                             <div key={i}>
@@ -1556,14 +1600,38 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                             <>
                               {isLastAI && (
                                 <div className="mt-2 p-2 rounded-xl bg-white/5 text-xs opacity-70">
-                                  <p className="mb-1">🧠 AI Learning actief:</p>
-                                  {getActiveLearningDebug().length === 0 ? (
+                                  <p className="mb-2">🧠 AI Learning actief:</p>
+
+                                  {activeLearningDebug.style.length === 0 &&
+                                  activeLearningDebug.content.length === 0 ? (
                                     <p>geen actieve learning regels</p>
                                   ) : (
-                                    <div className="space-y-1">
-                                      {getActiveLearningDebug().map((rule, idx) => (
-                                        <p key={idx}>- {rule}</p>
-                                      ))}
+                                    <div className="space-y-2">
+                                      <div>
+                                        <p className="opacity-60 mb-1">Style learning</p>
+                                        {activeLearningDebug.style.length === 0 ? (
+                                          <p>- geen actieve stijlregels</p>
+                                        ) : (
+                                          <div className="space-y-1">
+                                            {activeLearningDebug.style.map((rule, idx) => (
+                                              <p key={idx}>- {rule}</p>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </div>
+
+                                      <div>
+                                        <p className="opacity-60 mb-1">Content learning</p>
+                                        {activeLearningDebug.content.length === 0 ? (
+                                          <p>- geen actieve contentregels</p>
+                                        ) : (
+                                          <div className="space-y-1">
+                                            {activeLearningDebug.content.map((rule, idx) => (
+                                              <p key={idx}>- {rule}</p>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </div>
                                     </div>
                                   )}
                                 </div>

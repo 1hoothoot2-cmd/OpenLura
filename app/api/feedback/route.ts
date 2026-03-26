@@ -179,6 +179,7 @@ export async function POST(req: Request) {
       message: data.message ?? null,
       userMessage: data.userMessage ?? null,
       source: inferredIdeaSource,
+      learningType: data.learningType ?? null,
       timestamp: new Date().toISOString(),
     };
 

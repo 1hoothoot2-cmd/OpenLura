@@ -244,23 +244,27 @@ export default function AnalyticsPage() {
     .map((f: any) => `${f.userMessage || ""} ${f.message || ""}`.toLowerCase())
     .join(" ");
 
-  const styleLearningPool = learningPool.filter((f: any) =>
-    `${f.userMessage || ""} ${f.message || ""}`
-      .toLowerCase()
-      .match(
-        /korter|te lang|too long|shorter|duidelijker|onduidelijk|clearer|unclear|andere structuur|structuur|structure|te vaag|vaag|vague|meer context|more context|more depth|te serieus|te formeel|menselijker|spontaner|luchtiger|more natural|too formal|too long for chat/
-      )
-  );
+  const inferLearningType = (f: any) => {
+    if (f.learningType === "style" || f.learningType === "content") {
+      return f.learningType;
+    }
 
-  const contentLearningPool = learningPool.filter((f: any) => {
     const text = `${f.userMessage || ""} ${f.message || ""}`.toLowerCase();
 
     const isStyleSignal = !!text.match(
       /korter|te lang|too long|shorter|duidelijker|onduidelijk|clearer|unclear|andere structuur|structuur|structure|te vaag|vaag|vague|meer context|more context|more depth|te serieus|te formeel|menselijker|spontaner|luchtiger|more natural|too formal|too long for chat/
     );
 
-    return !isStyleSignal;
-  });
+    return isStyleSignal ? "style" : "content";
+  };
+
+  const styleLearningPool = learningPool.filter(
+    (f: any) => inferLearningType(f) === "style"
+  );
+
+  const contentLearningPool = learningPool.filter(
+    (f: any) => inferLearningType(f) === "content"
+  );
 
   const globalActiveLearningRules: string[] = [
     (globalLearningText.includes("korter") || globalLearningText.includes("te lang")) &&
@@ -295,14 +299,14 @@ export default function AnalyticsPage() {
   };
 
   const styleLearningCounts = {
-    global: globalLearningPool.filter((f: any) => styleLearningPool.includes(f)).length,
-    personal: personalLearningPool.filter((f: any) => styleLearningPool.includes(f)).length,
+    global: globalLearningPool.filter((f: any) => inferLearningType(f) === "style").length,
+    personal: personalLearningPool.filter((f: any) => inferLearningType(f) === "style").length,
     total: styleLearningPool.length,
   };
 
   const contentLearningCounts = {
-    global: globalLearningPool.filter((f: any) => contentLearningPool.includes(f)).length,
-    personal: personalLearningPool.filter((f: any) => contentLearningPool.includes(f)).length,
+    global: globalLearningPool.filter((f: any) => inferLearningType(f) === "content").length,
+    personal: personalLearningPool.filter((f: any) => inferLearningType(f) === "content").length,
     total: contentLearningPool.length,
   };
 
@@ -1254,7 +1258,7 @@ return () => {
         </div>
       </div>
       <p className="text-[11px] opacity-50 mt-3">
-        Style learning = tone, length, clarity, structure. Content learning = preferred answer shape and successful response patterns.
+        Style learning = tone, length, clarity, structure. Content learning = preferred answer shape and successful response patterns. Saved learningType is used first when available.
       </p>
     </div>
   </div>
@@ -1398,6 +1402,11 @@ return () => {
             ? "🧠 AI feedback"
             : "💡 Aanpassing"
           : "🛠️ Verbeter feedback"}
+        {(f.type === "down" || f.type === "improve" || f.source === "idea_feedback_learning") && (
+          <span className="ml-2 text-xs opacity-60">
+            [{inferLearningType(f) === "style" ? "style" : "content"}]
+          </span>
+        )}
       </span>
 
       <div className="flex items-center gap-2 ml-auto">
