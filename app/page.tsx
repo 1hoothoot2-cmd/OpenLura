@@ -46,6 +46,8 @@ export default function Home() {
   const chatMenuRef = useRef<HTMLDivElement>(null);
   const preferredActiveChatIdRef = useRef<number | null>(null);
   const pendingActiveChatIdRef = useRef<number | null>(null);
+  const personalSyncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasLoadedInitialStateRef = useRef(false);
   const [openChatMenuId, setOpenChatMenuId] = useState<number | null>(null);
 
   const greetings = [
@@ -169,47 +171,63 @@ export default function Home() {
       }
     };
 
-    loadState();
+    loadState().finally(() => {
+      hasLoadedInitialStateRef.current = true;
+    });
   }, [chatStorageKey, memoryStorageKey, isPersonalRoute]);
 
-      useEffect(() => {
-    const persistState = async () => {
+  useEffect(() => {
+    const safeChats = chats.map((chat: any) => ({
+      ...chat,
+      messages: (chat.messages || []).map((msg: any) => {
+        if (!msg.image) return msg;
+
+        return {
+          ...msg,
+          image:
+            typeof msg.image === "string" && msg.image.startsWith("data:")
+              ? "[image-uploaded]"
+              : msg.image,
+        };
+      }),
+    }));
+
+    try {
+      localStorage.setItem(chatStorageKey, JSON.stringify(safeChats));
+    } catch (error) {
+      console.error("OpenLura local chat persistence failed:", error);
+    }
+
+    if (!isPersonalRoute || !personalStateLoaded || !hasLoadedInitialStateRef.current) {
+      return;
+    }
+
+    if (personalSyncTimeoutRef.current) {
+      clearTimeout(personalSyncTimeoutRef.current);
+    }
+
+    personalSyncTimeoutRef.current = setTimeout(async () => {
       try {
-        const safeChats = chats.map((chat: any) => ({
-          ...chat,
-          messages: (chat.messages || []).map((msg: any) => {
-            if (!msg.image) return msg;
-
-            return {
-              ...msg,
-              image:
-                typeof msg.image === "string" && msg.image.startsWith("data:")
-                  ? "[image-uploaded]"
-                  : msg.image,
-            };
+        await fetch("/api/personal-state", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            chats: safeChats,
+            memory,
           }),
-        }));
-
-        localStorage.setItem(chatStorageKey, JSON.stringify(safeChats));
-
-        if (isPersonalRoute && personalStateLoaded) {
-          await fetch("/api/personal-state", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              chats: safeChats,
-              memory,
-            }),
-          });
-        }
+        });
       } catch (error) {
-        console.error("OpenLura chat persistence failed:", error);
+        console.error("OpenLura personal sync failed:", error);
+      }
+    }, 700);
+
+    return () => {
+      if (personalSyncTimeoutRef.current) {
+        clearTimeout(personalSyncTimeoutRef.current);
       }
     };
-
-    persistState();
   }, [chats, chatStorageKey, isPersonalRoute, memory, personalStateLoaded]);
 
   useEffect(() => {
@@ -377,7 +395,7 @@ const activeChat =
       !c.deleted
   ) ?? null;
 
-  useEffect(() => {
+    useEffect(() => {
     const visibleChats = chats.filter(
       (chat: any) => !chat.archived && !chat.deleted
     );
@@ -415,12 +433,13 @@ const activeChat =
         return;
       }
 
-      pendingActiveChatIdRef.current = null;
-      preferredActiveChatIdRef.current = pendingId;
-
       if (activeChatId !== pendingId) {
         setActiveChatId(pendingId);
+        return;
       }
+
+      pendingActiveChatIdRef.current = null;
+      preferredActiveChatIdRef.current = pendingId;
       return;
     }
 
@@ -436,20 +455,18 @@ const activeChat =
       return;
     }
 
-    if (
+    const currentActiveStillVisible =
       activeChatId !== null &&
-      visibleChats.some((chat: any) => chat.id === activeChatId)
-    ) {
+      visibleChats.some((chat: any) => chat.id === activeChatId);
+
+    if (currentActiveStillVisible) {
       return;
     }
 
     const fallbackId = visibleChats[0].id;
     preferredActiveChatIdRef.current = fallbackId;
-
-    if (activeChatId !== fallbackId) {
-      setActiveChatId(fallbackId);
-    }
-  }, [isPersonalRoute, personalStateLoaded, chats, activeChatId]);
+    setActiveChatId(fallbackId);
+  }, [isPersonalRoute, personalStateLoaded, chats]);
 
   const updateChatMeta = (
     chatId: number,
