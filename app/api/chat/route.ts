@@ -350,9 +350,27 @@ async function fetchSupabaseFeedbackRows(query: string, errorLabel: string) {
 
 async function getRecentServerFeedback() {
   return fetchSupabaseFeedbackRows(
-    "select=type,message,userMessage,source,timestamp&order=timestamp.desc&limit=30",
+    "select=type,message,userMessage,source,learningType,timestamp&order=timestamp.desc&limit=30",
     "OpenLura server feedback fetch failed:"
   );
+}
+
+function inferFeedbackLearningType(item: {
+  learningType?: string | null;
+  message?: string | null;
+  userMessage?: string | null;
+}) {
+  if (item.learningType === "style" || item.learningType === "content") {
+    return item.learningType;
+  }
+
+  const text = `${item.userMessage || ""} ${item.message || ""}`.toLowerCase();
+
+  const isStyleSignal = /korter|te lang|too long|shorter|duidelijker|onduidelijk|clearer|unclear|andere structuur|structuur|structure|te vaag|vaag|vague|meer context|te oppervlakkig|more context|more depth|te serieus|te formeel|korter en natuurlijker|menselijker|spontaner|luchtiger|more natural|too formal|too long for chat/.test(
+    text
+  );
+
+  return isStyleSignal ? "style" : "content";
 }
 
 const openai = new OpenAI({
@@ -368,6 +386,7 @@ export async function POST(req: Request) {
     message: item.message,
     userMessage: item.userMessage,
     source: item.source,
+    learningType: inferFeedbackLearningType(item),
     timestamp: item.timestamp,
   }));
 
@@ -377,6 +396,7 @@ export async function POST(req: Request) {
           type: "up",
           message,
           userMessage: "",
+          learningType: "content",
           timestamp: Date.now(),
           weight: feedback.likes || 0,
         },
@@ -384,6 +404,10 @@ export async function POST(req: Request) {
           type: "down",
           message: (feedback.issues || []).join(" | "),
           userMessage: (feedback.recentIssues || []).join(" | "),
+          learningType: inferFeedbackLearningType({
+            message: (feedback.issues || []).join(" | "),
+            userMessage: (feedback.recentIssues || []).join(" | "),
+          }),
           timestamp: Date.now(),
           weight: feedback.dislikes || 0,
         },
@@ -605,6 +629,12 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
     const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
     return Math.round(
       items.reduce((sum: number, f: any) => {
+        const learningType = inferFeedbackLearningType(f);
+
+        if (learningType !== "style") {
+          return sum;
+        }
+
         const text = `${f.userMessage || ""} ${f.message || ""}`.toLowerCase();
         return pattern.test(text) ? sum + getDecayWeight(f.timestamp) : sum;
       }, 0)
@@ -683,8 +713,8 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
     const injectedLearningRules = effectiveFeedback
     .filter(
       (f: any) =>
-        f.type === "improve" ||
-        f.source === "idea_feedback_learning"
+        (f.type === "improve" || f.source === "idea_feedback_learning") &&
+        inferFeedbackLearningType(f) === "style"
     )
     .map((f: any) => (f.message || f.userMessage || "").trim())
     .filter(Boolean)
@@ -704,20 +734,24 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
       "Global learning fetch failed:"
     );
 
-    feedbackData.forEach((f: any) => {
-      const text = `${f.message || ""}`.toLowerCase();
+      feedbackData.forEach((f: any) => {
+        const text = `${f.message || ""}`.toLowerCase();
+        const learningType = inferFeedbackLearningType(f);
 
-      if (f.type === "down" || f.type === "improve" || f.type === "idea") {
-        if (text.match(/korter|te lang|too long|shorter/)) globalSignals.shorter += 1;
-        if (text.match(/duidelijker|onduidelijk|clearer|unclear/)) globalSignals.clearer += 1;
-        if (text.match(/structuur|structure|opbouw/)) globalSignals.structure += 1;
-      }
+        if (
+          learningType === "style" &&
+          (f.type === "down" || f.type === "improve" || f.type === "idea")
+        ) {
+          if (text.match(/korter|te lang|too long|shorter/)) globalSignals.shorter += 1;
+          if (text.match(/duidelijker|onduidelijk|clearer|unclear/)) globalSignals.clearer += 1;
+          if (text.match(/structuur|structure|opbouw/)) globalSignals.structure += 1;
+        }
 
-      if (f.type === "up") {
-        if (text.match(/korter|short/)) globalSignals.shorter -= 0.5;
-        if (text.match(/duidelijk|clear/)) globalSignals.clearer -= 0.5;
-      }
-    });
+        if (learningType === "style" && f.type === "up") {
+          if (text.match(/korter|short/)) globalSignals.shorter -= 0.5;
+          if (text.match(/duidelijk|clear/)) globalSignals.clearer -= 0.5;
+        }
+      });
   } catch (e) {
     console.warn("Global learning fetch failed:", e);
   }
