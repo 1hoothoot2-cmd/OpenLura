@@ -148,6 +148,7 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
           try {
             const res = await fetch("/api/personal-state", {
               method: "GET",
+              headers: getOpenLuraRequestHeaders(false),
               cache: "no-store",
             });
 
@@ -296,9 +297,7 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
       try {
         await fetch("/api/personal-state", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: getOpenLuraRequestHeaders(true),
           body: JSON.stringify({
             chats: safeChats,
             memory,
@@ -363,6 +362,7 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
       try {
         const res = await fetch("/api/personal-state", {
           method: "GET",
+          headers: getOpenLuraRequestHeaders(false),
           cache: "no-store",
         });
 
@@ -439,6 +439,18 @@ const activeChat =
       !c.archived &&
       !c.deleted
   ) ?? null;
+
+  const getOpenLuraRequestHeaders = (includeJson = true) => {
+    const headers: Record<string, string> = includeJson
+      ? { "Content-Type": "application/json" }
+      : {};
+
+    if (isPersonalRoute) {
+      headers["x-openlura-personal-env"] = "true";
+    }
+
+    return headers;
+  };
 
   useEffect(() => {
     const visibleChats = chats.filter(
@@ -898,9 +910,7 @@ const activeChat =
     try {
       const res = await fetch("/api/auth", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: getOpenLuraRequestHeaders(true),
         body: JSON.stringify({
           username: loginUsername,
           password: loginPassword,
@@ -922,6 +932,19 @@ const activeChat =
       setLoginError("Inloggen mislukt");
     } finally {
       setLoginLoading(false);
+    }
+  };
+
+  const handlePersonalLogout = async () => {
+    try {
+      await fetch("/api/auth", {
+        method: "DELETE",
+        headers: getOpenLuraRequestHeaders(false),
+      });
+    } catch (error) {
+      console.error("OpenLura logout failed:", error);
+    } finally {
+      window.location.href = "/";
     }
   };
 
@@ -1020,9 +1043,7 @@ const activeChat =
         try {
           const feedbackRes = await fetch("/api/feedback", {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
+            headers: getOpenLuraRequestHeaders(true),
             body: JSON.stringify({
               chatId: currentChatId,
               type: "improve",
@@ -1060,6 +1081,7 @@ const activeChat =
 
       const improveRes = await fetch("/api/chat", {
         method: "POST",
+        headers: getOpenLuraRequestHeaders(true),
         body: JSON.stringify({
           message: retryRequest
             ? `De gebruiker wil dat je opnieuw antwoord geeft op dezelfde vraag.
@@ -1292,20 +1314,20 @@ setChats([...updated]);
     const controller = new AbortController();
     setStreamController(controller);
 
+    const resolvedMemoryText = memory
+      .filter((m) => m.weight > 0.6)
+      .map((m) => m.text)
+      .join(" | ");
+
     const res = await fetch("/api/chat", {
       method: "POST", // ✅ VERPLICHT
       signal: controller.signal,
+      headers: getOpenLuraRequestHeaders(true),
       body: JSON.stringify({
         message: inputToSend,
         image: imageToSend,
-        memory: memory
-          .filter((m) => m.weight > 0.6)
-          .map((m) => m.text)
-          .join(" | "),
-        personalMemory: memory
-          .filter((m) => m.weight > 0.6)
-          .map((m) => m.text)
-          .join(" | "),
+        memory: resolvedMemoryText,
+        personalMemory: isPersonalRoute ? resolvedMemoryText : "",
         feedback: feedbackSummary,
       }),
     });
@@ -1457,9 +1479,7 @@ console.log("FEEDBACK CLICKED", { chatId, msgIndex, type });
       try {
   const res = await fetch("/api/feedback", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: getOpenLuraRequestHeaders(true),
         body: JSON.stringify({
       chatId,
       msgIndex,
@@ -1570,9 +1590,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 
     fetch("/api/feedback", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: getOpenLuraRequestHeaders(true),
         body: JSON.stringify({
       chatId: activeChatId,
       type: "idea",
@@ -2397,6 +2415,13 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                 className="w-full p-3 rounded-2xl bg-white/10 hover:bg-white/20 text-left"
               >
                 📊 Open analytics
+              </button>
+
+              <button
+                onClick={handlePersonalLogout}
+                className="w-full p-3 rounded-2xl bg-red-500/20 hover:bg-red-500/30 text-left text-red-200"
+              >
+                🚪 Log uit
               </button>
             </div>
           </div>
