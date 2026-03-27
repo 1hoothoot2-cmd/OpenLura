@@ -981,12 +981,36 @@ const activeChat =
   const isRefinementInstruction = (text: string) => {
     const normalized = text.toLowerCase().trim();
 
-    return /^(en )?(nu )?(korter|kort|duidelijker|simpeler|meer concreet|concreter|anders|opnieuw maar korter|maak korter|maak het korter|korter graag|duidelijker graag|simpel(er)? graag|meer context|minder tekst)([.!?])?$/.test(
+    return /^(en )?(nu )?(nog )?(korter|kort|duidelijker|simpeler|meer concreet|concreter|anders|opnieuw maar korter|maak korter|maak het korter|korter graag|duidelijker graag|simpel(er)? graag|meer context|minder tekst)([.!?])?$/.test(
       normalized
     );
   };
 
-  const resolveFeedbackTargetContext = (messages: any[], aiMsgIndex: number) => {
+  const resolveRefinementRequestContext = (messages: any[]) => {
+    let lastAiIndex = messages.length - 1;
+
+    while (lastAiIndex >= 0) {
+      const candidate = messages[lastAiIndex];
+
+      if (
+        candidate?.role === "ai" &&
+        !candidate.disableFeedback &&
+        candidate.content !== "🤖 Wat kan ik beter doen?"
+      ) {
+        break;
+      }
+
+      lastAiIndex -= 1;
+    }
+
+    if (lastAiIndex < 0) {
+      return null;
+    }
+
+    return resolveFeedbackTargetContext(messages, lastAiIndex);
+  };
+
+   const resolveFeedbackTargetContext = (messages: any[], aiMsgIndex: number) => {
     const targetAiMessage = messages[aiMsgIndex];
     let userIndex = aiMsgIndex - 1;
 
@@ -1323,19 +1347,47 @@ Geef alleen direct het betere antwoord.`,
       setActiveChatId(fallbackChat.id);
     }
 
-    const inputToSend = input;
+    const rawInputToSend = input;
     const imageToSend = image;
+    const refinementContext =
+      !imageToSend && isRefinementInstruction(rawInputToSend)
+        ? resolveRefinementRequestContext(updated[index]?.messages || [])
+        : null;
+
+    const inputToSend = refinementContext
+      ? `De gebruiker wil dat je je vorige antwoord verfijnt, niet dat je een nieuwe vraag beantwoordt.
+
+Oorspronkelijke vraag:
+${refinementContext.originalUserMessage}
+
+Je meest recente relevante antwoord:
+${refinementContext.originalAiMessage}
+
+Nieuwe instructie van de gebruiker:
+${rawInputToSend}
+
+Voer deze instructie direct uit op je vorige antwoord.
+
+BELANGRIJK:
+- Behoud exact hetzelfde onderwerp
+- Stel geen wedervraag zoals "wat wil je korter hebben?"
+- Doe de aanpassing direct
+- Als de instructie "nog korter" of "korter" is: maak de bestaande versie duidelijk compacter
+- Als de instructie "duidelijker" of "simpeler" is: herschrijf hetzelfde antwoord helderder
+- Verander niet van onderwerp
+- Geef alleen het aangepaste antwoord`
+      : rawInputToSend;
 
     updated[index].messages.push({
       role: "user",
-      content: inputToSend,
+      content: rawInputToSend,
       image: imageToSend,
     });
 
     // ✅ AUTO TITLE
     if (updated[index].messages.length === 1) {
-      if (inputToSend.trim()) {
-        updated[index].title = inputToSend.trim().slice(0, 30);
+      if (rawInputToSend.trim()) {
+        updated[index].title = rawInputToSend.trim().slice(0, 30);
       } else if (imageToSend) {
         updated[index].title = "Afbeelding";
       }
@@ -1503,19 +1555,19 @@ updated[index].messages[
     setLoadingStage("idle");
 
     // ✅ MEMORY SAVE
-    if (inputToSend.length < 60) {
-      const existing = memory.find((m) => m.text === inputToSend);
+    if (rawInputToSend.length < 60 && !isRefinementInstruction(rawInputToSend)) {
+      const existing = memory.find((m) => m.text === rawInputToSend);
 
       let newMemory;
 
       if (existing) {
         newMemory = memory.map((m) =>
-          m.text === inputToSend
+          m.text === rawInputToSend
             ? { ...m, weight: Math.min(m.weight + 0.2, 1) }
             : m
         );
       } else {
-        newMemory = [...memory, { text: inputToSend, weight: 0.5 }];
+        newMemory = [...memory, { text: rawInputToSend, weight: 0.5 }];
       }
 
       newMemory = newMemory
