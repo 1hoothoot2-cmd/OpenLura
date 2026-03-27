@@ -46,8 +46,11 @@ export default function Home() {
   const chatMenuRef = useRef<HTMLDivElement>(null);
   const preferredActiveChatIdRef = useRef<number | null>(null);
   const pendingActiveChatIdRef = useRef<number | null>(null);
+  const forcedActiveChatIdRef = useRef<number | null>(null);
+  const isBootstrappingChatRef = useRef(false);
   const personalSyncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasLoadedInitialStateRef = useRef(false);
+  const hasManualChatSelectionRef = useRef(false);
   const [openChatMenuId, setOpenChatMenuId] = useState<number | null>(null);
 
   const greetings = [
@@ -59,7 +62,66 @@ export default function Home() {
   const getGreeting = () =>
     greetings[Math.floor(Math.random() * greetings.length)];
 
-        useEffect(() => {
+  const activateChat = (chatId: number) => {
+    hasManualChatSelectionRef.current = true;
+    pendingActiveChatIdRef.current = chatId;
+    preferredActiveChatIdRef.current = chatId;
+    forcedActiveChatIdRef.current = chatId;
+    setActiveChatId(chatId);
+    setOpenChatMenuId(null);
+  };
+
+  const createNewChat = (
+    preset?: Partial<{
+      title: string;
+      messages: { role: string; content: string; image?: string | null }[];
+    }>
+  ) => {
+    isBootstrappingChatRef.current = false;
+
+    const baseTitle =
+      preset?.title || (isPersonalRoute ? "Persoonlijke chat" : "New Chat");
+
+    const newChatId = Date.now() + Math.floor(Math.random() * 1000);
+
+    hasManualChatSelectionRef.current = true;
+    pendingActiveChatIdRef.current = newChatId;
+    preferredActiveChatIdRef.current = newChatId;
+    forcedActiveChatIdRef.current = newChatId;
+    setOpenChatMenuId(null);
+
+    setChats((prev) => {
+      const existingTitles = prev.map((chat: any) =>
+        String(chat.title || "").trim()
+      );
+
+      const buildUniqueTitle = (rawBaseTitle: string) => {
+        if (!existingTitles.includes(rawBaseTitle)) return rawBaseTitle;
+
+        let counter = 2;
+        while (existingTitles.includes(`${rawBaseTitle} ${counter}`)) {
+          counter += 1;
+        }
+
+        return `${rawBaseTitle} ${counter}`;
+      };
+
+      const newChat = {
+        id: newChatId,
+        title: buildUniqueTitle(baseTitle),
+        messages: preset?.messages ? [...preset.messages] : [],
+        pinned: false,
+        archived: false,
+        deleted: false,
+      };
+
+      return [newChat, ...prev];
+    });
+
+    setActiveChatId(newChatId);
+  };
+
+  useEffect(() => {
     const loadState = async () => {
       try {
         let loadedFromServer = false;
@@ -77,29 +139,31 @@ export default function Home() {
               const serverMemory = Array.isArray(data?.memory) ? data.memory : [];
 
               if (serverChats.length > 0) {
-                const normalizedChats = serverChats.map((chat: any) => ({
-                  ...chat,
-                  pinned: chat.pinned ?? false,
-                  archived: chat.archived ?? false,
-                  deleted: chat.deleted ?? false,
-                  messages: Array.isArray(chat.messages)
-                    ? chat.messages.map((msg: any) => ({
-                        ...msg,
-                        image: msg.image === "[image-uploaded]" ? null : msg.image ?? null,
-                      }))
-                    : [],
-                }));
+  const normalizedChats = serverChats.map((chat: any) => ({
+    ...chat,
+    pinned: chat.pinned ?? false,
+    archived: chat.archived ?? false,
+    deleted: chat.deleted ?? false,
+    messages: Array.isArray(chat.messages)
+      ? chat.messages.map((msg: any) => ({
+          ...msg,
+          image: msg.image === "[image-uploaded]" ? null : msg.image ?? null,
+        }))
+      : [],
+  }));
 
-                setChats(normalizedChats);
+  if (!hasManualChatSelectionRef.current) {
+    setChats(normalizedChats);
 
-                const nextActiveChatId =
-                  normalizedChats.find(
-                    (chat: any) => !chat.archived && !chat.deleted
-                  )?.id ?? null;
+    const nextActiveChatId =
+      normalizedChats.find(
+        (chat: any) => !chat.archived && !chat.deleted
+      )?.id ?? null;
 
-                preferredActiveChatIdRef.current = nextActiveChatId;
-                setActiveChatId(nextActiveChatId);
-              }
+    preferredActiveChatIdRef.current = nextActiveChatId;
+    setActiveChatId(nextActiveChatId);
+  }
+}
 
               if (serverMemory.length > 0) {
                 if (typeof serverMemory[0] === "string") {
@@ -121,32 +185,34 @@ export default function Home() {
         const mem = localStorage.getItem(memoryStorageKey);
 
         if (!loadedFromServer && saved) {
-          const parsed = JSON.parse(saved);
-          const normalizedChats = parsed.map((chat: any) => ({
-            ...chat,
-            pinned: chat.pinned ?? false,
-            archived: chat.archived ?? false,
-            deleted: chat.deleted ?? false,
-            messages: Array.isArray(chat.messages)
-              ? chat.messages.map((msg: any) => ({
-                  ...msg,
-                  image: msg.image === "[image-uploaded]" ? null : msg.image ?? null,
-                }))
-              : [],
-          }));
+  const parsed = JSON.parse(saved);
+  const normalizedChats = parsed.map((chat: any) => ({
+    ...chat,
+    pinned: chat.pinned ?? false,
+    archived: chat.archived ?? false,
+    deleted: chat.deleted ?? false,
+    messages: Array.isArray(chat.messages)
+      ? chat.messages.map((msg: any) => ({
+          ...msg,
+          image: msg.image === "[image-uploaded]" ? null : msg.image ?? null,
+        }))
+      : [],
+  }));
 
-          setChats(normalizedChats);
+  if (!hasManualChatSelectionRef.current) {
+    setChats(normalizedChats);
 
-          const nextActiveChatId =
-            normalizedChats.find(
-              (chat: any) => !chat.archived && !chat.deleted
-            )?.id ?? null;
+    const nextActiveChatId =
+      normalizedChats.find(
+        (chat: any) => !chat.archived && !chat.deleted
+      )?.id ?? null;
 
-          preferredActiveChatIdRef.current = nextActiveChatId;
-          setActiveChatId(nextActiveChatId);
-        } else if (!saved && !isPersonalRoute) {
-          createNewChat();
-        }
+    preferredActiveChatIdRef.current = nextActiveChatId;
+    setActiveChatId(nextActiveChatId);
+  }
+} else if (!saved && !isPersonalRoute && !hasManualChatSelectionRef.current) {
+  createNewChat();
+}
 
         if (!loadedFromServer && mem) {
           const parsed = JSON.parse(mem);
@@ -327,65 +393,16 @@ export default function Home() {
     };
   }, []);
 
-  const activateChat = (chatId: number) => {
-    pendingActiveChatIdRef.current = chatId;
-    preferredActiveChatIdRef.current = chatId;
-    setActiveChatId(chatId);
-    setOpenChatMenuId(null);
-  };
-
-  const createNewChat = (
-    preset?: Partial<{
-      title: string;
-      messages: { role: string; content: string; image?: string | null }[];
-    }>
-  ) => {
-    const baseTitle =
-      preset?.title || (isPersonalRoute ? "Persoonlijke chat" : "New Chat");
-
-    const newChatId = Date.now() + Math.floor(Math.random() * 1000);
-
-    setChats((prev) => {
-      const existingTitles = prev.map((chat: any) =>
-        String(chat.title || "").trim()
-      );
-
-      const buildUniqueTitle = (rawBaseTitle: string) => {
-        if (!existingTitles.includes(rawBaseTitle)) return rawBaseTitle;
-
-        let counter = 2;
-        while (existingTitles.includes(`${rawBaseTitle} ${counter}`)) {
-          counter += 1;
-        }
-
-        return `${rawBaseTitle} ${counter}`;
-      };
-
-      const newChat = {
-        id: newChatId,
-        title: buildUniqueTitle(baseTitle),
-        messages: preset?.messages ? [...preset.messages] : [],
-        pinned: false,
-        archived: false,
-        deleted: false,
-      };
-
-      return [newChat, ...prev];
-    });
-
-    activateChat(newChatId);
-  };
-
 const messageShellClass =
-  "w-full min-w-0 overflow-hidden";
+  "w-full min-w-0 max-w-full overflow-hidden";
 const messageBubbleClass =
   "min-w-0 max-w-full overflow-hidden break-words [overflow-wrap:anywhere] break-all";
 const composerShellClass =
-  "w-full min-w-0 shrink-0 border-t border-white/10 bg-black/70 backdrop-blur";
+  "w-full min-w-0 max-w-full shrink-0 overflow-x-hidden border-t border-white/10 bg-black/70 backdrop-blur";
 const composerInnerClass =
   "mx-auto w-full max-w-4xl min-w-0 px-3 pb-[max(env(safe-area-inset-bottom),12px)] pt-3 md:px-4";
 const composerInputClass =
-  "w-full min-w-0 resize-none overflow-x-hidden break-words [overflow-wrap:anywhere]";
+  "w-full min-w-0 max-w-full resize-none overflow-x-hidden break-words [overflow-wrap:anywhere]";
 
 const activeChat =
   chats.find(
@@ -395,7 +412,7 @@ const activeChat =
       !c.deleted
   ) ?? null;
 
-    useEffect(() => {
+  useEffect(() => {
     const visibleChats = chats.filter(
       (chat: any) => !chat.archived && !chat.deleted
     );
@@ -405,21 +422,59 @@ const activeChat =
     }
 
     if (visibleChats.length === 0) {
-      if (isPersonalRoute) {
-        createNewChat({
-          title: "Persoonlijke omgeving",
-          messages: [
-            {
-              role: "ai",
-              content:
-                "👋 Welkom in je persoonlijke omgeving. Hier testen we privé memory, verbeterpunten en training van jouw AI-gedrag.",
-            },
-          ],
-        });
-      } else {
-        createNewChat();
+      if (isBootstrappingChatRef.current) {
+        return;
       }
+
+      isBootstrappingChatRef.current = true;
+
+      const bootstrapChatId = Date.now() + Math.floor(Math.random() * 1000);
+      const bootstrapChat = {
+        id: bootstrapChatId,
+        title: isPersonalRoute ? "Persoonlijke omgeving" : "New Chat",
+        messages: isPersonalRoute
+          ? [
+              {
+                role: "ai",
+                content:
+                  "👋 Welkom in je persoonlijke omgeving. Hier testen we privé memory, verbeterpunten en training van jouw AI-gedrag.",
+              },
+            ]
+          : [],
+        pinned: false,
+        archived: false,
+        deleted: false,
+      };
+
+      hasManualChatSelectionRef.current = false;
+      pendingActiveChatIdRef.current = bootstrapChatId;
+      preferredActiveChatIdRef.current = bootstrapChatId;
+      forcedActiveChatIdRef.current = bootstrapChatId;
+      setOpenChatMenuId(null);
+      setChats([bootstrapChat]);
+      setActiveChatId(bootstrapChatId);
       return;
+    }
+
+    isBootstrappingChatRef.current = false;
+
+    const forcedId = forcedActiveChatIdRef.current;
+
+    if (forcedId !== null) {
+      const forcedVisible = visibleChats.some(
+        (chat: any) => chat.id === forcedId
+      );
+
+      if (forcedVisible) {
+        if (activeChatId !== forcedId) {
+          setActiveChatId(forcedId);
+          return;
+        }
+
+        preferredActiveChatIdRef.current = forcedId;
+        pendingActiveChatIdRef.current = null;
+        return;
+      }
     }
 
     const pendingId = pendingActiveChatIdRef.current;
@@ -438,8 +493,19 @@ const activeChat =
         return;
       }
 
-      pendingActiveChatIdRef.current = null;
       preferredActiveChatIdRef.current = pendingId;
+      pendingActiveChatIdRef.current = null;
+      forcedActiveChatIdRef.current = pendingId;
+      return;
+    }
+
+    const currentActiveStillVisible =
+      activeChatId !== null &&
+      visibleChats.some((chat: any) => chat.id === activeChatId);
+
+    if (currentActiveStillVisible) {
+      preferredActiveChatIdRef.current = activeChatId;
+      forcedActiveChatIdRef.current = activeChatId;
       return;
     }
 
@@ -451,22 +517,18 @@ const activeChat =
     ) {
       if (activeChatId !== preferredId) {
         setActiveChatId(preferredId);
+        return;
       }
+
+      forcedActiveChatIdRef.current = preferredId;
       return;
     }
 
-    const currentActiveStillVisible =
-      activeChatId !== null &&
-      visibleChats.some((chat: any) => chat.id === activeChatId);
-
-    if (currentActiveStillVisible) {
-      return;
-    }
-
-    const fallbackId = visibleChats[0].id;
+    const fallbackId = visibleChats[0]?.id ?? null;
     preferredActiveChatIdRef.current = fallbackId;
+    forcedActiveChatIdRef.current = fallbackId;
     setActiveChatId(fallbackId);
-  }, [isPersonalRoute, personalStateLoaded, chats]);
+  }, [isPersonalRoute, personalStateLoaded, chats, activeChatId]);
 
   const updateChatMeta = (
     chatId: number,
@@ -489,6 +551,8 @@ const activeChat =
       const nextActiveChatId = nextVisibleChat?.id ?? null;
 
       preferredActiveChatIdRef.current = nextActiveChatId;
+      pendingActiveChatIdRef.current = nextActiveChatId;
+      forcedActiveChatIdRef.current = nextActiveChatId;
       setActiveChatId(nextActiveChatId);
     }
 
@@ -588,8 +652,11 @@ const activeChat =
         deleted: false,
       };
 
+      isBootstrappingChatRef.current = false;
       setChats([fallbackChat]);
       preferredActiveChatIdRef.current = fallbackChat.id;
+      pendingActiveChatIdRef.current = fallbackChat.id;
+      forcedActiveChatIdRef.current = fallbackChat.id;
       setActiveChatId(fallbackChat.id);
     } else {
       setChats(remainingChats);
@@ -599,7 +666,10 @@ const activeChat =
       );
 
       const nextActiveChatId = nextVisibleChat?.id ?? remainingChats[0]?.id ?? null;
+      isBootstrappingChatRef.current = false;
       preferredActiveChatIdRef.current = nextActiveChatId;
+      pendingActiveChatIdRef.current = nextActiveChatId;
+      forcedActiveChatIdRef.current = nextActiveChatId;
       setActiveChatId(nextActiveChatId);
     }
 
@@ -1141,6 +1211,7 @@ Geef alleen direct het betere antwoord.`,
       setChats(updated);
       pendingActiveChatIdRef.current = fallbackChat.id;
       preferredActiveChatIdRef.current = fallbackChat.id;
+      forcedActiveChatIdRef.current = fallbackChat.id;
       setActiveChatId(fallbackChat.id);
     }
 
@@ -1986,7 +2057,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 
                     return (
                       <div key={i} className={messageShellClass}>
-                        <div className={`${messageBubbleClass} p-3 rounded-2xl max-w-[75%] whitespace-pre-line ${
+                        <div className={`${messageBubbleClass} min-w-0 max-w-[75%] overflow-hidden p-3 rounded-2xl whitespace-pre-line ${
                           msg.role === "user"
                             ? "bg-gradient-to-r from-purple-500 to-blue-500 ml-auto text-white"
                             : "bg-white/20"
@@ -2001,8 +2072,8 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 
                           {msg.content ? (
   <div
-  className={`${msg.image ? "mt-3 " : ""}${messageBubbleClass}`}
->
+    className={`${msg.image ? "mt-3 " : ""}${messageBubbleClass} min-w-0 max-w-full overflow-hidden`}
+  >
     {msg.isStreaming && msg.content === "…" ? (
       <span className="opacity-50">thinking...</span>
     ) : (
@@ -2016,14 +2087,23 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
               href={part}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-300 underline break-all"
+              className="inline break-all max-w-full text-blue-300 underline"
+              style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
             >
               {part}
             </a>
           );
         }
 
-        return <span key={idx}>{part}</span>;
+        return (
+          <span
+            key={idx}
+            className="break-words"
+            style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
+          >
+            {part}
+          </span>
+        );
       })
     )}
   </div>
@@ -2114,15 +2194,18 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                     href={source.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block min-w-0 max-w-full overflow-hidden p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all border border-white/10"
+                    className="block w-full min-w-0 max-w-full overflow-hidden p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all border border-white/10"
                     title={source.title || source.url}
                   >
-                    <p className="text-sm text-white/90 break-words [overflow-wrap:anywhere]">
+                    <p
+                      className="text-sm text-white/90 break-words"
+                      style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
+                    >
                       {title}
                     </p>
                     <p
-                      className="text-xs text-white/40 mt-1 break-all"
-                      style={{ overflowWrap: "anywhere" }}
+                      className="text-xs text-white/40 mt-1 break-all max-w-full overflow-hidden"
+                      style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
                     >
                       {domain}
                     </p>
@@ -2154,7 +2237,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
     activeChat?.messages?.length === 0
       ? "mt-6 w-full max-w-2xl"
       : composerShellClass + " fixed bottom-0 left-0 right-0 md:static z-[90] p-3 pb-4 md:border-0 bg-[#050510] md:bg-transparent"
-  } flex w-full min-w-0 items-end gap-2 rounded-[28px] border border-white/10 bg-white/5 backdrop-blur-xl px-3 py-3 shadow-[0_10px_40px_rgba(0,0,0,0.25)]`}
+  } flex w-full min-w-0 max-w-full overflow-x-hidden items-end gap-2 rounded-[28px] border border-white/10 bg-white/5 backdrop-blur-xl px-3 py-3 shadow-[0_10px_40px_rgba(0,0,0,0.25)]`}
 >
 
                         <button

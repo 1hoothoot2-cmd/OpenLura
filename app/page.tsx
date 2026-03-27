@@ -62,6 +62,24 @@ export default function Home() {
   const getGreeting = () =>
     greetings[Math.floor(Math.random() * greetings.length)];
 
+const buildFallbackChat = (overrides?: Partial<any>) => ({
+  id: Date.now() + Math.floor(Math.random() * 1000),
+  title: isPersonalRoute ? "Persoonlijke omgeving" : "New Chat",
+  messages: isPersonalRoute
+    ? [
+        {
+          role: "ai",
+          content:
+            "👋 Welkom in je persoonlijke omgeving. Hier testen we privé memory, verbeterpunten en training van jouw AI-gedrag.",
+        },
+      ]
+    : [],
+  pinned: false,
+  archived: false,
+  deleted: false,
+  ...overrides,
+});
+
   const activateChat = (chatId: number) => {
     hasManualChatSelectionRef.current = true;
     pendingActiveChatIdRef.current = chatId;
@@ -138,32 +156,30 @@ export default function Home() {
               const serverChats = Array.isArray(data?.chats) ? data.chats : [];
               const serverMemory = Array.isArray(data?.memory) ? data.memory : [];
 
-              if (serverChats.length > 0) {
-  const normalizedChats = serverChats.map((chat: any) => ({
-    ...chat,
-    pinned: chat.pinned ?? false,
-    archived: chat.archived ?? false,
-    deleted: chat.deleted ?? false,
-    messages: Array.isArray(chat.messages)
-      ? chat.messages.map((msg: any) => ({
-          ...msg,
-          image: msg.image === "[image-uploaded]" ? null : msg.image ?? null,
-        }))
-      : [],
-  }));
+              const normalizedChats = serverChats.map((chat: any) => ({
+                ...chat,
+                pinned: chat.pinned ?? false,
+                archived: chat.archived ?? false,
+                deleted: chat.deleted ?? false,
+                messages: Array.isArray(chat.messages)
+                  ? chat.messages.map((msg: any) => ({
+                      ...msg,
+                      image: msg.image === "[image-uploaded]" ? null : msg.image ?? null,
+                    }))
+                  : [],
+              }));
 
-  if (!hasManualChatSelectionRef.current) {
-    setChats(normalizedChats);
+              if (!hasManualChatSelectionRef.current) {
+                setChats(normalizedChats);
 
-    const nextActiveChatId =
-      normalizedChats.find(
-        (chat: any) => !chat.archived && !chat.deleted
-      )?.id ?? null;
+                const nextActiveChatId =
+                  normalizedChats.find(
+                    (chat: any) => !chat.archived && !chat.deleted
+                  )?.id ?? null;
 
-    preferredActiveChatIdRef.current = nextActiveChatId;
-    setActiveChatId(nextActiveChatId);
-  }
-}
+                preferredActiveChatIdRef.current = nextActiveChatId;
+                setActiveChatId(nextActiveChatId);
+              }
 
               if (serverMemory.length > 0) {
                 if (typeof serverMemory[0] === "string") {
@@ -171,13 +187,17 @@ export default function Home() {
                 } else {
                   setMemory(serverMemory);
                 }
+              } else if (!loadedFromServer) {
+                setMemory([]);
               }
 
-              loadedFromServer = serverChats.length > 0 || serverMemory.length > 0;
-              setPersonalStateLoaded(true);
+              loadedFromServer = true;
             }
+
+            setPersonalStateLoaded(true);
           } catch (error) {
             console.error("OpenLura personal server load failed:", error);
+            setPersonalStateLoaded(true);
           }
         }
 
@@ -295,6 +315,14 @@ export default function Home() {
       }
     };
   }, [chats, chatStorageKey, isPersonalRoute, memory, personalStateLoaded]);
+
+  useEffect(() => {
+    return () => {
+      if (personalSyncTimeoutRef.current) {
+        clearTimeout(personalSyncTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -428,23 +456,8 @@ const activeChat =
 
       isBootstrappingChatRef.current = true;
 
-      const bootstrapChatId = Date.now() + Math.floor(Math.random() * 1000);
-      const bootstrapChat = {
-        id: bootstrapChatId,
-        title: isPersonalRoute ? "Persoonlijke omgeving" : "New Chat",
-        messages: isPersonalRoute
-          ? [
-              {
-                role: "ai",
-                content:
-                  "👋 Welkom in je persoonlijke omgeving. Hier testen we privé memory, verbeterpunten en training van jouw AI-gedrag.",
-              },
-            ]
-          : [],
-        pinned: false,
-        archived: false,
-        deleted: false,
-      };
+      const bootstrapChat = buildFallbackChat();
+      const bootstrapChatId = bootstrapChat.id;
 
       hasManualChatSelectionRef.current = false;
       pendingActiveChatIdRef.current = bootstrapChatId;
@@ -635,22 +648,7 @@ const activeChat =
     const remainingChats = chats.filter((chat: any) => !chat.deleted);
 
     if (remainingChats.length === 0) {
-      const fallbackChat = {
-        id: Date.now(),
-        title: isPersonalRoute ? "Persoonlijke omgeving" : "New Chat",
-        messages: isPersonalRoute
-          ? [
-              {
-                role: "ai",
-                content:
-                  "👋 Welkom in je persoonlijke omgeving. Hier testen we privé memory, verbeterpunten en training van jouw AI-gedrag.",
-              },
-            ]
-          : [],
-        pinned: false,
-        archived: false,
-        deleted: false,
-      };
+      const fallbackChat = buildFallbackChat();
 
       isBootstrappingChatRef.current = false;
       setChats([fallbackChat]);
@@ -957,6 +955,12 @@ const activeChat =
       const index = updated.findIndex((c) => c.id === currentChatId);
       const retryRequest = isRetryInstruction(input);
 
+      if (index === -1) {
+        setLoading(false);
+        setLoadingStage("idle");
+        return;
+      }
+
       updated[index].messages.push({
         role: "user",
         content: input,
@@ -1197,14 +1201,10 @@ Geef alleen direct het betere antwoord.`,
     let index = updated.findIndex((c) => c.id === activeChatId);
 
     if (index === -1) {
-      const fallbackChat = {
-        id: Date.now() + Math.floor(Math.random() * 1000),
+      const fallbackChat = buildFallbackChat({
         title: isPersonalRoute ? "Persoonlijke chat" : "New Chat",
         messages: [],
-        pinned: false,
-        archived: false,
-        deleted: false,
-      };
+      });
 
       updated = [fallbackChat, ...updated];
       index = 0;
@@ -1789,10 +1789,10 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                 >
                   <div
                     onClick={() => {
-                      activateChat(chat.id);
+                      setOpenChatMenuId(null);
                       setMobileMenu(false);
                     }}
-                    className="pr-8 cursor-pointer opacity-80"
+                    className="pr-8 cursor-default opacity-80"
                   >
                     {chat.title}
                   </div>
@@ -2302,11 +2302,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
   type="button"
   disabled={!loading && !input.trim() && !image}
   onClick={loading ? stopStreaming : sendMessage}
-  onTouchEnd={(e) => {
-    if (!loading && !input.trim() && !image) return;
-    e.preventDefault();
-    loading ? stopStreaming() : sendMessage();
-  }}
+
     className={`w-12 h-12 shrink-0 flex items-center justify-center rounded-full text-xl shadow-lg touch-manipulation transition-all active:scale-95 ${
       loading
         ? "bg-red-500 text-white"
