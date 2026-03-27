@@ -525,6 +525,14 @@ function shouldUseAdaptiveSpeedMode(input: {
   return input.shouldUseFastTextPath;
 }
 
+function isRefinementInstruction(text?: string) {
+  const normalized = (text || "").toLowerCase().trim();
+
+  return /^(en )?(nu )?(korter|kort|duidelijker|simpeler|meer concreet|concreter|anders|opnieuw maar korter|maak korter|maak het korter|korter graag|duidelijker graag|simpel(er)? graag|meer context|minder tekst)([.!?])?$/.test(
+    normalized
+  );
+}
+
 function classifyOpenLuraRoute(input: {
   message?: string;
   image?: string | null;
@@ -561,6 +569,7 @@ function classifyOpenLuraRoute(input: {
   const shouldUseFastTextPath =
     !input.image &&
     !shouldUseWebSearch &&
+    !isRefinementInstruction(normalizedMessage) &&
     !!normalizedMessage &&
     normalizedMessage.length <= 120;
 
@@ -1259,10 +1268,15 @@ ${personalRecentIssues.join("\n") || "none"}
 
   const normalizedMessage = normalizePromptText(message || "");
 
-  const matchingGlobalResponses = effectiveFeedback.filter((f: any) => {
-    const promptText = normalizePromptText(f.userMessage || "");
-    return promptText === normalizedMessage && !!(f.message || "").trim();
-  });
+  const shouldReuseExactMessagePreference =
+    !!normalizedMessage && !isRefinementInstruction(normalizedMessage);
+
+  const matchingGlobalResponses = shouldReuseExactMessagePreference
+    ? effectiveFeedback.filter((f: any) => {
+        const promptText = normalizePromptText(f.userMessage || "");
+        return promptText === normalizedMessage && !!(f.message || "").trim();
+      })
+    : [];
 
   const groupedResponsePreferences = matchingGlobalResponses.reduce(
     (acc: any, item: any) => {
@@ -1666,13 +1680,15 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
         : "default"; 
 
         if (shouldUseFastTextRoute) {
-      const cacheKey = buildCacheKey({
-        message: message || "",
-        personalMemory: resolvedPersonalMemory,
-        learningScope,
-      });
+      const cacheKey = isRefinementInstruction(message || "")
+        ? ""
+        : buildCacheKey({
+            message: message || "",
+            personalMemory: resolvedPersonalMemory,
+            learningScope,
+          });
 
-      const cached = responseCache.get(cacheKey);
+      const cached = cacheKey ? responseCache.get(cacheKey) : null;
 
       if (cached && Date.now() - cached.timestamp < RESPONSE_CACHE_TTL_MS) {
         return new Response(cached.text, {
@@ -1754,7 +1770,7 @@ Fast-path rules:
         learningScope,
             });
 
-            if (fullText.trim()) {
+            if (cacheKey && fullText.trim()) {
               responseCache.set(cacheKey, {
                 text: fullText,
                 sources: [],
@@ -1847,6 +1863,7 @@ Do not use web search for this path.`,
     const canUseCache =
       !image &&
       !shouldUseWebSearch &&
+      !isRefinementInstruction(normalizedMessageForRouting) &&
       !!normalizedMessageForRouting &&
       normalizedMessageForRouting.length <= 120;
 
