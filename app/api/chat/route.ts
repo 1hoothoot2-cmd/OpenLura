@@ -848,14 +848,14 @@ async function fetchSupabaseFeedbackRows(query: string, errorLabel: string) {
 
 async function getRecentServerFeedback() {
   const primary = await fetchSupabaseFeedbackRows(
-    "select=type,message,userMessage,source,learningType,userScope,timestamp,user_id&order=timestamp.desc&limit=30",
+    "select=type,message,userMessage,source,userScope,timestamp,user_id&order=timestamp.desc&limit=30",
     "OpenLura server feedback fetch failed:"
   );
 
   if (primary.length > 0) return primary;
 
   return fetchSupabaseFeedbackRows(
-    "select=type,message,userMessage,source,learningType,userScope,timestamp&order=timestamp.desc&limit=30",
+    "select=type,message,userMessage,source,userScope,timestamp&order=timestamp.desc&limit=30",
     "OpenLura server feedback fallback fetch failed:"
   );
 }
@@ -864,7 +864,7 @@ async function getPersonalFeedbackRows(userId?: string | null) {
   if (!userId) return [];
 
   const primary = await fetchSupabaseFeedbackRows(
-    `select=type,message,userMessage,source,learningType,userScope,timestamp,user_id&user_id=eq.${encodeURIComponent(
+    `select=type,message,userMessage,source,userScope,timestamp,user_id&user_id=eq.${encodeURIComponent(
       userId
     )}&order=timestamp.desc&limit=60`,
     "OpenLura personal feedback fetch failed:"
@@ -945,7 +945,7 @@ async function storeAutoDebugSignals(input: {
   }
 
   const recentRows = await fetchSupabaseFeedbackRows(
-    "select=type,message,userMessage,source,learningType,timestamp&eq.type=auto_debug&order=timestamp.desc&limit=50",
+    "select=type,message,userMessage,source,timestamp&type=eq.auto_debug&order=timestamp.desc&limit=50",
     "OpenLura recent auto debug fetch failed:"
   );
 
@@ -981,7 +981,6 @@ async function storeAutoDebugSignals(input: {
       message: `[${signal.confidence}] ${signal.message}`,
       userMessage: input.userMessage || null,
       source: `${signal.source}__route_${signal.routeType}__variant_${signal.variant}`,
-      learningType: signal.learningType,
       userScope: input.userScope || "guest",
       timestamp: new Date().toISOString(),
     }));
@@ -1017,7 +1016,7 @@ async function storeAutoDebugSignals(input: {
 
       if (isSchemaMismatch) {
         const fallbackRows = rows.map((row: any) => {
-          const { user_id, ...rest } = row;
+          const { user_id, learningType, ...rest } = row;
           return rest;
         });
 
