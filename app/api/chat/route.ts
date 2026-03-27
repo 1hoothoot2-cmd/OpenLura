@@ -1089,7 +1089,15 @@ const openai = new OpenAI({
 });
 
 export async function POST(req: Request) {
-  const { message, image, memory, personalMemory, location, feedback } = await req.json();
+  const {
+    message,
+    image,
+    memory,
+    personalMemory,
+    location,
+    feedback,
+    recentMessages,
+  } = await req.json();
   const userScope = getUserScopeFromRequest(req);
 
   const {
@@ -1265,6 +1273,23 @@ ${personalRecentIssues.join("\n") || "none"}
       .trim()
       .replace(/[!?.,]+$/g, "")
       .replace(/\s+/g, " ");
+
+  const recentConversationTranscript = Array.isArray(recentMessages)
+    ? recentMessages
+        .filter(
+          (msg: any) =>
+            msg &&
+            (msg.role === "user" || msg.role === "ai") &&
+            typeof msg.content === "string" &&
+            msg.content.trim()
+        )
+        .slice(-6)
+        .map(
+          (msg: any) =>
+            `${msg.role === "user" ? "User" : "Assistant"}: ${msg.content.trim()}`
+        )
+        .join("\n\n")
+    : "none";
 
   const normalizedMessage = normalizePromptText(message || "");
 
@@ -2097,6 +2122,12 @@ EMOTIONAL SUPPORT RULES:
 - If completed (klaar) items exist, treat them as strong positive signals and reuse their structure, tone, and clarity
 - If user explicitly says "this is wrong", treat it as strong negative feedback
 
+- If recent conversation exists and the user's message is short, interpret it in the context of the ongoing topic first
+- For follow-up prompts like "korter", "nog korter", "anders verwoorden", "duidelijker", "welke dan", "waarom", or "en voor rust?":
+  → continue the same topic by default
+  → do not ask a clarifying question unless the recent conversation still makes the intent genuinely unclear
+- Only treat the message as a fresh topic when the user clearly switches subject
+
 - If user input is vague or unclear and similar feedback was negative:
   → Ask a clarifying question instead of giving a generic answer
 
@@ -2163,6 +2194,9 @@ BEHAVIOR:
 - If useful, add small “insider” tips
 
 CONTEXT:
+Recent conversation:
+${recentConversationTranscript || "none"}
+
 Personal user memory: ${resolvedPersonalMemory || "none"}
 User location: ${location ? JSON.stringify(location) : "unknown"}
 

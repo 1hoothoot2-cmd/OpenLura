@@ -986,31 +986,7 @@ const activeChat =
     );
   };
 
-  const resolveRefinementRequestContext = (messages: any[]) => {
-    let lastAiIndex = messages.length - 1;
-
-    while (lastAiIndex >= 0) {
-      const candidate = messages[lastAiIndex];
-
-      if (
-        candidate?.role === "ai" &&
-        !candidate.disableFeedback &&
-        candidate.content !== "🤖 Wat kan ik beter doen?"
-      ) {
-        break;
-      }
-
-      lastAiIndex -= 1;
-    }
-
-    if (lastAiIndex < 0) {
-      return null;
-    }
-
-    return resolveFeedbackTargetContext(messages, lastAiIndex);
-  };
-
-   const resolveFeedbackTargetContext = (messages: any[], aiMsgIndex: number) => {
+  const resolveFeedbackTargetContext = (messages: any[], aiMsgIndex: number) => {
     const targetAiMessage = messages[aiMsgIndex];
     let userIndex = aiMsgIndex - 1;
 
@@ -1067,6 +1043,30 @@ const activeChat =
           : String(targetAiMessage?.content || ""),
       targetMsgIndex: rootAiIndex >= 0 ? rootAiIndex : aiMsgIndex,
     };
+  };
+
+  const resolveRefinementRequestContext = (messages: any[]) => {
+    let lastAiIndex = messages.length - 1;
+
+    while (lastAiIndex >= 0) {
+      const candidate = messages[lastAiIndex];
+
+      if (
+        candidate?.role === "ai" &&
+        !candidate.disableFeedback &&
+        candidate.content !== "🤖 Wat kan ik beter doen?"
+      ) {
+        break;
+      }
+
+      lastAiIndex -= 1;
+    }
+
+    if (lastAiIndex < 0) {
+      return null;
+    }
+
+    return resolveFeedbackTargetContext(messages, lastAiIndex);
   };
 
   const sendMessage = async () => {
@@ -1467,6 +1467,23 @@ setChats([...updated]);
         memory: resolvedMemoryText,
         personalMemory: isPersonalRoute ? resolvedMemoryText : "",
         feedback: feedbackSummary,
+        recentMessages: (updated[index]?.messages || [])
+          .filter(
+            (msg: any) =>
+              msg &&
+              (msg.role === "user" || msg.role === "ai") &&
+              !msg.disableFeedback &&
+              typeof msg.content === "string" &&
+              msg.content.trim() &&
+              msg.content !== "Thinking..." &&
+              msg.content !== "Analyzing image..." &&
+              msg.content !== "🤖 Wat kan ik beter doen?"
+          )
+          .slice(-6)
+          .map((msg: any) => ({
+            role: msg.role,
+            content: msg.content,
+          })),
       }),
     });
 
