@@ -670,8 +670,8 @@ async function fetchSupabasePersonalState(userId?: string | null) {
   }
 
   const tryQueries = [
-    `select=*&eq.user_id=${encodeURIComponent(userId)}&limit=1`,
-    `select=*&eq.id=${encodeURIComponent(userId)}&limit=1`,
+    `select=*&user_id=eq.${encodeURIComponent(userId)}&limit=1`,
+    `select=*&id=eq.${encodeURIComponent(userId)}&limit=1`,
   ];
 
   for (const query of tryQueries) {
@@ -777,16 +777,21 @@ async function resolvePersonalRuntimeContext(input: {
   const personalState = await fetchSupabasePersonalState(personalUserId);
   const personalFeedbackRows = await getPersonalFeedbackRows(personalUserId);
 
-  const isPersonalEnvironment =
-    explicitPersonalEnvHeader ||
-    !!personalUserId ||
-    !!input.personalMemory ||
-    !!personalState.memory ||
-    personalState.feedback.length > 0 ||
-    personalFeedbackRows.length > 0;
+  const hasTrustedPersonalSignal =
+    explicitPersonalEnvHeader || !!personalUserId;
 
-  const resolvedPersonalMemory =
-    input.personalMemory || personalState.memory || input.memory || "";
+  const isPersonalEnvironment =
+    hasTrustedPersonalSignal ||
+    (!!personalUserId &&
+      (
+        !!personalState.memory ||
+        personalState.feedback.length > 0 ||
+        personalFeedbackRows.length > 0
+      ));
+
+  const resolvedPersonalMemory = isPersonalEnvironment
+    ? input.personalMemory || personalState.memory || input.memory || ""
+    : input.memory || "";
 
   const learningScope = isPersonalEnvironment
     ? `personal:${personalUserId || "active"}`
@@ -816,7 +821,21 @@ async function fetchSupabaseFeedbackRows(query: string, errorLabel: string) {
     });
 
     if (!res.ok) {
-      console.error(errorLabel, res.status, await res.text());
+      const errorText = await res.text();
+
+      const isSchemaMismatch =
+        res.status === 400 &&
+        (
+          errorText.includes("PGRST204") ||
+          errorText.includes("42703") ||
+          errorText.toLowerCase().includes("column") ||
+          errorText.toLowerCase().includes("could not find the")
+        );
+
+      if (!isSchemaMismatch) {
+        console.error(errorLabel, res.status, errorText);
+      }
+
       return [];
     }
 
@@ -828,21 +847,32 @@ async function fetchSupabaseFeedbackRows(query: string, errorLabel: string) {
 }
 
 async function getRecentServerFeedback() {
-  return fetchSupabaseFeedbackRows(
+  const primary = await fetchSupabaseFeedbackRows(
     "select=type,message,userMessage,source,learningType,userScope,timestamp,user_id&order=timestamp.desc&limit=30",
     "OpenLura server feedback fetch failed:"
+  );
+
+  if (primary.length > 0) return primary;
+
+  return fetchSupabaseFeedbackRows(
+    "select=type,message,userMessage,source,learningType,userScope,timestamp&order=timestamp.desc&limit=30",
+    "OpenLura server feedback fallback fetch failed:"
   );
 }
 
 async function getPersonalFeedbackRows(userId?: string | null) {
   if (!userId) return [];
 
-  return fetchSupabaseFeedbackRows(
-    `select=type,message,userMessage,source,learningType,userScope,timestamp,user_id&eq.user_id=${encodeURIComponent(
+  const primary = await fetchSupabaseFeedbackRows(
+    `select=type,message,userMessage,source,learningType,userScope,timestamp,user_id&user_id=eq.${encodeURIComponent(
       userId
     )}&order=timestamp.desc&limit=60`,
     "OpenLura personal feedback fetch failed:"
   );
+
+  if (primary.length > 0) return primary;
+
+  return [];
 }
 
 function buildAutoDebugSignature(input: {
@@ -961,7 +991,7 @@ async function storeAutoDebugSignals(input: {
   }
 
   try {
-    const res = await fetch(`${supabaseUrl}/rest/v1/openlura_feedback`, {
+    let res = await fetch(`${supabaseUrl}/rest/v1/openlura_feedback`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -974,7 +1004,41 @@ async function storeAutoDebugSignals(input: {
     });
 
     if (!res.ok) {
-      console.error("Auto debug signal save failed:", res.status, await res.text());
+      const errorText = await res.text();
+
+      const isSchemaMismatch =
+        res.status === 400 &&
+        (
+          errorText.includes("PGRST204") ||
+          errorText.includes("42703") ||
+          errorText.toLowerCase().includes("column") ||
+          errorText.toLowerCase().includes("could not find the")
+        );
+
+      if (isSchemaMismatch) {
+        const fallbackRows = rows.map((row: any) => {
+          const { user_id, ...rest } = row;
+          return rest;
+        });
+
+        res = await fetch(`${supabaseUrl}/rest/v1/openlura_feedback`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            apikey: supabaseServiceRoleKey,
+            Authorization: `Bearer ${supabaseServiceRoleKey}`,
+            Prefer: "return=minimal",
+          },
+          body: JSON.stringify(fallbackRows),
+          cache: "no-store",
+        });
+      } else {
+        console.error("Auto debug signal save failed:", res.status, errorText);
+      }
+    }
+
+    if (!res.ok) {
+      console.error("Auto debug signal fallback save failed:", res.status, await res.text());
     }
   } catch (error) {
     console.error("Auto debug signal save error:", error);
@@ -1242,7 +1306,7 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
 
   globalFeedback = globalLearningFeedback;
 
-    const completedFeedback = globalLearningFeedback.filter(
+    const completedFeedback = normalizedServerFeedback.filter(
     (f: any) =>
       f.type === "workflow_status" &&
       f.source === "analytics_workflow" &&
@@ -1427,11 +1491,13 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
 
   try {
     const feedbackData = await fetchSupabaseFeedbackRows(
-      "select=message,type",
+      "select=message,type,user_id,userScope",
       "Global learning fetch failed:"
     );
 
-      feedbackData.forEach((f: any) => {
+      feedbackData
+        .filter((f: any) => !f.user_id && f.userScope !== "personal")
+        .forEach((f: any) => {
         const text = `${f.message || ""}`.toLowerCase();
         const learningType = inferFeedbackLearningType(f);
 
@@ -1457,12 +1523,16 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
 
   try {
     const feedbackData = await fetchSupabaseFeedbackRows(
-      "select=type,source",
+      "select=type,source,user_id,userScope",
       "A/B feedback fetch failed:"
     );
 
-    const variantA = feedbackData.filter((f: any) => f.source === "ab_test_A");
-    const variantB = feedbackData.filter((f: any) => f.source === "ab_test_B");
+    const globalAbFeedback = feedbackData.filter(
+      (f: any) => !f.user_id && f.userScope !== "personal"
+    );
+
+    const variantA = globalAbFeedback.filter((f: any) => f.source === "ab_test_A");
+    const variantB = globalAbFeedback.filter((f: any) => f.source === "ab_test_B");
 
     const scoreA =
       variantA.filter((f: any) => f.type === "up").length -
@@ -1574,6 +1644,20 @@ Keep the answer useful but compact.
 
 ${sharedStyleInstructionBlock}
 
+Fast-path runtime learning:
+- personal environment active: ${isPersonalEnvironment ? "yes" : "no"}
+- learning scope: ${learningScope}
+- personal memory: ${resolvedPersonalMemory || "none"}
+
+Exact-message content preference:
+${contentLearningState.responsePreferenceContext}
+
+Successful response reuse:
+- reusable winner exists: ${successfulResponseReuse.reusableWinner ? "yes" : "no"}
+- winner score: ${successfulResponseReuse.winnerScore}
+- winner text:
+${successfulResponseReuse.winnerText || "none"}
+
 Fast-path rules:
 - Prefer shorter replies when possible
 - Be clearer and less vague
@@ -1582,9 +1666,10 @@ Fast-path rules:
 - Only expand if the user clearly asks for more detail
 - If structure is minimal, keep formatting very light
 - If structure is shortlist, prioritize the strongest options only
-
-Personal memory: ${resolvedPersonalMemory || "none"}
-Learning scope: ${isPersonalEnvironment ? `personal:${personalUserId || "active"}` : "global"}`,
+- If personal environment is active, prioritize personal learning over global learning
+- If a strong reusable winner exists for the same message, reuse its shape, directness, and usefulness
+- Do not copy old answers blindly word-for-word
+- If feedback is mixed, create a cleaner balanced version instead of repeating the old answer`,
           },
           {
             role: "user",
@@ -1635,7 +1720,7 @@ Learning scope: ${isPersonalEnvironment ? `personal:${personalUserId || "active"
         "Content-Type": "text/plain; charset=utf-8",
         "X-OpenLura-Variant": responseVariant,
         "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
-        "X-OpenLura-Speed": "fast_image",
+        "X-OpenLura-Speed": "fast_text",
         "X-OpenLura-Learning-Scope": learningScope,
       },
         }
@@ -1696,7 +1781,7 @@ Do not use web search for this path.`,
             "Content-Type": "text/plain; charset=utf-8",
             "X-OpenLura-Variant": responseVariant,
             "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
-            "X-OpenLura-Speed": "fast_image",
+            "X-OpenLura-Speed": "fast_text",
           },
         }
       );
@@ -1725,8 +1810,9 @@ Do not use web search for this path.`,
           headers: {
             "Content-Type": "text/plain; charset=utf-8",
             "X-OpenLura-Variant": responseVariant,
-            "X-OpenLura-Sources": encodeURIComponent(JSON.stringify(cached.sources || [])),
-            "X-OpenLura-Cache": "HIT",
+            "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
+            "X-OpenLura-Speed": "fast_image",
+            "X-OpenLura-Learning-Scope": learningScope,
           },
         });
       }
