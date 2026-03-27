@@ -1,3 +1,5 @@
 "use client";
 
-export { default } from "../page";
+export default function Placeholder() {
+  return null;
+}
