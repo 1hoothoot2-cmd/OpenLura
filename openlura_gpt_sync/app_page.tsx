@@ -62,6 +62,24 @@ export default function Home() {
   const getGreeting = () =>
     greetings[Math.floor(Math.random() * greetings.length)];
 
+const buildFallbackChat = (overrides?: Partial<any>) => ({
+  id: Date.now() + Math.floor(Math.random() * 1000),
+  title: isPersonalRoute ? "Persoonlijke omgeving" : "New Chat",
+  messages: isPersonalRoute
+    ? [
+        {
+          role: "ai",
+          content:
+            "👋 Welkom in je persoonlijke omgeving. Hier testen we privé memory, verbeterpunten en training van jouw AI-gedrag.",
+        },
+      ]
+    : [],
+  pinned: false,
+  archived: false,
+  deleted: false,
+  ...overrides,
+});
+
   const activateChat = (chatId: number) => {
     hasManualChatSelectionRef.current = true;
     pendingActiveChatIdRef.current = chatId;
@@ -130,6 +148,7 @@ export default function Home() {
           try {
             const res = await fetch("/api/personal-state", {
               method: "GET",
+              headers: getOpenLuraRequestHeaders(false),
               cache: "no-store",
             });
 
@@ -138,32 +157,30 @@ export default function Home() {
               const serverChats = Array.isArray(data?.chats) ? data.chats : [];
               const serverMemory = Array.isArray(data?.memory) ? data.memory : [];
 
-              if (serverChats.length > 0) {
-  const normalizedChats = serverChats.map((chat: any) => ({
-    ...chat,
-    pinned: chat.pinned ?? false,
-    archived: chat.archived ?? false,
-    deleted: chat.deleted ?? false,
-    messages: Array.isArray(chat.messages)
-      ? chat.messages.map((msg: any) => ({
-          ...msg,
-          image: msg.image === "[image-uploaded]" ? null : msg.image ?? null,
-        }))
-      : [],
-  }));
+              const normalizedChats = serverChats.map((chat: any) => ({
+                ...chat,
+                pinned: chat.pinned ?? false,
+                archived: chat.archived ?? false,
+                deleted: chat.deleted ?? false,
+                messages: Array.isArray(chat.messages)
+                  ? chat.messages.map((msg: any) => ({
+                      ...msg,
+                      image: msg.image === "[image-uploaded]" ? null : msg.image ?? null,
+                    }))
+                  : [],
+              }));
 
-  if (!hasManualChatSelectionRef.current) {
-    setChats(normalizedChats);
+              if (!hasManualChatSelectionRef.current) {
+                setChats(normalizedChats);
 
-    const nextActiveChatId =
-      normalizedChats.find(
-        (chat: any) => !chat.archived && !chat.deleted
-      )?.id ?? null;
+                const nextActiveChatId =
+                  normalizedChats.find(
+                    (chat: any) => !chat.archived && !chat.deleted
+                  )?.id ?? null;
 
-    preferredActiveChatIdRef.current = nextActiveChatId;
-    setActiveChatId(nextActiveChatId);
-  }
-}
+                preferredActiveChatIdRef.current = nextActiveChatId;
+                setActiveChatId(nextActiveChatId);
+              }
 
               if (serverMemory.length > 0) {
                 if (typeof serverMemory[0] === "string") {
@@ -171,13 +188,17 @@ export default function Home() {
                 } else {
                   setMemory(serverMemory);
                 }
+              } else if (!loadedFromServer) {
+                setMemory([]);
               }
 
-              loadedFromServer = serverChats.length > 0 || serverMemory.length > 0;
-              setPersonalStateLoaded(true);
+              loadedFromServer = true;
             }
+
+            setPersonalStateLoaded(true);
           } catch (error) {
             console.error("OpenLura personal server load failed:", error);
+            setPersonalStateLoaded(true);
           }
         }
 
@@ -276,9 +297,7 @@ export default function Home() {
       try {
         await fetch("/api/personal-state", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: getOpenLuraRequestHeaders(true),
           body: JSON.stringify({
             chats: safeChats,
             memory,
@@ -295,6 +314,14 @@ export default function Home() {
       }
     };
   }, [chats, chatStorageKey, isPersonalRoute, memory, personalStateLoaded]);
+
+  useEffect(() => {
+    return () => {
+      if (personalSyncTimeoutRef.current) {
+        clearTimeout(personalSyncTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -335,6 +362,7 @@ export default function Home() {
       try {
         const res = await fetch("/api/personal-state", {
           method: "GET",
+          headers: getOpenLuraRequestHeaders(false),
           cache: "no-store",
         });
 
@@ -412,6 +440,18 @@ const activeChat =
       !c.deleted
   ) ?? null;
 
+  const getOpenLuraRequestHeaders = (includeJson = true) => {
+    const headers: Record<string, string> = includeJson
+      ? { "Content-Type": "application/json" }
+      : {};
+
+    if (isPersonalRoute) {
+      headers["x-openlura-personal-env"] = "true";
+    }
+
+    return headers;
+  };
+
   useEffect(() => {
     const visibleChats = chats.filter(
       (chat: any) => !chat.archived && !chat.deleted
@@ -428,23 +468,8 @@ const activeChat =
 
       isBootstrappingChatRef.current = true;
 
-      const bootstrapChatId = Date.now() + Math.floor(Math.random() * 1000);
-      const bootstrapChat = {
-        id: bootstrapChatId,
-        title: isPersonalRoute ? "Persoonlijke omgeving" : "New Chat",
-        messages: isPersonalRoute
-          ? [
-              {
-                role: "ai",
-                content:
-                  "👋 Welkom in je persoonlijke omgeving. Hier testen we privé memory, verbeterpunten en training van jouw AI-gedrag.",
-              },
-            ]
-          : [],
-        pinned: false,
-        archived: false,
-        deleted: false,
-      };
+      const bootstrapChat = buildFallbackChat();
+      const bootstrapChatId = bootstrapChat.id;
 
       hasManualChatSelectionRef.current = false;
       pendingActiveChatIdRef.current = bootstrapChatId;
@@ -635,22 +660,7 @@ const activeChat =
     const remainingChats = chats.filter((chat: any) => !chat.deleted);
 
     if (remainingChats.length === 0) {
-      const fallbackChat = {
-        id: Date.now(),
-        title: isPersonalRoute ? "Persoonlijke omgeving" : "New Chat",
-        messages: isPersonalRoute
-          ? [
-              {
-                role: "ai",
-                content:
-                  "👋 Welkom in je persoonlijke omgeving. Hier testen we privé memory, verbeterpunten en training van jouw AI-gedrag.",
-              },
-            ]
-          : [],
-        pinned: false,
-        archived: false,
-        deleted: false,
-      };
+      const fallbackChat = buildFallbackChat();
 
       isBootstrappingChatRef.current = false;
       setChats([fallbackChat]);
@@ -900,9 +910,7 @@ const activeChat =
     try {
       const res = await fetch("/api/auth", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: getOpenLuraRequestHeaders(true),
         body: JSON.stringify({
           username: loginUsername,
           password: loginPassword,
@@ -924,6 +932,19 @@ const activeChat =
       setLoginError("Inloggen mislukt");
     } finally {
       setLoginLoading(false);
+    }
+  };
+
+  const handlePersonalLogout = async () => {
+    try {
+      await fetch("/api/auth", {
+        method: "DELETE",
+        headers: getOpenLuraRequestHeaders(false),
+      });
+    } catch (error) {
+      console.error("OpenLura logout failed:", error);
+    } finally {
+      window.location.href = "/";
     }
   };
 
@@ -956,6 +977,12 @@ const activeChat =
       let updated = [...chats];
       const index = updated.findIndex((c) => c.id === currentChatId);
       const retryRequest = isRetryInstruction(input);
+
+      if (index === -1) {
+        setLoading(false);
+        setLoadingStage("idle");
+        return;
+      }
 
       updated[index].messages.push({
         role: "user",
@@ -1016,9 +1043,7 @@ const activeChat =
         try {
           const feedbackRes = await fetch("/api/feedback", {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
+            headers: getOpenLuraRequestHeaders(true),
             body: JSON.stringify({
               chatId: currentChatId,
               type: "improve",
@@ -1056,6 +1081,7 @@ const activeChat =
 
       const improveRes = await fetch("/api/chat", {
         method: "POST",
+        headers: getOpenLuraRequestHeaders(true),
         body: JSON.stringify({
           message: retryRequest
             ? `De gebruiker wil dat je opnieuw antwoord geeft op dezelfde vraag.
@@ -1197,14 +1223,10 @@ Geef alleen direct het betere antwoord.`,
     let index = updated.findIndex((c) => c.id === activeChatId);
 
     if (index === -1) {
-      const fallbackChat = {
-        id: Date.now() + Math.floor(Math.random() * 1000),
+      const fallbackChat = buildFallbackChat({
         title: isPersonalRoute ? "Persoonlijke chat" : "New Chat",
         messages: [],
-        pinned: false,
-        archived: false,
-        deleted: false,
-      };
+      });
 
       updated = [fallbackChat, ...updated];
       index = 0;
@@ -1292,20 +1314,20 @@ setChats([...updated]);
     const controller = new AbortController();
     setStreamController(controller);
 
+    const resolvedMemoryText = memory
+      .filter((m) => m.weight > 0.6)
+      .map((m) => m.text)
+      .join(" | ");
+
     const res = await fetch("/api/chat", {
       method: "POST", // ✅ VERPLICHT
       signal: controller.signal,
+      headers: getOpenLuraRequestHeaders(true),
       body: JSON.stringify({
         message: inputToSend,
         image: imageToSend,
-        memory: memory
-          .filter((m) => m.weight > 0.6)
-          .map((m) => m.text)
-          .join(" | "),
-        personalMemory: memory
-          .filter((m) => m.weight > 0.6)
-          .map((m) => m.text)
-          .join(" | "),
+        memory: resolvedMemoryText,
+        personalMemory: isPersonalRoute ? resolvedMemoryText : "",
         feedback: feedbackSummary,
       }),
     });
@@ -1457,9 +1479,7 @@ console.log("FEEDBACK CLICKED", { chatId, msgIndex, type });
       try {
   const res = await fetch("/api/feedback", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: getOpenLuraRequestHeaders(true),
         body: JSON.stringify({
       chatId,
       msgIndex,
@@ -1570,9 +1590,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 
     fetch("/api/feedback", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: getOpenLuraRequestHeaders(true),
         body: JSON.stringify({
       chatId: activeChatId,
       type: "idea",
@@ -1789,10 +1807,10 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                 >
                   <div
                     onClick={() => {
-                      activateChat(chat.id);
+                      setOpenChatMenuId(null);
                       setMobileMenu(false);
                     }}
-                    className="pr-8 cursor-pointer opacity-80"
+                    className="pr-8 cursor-default opacity-80"
                   >
                     {chat.title}
                   </div>
@@ -2302,11 +2320,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
   type="button"
   disabled={!loading && !input.trim() && !image}
   onClick={loading ? stopStreaming : sendMessage}
-  onTouchEnd={(e) => {
-    if (!loading && !input.trim() && !image) return;
-    e.preventDefault();
-    loading ? stopStreaming() : sendMessage();
-  }}
+
     className={`w-12 h-12 shrink-0 flex items-center justify-center rounded-full text-xl shadow-lg touch-manipulation transition-all active:scale-95 ${
       loading
         ? "bg-red-500 text-white"
@@ -2401,6 +2415,13 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                 className="w-full p-3 rounded-2xl bg-white/10 hover:bg-white/20 text-left"
               >
                 📊 Open analytics
+              </button>
+
+              <button
+                onClick={handlePersonalLogout}
+                className="w-full p-3 rounded-2xl bg-red-500/20 hover:bg-red-500/30 text-left text-red-200"
+              >
+                🚪 Log uit
               </button>
             </div>
           </div>

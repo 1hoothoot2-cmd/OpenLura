@@ -138,7 +138,13 @@ function isValidAnalyticsSession(value?: string | null) {
 
   if (Number(expiresAt) <= Date.now()) return false;
 
-  return signAnalyticsSession(expiresAt) === signature;
+  const expected = signAnalyticsSession(expiresAt);
+
+  try {
+    return timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+  } catch {
+    return false;
+  }
 }
 
 function getSupabaseConfig() {
@@ -167,14 +173,64 @@ function isFeedbackSchemaMismatch(status: number, errorText: string) {
   );
 }
 
+async function saveFeedbackEntry(input: {
+  feedbackTableUrl: string;
+  supabaseServiceRoleKey: string;
+  entry: Record<string, any>;
+  errorLabel: string;
+}) {
+  let res = await fetch(input.feedbackTableUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: input.supabaseServiceRoleKey,
+      Authorization: `Bearer ${input.supabaseServiceRoleKey}`,
+      Prefer: "return=representation",
+    } as HeadersInit,
+    body: JSON.stringify(input.entry),
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+
+    if (isFeedbackSchemaMismatch(res.status, errorText)) {
+      const { user_id, userScope, environment, ...fallbackEntry } = input.entry;
+
+      res = await fetch(input.feedbackTableUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: input.supabaseServiceRoleKey,
+          Authorization: `Bearer ${input.supabaseServiceRoleKey}`,
+          Prefer: "return=representation",
+        } as HeadersInit,
+        body: JSON.stringify(fallbackEntry),
+        cache: "no-store",
+      });
+    } else {
+      throw new Error(`${input.errorLabel} ${res.status}: ${errorText}`);
+    }
+  }
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`${input.errorLabel} fallback ${res.status}: ${errorText}`);
+  }
+
+  return await res.json();
+}
+
 export async function POST(req: Request) {
   try {
     const { feedbackTableUrl, supabaseServiceRoleKey } = getSupabaseConfig();
     const data = await req.json();
     const userScope = getUserScopeFromRequest(req);
     const resolvedUserId = await resolveFeedbackUserId(req);
-    const isPersonalEnvironment =
-      req.headers.get("x-openlura-personal-env") === "true" || !!resolvedUserId;
+    const isExplicitPersonalEnvironment =
+      req.headers.get("x-openlura-personal-env") === "true" ||
+      data?.environment === "personal";
+    const isPersonalEnvironment = isExplicitPersonalEnvironment;
 
     if (data?.action === "unlock_analytics") {
       if (String(data.password ?? "") !== analyticsAdminPassword) {
@@ -206,87 +262,47 @@ export async function POST(req: Request) {
 
         if (data?.action === "update_workflow_status") {
           const entry = {
-      chatId: data.chatId ?? null,
-      msgIndex: data.msgIndex ?? null,
-      type: data.type ?? null,
-      message: data.message ?? null,
-      userMessage: data.userMessage ?? null,
-      source: data.source ?? null,
-      userScope: isPersonalEnvironment ? "personal" : userScope,
-      user_id: resolvedUserId,
-      timestamp: new Date().toISOString(),
-    };
+            chatId: data.chatId ?? null,
+            msgIndex: data.msgIndex ?? null,
+            type: data.type ?? null,
+            message: data.message ?? null,
+            userMessage: data.userMessage ?? null,
+            source: data.source ?? null,
+            userScope: isPersonalEnvironment ? "personal" : userScope,
+            user_id: resolvedUserId,
+            environment: isPersonalEnvironment ? "personal" : "default",
+            timestamp: new Date().toISOString(),
+          };
 
-      let res = await fetch(feedbackTableUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          apikey: supabaseServiceRoleKey,
-          Authorization: `Bearer ${supabaseServiceRoleKey}`,
-          Prefer: "return=representation",
-        } as HeadersInit,
-        body: JSON.stringify(entry),
-        cache: "no-store",
-      });
+          try {
+            const saved = await saveFeedbackEntry({
+              feedbackTableUrl,
+              supabaseServiceRoleKey,
+              entry,
+              errorLabel: "Workflow status opslaan mislukt:",
+            });
 
-      if (!res.ok) {
-        const errorText = await res.text();
+            return NextResponse.json(
+              { success: true, item: saved?.[0] ?? entry },
+              {
+                headers: {
+                  "Cache-Control": "no-store",
+                },
+              }
+            );
+          } catch (error) {
+            console.error("Supabase workflow POST failed:", error);
 
-        if (isFeedbackSchemaMismatch(res.status, errorText)) {
-          const { user_id, ...fallbackEntry } = entry;
-
-  res = await fetch(feedbackTableUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      apikey: supabaseServiceRoleKey,
-      Authorization: `Bearer ${supabaseServiceRoleKey}`,
-      Prefer: "return=representation",
-    } as HeadersInit,
-    body: JSON.stringify(fallbackEntry),
-    cache: "no-store",
-  });
-} else {
-          console.error("Supabase workflow POST failed:", res.status, errorText);
-
-          return NextResponse.json(
-            {
-              success: false,
-              error: "Workflow status opslaan mislukt",
-              supabaseStatus: res.status,
-              supabaseError: errorText,
-            },
-            { status: 500 }
-          );
+            return NextResponse.json(
+              {
+                success: false,
+                error: "Workflow status opslaan mislukt",
+                details: String(error),
+              },
+              { status: 500 }
+            );
+          }
         }
-      }
-
-      if (!res.ok) {
-        const errorText = await res.text();
-        console.error("Supabase workflow POST fallback failed:", res.status, errorText);
-
-        return NextResponse.json(
-          {
-            success: false,
-            error: "Workflow status opslaan mislukt",
-            supabaseStatus: res.status,
-            supabaseError: errorText,
-          },
-          { status: 500 }
-        );
-      }
-
-      const saved = await res.json();
-
-      return NextResponse.json(
-        { success: true, item: saved?.[0] ?? entry },
-        {
-          headers: {
-            "Cache-Control": "no-store",
-          },
-        }
-      );
-    }
 
     const rawMessage = String(data.message ?? "").toLowerCase();
 
@@ -333,72 +349,34 @@ export async function POST(req: Request) {
       type: data.type ?? null,
       message: data.message ?? null,
       userMessage: data.userMessage ?? null,
-      source: data.source ?? null,
+      source: data.type === "idea" ? inferredIdeaSource : data.source ?? null,
       userScope: isPersonalEnvironment ? "personal" : userScope,
       user_id: resolvedUserId,
+      environment: isPersonalEnvironment ? "personal" : "default",
       timestamp: new Date().toISOString(),
     };
 
-    let res = await fetch(feedbackTableUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: supabaseServiceRoleKey,
-        Authorization: `Bearer ${supabaseServiceRoleKey}`,
-        Prefer: "return=representation",
-      } as HeadersInit,
-      body: JSON.stringify(entry),
-      cache: "no-store",
-    });
+    let saved;
 
-    if (!res.ok) {
-      const errorText = await res.text();
-
-     if (isFeedbackSchemaMismatch(res.status, errorText)) {
-          const { user_id, ...fallbackEntry } = entry;
-
-  res = await fetch(feedbackTableUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      apikey: supabaseServiceRoleKey,
-      Authorization: `Bearer ${supabaseServiceRoleKey}`,
-      Prefer: "return=representation",
-    } as HeadersInit,
-    body: JSON.stringify(fallbackEntry),
-    cache: "no-store",
-  });
-} else {
-        console.error("Supabase POST failed:", res.status, errorText);
-
-        return NextResponse.json(
-          {
-            success: false,
-            error: "Feedback opslaan mislukt",
-            supabaseStatus: res.status,
-            supabaseError: errorText,
-          },
-          { status: 500 }
-        );
-      }
-    }
-
-    if (!res.ok) {
-      const errorText = await res.text();
-      console.error("Supabase POST fallback failed:", res.status, errorText);
+    try {
+      saved = await saveFeedbackEntry({
+        feedbackTableUrl,
+        supabaseServiceRoleKey,
+        entry,
+        errorLabel: "Feedback opslaan mislukt:",
+      });
+    } catch (error) {
+      console.error("Supabase POST failed:", error);
 
       return NextResponse.json(
         {
           success: false,
           error: "Feedback opslaan mislukt",
-          supabaseStatus: res.status,
-          supabaseError: errorText,
+          details: String(error),
         },
         { status: 500 }
       );
     }
-
-    const saved = await res.json();
 
    return NextResponse.json(
       {

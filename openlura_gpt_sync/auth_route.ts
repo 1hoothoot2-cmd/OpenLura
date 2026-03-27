@@ -40,6 +40,17 @@ function isValidAdminSession(value?: string | null) {
   }
 }
 
+function getCookieValue(req: Request, name: string) {
+  return (
+    req.headers
+      .get("cookie")
+      ?.split(";")
+      .map((part) => part.trim())
+      .find((part) => part.startsWith(`${name}=`))
+      ?.split("=")[1] ?? null
+  );
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -67,11 +78,6 @@ export async function POST(req: Request) {
       );
     }
 
-    console.log("OpenLura admin env loaded:", {
-      username: adminUsername,
-      hashLength: adminPasswordHash.length,
-    });
-
     const validPassword = await bcrypt.compare(password, adminPasswordHash);
 
     if (!validPassword) {
@@ -82,7 +88,14 @@ export async function POST(req: Request) {
     }
 
     const response = NextResponse.json(
-      { success: true, username: adminUsername },
+      {
+        success: true,
+        username: adminUsername,
+        runtime: {
+          sessionType: "personal_environment_admin",
+          authenticated: true,
+        },
+      },
       {
         headers: {
           "Cache-Control": "no-store",
@@ -109,13 +122,7 @@ export async function POST(req: Request) {
 }
 
 export async function GET(req: Request) {
-  const sessionCookie =
-    req.headers
-      .get("cookie")
-      ?.split(";")
-      .map((part) => part.trim())
-      .find((part) => part.startsWith(`${ADMIN_COOKIE_NAME}=`))
-      ?.split("=")[1] ?? null;
+  const sessionCookie = getCookieValue(req, ADMIN_COOKIE_NAME);
 
   if (!isValidAdminSession(sessionCookie)) {
     return NextResponse.json(
@@ -125,7 +132,13 @@ export async function GET(req: Request) {
   }
 
   return NextResponse.json(
-    { authenticated: true, username: adminUsername || "admin" },
+    {
+      authenticated: true,
+      username: adminUsername || "admin",
+      runtime: {
+        sessionType: "personal_environment_admin",
+      },
+    },
     {
       headers: {
         "Cache-Control": "no-store",
@@ -134,9 +147,17 @@ export async function GET(req: Request) {
   );
 }
 
-export async function DELETE() {
+export async function DELETE(req: Request) {
+  const hadSession = isValidAdminSession(getCookieValue(req, ADMIN_COOKIE_NAME));
+
   const response = NextResponse.json(
-    { success: true },
+    {
+      success: true,
+      runtime: {
+        clearedSession: hadSession,
+        sessionType: "personal_environment_admin",
+      },
+    },
     {
       headers: {
         "Cache-Control": "no-store",
