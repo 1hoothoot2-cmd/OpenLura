@@ -75,8 +75,12 @@ export default function AnalyticsPage() {
   };
 
     const getUserScope = (f: any) => {
-    if (f.userScope === "admin" || f.userScope === "guest") {
+    if (f.userScope === "admin" || f.userScope === "guest" || f.userScope === "personal") {
       return f.userScope;
+    }
+
+    if (f.environment === "personal") {
+      return "personal";
     }
 
     if (f._localOnly) {
@@ -85,33 +89,6 @@ export default function AnalyticsPage() {
 
     return "guest";
   };
-
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
-  <div className="p-4 bg-white/10 rounded-2xl">
-    <p className="text-xs opacity-60">Server items</p>
-    <p className="text-xl">{feedback.filter((f) => !f._localOnly).length}</p>
-  </div>
-
-  <div className="p-4 bg-white/10 rounded-2xl">
-    <p className="text-xs opacity-60">Lokale items</p>
-    <p className="text-xl">{feedback.filter((f) => f._localOnly).length}</p>
-  </div>
-
-  <div className="p-4 bg-white/10 rounded-2xl">
-    <p className="text-xs opacity-60">Admin items</p>
-    <p className="text-xl">{feedback.filter((f) => getUserScope(f) === "admin").length}</p>
-  </div>
-
-  <div className="p-4 bg-white/10 rounded-2xl">
-    <p className="text-xs opacity-60">Guest items</p>
-    <p className="text-xl">{feedback.filter((f) => getUserScope(f) === "guest").length}</p>
-  </div>
-
-  <div className="p-4 bg-white/10 rounded-2xl">
-    <p className="text-xs opacity-60">Totaal zichtbaar</p>
-    <p className="text-xl">{feedback.length}</p>
-  </div>
-</div>
 
   useEffect(() => {
     if (activeTab !== "ideas") {
@@ -413,8 +390,12 @@ export default function AnalyticsPage() {
     ).length,
   };
 
-  const globalLearningPool = learningPool.filter((f: any) => !f._localOnly);
-  const personalLearningPool = learningPool.filter((f: any) => f._localOnly);
+  const globalLearningPool = learningPool.filter(
+    (f: any) => getUserScope(f) !== "personal" && f.environment !== "personal"
+  );
+  const personalLearningPool = learningPool.filter(
+    (f: any) => getUserScope(f) === "personal" || f.environment === "personal"
+  );
 
   const globalLearningText = globalLearningPool
     .map((f: any) => `${f.userMessage || ""} ${f.message || ""}`.toLowerCase())
@@ -831,6 +812,8 @@ return () => {
     });
 
     try {
+      const item = feedback.find((f: any) => getItemKey(f) === key);
+
       await fetch("/api/feedback", {
         method: "POST",
         headers: {
@@ -838,8 +821,16 @@ return () => {
         },
         body: JSON.stringify({
           action: "update_workflow_status",
-          itemKey: key,
-          status,
+          chatId: item?.chatId ?? null,
+          msgIndex: item?.msgIndex ?? null,
+          type: "workflow_status",
+          message: status,
+          userMessage: key,
+          source: "analytics_workflow",
+          environment:
+            getUserScope(item) === "personal" || item?.environment === "personal"
+              ? "personal"
+              : "default",
         }),
       });
     } catch (error) {
@@ -901,7 +892,15 @@ return () => {
             <div className="flex items-center justify-between mb-6">
   <h1 className="text-2xl">📊 OpenLura Analytics</h1>
     <button
-    onClick={() => {
+    onClick={async () => {
+      try {
+        await fetch("/api/feedback", {
+          method: "DELETE",
+        });
+      } catch (error) {
+        console.error("Analytics logout failed:", error);
+      }
+
       document.cookie =
         "openlura_analytics_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
       localStorage.removeItem("openlura_auto_learning_insights");
@@ -918,7 +917,7 @@ return () => {
   Environment: {typeof window !== "undefined" ? window.location.origin : ""}
 </p>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
   <div className="p-4 bg-white/10 rounded-2xl">
     <p className="text-xs opacity-60">Server items</p>
     <p className="text-xl">{feedback.filter((f) => !f._localOnly).length}</p>
@@ -927,6 +926,16 @@ return () => {
   <div className="p-4 bg-white/10 rounded-2xl">
     <p className="text-xs opacity-60">Lokale items</p>
     <p className="text-xl">{feedback.filter((f) => f._localOnly).length}</p>
+  </div>
+
+  <div className="p-4 bg-white/10 rounded-2xl">
+    <p className="text-xs opacity-60">Admin items</p>
+    <p className="text-xl">{feedback.filter((f) => getUserScope(f) === "admin").length}</p>
+  </div>
+
+  <div className="p-4 bg-white/10 rounded-2xl">
+    <p className="text-xs opacity-60">Personal items</p>
+    <p className="text-xl">{feedback.filter((f) => getUserScope(f) === "personal").length}</p>
   </div>
 
   <div className="p-4 bg-white/10 rounded-2xl">
@@ -1850,7 +1859,7 @@ return () => {
         </select>
 
         <span className="text-xs opacity-50">
-          {new Date(f.timestamp).toLocaleString()}
+          {f?.timestamp ? new Date(f.timestamp).toLocaleString() : "-"}
         </span>
       </div>
     </div>
