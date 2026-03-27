@@ -528,7 +528,18 @@ function shouldUseAdaptiveSpeedMode(input: {
 function isRefinementInstruction(text?: string) {
   const normalized = (text || "").toLowerCase().trim();
 
-  return /^(en )?(nu )?(korter|kort|duidelijker|simpeler|meer concreet|concreter|anders|opnieuw maar korter|maak korter|maak het korter|korter graag|duidelijker graag|simpel(er)? graag|meer context|minder tekst)([.!?])?$/.test(
+  return /^(en )?(nu )?(nog )?(korter|kort|duidelijker|simpeler|meer concreet|concreter|anders|anders verwoorden|opnieuw maar korter|maak korter|maak het korter|korter graag|duidelijker graag|simpel(er)? graag|meer context|minder tekst|alleen het aantal|nu alleen het aantal|gewoon het aantal|alleen de naam|alleen de namen|alleen kort|alleen de conclusie)([.!?])?$/.test(
+    normalized
+  );
+}
+
+function isConversationDependentFollowUp(text?: string) {
+  const normalized = (text || "").toLowerCase().trim();
+
+  if (!normalized) return false;
+  if (isRefinementInstruction(normalized)) return true;
+
+  return /^(en )?(nu )?(nog )?(alleen|gewoon|dus|oke|oké|prima|helder|dan|welke dan|waarom|hoezo|en welke|en wat|en voor|alleen het|alleen de|geef alleen|noem alleen|kan het korter|kan je het anders verwoorden|kun je het anders verwoorden)(\b|[.!?])/.test(
     normalized
   );
 }
@@ -1274,6 +1285,16 @@ ${personalRecentIssues.join("\n") || "none"}
       .replace(/[!?.,]+$/g, "")
       .replace(/\s+/g, " ");
 
+  const hasRecentConversationContext =
+    Array.isArray(recentMessages) &&
+    recentMessages.some(
+      (msg: any) =>
+        msg &&
+        (msg.role === "user" || msg.role === "ai") &&
+        typeof msg.content === "string" &&
+        msg.content.trim()
+    );
+
   const recentConversationTranscript = Array.isArray(recentMessages)
     ? recentMessages
         .filter(
@@ -1664,6 +1685,11 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
       image,
     });
 
+    const conversationDependentFollowUp =
+      !image &&
+      isConversationDependentFollowUp(message || "") &&
+      hasRecentConversationContext;
+
     const responseStyleProfile = buildResponseStyleProfile({
       isCasualChatRequest,
       shouldUseWebSearch,
@@ -1680,7 +1706,9 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
     });
 
     const fastRouteDecisionInput = {
-      shouldUseFastTextPath,
+      shouldUseFastTextPath: conversationDependentFollowUp
+        ? false
+        : shouldUseFastTextPath,
       isCasualChatRequest,
       casualSignalStrength: cappedLearningStrength.casual,
       hasContentPreference: contentLearningState.hasContentPreference,
@@ -1692,6 +1720,7 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
     };
 
     const shouldUseFastTextRoute =
+      !conversationDependentFollowUp &&
       shouldUseAdaptiveSpeedMode(fastRouteDecisionInput) &&
       !shouldBypassFastTextPath(fastRouteDecisionInput);
 
@@ -2123,8 +2152,9 @@ EMOTIONAL SUPPORT RULES:
 - If user explicitly says "this is wrong", treat it as strong negative feedback
 
 - If recent conversation exists and the user's message is short, interpret it in the context of the ongoing topic first
-- For follow-up prompts like "korter", "nog korter", "anders verwoorden", "duidelijker", "welke dan", "waarom", or "en voor rust?":
+- For follow-up prompts like "korter", "nog korter", "anders verwoorden", "duidelijker", "welke dan", "waarom", "en voor rust?", "alleen het aantal", "gewoon het aantal", or "alleen de naam":
   → continue the same topic by default
+  → apply the follow-up directly to the last relevant answer
   → do not ask a clarifying question unless the recent conversation still makes the intent genuinely unclear
 - Only treat the message as a fresh topic when the user clearly switches subject
 
