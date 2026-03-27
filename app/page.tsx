@@ -432,6 +432,18 @@ const composerInnerClass =
 const composerInputClass =
   "w-full min-w-0 max-w-full resize-none overflow-x-hidden break-words [overflow-wrap:anywhere]";
 
+const getOpenLuraRequestHeaders = (includeJson = true) => {
+  const headers: Record<string, string> = includeJson
+    ? { "Content-Type": "application/json" }
+    : {};
+
+  if (isPersonalRoute) {
+    headers["x-openlura-personal-env"] = "true";
+  }
+
+  return headers;
+};
+
 const activeChat =
   chats.find(
     (c: any) =>
@@ -439,18 +451,6 @@ const activeChat =
       !c.archived &&
       !c.deleted
   ) ?? null;
-
-  const getOpenLuraRequestHeaders = (includeJson = true) => {
-    const headers: Record<string, string> = includeJson
-      ? { "Content-Type": "application/json" }
-      : {};
-
-    if (isPersonalRoute) {
-      headers["x-openlura-personal-env"] = "true";
-    }
-
-    return headers;
-  };
 
   useEffect(() => {
     const visibleChats = chats.filter(
@@ -746,12 +746,21 @@ const activeChat =
       e.target.value = "";
     };
 
+  const getStoredFeedback = () => {
+    try {
+      return JSON.parse(
+        localStorage.getItem(
+          isPersonalRoute ? "openlura_personal_feedback" : "openlura_feedback"
+        ) || "[]"
+      );
+    } catch (error) {
+      console.error("OpenLura feedback parse failed:", error);
+      return [];
+    }
+  };
+
   const getActiveLearningDebug = () => {
-    const rawFeedback = JSON.parse(
-      localStorage.getItem(
-        isPersonalRoute ? "openlura_personal_feedback" : "openlura_feedback"
-      ) || "[]"
-    );
+    const rawFeedback = getStoredFeedback();
     const feedbackText = rawFeedback
       .map((f: any) => `${f.userMessage || ""} ${f.message || ""}`.toLowerCase())
       .join(" ");
@@ -854,11 +863,7 @@ const activeChat =
       };
     }
 
-    const rawFeedback = JSON.parse(
-      localStorage.getItem(
-        isPersonalRoute ? "openlura_personal_feedback" : "openlura_feedback"
-      ) || "[]"
-    );
+    const rawFeedback = getStoredFeedback();
     const personalFeedback = rawFeedback.filter(
       (f: any) =>
         f.chatId === activeChatId ||
@@ -968,7 +973,9 @@ const activeChat =
   };
 
   const sendMessage = async () => {
-        if (!input.trim() && !image) return;
+    if (!input.trim() && !image) return;
+
+    try {
 
     const currentChatId = activeChatId!;
     const isImprovementReply = awaitingImprovement[currentChatId] && !!input.trim();
@@ -1079,12 +1086,15 @@ const activeChat =
         requestAnimationFrame(() => resolve());
       });
 
-      const improveRes = await fetch("/api/chat", {
-        method: "POST",
-        headers: getOpenLuraRequestHeaders(true),
-        body: JSON.stringify({
-          message: retryRequest
-            ? `De gebruiker wil dat je opnieuw antwoord geeft op dezelfde vraag.
+      let improveRes: Response;
+
+      try {
+        improveRes = await fetch("/api/chat", {
+          method: "POST",
+          headers: getOpenLuraRequestHeaders(true),
+          body: JSON.stringify({
+            message: retryRequest
+              ? `De gebruiker wil dat je opnieuw antwoord geeft op dezelfde vraag.
 
 Oorspronkelijke vraag:
 ${originalUserMessage}
@@ -1094,7 +1104,7 @@ ${originalAiMessage}
 
 Geef nu direct opnieuw een volledig, goed antwoord op de oorspronkelijke vraag.
 Noem niet dat dit een nieuwe poging is.`
-            : `De gebruiker was niet tevreden met je vorige antwoord.
+              : `De gebruiker was niet tevreden met je vorige antwoord.
 
 Oorspronkelijke vraag:
 ${originalUserMessage}
@@ -1116,25 +1126,37 @@ BELANGRIJK:
 
 Noem niet dat dit een verbeterde versie is.
 Geef alleen direct het betere antwoord.`,
-          memory: memory
-            .filter((m) => m.weight > 0.6)
-            .map((m) => m.text)
-            .join(" | "),
-          feedback: retryRequest
-            ? {
-                likes: 0,
-                dislikes: 0,
-                issues: [],
-                recentIssues: [originalUserMessage],
-              }
-            : {
-                likes: 0,
-                dislikes: 1,
-                issues: [input],
-                recentIssues: [originalUserMessage],
-              },
-        }),
-      });
+            memory: memory
+              .filter((m) => m.weight > 0.6)
+              .map((m) => m.text)
+              .join(" | "),
+            feedback: retryRequest
+              ? {
+                  likes: 0,
+                  dislikes: 0,
+                  issues: [],
+                  recentIssues: [originalUserMessage],
+                }
+              : {
+                  likes: 0,
+                  dislikes: 1,
+                  issues: [input],
+                  recentIssues: [originalUserMessage],
+                },
+          }),
+        });
+      } catch (error) {
+        console.error("OpenLura improvement request failed:", error);
+        updated[index].messages.push({
+          role: "ai",
+          content: "OpenLura kon de verbeterde versie nu niet ophalen. Probeer het opnieuw.",
+        });
+        setChats([...updated]);
+        setStreamController(null);
+        setLoading(false);
+        setLoadingStage("idle");
+        return;
+      }
 
       if (!improveRes.ok || !improveRes.body) {
         updated[index].messages.push({
@@ -1441,6 +1463,15 @@ updated[index].messages[
     }
 
     setLoading(false);
+    } catch (error: any) {
+      if (error?.name !== "AbortError") {
+        console.error("OpenLura sendMessage failed:", error);
+      }
+    } finally {
+      setStreamController(null);
+      setLoading(false);
+      setLoadingStage("idle");
+    }
   };
   const handleFeedback = async (chatId: number, msgIndex: number, type: string) => {
 console.log("FEEDBACK CLICKED", { chatId, msgIndex, type });
@@ -1589,19 +1620,26 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
   localStorage.setItem(key, JSON.stringify(existing));
 
     fetch("/api/feedback", {
-    method: "POST",
-    headers: getOpenLuraRequestHeaders(true),
-        body: JSON.stringify({
-      chatId: activeChatId,
-      type: "idea",
-      message: feedbackText.trim(),
-      userMessage: isPersonalEnvironment ? "Persoonlijke omgeving feedback" : "Feedback / Idee",
-      source: isPersonalEnvironment ? "personal_environment" : `idea_${feedbackCategory}`,
-      environment: isPersonalEnvironment ? "personal" : "default",
-    }),
-  }).then(() => {
-    window.dispatchEvent(new Event("openlura_feedback_update"));
-  });
+      method: "POST",
+      headers: getOpenLuraRequestHeaders(true),
+      body: JSON.stringify({
+        chatId: activeChatId,
+        type: "idea",
+        message: feedbackText.trim(),
+        userMessage: isPersonalEnvironment ? "Persoonlijke omgeving feedback" : "Feedback / Idee",
+        source: isPersonalEnvironment ? "personal_environment" : `idea_${feedbackCategory}`,
+        environment: isPersonalEnvironment ? "personal" : "default",
+      }),
+    })
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error("Idea feedback POST failed");
+        }
+        window.dispatchEvent(new Event("openlura_feedback_update"));
+      })
+      .catch((error) => {
+        console.error("OpenLura idea feedback save failed:", error);
+      });
 
     setFeedbackText("");
   setFeedbackCategory("adjustment");
