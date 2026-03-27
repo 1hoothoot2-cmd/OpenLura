@@ -736,22 +736,32 @@ async function fetchSupabasePersonalState(userId?: string | null) {
 function mergeLearningFeedbackLayers(input: {
   globalFeedback: OpenLuraFeedbackRow[];
   personalFeedback: OpenLuraFeedbackRow[];
+  userFeedback?: OpenLuraFeedbackRow[];
 }) {
   const normalizeLayerRows = (
     rows: OpenLuraFeedbackRow[],
-    layer: "global" | "personal"
+    layer: "global" | "personal" | "user"
   ) =>
     rows.map((item) => ({
       ...item,
       userScope:
-        layer === "personal" ? "personal" : item.userScope || "guest",
+        layer === "user"
+          ? "user"
+          : layer === "personal"
+          ? "personal"
+          : item.userScope || "guest",
       weight:
         (typeof item.weight === "number" && Number.isFinite(item.weight)
           ? item.weight
-          : 1) * (layer === "personal" ? 1.75 : 1),
+          : 1) *
+        (layer === "user" ? 2.4 : layer === "personal" ? 1.75 : 1),
       source:
         item.source ||
-        (layer === "personal" ? "personal_runtime" : "global_runtime"),
+        (layer === "user"
+          ? "user_runtime"
+          : layer === "personal"
+          ? "personal_runtime"
+          : "global_runtime"),
       learningLayer: layer,
       timestamp: item.timestamp || new Date().toISOString(),
     }));
@@ -759,6 +769,7 @@ function mergeLearningFeedbackLayers(input: {
   return [
     ...normalizeLayerRows(input.globalFeedback, "global"),
     ...normalizeLayerRows(input.personalFeedback, "personal"),
+    ...normalizeLayerRows(input.userFeedback || [], "user"),
   ];
 }
 
@@ -778,7 +789,9 @@ async function resolvePersonalRuntimeContext(input: {
   const personalFeedbackRows = await getPersonalFeedbackRows(personalUserId);
 
   const hasTrustedPersonalSignal =
-    explicitPersonalEnvHeader || !!personalUserId;
+    !!personalUserId ||
+    (explicitPersonalEnvHeader &&
+      isValidAdminSession(getCookieValue(input.req, ADMIN_COOKIE_NAME)));
 
   const isPersonalEnvironment =
     hasTrustedPersonalSignal ||
@@ -1151,18 +1164,48 @@ export async function POST(req: Request) {
       )
   );
 
+  const normalizedPersonalStateFeedback = (Array.isArray(personalState.feedback)
+    ? personalState.feedback
+    : []
+  ).map((item: any) => ({
+    type: item.type,
+    message: item.message,
+    userMessage: item.userMessage,
+    source: item.source || "personal_state_runtime",
+    learningType: inferFeedbackLearningType(item),
+    userScope: "personal",
+    user_id: item.user_id ?? personalUserId ?? null,
+    weight:
+      typeof item.weight === "number" && Number.isFinite(item.weight)
+        ? item.weight
+        : 1.25,
+    timestamp: item.timestamp,
+  }));
+
+  const userRuntimeFeedback = clientFeedback.map((item: any) => ({
+    ...item,
+    source: item.source || "request_runtime_feedback",
+    userScope: "user",
+    user_id: personalUserId ?? null,
+    weight:
+      typeof item.weight === "number" && Number.isFinite(item.weight)
+        ? Math.max(item.weight, 1)
+        : 1,
+  }));
+
   const personalLearningFeedback = [
     ...normalizedPersonalFeedbackRows,
-    ...personalState.feedback,
-    ...clientFeedback,
+    ...normalizedPersonalStateFeedback,
   ];
 
   const effectiveFeedback = mergeLearningFeedbackLayers({
     globalFeedback: globalLearningFeedback,
     personalFeedback: isPersonalEnvironment ? personalLearningFeedback : [],
+    userFeedback: userRuntimeFeedback,
   });
 
   const personalLayer = isPersonalEnvironment ? personalLearningFeedback : [];
+  const userLayer = userRuntimeFeedback;
 
   const feedbackLikes = globalLearningFeedback.filter(
     (f: any) => f.type === "up"
@@ -1231,6 +1274,8 @@ ${personalRecentIssues.join("\n") || "none"}
           response: responseText,
           up: 0,
           down: 0,
+          userUp: 0,
+          userDown: 0,
           personalUp: 0,
           personalDown: 0,
         };
@@ -1243,6 +1288,11 @@ ${personalRecentIssues.join("\n") || "none"}
 
       if (item.type === "up") {
         acc[responseText].up += weight;
+
+        if (item.learningLayer === "user") {
+          acc[responseText].userUp = (acc[responseText].userUp || 0) + weight;
+        }
+
         if (item.learningLayer === "personal") {
           acc[responseText].personalUp += weight;
         }
@@ -1250,6 +1300,11 @@ ${personalRecentIssues.join("\n") || "none"}
 
       if (item.type === "down") {
         acc[responseText].down += weight;
+
+        if (item.learningLayer === "user") {
+          acc[responseText].userDown = (acc[responseText].userDown || 0) + weight;
+        }
+
         if (item.learningLayer === "personal") {
           acc[responseText].personalDown += weight;
         }
@@ -1265,10 +1320,13 @@ ${personalRecentIssues.join("\n") || "none"}
       ...item,
       score: item.up - item.down,
       total: item.up + item.down,
+      userScore: (item.userUp || 0) - (item.userDown || 0),
       personalScore: item.personalUp - item.personalDown,
     }))
     .sort((a: any, b: any) => {
+      if (b.userScore !== a.userScore) return b.userScore - a.userScore;
       if (b.personalScore !== a.personalScore) return b.personalScore - a.personalScore;
+      if ((b.userUp || 0) !== (a.userUp || 0)) return (b.userUp || 0) - (a.userUp || 0);
       if (b.score !== a.score) return b.score - a.score;
       if (b.personalUp !== a.personalUp) return b.personalUp - a.personalUp;
       if (b.up !== a.up) return b.up - a.up;
@@ -1952,9 +2010,10 @@ ${personalLayer.length > 0 ? "present" : "none"}
 
 RUNTIME LEARNING PRIORITY:
 - personal learning active: ${isPersonalEnvironment ? "yes" : "no"}
-- priority order: ${isPersonalEnvironment ? "personal > feedback > global" : "feedback > global"}
+- user runtime feedback rows: ${userLayer.length}
 - personal runtime feedback rows: ${normalizedPersonalFeedbackRows.length}
-- personal state feedback rows: ${Array.isArray(personalState.feedback) ? personalState.feedback.length : 0}
+- personal state feedback rows: ${normalizedPersonalStateFeedback.length}
+- priority order: ${isPersonalEnvironment ? "user > personal > global > default" : "user > global > default"}
 SUCCESSFUL PATTERNS (completed items):
 ${completedFeedback
   .filter(
@@ -1976,10 +2035,11 @@ ADAPTATION RULES:
 - Treat ACTIVE LEARNING RULES as global behavior instructions learned from all users
 - Treat LEARNING INJECTION FROM FEEDBACK as global instructions learned from analytics and shared feedback
 - Treat GLOBAL LEARNING as the default base layer
+- Treat current-request feedback as the highest-priority user layer
 - Treat PERSONAL FEEDBACK CONTEXT, personal state, and User memory as the personal override layer when PERSONAL ENVIRONMENT is active
-- If PERSONAL ENVIRONMENT is active, prioritize personal learning over global learning when tone, structure, style, or exact-answer preference conflict
-- If PERSONAL ENVIRONMENT is not active, use global learning only
-- Use global learning as fallback consensus, not as an override against active personal learning
+- If PERSONAL ENVIRONMENT is active, use priority order: user > personal > global > default
+- If PERSONAL ENVIRONMENT is not active, use priority order: user > global > default
+- Use global learning as fallback consensus, not as an override against active user or personal learning
 - If RESPONSE CONTENT PREFERENCE FOR THIS EXACT MESSAGE contains a strong positively rated answer, reuse that style as the default for similar future messages
 - If RESPONSE CONTENT PREFERENCE FOR THIS EXACT MESSAGE shows mixed feedback, do not copy the old answer literally; create a balanced improved version between too short and too verbose
 - If SUCCESSFUL RESPONSE REUSE says reusable winner exists = yes, reuse the winning answer's shape, strengths, and level of usefulness as the starting point
