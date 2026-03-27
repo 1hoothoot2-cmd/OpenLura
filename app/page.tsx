@@ -34,7 +34,13 @@ export default function Home() {
   const [feedbackUI, setFeedbackUI] = useState<{ [key: string]: string }>({});
   const [feedbackGiven, setFeedbackGiven] = useState<{ [key: string]: boolean }>({});
   const [improvedFeedbackGiven, setImprovedFeedbackGiven] = useState<{ [key: string]: boolean }>({});
-  const [awaitingImprovement, setAwaitingImprovement] = useState<{ [key: number]: boolean }>({});
+  const [awaitingImprovement, setAwaitingImprovement] = useState<{
+    [key: number]: {
+      targetMsgIndex: number;
+      originalUserMessage: string;
+      originalAiMessage: string;
+    } | null;
+  }>({});
   const [showLoginBox, setShowLoginBox] = useState(false);
   const [loginUsername, setLoginUsername] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -978,7 +984,8 @@ const activeChat =
     try {
 
     const currentChatId = activeChatId!;
-    const isImprovementReply = awaitingImprovement[currentChatId] && !!input.trim();
+    const pendingImprovement = awaitingImprovement[currentChatId];
+    const isImprovementReply = !!pendingImprovement && !!input.trim();
 
         if (isImprovementReply) {
       let updated = [...chats];
@@ -996,22 +1003,11 @@ const activeChat =
         content: input,
       });
 
-      const chatMessages = updated[index].messages;
-
       const originalUserMessage =
-        [...chatMessages]
-          .reverse()
-          .find((msg: any) => msg.role === "user" && msg.content !== input)?.content || "";
+        pendingImprovement?.originalUserMessage || "";
 
       const originalAiMessage =
-        [...chatMessages]
-          .reverse()
-          .find(
-            (msg: any) =>
-              msg.role === "ai" &&
-              !msg.disableFeedback &&
-              msg.content !== "🤖 Wat kan ik beter doen?"
-          )?.content || "";
+        pendingImprovement?.originalAiMessage || "";
 
       if (!retryRequest) {
         const localFeedbackKey = isPersonalRoute
@@ -1078,7 +1074,7 @@ const activeChat =
 
       setAwaitingImprovement((prev) => ({
         ...prev,
-        [currentChatId]: false,
+        [currentChatId]: null,
       }));
 
       setLoading(true);
@@ -1559,17 +1555,27 @@ console.log("FEEDBACK CLICKED", { chatId, msgIndex, type });
     const updatedChats = [...chats];
     const chatIndex = updatedChats.findIndex(c => c.id === chatId);
 
+    const targetMessage = updatedChats[chatIndex]?.messages[msgIndex];
+    const targetPrevUser =
+      [...(updatedChats[chatIndex]?.messages.slice(0, msgIndex) || [])]
+        .reverse()
+        .find((msg: any) => msg.role === "user");
+
     updatedChats[chatIndex].messages.push({
-  role: "ai",
-  content: "🤖 Wat kan ik beter doen?",
-  disableFeedback: true,
-});
+      role: "ai",
+      content: "🤖 Wat kan ik beter doen?",
+      disableFeedback: true,
+    });
 
     setChats(updatedChats);
 
     setAwaitingImprovement(prev => ({
       ...prev,
-      [chatId]: true
+      [chatId]: {
+        targetMsgIndex: msgIndex,
+        originalUserMessage: targetPrevUser?.content || "",
+        originalAiMessage: targetMessage?.content || "",
+      }
     }));
   }
 };
