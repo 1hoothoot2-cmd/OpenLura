@@ -978,6 +978,73 @@ const activeChat =
     ].includes(normalized);
   };
 
+  const isRefinementInstruction = (text: string) => {
+    const normalized = text.toLowerCase().trim();
+
+    return /^(en )?(nu )?(korter|kort|duidelijker|simpeler|meer concreet|concreter|anders|opnieuw maar korter|maak korter|maak het korter|korter graag|duidelijker graag|simpel(er)? graag|meer context|minder tekst)([.!?])?$/.test(
+      normalized
+    );
+  };
+
+  const resolveFeedbackTargetContext = (messages: any[], aiMsgIndex: number) => {
+    const targetAiMessage = messages[aiMsgIndex];
+    let userIndex = aiMsgIndex - 1;
+
+    while (userIndex >= 0 && messages[userIndex]?.role !== "user") {
+      userIndex -= 1;
+    }
+
+    const directUserMessage =
+      userIndex >= 0 ? String(messages[userIndex]?.content || "") : "";
+
+    if (!directUserMessage || !isRefinementInstruction(directUserMessage)) {
+      return {
+        originalUserMessage: directUserMessage,
+        originalAiMessage: String(targetAiMessage?.content || ""),
+        targetMsgIndex: aiMsgIndex,
+      };
+    }
+
+    let rootUserIndex = userIndex - 1;
+    while (rootUserIndex >= 0) {
+      const candidate = messages[rootUserIndex];
+
+      if (
+        candidate?.role === "user" &&
+        !isRefinementInstruction(String(candidate.content || ""))
+      ) {
+        break;
+      }
+
+      rootUserIndex -= 1;
+    }
+
+    let rootAiIndex = userIndex - 1;
+    while (rootAiIndex >= 0) {
+      const candidate = messages[rootAiIndex];
+
+      if (
+        candidate?.role === "ai" &&
+        !candidate.disableFeedback &&
+        candidate.content !== "🤖 Wat kan ik beter doen?"
+      ) {
+        break;
+      }
+
+      rootAiIndex -= 1;
+    }
+
+    return {
+      originalUserMessage:
+        rootUserIndex >= 0 ? String(messages[rootUserIndex]?.content || "") : directUserMessage,
+      originalAiMessage:
+        rootAiIndex >= 0
+          ? String(messages[rootAiIndex]?.content || "")
+          : String(targetAiMessage?.content || ""),
+      targetMsgIndex: rootAiIndex >= 0 ? rootAiIndex : aiMsgIndex,
+    };
+  };
+
   const sendMessage = async () => {
     if (!input.trim() && !image) return;
 
@@ -1017,10 +1084,10 @@ const activeChat =
 
         existingFeedback.push({
           chatId: currentChatId,
-          msgIndex: updated[index].messages.length - 1,
+          msgIndex: pendingImprovement?.targetMsgIndex ?? updated[index].messages.length - 1,
           type: "improve",
           message: input,
-          userMessage: "Direct improvement feedback",
+          userMessage: originalUserMessage || "Direct improvement feedback",
           timestamp: Date.now(),
           source: "improvement_reply",
           learningType: classifyLearningSignal(input),
@@ -1049,9 +1116,10 @@ const activeChat =
             headers: getOpenLuraRequestHeaders(true),
             body: JSON.stringify({
               chatId: currentChatId,
+              msgIndex: pendingImprovement?.targetMsgIndex ?? null,
               type: "improve",
               message: input,
-              userMessage: "Direct improvement feedback",
+              userMessage: originalUserMessage || "Direct improvement feedback",
               source: "improvement_reply",
               learningType: classifyLearningSignal(input),
               environment: isPersonalRoute ? "personal" : "default",
@@ -1478,10 +1546,10 @@ console.log("FEEDBACK CLICKED", { chatId, msgIndex, type });
 
   const chat = chats.find(c => c.id === chatId);
   const message = chat?.messages[msgIndex];
-  const prevMessage =
-[...(chat?.messages.slice(0, msgIndex) || [])]
-.reverse()
-.find((msg: any) => msg.role === "user");
+  const resolvedTarget = resolveFeedbackTargetContext(chat?.messages || [], msgIndex);
+  const prevMessage = {
+    content: resolvedTarget.originalUserMessage,
+  };
 
     existing.push({
     chatId,
@@ -1554,12 +1622,9 @@ console.log("FEEDBACK CLICKED", { chatId, msgIndex, type });
   if (type === "down") {
     const updatedChats = [...chats];
     const chatIndex = updatedChats.findIndex(c => c.id === chatId);
+    const targetMessages = updatedChats[chatIndex]?.messages || [];
 
-    const targetMessage = updatedChats[chatIndex]?.messages[msgIndex];
-    const targetPrevUser =
-      [...(updatedChats[chatIndex]?.messages.slice(0, msgIndex) || [])]
-        .reverse()
-        .find((msg: any) => msg.role === "user");
+    const resolvedTarget = resolveFeedbackTargetContext(targetMessages, msgIndex);
 
     updatedChats[chatIndex].messages.push({
       role: "ai",
@@ -1572,9 +1637,9 @@ console.log("FEEDBACK CLICKED", { chatId, msgIndex, type });
     setAwaitingImprovement(prev => ({
       ...prev,
       [chatId]: {
-        targetMsgIndex: msgIndex,
-        originalUserMessage: targetPrevUser?.content || "",
-        originalAiMessage: targetMessage?.content || "",
+        targetMsgIndex: resolvedTarget.targetMsgIndex,
+        originalUserMessage: resolvedTarget.originalUserMessage,
+        originalAiMessage: resolvedTarget.originalAiMessage,
       }
     }));
   }
