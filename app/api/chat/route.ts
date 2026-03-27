@@ -627,6 +627,40 @@ type OpenLuraPersonalRuntimeContext = {
   learningScope: string;
 };
 
+function normalizePersonalMemoryValue(value: any): string {
+  if (typeof value === "string") {
+    return value.trim();
+  }
+
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => {
+        if (typeof item === "string") return item.trim();
+        if (typeof item?.text === "string") return item.text.trim();
+        return "";
+      })
+      .filter(Boolean)
+      .join("\n");
+  }
+
+  if (value && typeof value === "object") {
+    if (typeof value.text === "string") return value.text.trim();
+
+    if (Array.isArray(value.items)) {
+      return value.items
+        .map((item: any) => {
+          if (typeof item === "string") return item.trim();
+          if (typeof item?.text === "string") return item.text.trim();
+          return "";
+        })
+        .filter(Boolean)
+        .join("\n");
+    }
+  }
+
+  return "";
+}
+
 function getBearerTokenFromRequest(req: Request) {
   const authHeader = req.headers.get("authorization") || "";
   const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
@@ -679,10 +713,12 @@ async function fetchSupabaseAuthUser(accessToken?: string | null) {
   }
 }
 
-async function fetchSupabasePersonalState(userId?: string | null) {
-  if (!supabaseUrl || !supabaseServiceRoleKey || !userId) {
+async function fetchSupabasePersonalState(userId: string | null = null) {
+  const resolvedUserId = userId ?? null;
+
+  if (!supabaseUrl || !supabaseServiceRoleKey) {
     return {
-      userId: null,
+      userId: resolvedUserId,
       memory: "",
       feedback: [],
       raw: null,
@@ -690,8 +726,13 @@ async function fetchSupabasePersonalState(userId?: string | null) {
   }
 
   const tryQueries = [
-    `select=*&user_id=eq.${encodeURIComponent(userId)}&limit=1`,
-    `select=*&id=eq.${encodeURIComponent(userId)}&limit=1`,
+    ...(resolvedUserId
+      ? [
+          `select=*&user_id=eq.${encodeURIComponent(resolvedUserId)}&limit=1`,
+          `select=*&id=eq.${encodeURIComponent(resolvedUserId)}&limit=1`,
+        ]
+      : []),
+    "select=*&key=eq.primary&limit=1",
   ];
 
   for (const query of tryQueries) {
@@ -724,18 +765,14 @@ async function fetchSupabasePersonalState(userId?: string | null) {
         : [];
 
       const memoryText =
-        typeof row.personalMemory === "string"
-          ? row.personalMemory
-          : typeof row.memory === "string"
-          ? row.memory
-          : typeof row.profile_memory === "string"
-          ? row.profile_memory
-          : typeof row.state?.memory === "string"
-          ? row.state.memory
-          : "";
+        normalizePersonalMemoryValue(row.personalMemory) ||
+        normalizePersonalMemoryValue(row.memory) ||
+        normalizePersonalMemoryValue(row.profile_memory) ||
+        normalizePersonalMemoryValue(row.state?.memory) ||
+        "";
 
       return {
-        userId,
+        userId: resolvedUserId,
         memory: memoryText,
         feedback: nestedFeedback,
         raw: row,
@@ -746,7 +783,7 @@ async function fetchSupabasePersonalState(userId?: string | null) {
   }
 
   return {
-    userId,
+    userId: resolvedUserId,
     memory: "",
     feedback: [],
     raw: null,
@@ -953,8 +990,15 @@ function getCookieValue(req: Request, name: string) {
   );
 }
 
-function getUserScopeFromRequest(req: Request) {
-  return isValidAdminSession(getCookieValue(req, ADMIN_COOKIE_NAME))
+function getUserScopeFromRequest(input: {
+  req: Request;
+  isPersonalEnvironment?: boolean;
+}) {
+  if (input.isPersonalEnvironment) {
+    return "personal";
+  }
+
+  return isValidAdminSession(getCookieValue(input.req, ADMIN_COOKIE_NAME))
     ? "admin"
     : "guest";
 }
@@ -962,7 +1006,7 @@ function getUserScopeFromRequest(req: Request) {
 async function storeAutoDebugSignals(input: {
   userMessage?: string;
   aiText?: string;
-  userScope?: "admin" | "guest";
+  userScope?: "admin" | "guest" | "personal";
   signals: {
     type: string;
     confidence: "low" | "medium" | "high";
@@ -1109,7 +1153,6 @@ export async function POST(req: Request) {
     feedback,
     recentMessages,
   } = await req.json();
-  const userScope = getUserScopeFromRequest(req);
 
   const {
     isPersonalEnvironment,
@@ -1122,6 +1165,11 @@ export async function POST(req: Request) {
     req,
     personalMemory,
     memory,
+  });
+
+  const userScope = getUserScopeFromRequest({
+    req,
+    isPersonalEnvironment,
   });
 
   const serverFeedback = await getRecentServerFeedback();
@@ -1939,7 +1987,7 @@ Do not use web search for this path.`,
             "Content-Type": "text/plain; charset=utf-8",
             "X-OpenLura-Variant": responseVariant,
             "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
-            "X-OpenLura-Speed": "fast_image",
+            "X-OpenLura-Speed": "default",
             "X-OpenLura-Learning-Scope": learningScope,
           },
         });

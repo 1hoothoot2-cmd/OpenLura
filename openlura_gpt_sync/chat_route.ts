@@ -525,6 +525,25 @@ function shouldUseAdaptiveSpeedMode(input: {
   return input.shouldUseFastTextPath;
 }
 
+function isRefinementInstruction(text?: string) {
+  const normalized = (text || "").toLowerCase().trim();
+
+  return /^(en )?(nu )?(nog )?(korter|kort|duidelijker|simpeler|meer concreet|concreter|anders|anders verwoorden|opnieuw maar korter|maak korter|maak het korter|korter graag|duidelijker graag|simpel(er)? graag|meer context|minder tekst|alleen het aantal|nu alleen het aantal|gewoon het aantal|alleen de naam|alleen de namen|alleen kort|alleen de conclusie)([.!?])?$/.test(
+    normalized
+  );
+}
+
+function isConversationDependentFollowUp(text?: string) {
+  const normalized = (text || "").toLowerCase().trim();
+
+  if (!normalized) return false;
+  if (isRefinementInstruction(normalized)) return true;
+
+  return /^(en )?(nu )?(nog )?(alleen|gewoon|dus|oke|oké|prima|helder|dan|welke dan|waarom|hoezo|en welke|en wat|en voor|alleen het|alleen de|geef alleen|noem alleen|kan het korter|kan je het anders verwoorden|kun je het anders verwoorden)(\b|[.!?])/.test(
+    normalized
+  );
+}
+
 function classifyOpenLuraRoute(input: {
   message?: string;
   image?: string | null;
@@ -561,6 +580,7 @@ function classifyOpenLuraRoute(input: {
   const shouldUseFastTextPath =
     !input.image &&
     !shouldUseWebSearch &&
+    !isRefinementInstruction(normalizedMessage) &&
     !!normalizedMessage &&
     normalizedMessage.length <= 120;
 
@@ -736,22 +756,32 @@ async function fetchSupabasePersonalState(userId?: string | null) {
 function mergeLearningFeedbackLayers(input: {
   globalFeedback: OpenLuraFeedbackRow[];
   personalFeedback: OpenLuraFeedbackRow[];
+  userFeedback?: OpenLuraFeedbackRow[];
 }) {
   const normalizeLayerRows = (
     rows: OpenLuraFeedbackRow[],
-    layer: "global" | "personal"
+    layer: "global" | "personal" | "user"
   ) =>
     rows.map((item) => ({
       ...item,
       userScope:
-        layer === "personal" ? "personal" : item.userScope || "guest",
+        layer === "user"
+          ? "user"
+          : layer === "personal"
+          ? "personal"
+          : item.userScope || "guest",
       weight:
         (typeof item.weight === "number" && Number.isFinite(item.weight)
           ? item.weight
-          : 1) * (layer === "personal" ? 1.75 : 1),
+          : 1) *
+        (layer === "user" ? 2.4 : layer === "personal" ? 1.75 : 1),
       source:
         item.source ||
-        (layer === "personal" ? "personal_runtime" : "global_runtime"),
+        (layer === "user"
+          ? "user_runtime"
+          : layer === "personal"
+          ? "personal_runtime"
+          : "global_runtime"),
       learningLayer: layer,
       timestamp: item.timestamp || new Date().toISOString(),
     }));
@@ -759,6 +789,7 @@ function mergeLearningFeedbackLayers(input: {
   return [
     ...normalizeLayerRows(input.globalFeedback, "global"),
     ...normalizeLayerRows(input.personalFeedback, "personal"),
+    ...normalizeLayerRows(input.userFeedback || [], "user"),
   ];
 }
 
@@ -778,7 +809,9 @@ async function resolvePersonalRuntimeContext(input: {
   const personalFeedbackRows = await getPersonalFeedbackRows(personalUserId);
 
   const hasTrustedPersonalSignal =
-    explicitPersonalEnvHeader || !!personalUserId;
+    !!personalUserId ||
+    (explicitPersonalEnvHeader &&
+      isValidAdminSession(getCookieValue(input.req, ADMIN_COOKIE_NAME)));
 
   const isPersonalEnvironment =
     hasTrustedPersonalSignal ||
@@ -1067,7 +1100,15 @@ const openai = new OpenAI({
 });
 
 export async function POST(req: Request) {
-  const { message, image, memory, personalMemory, location, feedback } = await req.json();
+  const {
+    message,
+    image,
+    memory,
+    personalMemory,
+    location,
+    feedback,
+    recentMessages,
+  } = await req.json();
   const userScope = getUserScopeFromRequest(req);
 
   const {
@@ -1151,18 +1192,48 @@ export async function POST(req: Request) {
       )
   );
 
+  const normalizedPersonalStateFeedback = (Array.isArray(personalState.feedback)
+    ? personalState.feedback
+    : []
+  ).map((item: any) => ({
+    type: item.type,
+    message: item.message,
+    userMessage: item.userMessage,
+    source: item.source || "personal_state_runtime",
+    learningType: inferFeedbackLearningType(item),
+    userScope: "personal",
+    user_id: item.user_id ?? personalUserId ?? null,
+    weight:
+      typeof item.weight === "number" && Number.isFinite(item.weight)
+        ? item.weight
+        : 1.25,
+    timestamp: item.timestamp,
+  }));
+
+  const userRuntimeFeedback = clientFeedback.map((item: any) => ({
+    ...item,
+    source: item.source || "request_runtime_feedback",
+    userScope: "user",
+    user_id: personalUserId ?? null,
+    weight:
+      typeof item.weight === "number" && Number.isFinite(item.weight)
+        ? Math.max(item.weight, 1)
+        : 1,
+  }));
+
   const personalLearningFeedback = [
     ...normalizedPersonalFeedbackRows,
-    ...personalState.feedback,
-    ...clientFeedback,
+    ...normalizedPersonalStateFeedback,
   ];
 
   const effectiveFeedback = mergeLearningFeedbackLayers({
     globalFeedback: globalLearningFeedback,
     personalFeedback: isPersonalEnvironment ? personalLearningFeedback : [],
+    userFeedback: userRuntimeFeedback,
   });
 
   const personalLayer = isPersonalEnvironment ? personalLearningFeedback : [];
+  const userLayer = userRuntimeFeedback;
 
   const feedbackLikes = globalLearningFeedback.filter(
     (f: any) => f.type === "up"
@@ -1214,12 +1285,44 @@ ${personalRecentIssues.join("\n") || "none"}
       .replace(/[!?.,]+$/g, "")
       .replace(/\s+/g, " ");
 
+  const hasRecentConversationContext =
+    Array.isArray(recentMessages) &&
+    recentMessages.some(
+      (msg: any) =>
+        msg &&
+        (msg.role === "user" || msg.role === "ai") &&
+        typeof msg.content === "string" &&
+        msg.content.trim()
+    );
+
+  const recentConversationTranscript = Array.isArray(recentMessages)
+    ? recentMessages
+        .filter(
+          (msg: any) =>
+            msg &&
+            (msg.role === "user" || msg.role === "ai") &&
+            typeof msg.content === "string" &&
+            msg.content.trim()
+        )
+        .slice(-6)
+        .map(
+          (msg: any) =>
+            `${msg.role === "user" ? "User" : "Assistant"}: ${msg.content.trim()}`
+        )
+        .join("\n\n")
+    : "none";
+
   const normalizedMessage = normalizePromptText(message || "");
 
-  const matchingGlobalResponses = effectiveFeedback.filter((f: any) => {
-    const promptText = normalizePromptText(f.userMessage || "");
-    return promptText === normalizedMessage && !!(f.message || "").trim();
-  });
+  const shouldReuseExactMessagePreference =
+    !!normalizedMessage && !isRefinementInstruction(normalizedMessage);
+
+  const matchingGlobalResponses = shouldReuseExactMessagePreference
+    ? effectiveFeedback.filter((f: any) => {
+        const promptText = normalizePromptText(f.userMessage || "");
+        return promptText === normalizedMessage && !!(f.message || "").trim();
+      })
+    : [];
 
   const groupedResponsePreferences = matchingGlobalResponses.reduce(
     (acc: any, item: any) => {
@@ -1231,6 +1334,8 @@ ${personalRecentIssues.join("\n") || "none"}
           response: responseText,
           up: 0,
           down: 0,
+          userUp: 0,
+          userDown: 0,
           personalUp: 0,
           personalDown: 0,
         };
@@ -1243,6 +1348,11 @@ ${personalRecentIssues.join("\n") || "none"}
 
       if (item.type === "up") {
         acc[responseText].up += weight;
+
+        if (item.learningLayer === "user") {
+          acc[responseText].userUp = (acc[responseText].userUp || 0) + weight;
+        }
+
         if (item.learningLayer === "personal") {
           acc[responseText].personalUp += weight;
         }
@@ -1250,6 +1360,11 @@ ${personalRecentIssues.join("\n") || "none"}
 
       if (item.type === "down") {
         acc[responseText].down += weight;
+
+        if (item.learningLayer === "user") {
+          acc[responseText].userDown = (acc[responseText].userDown || 0) + weight;
+        }
+
         if (item.learningLayer === "personal") {
           acc[responseText].personalDown += weight;
         }
@@ -1265,10 +1380,13 @@ ${personalRecentIssues.join("\n") || "none"}
       ...item,
       score: item.up - item.down,
       total: item.up + item.down,
+      userScore: (item.userUp || 0) - (item.userDown || 0),
       personalScore: item.personalUp - item.personalDown,
     }))
     .sort((a: any, b: any) => {
+      if (b.userScore !== a.userScore) return b.userScore - a.userScore;
       if (b.personalScore !== a.personalScore) return b.personalScore - a.personalScore;
+      if ((b.userUp || 0) !== (a.userUp || 0)) return (b.userUp || 0) - (a.userUp || 0);
       if (b.score !== a.score) return b.score - a.score;
       if (b.personalUp !== a.personalUp) return b.personalUp - a.personalUp;
       if (b.up !== a.up) return b.up - a.up;
@@ -1567,6 +1685,11 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
       image,
     });
 
+    const conversationDependentFollowUp =
+      !image &&
+      isConversationDependentFollowUp(message || "") &&
+      hasRecentConversationContext;
+
     const responseStyleProfile = buildResponseStyleProfile({
       isCasualChatRequest,
       shouldUseWebSearch,
@@ -1583,7 +1706,9 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
     });
 
     const fastRouteDecisionInput = {
-      shouldUseFastTextPath,
+      shouldUseFastTextPath: conversationDependentFollowUp
+        ? false
+        : shouldUseFastTextPath,
       isCasualChatRequest,
       casualSignalStrength: cappedLearningStrength.casual,
       hasContentPreference: contentLearningState.hasContentPreference,
@@ -1595,6 +1720,7 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
     };
 
     const shouldUseFastTextRoute =
+      !conversationDependentFollowUp &&
       shouldUseAdaptiveSpeedMode(fastRouteDecisionInput) &&
       !shouldBypassFastTextPath(fastRouteDecisionInput);
 
@@ -1608,13 +1734,15 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
         : "default"; 
 
         if (shouldUseFastTextRoute) {
-      const cacheKey = buildCacheKey({
-        message: message || "",
-        personalMemory: resolvedPersonalMemory,
-        learningScope,
-      });
+      const cacheKey = isRefinementInstruction(message || "")
+        ? ""
+        : buildCacheKey({
+            message: message || "",
+            personalMemory: resolvedPersonalMemory,
+            learningScope,
+          });
 
-      const cached = responseCache.get(cacheKey);
+      const cached = cacheKey ? responseCache.get(cacheKey) : null;
 
       if (cached && Date.now() - cached.timestamp < RESPONSE_CACHE_TTL_MS) {
         return new Response(cached.text, {
@@ -1696,7 +1824,7 @@ Fast-path rules:
         learningScope,
             });
 
-            if (fullText.trim()) {
+            if (cacheKey && fullText.trim()) {
               responseCache.set(cacheKey, {
                 text: fullText,
                 sources: [],
@@ -1789,6 +1917,7 @@ Do not use web search for this path.`,
     const canUseCache =
       !image &&
       !shouldUseWebSearch &&
+      !isRefinementInstruction(normalizedMessageForRouting) &&
       !!normalizedMessageForRouting &&
       normalizedMessageForRouting.length <= 120;
 
@@ -1952,9 +2081,10 @@ ${personalLayer.length > 0 ? "present" : "none"}
 
 RUNTIME LEARNING PRIORITY:
 - personal learning active: ${isPersonalEnvironment ? "yes" : "no"}
-- priority order: ${isPersonalEnvironment ? "personal > feedback > global" : "feedback > global"}
+- user runtime feedback rows: ${userLayer.length}
 - personal runtime feedback rows: ${normalizedPersonalFeedbackRows.length}
-- personal state feedback rows: ${Array.isArray(personalState.feedback) ? personalState.feedback.length : 0}
+- personal state feedback rows: ${normalizedPersonalStateFeedback.length}
+- priority order: ${isPersonalEnvironment ? "user > personal > global > default" : "user > global > default"}
 SUCCESSFUL PATTERNS (completed items):
 ${completedFeedback
   .filter(
@@ -1976,10 +2106,11 @@ ADAPTATION RULES:
 - Treat ACTIVE LEARNING RULES as global behavior instructions learned from all users
 - Treat LEARNING INJECTION FROM FEEDBACK as global instructions learned from analytics and shared feedback
 - Treat GLOBAL LEARNING as the default base layer
+- Treat current-request feedback as the highest-priority user layer
 - Treat PERSONAL FEEDBACK CONTEXT, personal state, and User memory as the personal override layer when PERSONAL ENVIRONMENT is active
-- If PERSONAL ENVIRONMENT is active, prioritize personal learning over global learning when tone, structure, style, or exact-answer preference conflict
-- If PERSONAL ENVIRONMENT is not active, use global learning only
-- Use global learning as fallback consensus, not as an override against active personal learning
+- If PERSONAL ENVIRONMENT is active, use priority order: user > personal > global > default
+- If PERSONAL ENVIRONMENT is not active, use priority order: user > global > default
+- Use global learning as fallback consensus, not as an override against active user or personal learning
 - If RESPONSE CONTENT PREFERENCE FOR THIS EXACT MESSAGE contains a strong positively rated answer, reuse that style as the default for similar future messages
 - If RESPONSE CONTENT PREFERENCE FOR THIS EXACT MESSAGE shows mixed feedback, do not copy the old answer literally; create a balanced improved version between too short and too verbose
 - If SUCCESSFUL RESPONSE REUSE says reusable winner exists = yes, reuse the winning answer's shape, strengths, and level of usefulness as the starting point
@@ -2019,6 +2150,13 @@ EMOTIONAL SUPPORT RULES:
 - If positive feedback exists, mirror tone, depth, and structure
 - If completed (klaar) items exist, treat them as strong positive signals and reuse their structure, tone, and clarity
 - If user explicitly says "this is wrong", treat it as strong negative feedback
+
+- If recent conversation exists and the user's message is short, interpret it in the context of the ongoing topic first
+- For follow-up prompts like "korter", "nog korter", "anders verwoorden", "duidelijker", "welke dan", "waarom", "en voor rust?", "alleen het aantal", "gewoon het aantal", or "alleen de naam":
+  → continue the same topic by default
+  → apply the follow-up directly to the last relevant answer
+  → do not ask a clarifying question unless the recent conversation still makes the intent genuinely unclear
+- Only treat the message as a fresh topic when the user clearly switches subject
 
 - If user input is vague or unclear and similar feedback was negative:
   → Ask a clarifying question instead of giving a generic answer
@@ -2086,6 +2224,9 @@ BEHAVIOR:
 - If useful, add small “insider” tips
 
 CONTEXT:
+Recent conversation:
+${recentConversationTranscript || "none"}
+
 Personal user memory: ${resolvedPersonalMemory || "none"}
 User location: ${location ? JSON.stringify(location) : "unknown"}
 
