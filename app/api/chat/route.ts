@@ -725,15 +725,13 @@ async function fetchSupabasePersonalState(userId: string | null = null) {
     } satisfies OpenLuraPersonalState;
   }
 
-  const tryQueries = [
-    ...(resolvedUserId
-      ? [
-          `select=*&user_id=eq.${encodeURIComponent(resolvedUserId)}&limit=1`,
-          `select=*&id=eq.${encodeURIComponent(resolvedUserId)}&limit=1`,
-        ]
-      : []),
-    "select=*&key=eq.primary&limit=1",
-  ];
+  const tryQueries = resolvedUserId
+    ? [
+        `select=*&user_id=eq.${encodeURIComponent(resolvedUserId)}&limit=1`,
+        `select=*&id=eq.${encodeURIComponent(resolvedUserId)}&limit=1`,
+        "select=*&key=eq.primary&limit=1",
+      ]
+    : [];
 
   for (const query of tryQueries) {
     try {
@@ -1956,7 +1954,7 @@ Do not use web search for this path.`,
             "Content-Type": "text/plain; charset=utf-8",
             "X-OpenLura-Variant": responseVariant,
             "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
-            "X-OpenLura-Speed": "fast_text",
+            "X-OpenLura-Speed": "fast_image",
           },
         }
       );
