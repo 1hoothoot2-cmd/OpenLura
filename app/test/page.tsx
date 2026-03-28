@@ -160,45 +160,53 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
             });
 
             if (res.ok) {
-              const data = await res.json();
-              const serverChats = Array.isArray(data?.chats) ? data.chats : [];
-              const serverMemory = Array.isArray(data?.memory) ? data.memory : [];
+              if (res.ok) {
+  const data = await res.json();
+  const serverChats = Array.isArray(data?.chats) ? data.chats : [];
+  const serverMemory = Array.isArray(data?.memory) ? data.memory : [];
 
-              const normalizedChats = serverChats.map((chat: any) => ({
-                ...chat,
-                pinned: chat.pinned ?? false,
-                archived: chat.archived ?? false,
-                deleted: chat.deleted ?? false,
-                messages: Array.isArray(chat.messages)
-                  ? chat.messages.map((msg: any) => ({
-                      ...msg,
-                      image: msg.image === "[image-uploaded]" ? null : msg.image ?? null,
-                    }))
-                  : [],
-              }));
+  const normalizedChats = serverChats.map((chat: any) => ({
+    ...chat,
+    pinned: chat.pinned ?? false,
+    archived: chat.archived ?? false,
+    deleted: chat.deleted ?? false,
+    messages: Array.isArray(chat.messages)
+      ? chat.messages.map((msg: any) => ({
+          ...msg,
+          image: msg.image === "[image-uploaded]" ? null : msg.image ?? null,
+        }))
+      : [],
+  }));
 
-              if (!hasManualChatSelectionRef.current) {
-                setChats(normalizedChats);
+  const hasServerState =
+    normalizedChats.length > 0 || serverMemory.length > 0;
 
-                const nextActiveChatId =
-                  normalizedChats.find(
-                    (chat: any) => !chat.archived && !chat.deleted
-                  )?.id ?? null;
+  if (hasServerState && !hasManualChatSelectionRef.current) {
+    setChats(normalizedChats);
 
-                preferredActiveChatIdRef.current = nextActiveChatId;
-                setActiveChatId(nextActiveChatId);
-              }
+    const nextActiveChatId =
+      normalizedChats.find(
+        (chat: any) => !chat.archived && !chat.deleted
+      )?.id ?? null;
 
-              if (serverMemory.length > 0) {
-                if (typeof serverMemory[0] === "string") {
-                  setMemory(serverMemory.map((m: string) => ({ text: m, weight: 0.5 })));
-                } else {
-                  setMemory(serverMemory);
-                }
-              } else if (!loadedFromServer) {
-                setMemory([]);
-              }
+    preferredActiveChatIdRef.current = nextActiveChatId;
+    setActiveChatId(nextActiveChatId);
+  }
 
+  if (hasServerState) {
+    if (serverMemory.length > 0) {
+      if (typeof serverMemory[0] === "string") {
+        setMemory(serverMemory.map((m: string) => ({ text: m, weight: 0.5 })));
+      } else {
+        setMemory(serverMemory);
+      }
+    } else {
+      setMemory([]);
+    }
+  }
+
+  loadedFromServer = hasServerState;
+}
               loadedFromServer = true;
             }
 
@@ -298,8 +306,11 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
     }
 
     if (!isPersonalRoute || !personalStateLoaded) {
-      return;
-    }
+  return;
+}
+
+const hasMeaningfulPersonalState =
+  safeChats.length > 0 || memory.length > 0;
 
     if (personalSyncTimeoutRef.current) {
       clearTimeout(personalSyncTimeoutRef.current);
@@ -594,24 +605,29 @@ const activeChat =
     }
 
     if (visibleChats.length === 0) {
-      if (isBootstrappingChatRef.current) {
-        return;
-      }
+  if (isPersonalRoute) {
+    isBootstrappingChatRef.current = false;
+    return;
+  }
 
-      isBootstrappingChatRef.current = true;
+  if (isBootstrappingChatRef.current) {
+    return;
+  }
 
-      const bootstrapChat = buildFallbackChat();
-      const bootstrapChatId = bootstrapChat.id;
+  isBootstrappingChatRef.current = true;
 
-      hasManualChatSelectionRef.current = false;
-      pendingActiveChatIdRef.current = bootstrapChatId;
-      preferredActiveChatIdRef.current = bootstrapChatId;
-      forcedActiveChatIdRef.current = bootstrapChatId;
-      setOpenChatMenuId(null);
-      setChats([bootstrapChat]);
-      setActiveChatId(bootstrapChatId);
-      return;
-    }
+  const bootstrapChat = buildFallbackChat();
+  const bootstrapChatId = bootstrapChat.id;
+
+  hasManualChatSelectionRef.current = false;
+  pendingActiveChatIdRef.current = bootstrapChatId;
+  preferredActiveChatIdRef.current = bootstrapChatId;
+  forcedActiveChatIdRef.current = bootstrapChatId;
+  setOpenChatMenuId(null);
+  setChats([bootstrapChat]);
+  setActiveChatId(bootstrapChatId);
+  return;
+}
 
     isBootstrappingChatRef.current = false;
 
