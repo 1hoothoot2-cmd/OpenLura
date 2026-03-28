@@ -812,85 +812,143 @@ const resizeComposerTextarea = () => {
   }, [isPersonalRoute, personalStateLoaded, chats, activeChatId, initialStateReady]);
 
   const updateChatMeta = (
-    chatId: number,
-    updates: Partial<{
-      pinned: boolean;
-      archived: boolean;
-      deleted: boolean;
-    }>
-  ) => {
-    setChats((prev) =>
-      prev.map((chat: any) =>
-        chat.id === chatId
-          ? {
-              ...chat,
-              ...updates,
-            }
-          : chat
-      )
-    );
+  chatId: number,
+  updates: Partial<{
+    pinned: boolean;
+    archived: boolean;
+    deleted: boolean;
+  }>
+) => {
+  setChats((prev) => {
+    const updatedChats = prev.map((chat: any) => {
+      if (chat.id !== chatId) return chat;
 
-    setOpenChatMenuId(null);
-  };
-
-  const togglePinnedChat = (chatId: number) => {
-    const target = chats.find((chat: any) => chat.id === chatId);
-    if (!target) return;
-
-    updateChatMeta(chatId, { pinned: !target.pinned });
-  };
-
-  const archiveChat = (chatId: number) => {
-    updateChatMeta(chatId, {
-      archived: true,
-      deleted: false,
-      pinned: false,
-    });
-  };
-
-  const restoreArchivedChat = (chatId: number) => {
-    preferredActiveChatIdRef.current = chatId;
-    pendingActiveChatIdRef.current = chatId;
-    forcedActiveChatIdRef.current = chatId;
-
-    updateChatMeta(chatId, {
-      archived: false,
-      deleted: false,
+      return {
+        ...chat,
+        ...updates,
+      };
     });
 
-    setActiveChatId(chatId);
-  };
+    const targetChat =
+      updatedChats.find((chat: any) => chat.id === chatId) || null;
+    const targetIsVisible =
+      !!targetChat && !targetChat.archived && !targetChat.deleted;
 
-   const deleteChat = (chatId: number) => {
-  // ensure menu sluit en state clean is
+    if (targetIsVisible) {
+      preferredActiveChatIdRef.current = chatId;
+      pendingActiveChatIdRef.current = chatId;
+      forcedActiveChatIdRef.current = chatId;
+      setActiveChatId(chatId);
+    } else if (activeChatId === chatId || updates.archived || updates.deleted) {
+      const nextVisibleChat = updatedChats.find(
+        (chat: any) => !chat.archived && !chat.deleted
+      );
+      const nextFallbackChat = updatedChats.find(
+        (chat: any) => !chat.deleted
+      );
+      const nextActiveChatId =
+        nextVisibleChat?.id ?? nextFallbackChat?.id ?? null;
+
+      preferredActiveChatIdRef.current = nextActiveChatId;
+      pendingActiveChatIdRef.current = nextActiveChatId;
+      forcedActiveChatIdRef.current = nextActiveChatId;
+      setActiveChatId(nextActiveChatId);
+    }
+
+    return updatedChats;
+  });
+
+  setOpenChatMenuId(null);
+};
+
+const togglePinnedChat = (chatId: number) => {
+  const target = chats.find((chat: any) => chat.id === chatId);
+  if (!target) return;
+
+  updateChatMeta(chatId, { pinned: !target.pinned });
+};
+
+const archiveChat = (chatId: number) => {
+  const nextVisibleChat = chats.find(
+    (chat: any) => chat.id !== chatId && !chat.archived && !chat.deleted
+  );
+  const nextFallbackChat = chats.find(
+    (chat: any) => chat.id !== chatId && !chat.deleted
+  );
+  const nextActiveChatId =
+    nextVisibleChat?.id ?? nextFallbackChat?.id ?? null;
+
+  if (activeChatId === chatId) {
+    preferredActiveChatIdRef.current = nextActiveChatId;
+    pendingActiveChatIdRef.current = nextActiveChatId;
+    forcedActiveChatIdRef.current = nextActiveChatId;
+    setActiveChatId(nextActiveChatId);
+  }
+
+  updateChatMeta(chatId, {
+    archived: true,
+    deleted: false,
+    pinned: false,
+  });
+};
+
+const restoreArchivedChat = (chatId: number) => {
+  preferredActiveChatIdRef.current = chatId;
+  pendingActiveChatIdRef.current = chatId;
+  forcedActiveChatIdRef.current = chatId;
+  setActiveChatId(chatId);
+
+  updateChatMeta(chatId, {
+    archived: false,
+    deleted: false,
+  });
+};
+
+const deleteChat = (chatId: number) => {
   setOpenChatMenuId(null);
   setDeleteTargetChatId(chatId);
 };
 
-  const confirmDeleteChat = () => {
-    if (deleteTargetChatId === null) return;
+const confirmDeleteChat = () => {
+  if (deleteTargetChatId === null) return;
 
-    updateChatMeta(deleteTargetChatId, {
-      deleted: true,
-      archived: false,
-      pinned: false,
-    });
+  const nextVisibleChat = chats.find(
+    (chat: any) =>
+      chat.id !== deleteTargetChatId && !chat.archived && !chat.deleted
+  );
+  const nextFallbackChat = chats.find(
+    (chat: any) => chat.id !== deleteTargetChatId && !chat.deleted
+  );
+  const nextActiveChatId =
+    nextVisibleChat?.id ?? nextFallbackChat?.id ?? null;
 
-    setDeleteTargetChatId(null);
-  };
+  if (activeChatId === deleteTargetChatId) {
+    preferredActiveChatIdRef.current = nextActiveChatId;
+    pendingActiveChatIdRef.current = nextActiveChatId;
+    forcedActiveChatIdRef.current = nextActiveChatId;
+    setActiveChatId(nextActiveChatId);
+  }
 
-  const restoreDeletedChat = (chatId: number) => {
-    preferredActiveChatIdRef.current = chatId;
-    pendingActiveChatIdRef.current = chatId;
-    forcedActiveChatIdRef.current = chatId;
+  updateChatMeta(deleteTargetChatId, {
+    deleted: true,
+    archived: false,
+    pinned: false,
+  });
 
-    updateChatMeta(chatId, {
-      deleted: false,
-      archived: false,
-    });
+  setDeleteTargetChatId(null);
+};
 
-    setActiveChatId(chatId);
-  };
+const restoreDeletedChat = (chatId: number) => {
+  preferredActiveChatIdRef.current = chatId;
+  pendingActiveChatIdRef.current = chatId;
+  forcedActiveChatIdRef.current = chatId;
+  setActiveChatId(chatId);
+
+  updateChatMeta(chatId, {
+    deleted: false,
+    archived: false,
+  });
+};
 
     const clearDeletedChats = () => {
     setShowClearDeletedConfirm(true);
@@ -2099,7 +2157,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 )}
                   {showClearDeletedConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-[340px] rounded-[28px] border border-white/8 bg-[#0a0f1d]/95 p-6 shadow-[0_22px_64px_rgba(0,0,0,0.30)] backdrop-blur-2xl">
+          <div className="w-full max-w-[340px] rounded-[28px] border border-white/8 bg-[#0a0f1d]/95 p-6 shadow-[0_20px_56px_rgba(0,0,0,0.28)] backdrop-blur-2xl">
             <h2 className="mb-2 text-lg font-semibold text-white/95">Are you sure?</h2>
             <p className="mb-5 text-sm leading-6 text-white/60">
               All deleted chats will be permanently removed.
@@ -2115,7 +2173,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 
               <button
                 onClick={confirmClearDeletedChats}
-                className="flex-1 rounded-[20px] border border-red-400/18 bg-red-500/80 p-3 text-white shadow-[0_8px_20px_rgba(239,68,68,0.24)] ol-interactive hover:bg-red-500 active:scale-[0.99]"
+                className="flex-1 rounded-[20px] border border-red-400/18 bg-red-500/80 p-3 text-white shadow-[0_8px_18px_rgba(239,68,68,0.22)] ol-interactive hover:bg-red-500 active:scale-[0.99]"
               >
                 Delete
               </button>
@@ -2126,7 +2184,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 
       {deleteTargetChatId !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-[340px] rounded-[28px] border border-white/8 bg-[#0a0f1d]/95 p-6 shadow-[0_22px_64px_rgba(0,0,0,0.30)] backdrop-blur-2xl">
+          <div className="w-full max-w-[340px] rounded-[28px] border border-white/8 bg-[#0a0f1d]/95 p-6 shadow-[0_20px_56px_rgba(0,0,0,0.28)] backdrop-blur-2xl">
             <h2 className="mb-2 text-lg font-semibold text-white/95">Are you sure?</h2>
             <p className="mb-5 text-sm leading-6 text-white/60">
               This chat will be moved to Deleted chats.
@@ -2142,7 +2200,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 
               <button
                 onClick={confirmDeleteChat}
-                className="flex-1 rounded-[20px] border border-red-400/18 bg-red-500/80 p-3 text-white shadow-[0_8px_20px_rgba(239,68,68,0.24)] ol-interactive hover:bg-red-500 active:scale-[0.99]"
+                className="flex-1 rounded-[20px] border border-red-400/18 bg-red-500/80 p-3 text-white shadow-[0_8px_18px_rgba(239,68,68,0.22)] ol-interactive hover:bg-red-500 active:scale-[0.99]"
               >
                 Delete
               </button>
@@ -2151,9 +2209,9 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
         </div>
       )}
 
-            {showFeedbackBox && (
+      {showFeedbackBox && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-[360px] rounded-[28px] border border-white/8 bg-[#0a0f1d]/95 p-6 shadow-[0_22px_64px_rgba(0,0,0,0.30)] backdrop-blur-2xl">
+          <div className="w-full max-w-[360px] rounded-[28px] border border-white/8 bg-[#0a0f1d]/95 p-6 shadow-[0_20px_56px_rgba(0,0,0,0.28)] backdrop-blur-2xl">
             <h2 className="mb-4 text-lg font-semibold text-white/95">Feedback / Idea</h2>
 
             <select
@@ -2190,7 +2248,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                 disabled={!feedbackText.trim()}
                 className={`flex-1 rounded-[20px] p-3 ol-interactive ${
                   feedbackText.trim()
-                    ? "bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] text-white shadow-[0_10px_24px_rgba(59,130,246,0.28)] hover:brightness-110"
+                    ? "bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] text-white shadow-[0_10px_22px_rgba(59,130,246,0.24)] hover:brightness-110"
                     : "bg-white/10 text-white/30"
                 }`}
               >
@@ -2202,10 +2260,10 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
       )}
 
       <div className="flex-1 min-w-0 flex items-stretch justify-center pt-0 md:h-screen md:p-4 xl:justify-start">
-        <div className="flex h-full w-full min-w-0 max-w-2xl flex-col border border-white/8 bg-white/[0.04] shadow-[0_22px_64px_rgba(0,0,0,0.22)] backdrop-blur-2xl md:min-h-0 md:rounded-[28px] xl:ml-6 xl:max-w-[920px]">
+        <div className="flex h-full w-full min-w-0 max-w-2xl flex-col border border-white/8 bg-white/[0.04] shadow-[0_20px_56px_rgba(0,0,0,0.20)] backdrop-blur-2xl md:min-h-0 md:rounded-[28px] xl:ml-6 xl:max-w-[920px]">
 
           {usage && usage.percentage >= 0.8 && !upgradeNotice.visible && (
-            <div className="mx-4 mt-4 rounded-[24px] border border-yellow-300/14 bg-yellow-500/[0.07] px-4 py-3 text-sm text-yellow-100 shadow-[0_8px_20px_rgba(0,0,0,0.09)] backdrop-blur-xl">
+            <div className="mx-4 mt-4 rounded-[24px] border border-yellow-300/12 bg-yellow-500/[0.065] px-4 py-3 text-sm text-yellow-100 shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-xl">
               <div className="font-medium">
                 Near usage limit
               </div>
@@ -2216,7 +2274,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
           )}
 
           {upgradeNotice.visible && (
-            <div className="mx-4 mt-4 rounded-[24px] border border-amber-300/14 bg-amber-500/[0.07] px-4 py-3 text-sm text-amber-100 shadow-[0_8px_20px_rgba(0,0,0,0.09)] backdrop-blur-xl">
+            <div className="mx-4 mt-4 rounded-[24px] border border-amber-300/12 bg-amber-500/[0.065] px-4 py-3 text-sm text-amber-100 shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-xl">
               <div className="font-medium">
                 Limit reached {upgradeNotice.tier ? `(${upgradeNotice.tier})` : ""}
               </div>
@@ -2232,7 +2290,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 >
                         {activeChat?.messages?.length === 0 ? (
               <div className="flex h-full w-full max-w-2xl -mt-20 flex-col items-center justify-center px-4 md:px-6 text-center">
-                <div className="rounded-[28px] border border-white/8 bg-white/[0.028] px-8 py-8 shadow-[0_16px_40px_rgba(0,0,0,0.16)] backdrop-blur-xl md:px-10 md:py-10">
+                <div className="rounded-[28px] border border-white/8 bg-white/[0.03] px-8 py-8 shadow-[0_14px_32px_rgba(0,0,0,0.14)] backdrop-blur-xl md:px-10 md:py-10">
                   <h1 className="mb-3 bg-gradient-to-r from-white via-white to-white/70 bg-clip-text text-2xl font-semibold tracking-tight text-transparent md:text-4xl">
                     What do you want to work on today?
                   </h1>
@@ -2260,15 +2318,15 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                                                 <div
                           className={`${messageBubbleClass} min-w-0 max-w-[78%] overflow-hidden whitespace-pre-line rounded-[24px] px-4 py-3.5 transition-[box-shadow,transform,background-color,border-color] duration-200 ${
                             msg.role === "user"
-                              ? "ml-auto bg-gradient-to-r from-[#1d4ed8] to-[#2563eb] text-white shadow-[0_10px_22px_rgba(37,99,235,0.20)]"
-                              : "border border-white/8 bg-white/[0.045] text-white/90 backdrop-blur-xl shadow-[0_8px_20px_rgba(0,0,0,0.12)]"
+                              ? "ml-auto bg-gradient-to-r from-[#1d4ed8] to-[#2563eb] text-white shadow-[0_10px_20px_rgba(37,99,235,0.18)]"
+                              : "border border-white/8 bg-white/[0.04] text-white/90 backdrop-blur-xl shadow-[0_8px_18px_rgba(0,0,0,0.10)]"
                           }`}
                         >
                           {msg.image && (
                             <img
                               src={msg.image}
                               alt="Uploaded"
-                              className="block w-full max-w-[240px] max-h-[260px] object-cover rounded-2xl border border-white/10"
+                              className="block w-full max-w-[240px] max-h-[260px] object-cover rounded-2xl border border-white/8"
                             />
                           )}
 
@@ -2348,7 +2406,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                                       onClick={() => handleFeedback(activeChatId!, i, "up")}
                                       aria-label="Good answer"
                                       title="Good answer"
-                                      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-white/66 ol-interactive hover:border-[#3b82f6]/35 hover:bg-[#3b82f6]/10 hover:text-white active:scale-95"
+                                      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-white/66 ol-interactive hover:border-[#3b82f6]/28 hover:bg-[#3b82f6]/8 hover:text-white active:scale-95"
                                     >
                                       <svg
                                         viewBox="0 0 24 24"
@@ -2370,7 +2428,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                                       onClick={() => handleFeedback(activeChatId!, i, "down")}
                                       aria-label="Needs improvement"
                                       title="Needs improvement"
-                                      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-white/66 ol-interactive hover:border-[#3b82f6]/35 hover:bg-[#3b82f6]/10 hover:text-white active:scale-95"
+                                      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-white/66 ol-interactive hover:border-[#3b82f6]/28 hover:bg-[#3b82f6]/8 hover:text-white active:scale-95"
                                     >
                                       <svg
                                         viewBox="0 0 24 24"
@@ -2423,7 +2481,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                     href={source.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block w-full min-w-0 max-w-full overflow-hidden rounded-[20px] border border-white/8 bg-white/[0.032] p-3.5 shadow-[0_8px_16px_rgba(0,0,0,0.07)] ol-interactive hover:border-white/12 hover:bg-white/[0.05] hover:-translate-y-[1px]"
+                    className="block w-full min-w-0 max-w-full overflow-hidden rounded-[20px] border border-white/8 bg-white/[0.03] p-3.5 shadow-[0_8px_14px_rgba(0,0,0,0.06)] ol-interactive hover:border-white/12 hover:bg-white/[0.045] hover:-translate-y-[1px]"
                     title={source.title || source.url}
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -2467,14 +2525,14 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
   className={`${
     activeChat?.messages?.length === 0
       ? "mx-auto mt-6 w-full max-w-2xl px-3 md:px-4"
-      : "fixed bottom-0 left-1/2 z-[90] w-full max-w-2xl -translate-x-1/2 bg-[#050510]/96 px-3 pt-3 pb-[calc(env(safe-area-inset-bottom)+12px)] md:static md:z-auto md:mt-auto md:w-full md:max-w-none md:border-0 md:bg-transparent md:p-0"
-  } flex w-full min-w-0 max-w-full overflow-x-hidden items-end gap-2 rounded-[28px] border border-white/8 bg-white/[0.04] shadow-[0_16px_36px_rgba(0,0,0,0.18)] backdrop-blur-2xl md:rounded-b-[32px] md:rounded-t-[28px] md:border-x-0 md:border-b-0 md:border-t md:px-4 md:py-4 md:shadow-none`}
+      : "fixed bottom-0 left-1/2 z-[90] w-full max-w-2xl -translate-x-1/2 bg-[#050510]/94 px-3 pt-3 pb-[calc(env(safe-area-inset-bottom)+12px)] md:static md:z-auto md:mt-auto md:w-full md:max-w-none md:border-0 md:bg-transparent md:p-0"
+  } flex w-full min-w-0 max-w-full overflow-x-hidden items-end gap-2 rounded-[28px] border border-white/8 bg-white/[0.035] shadow-[0_14px_30px_rgba(0,0,0,0.16)] backdrop-blur-2xl md:rounded-b-[32px] md:rounded-t-[28px] md:border-x-0 md:border-b-0 md:border-t md:px-4 md:py-4 md:shadow-none`}
 >
 
                         <button
               type="button"
               onClick={() => fileRef.current?.click()}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/8 bg-white/[0.04] text-lg text-white/74 ol-interactive hover:border-white/12 hover:bg-white/[0.07] hover:text-white active:scale-95"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/8 bg-white/[0.035] text-lg text-white/74 ol-interactive hover:border-white/12 hover:bg-white/[0.06] hover:text-white active:scale-95"
             >
               +
             </button>
@@ -2492,12 +2550,12 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
               <div className="relative shrink-0">
                 <img
                   src={image}
-                  className="h-16 w-16 rounded-2xl border border-white/8 object-cover shadow-[0_10px_22px_rgba(0,0,0,0.18)]"
+                  className="h-16 w-16 rounded-2xl border border-white/8 object-cover shadow-[0_8px_18px_rgba(0,0,0,0.16)]"
                 />
                 <button
                   type="button"
                   onClick={() => setImage(null)}
-                  className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full border border-white/10 bg-black/72 text-xs text-white/82 ol-interactive hover:bg-black/84"
+                  className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full border border-white/8 bg-black/72 text-xs text-white/82 ol-interactive hover:bg-black/84"
                 >
                   ×
                 </button>
@@ -2550,10 +2608,10 @@ enterKeyHint="send"
   onClick={loading ? stopStreaming : sendMessage}
   className={`flex h-12 w-12 shrink-0 touch-manipulation items-center justify-center rounded-full text-xl ol-interactive active:scale-95 ${
     loading
-      ? "bg-red-500 text-white shadow-[0_8px_22px_rgba(239,68,68,0.30)]"
+      ? "bg-red-500 text-white shadow-[0_8px_20px_rgba(239,68,68,0.28)]"
       : !input.trim() && !image
       ? "bg-white/[0.07] text-white/24 shadow-none"
-      : "bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] text-white shadow-[0_10px_24px_rgba(59,130,246,0.28)] hover:brightness-110"
+      : "bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] text-white shadow-[0_10px_22px_rgba(59,130,246,0.24)] hover:brightness-110"
   }`}
 >
   {loading ? "■" : "↑"}
@@ -2565,8 +2623,8 @@ enterKeyHint="send"
 
       {showLoginBox && !isPersonalRoute && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-[28px] border border-white/8 bg-[#0b1020]/95 p-6 shadow-[0_24px_72px_rgba(0,0,0,0.34)] backdrop-blur-2xl">
-            <div className="mb-5 rounded-[24px] border border-white/8 bg-white/[0.032] px-4 py-4">
+          <div className="w-full max-w-md rounded-[28px] border border-white/8 bg-[#0b1020]/95 p-6 shadow-[0_20px_56px_rgba(0,0,0,0.30)] backdrop-blur-2xl">
+            <div className="mb-5 rounded-[24px] border border-white/8 bg-white/[0.03] px-4 py-4">
               <p className="text-[11px] uppercase tracking-[0.16em] text-white/38">
                 Secure access
               </p>
@@ -2600,7 +2658,7 @@ enterKeyHint="send"
               />
 
               {loginError && (
-                <p className="rounded-2xl border border-red-400/18 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+                <p className="rounded-2xl border border-red-400/16 bg-red-500/[0.08] px-3 py-2 text-sm text-red-300">
                   {loginError}
                 </p>
               )}
@@ -2622,7 +2680,7 @@ enterKeyHint="send"
               <button
                 onClick={handlePersonalLogin}
                 disabled={loginLoading}
-                className="flex-1 rounded-[22px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] p-3 text-white shadow-[0_12px_30px_rgba(59,130,246,0.28)] ol-interactive hover:brightness-110 disabled:opacity-60"
+                className="flex-1 rounded-[22px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] p-3 text-white shadow-[0_12px_28px_rgba(59,130,246,0.24)] ol-interactive hover:brightness-110 disabled:opacity-60"
               >
               {loginLoading ? "Signing in..." : "Log in"}
               </button>
