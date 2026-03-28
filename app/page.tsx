@@ -2117,7 +2117,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
     <main className="fixed inset-0 flex bg-[#050510] text-white overflow-hidden">
       <button
   onClick={() => setMobileMenu(!mobileMenu)}
-  className="fixed left-4 top-4 z-[70] flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/[0.07] text-white/88 shadow-[0_10px_30px_rgba(0,0,0,0.22)] backdrop-blur-2xl transition hover:bg-white/[0.11] md:hidden"
+  className="fixed left-4 top-4 z-[70] flex h-11 w-11 items-center justify-center rounded-full border border-white/8 bg-white/[0.055] text-white/82 shadow-[0_12px_32px_rgba(0,0,0,0.24)] backdrop-blur-2xl transition-[background-color,border-color,color,transform] duration-200 hover:border-white/12 hover:bg-white/[0.085] hover:text-white active:scale-95 md:hidden"
 >
   ☰
 </button>
@@ -2150,12 +2150,12 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 {mobileMenu && (
   <div
     onClick={() => setMobileMenu(false)}
-    className="fixed inset-0 z-30 bg-black/50 md:hidden"
+    className="fixed inset-0 z-30 bg-[#020308]/72 backdrop-blur-[2px] md:hidden"
   />
 )}
                   {showClearDeletedConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-[340px] rounded-[28px] border border-white/10 bg-[#0a0a1f]/95 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.38)] backdrop-blur-2xl">
+          <div className="w-full max-w-[340px] rounded-[28px] border border-white/8 bg-[#0a0f1d]/95 p-6 shadow-[0_24px_72px_rgba(0,0,0,0.34)] backdrop-blur-2xl">
             <h2 className="mb-2 text-lg font-semibold text-white/95">Are you sure?</h2>
             <p className="mb-5 text-sm leading-6 text-white/60">
               All deleted chats will be permanently removed.
@@ -2209,7 +2209,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 
             {showFeedbackBox && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-[360px] rounded-[28px] border border-white/10 bg-[#0a0a1f]/95 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.38)] backdrop-blur-2xl">
+          <div className="w-full max-w-[360px] rounded-[28px] border border-white/8 bg-[#0a0f1d]/95 p-6 shadow-[0_24px_72px_rgba(0,0,0,0.34)] backdrop-blur-2xl">
             <h2 className="mb-4 text-lg font-semibold text-white/95">Feedback / Idea</h2>
 
             <select
@@ -2257,11 +2257,11 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
         </div>
       )}
 
-      <div className="flex-1 min-w-0 flex items-stretch justify-center xl:justify-start md:h-screen md:p-4 pt-0">
-        <div className="flex h-full w-full min-w-0 max-w-2xl xl:max-w-[920px] xl:ml-6 flex-col border border-white/10 bg-white/[0.055] shadow-[0_24px_80px_rgba(0,0,0,0.28)] backdrop-blur-2xl md:min-h-0 md:rounded-[32px]">
+      <div className="flex-1 min-w-0 flex items-stretch justify-center pt-0 md:h-screen md:p-4 xl:justify-start">
+        <div className="flex h-full w-full min-w-0 max-w-2xl flex-col border border-white/8 bg-white/[0.045] shadow-[0_24px_72px_rgba(0,0,0,0.24)] backdrop-blur-2xl md:min-h-0 md:rounded-[32px] xl:ml-6 xl:max-w-[920px]">
 
           {usage && usage.percentage >= 0.8 && !upgradeNotice.visible && (
-            <div className="mx-4 mt-4 rounded-[24px] border border-yellow-300/20 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-100 shadow-[0_8px_24px_rgba(0,0,0,0.12)] backdrop-blur-xl">
+            <div className="mx-4 mt-4 rounded-[24px] border border-yellow-300/16 bg-yellow-500/8 px-4 py-3 text-sm text-yellow-100 shadow-[0_8px_24px_rgba(0,0,0,0.10)] backdrop-blur-xl">
               <div className="font-medium">
                 Near usage limit
               </div>
@@ -2272,7 +2272,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
           )}
 
           {upgradeNotice.visible && (
-            <div className="mx-4 mt-4 rounded-[24px] border border-amber-300/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100 shadow-[0_8px_24px_rgba(0,0,0,0.12)] backdrop-blur-xl">
+            <div className="mx-4 mt-4 rounded-[24px] border border-amber-300/16 bg-amber-500/8 px-4 py-3 text-sm text-amber-100 shadow-[0_8px_24px_rgba(0,0,0,0.10)] backdrop-blur-xl">
               <div className="font-medium">
                 Limit reached {upgradeNotice.tier ? `(${upgradeNotice.tier})` : ""}
               </div>
@@ -2283,12 +2283,12 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
           <div
   ref={messagesRef}
   className={`${messageShellClass} flex-1 min-h-0 overflow-x-hidden overflow-y-auto pb-40 md:pb-6 ${
-    activeChat?.messages?.length ? "p-4 pt-20 md:px-6 md:pt-6 space-y-4" : "p-4 pt-20 md:px-6 md:pt-6 flex items-center justify-center"
+    activeChat?.messages?.length ? "space-y-4 p-4 pt-20 md:px-6 md:pt-6" : "flex items-center justify-center p-4 pt-20 md:px-6 md:pt-6"
   }`}
 >
                         {activeChat?.messages?.length === 0 ? (
               <div className="flex h-full w-full max-w-2xl -mt-20 flex-col items-center justify-center px-6 text-center">
-                <div className="rounded-[28px] border border-white/8 bg-white/[0.035] px-8 py-8 shadow-[0_18px_50px_rgba(0,0,0,0.22)] backdrop-blur-xl md:px-10 md:py-10">
+                <div className="rounded-[28px] border border-white/7 bg-white/[0.03] px-8 py-8 shadow-[0_18px_44px_rgba(0,0,0,0.18)] backdrop-blur-xl md:px-10 md:py-10">
                   <h1 className="mb-3 bg-gradient-to-r from-white via-white to-white/70 bg-clip-text text-2xl font-semibold tracking-tight text-transparent md:text-4xl">
                     What do you want to work on today?
                   </h1>
@@ -2316,8 +2316,8 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                                                 <div
                           className={`${messageBubbleClass} min-w-0 max-w-[78%] overflow-hidden whitespace-pre-line rounded-[24px] px-4 py-3.5 transition-[box-shadow,transform,background-color,border-color] duration-200 ${
                             msg.role === "user"
-                              ? "ml-auto bg-gradient-to-r from-[#1d4ed8] to-[#2563eb] text-white shadow-[0_10px_28px_rgba(37,99,235,0.24)]"
-                              : "border border-white/10 bg-white/[0.06] text-white/92 backdrop-blur-xl shadow-[0_8px_28px_rgba(0,0,0,0.18)]"
+                              ? "ml-auto bg-gradient-to-r from-[#1d4ed8] to-[#2563eb] text-white shadow-[0_10px_24px_rgba(37,99,235,0.22)]"
+                              : "border border-white/8 bg-white/[0.05] text-white/90 backdrop-blur-xl shadow-[0_8px_24px_rgba(0,0,0,0.14)]"
                           }`}
                         >
                           {msg.image && (
@@ -2404,7 +2404,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                                       onClick={() => handleFeedback(activeChatId!, i, "up")}
                                       aria-label="Good answer"
                                       title="Good answer"
-                                      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#3b82f6]/30 bg-white/[0.035] text-white/72 transition hover:border-[#3b82f6]/55 hover:bg-[#3b82f6]/10 hover:text-white"
+                                      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-white/66 transition-[background-color,border-color,color,transform] duration-200 hover:border-[#3b82f6]/35 hover:bg-[#3b82f6]/10 hover:text-white active:scale-95"
                                     >
                                       <svg
                                         viewBox="0 0 24 24"
@@ -2426,7 +2426,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                                       onClick={() => handleFeedback(activeChatId!, i, "down")}
                                       aria-label="Needs improvement"
                                       title="Needs improvement"
-                                      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#3b82f6]/30 bg-white/[0.035] text-white/72 transition hover:border-[#3b82f6]/55 hover:bg-[#3b82f6]/10 hover:text-white"
+                                      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-white/66 transition-[background-color,border-color,color,transform] duration-200 hover:border-[#3b82f6]/35 hover:bg-[#3b82f6]/10 hover:text-white active:scale-95"
                                     >
                                       <svg
                                         viewBox="0 0 24 24"
@@ -2446,22 +2446,22 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                                 )}
 
                                 {feedbackUI[activeChatId + "-" + i] && (
-                                  <span className="rounded-full border border-[#3b82f6]/25 bg-[#3b82f6]/10 px-3 py-2 text-xs text-white/72">
+                                  <span className="rounded-full border border-[#3b82f6]/20 bg-[#3b82f6]/8 px-3 py-2 text-xs text-white/68">
                                     {feedbackUI[activeChatId + "-" + i]}
                                   </span>
                                 )}
                               </div>
 
                 {Array.isArray(msg.sources) && msg.sources.length > 0 && (
-          <div className="mt-4 space-y-2.5">
+          <div className="mt-4 space-y-2">
             <div className="flex items-center gap-2 px-0.5">
-              <span className="text-[12px] text-white/36">🔎</span>
-              <p className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+              <span className="text-[12px] text-white/30">🔎</span>
+              <p className="text-[11px] uppercase tracking-[0.18em] text-white/32">
                 Sources
               </p>
             </div>
 
-            <div className="space-y-2.5">
+            <div className="space-y-2">
               {msg.sources.map((source: any, sourceIndex: number) => {
                 let domain = "";
 
@@ -2479,7 +2479,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                     href={source.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block w-full min-w-0 max-w-full overflow-hidden rounded-[20px] border border-white/10 bg-white/[0.045] p-3.5 shadow-[0_8px_20px_rgba(0,0,0,0.10)] transition-all hover:border-white/16 hover:bg-white/[0.075]"
+                    className="block w-full min-w-0 max-w-full overflow-hidden rounded-[20px] border border-white/8 bg-white/[0.035] p-3.5 shadow-[0_8px_18px_rgba(0,0,0,0.08)] transition-[background-color,border-color,transform] duration-200 hover:border-white/12 hover:bg-white/[0.055] hover:-translate-y-[1px]"
                     title={source.title || source.url}
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -2498,7 +2498,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                         </p>
                       </div>
 
-                      <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.05] px-2 py-1 text-[11px] text-white/48">
+                      <span className="shrink-0 rounded-full border border-white/8 bg-white/[0.04] px-2 py-1 text-[11px] text-white/42">
                         Visit
                       </span>
                     </div>
@@ -2523,14 +2523,14 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
   className={`${
     activeChat?.messages?.length === 0
       ? "mt-6 w-full max-w-2xl"
-      : "fixed bottom-0 left-0 right-0 z-[90] p-3 pb-4 bg-[#050510] md:static md:z-auto md:mt-auto md:w-full md:max-w-none md:border-0 md:bg-transparent md:p-0"
-  } flex w-full min-w-0 max-w-full overflow-x-hidden items-end gap-2 rounded-[32px] border border-white/10 bg-white/[0.055] px-3 py-3 shadow-[0_20px_56px_rgba(0,0,0,0.26)] backdrop-blur-2xl md:rounded-b-[32px] md:rounded-t-[28px] md:border-x-0 md:border-b-0 md:border-t md:px-4 md:py-4 md:shadow-none`}
+      : "fixed bottom-0 left-0 right-0 z-[90] bg-[#050510]/96 p-3 pb-[calc(max(env(safe-area-inset-bottom),12px)+4px)] md:static md:z-auto md:mt-auto md:w-full md:max-w-none md:border-0 md:bg-transparent md:p-0"
+  } flex w-full min-w-0 max-w-full overflow-x-hidden items-end gap-2 rounded-[32px] border border-white/8 bg-white/[0.045] px-3 py-3 shadow-[0_18px_44px_rgba(0,0,0,0.22)] backdrop-blur-2xl md:rounded-b-[32px] md:rounded-t-[28px] md:border-x-0 md:border-b-0 md:border-t md:px-4 md:py-4 md:shadow-none`}
 >
 
                         <button
               type="button"
               onClick={() => fileRef.current?.click()}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/8 bg-white/[0.05] text-lg text-white/80 transition-colors hover:bg-white/[0.10]"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/8 bg-white/[0.04] text-lg text-white/74 transition-[background-color,border-color,color,transform] duration-200 hover:border-white/12 hover:bg-white/[0.07] hover:text-white active:scale-95"
             >
               +
             </button>
@@ -2548,12 +2548,12 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
               <div className="relative shrink-0">
                 <img
                   src={image}
-                  className="h-16 w-16 rounded-2xl border border-white/10 object-cover shadow-[0_10px_24px_rgba(0,0,0,0.22)]"
+                  className="h-16 w-16 rounded-2xl border border-white/8 object-cover shadow-[0_10px_22px_rgba(0,0,0,0.18)]"
                 />
                 <button
                   type="button"
                   onClick={() => setImage(null)}
-                  className="absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full border border-white/10 bg-black/70 text-xs"
+                  className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full border border-white/10 bg-black/72 text-xs text-white/82 transition hover:bg-black/84"
                 >
                   ×
                 </button>
@@ -2590,7 +2590,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
       sendMessage();
     }
   }}
-  className={`${composerInputClass} flex-1 rounded-2xl bg-transparent px-2 py-3 text-[15px] leading-6 text-white/95 outline-none placeholder:text-white/32 min-h-[52px] max-h-[140px]`}
+  className={`${composerInputClass} min-h-[52px] max-h-[140px] flex-1 rounded-2xl bg-transparent px-2 py-3 text-[15px] leading-6 text-white/95 outline-none placeholder:text-white/28`}
   placeholder={activeChat?.messages?.length === 0 ? "Ask anything" : "Message OpenLura..."}
   rows={1}
 />
@@ -2599,12 +2599,12 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
   type="button"
   disabled={!loading && !input.trim() && !image}
   onClick={loading ? stopStreaming : sendMessage}
-  className={`flex h-12 w-12 shrink-0 touch-manipulation items-center justify-center rounded-full text-xl transition-all active:scale-95 ${
+  className={`flex h-12 w-12 shrink-0 touch-manipulation items-center justify-center rounded-full text-xl transition-[transform,background-color,box-shadow,filter,color] duration-200 active:scale-95 ${
     loading
-      ? "bg-red-500 text-white shadow-[0_8px_24px_rgba(239,68,68,0.35)]"
+      ? "bg-red-500 text-white shadow-[0_8px_22px_rgba(239,68,68,0.30)]"
       : !input.trim() && !image
-      ? "bg-white/[0.08] text-white/28 shadow-none"
-      : "bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] text-white shadow-[0_12px_28px_rgba(59,130,246,0.34)] hover:brightness-110"
+      ? "bg-white/[0.07] text-white/24 shadow-none"
+      : "bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] text-white shadow-[0_10px_24px_rgba(59,130,246,0.28)] hover:brightness-110"
   }`}
 >
   {loading ? "■" : "↑"}
@@ -2716,7 +2716,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 
       {showLoginBox && !isPersonalRoute && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-[32px] border border-white/10 bg-[#0b1020]/95 p-6 shadow-[0_28px_90px_rgba(0,0,0,0.42)] backdrop-blur-2xl">
+          <div className="w-full max-w-md rounded-[32px] border border-white/8 bg-[#0b1020]/95 p-6 shadow-[0_28px_84px_rgba(0,0,0,0.38)] backdrop-blur-2xl">
             <div className="mb-5 rounded-[24px] border border-white/8 bg-white/[0.035] px-4 py-4">
               <p className="text-[11px] uppercase tracking-[0.16em] text-white/38">
                 Secure access

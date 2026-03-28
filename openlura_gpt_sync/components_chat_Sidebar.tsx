@@ -51,7 +51,9 @@ export default function Sidebar({
     <div
       key={chat.id}
       className={`group relative rounded-xl transition ${
-        activeChatId === chat.id ? "bg-white/20" : "hover:bg-white/10"
+        activeChatId === chat.id
+          ? "bg-white/20 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]"
+          : "hover:bg-white/10"
       }`}
     >
       <button
@@ -117,7 +119,7 @@ export default function Sidebar({
 
   return (
     <div
-      className={`fixed top-0 left-0 z-50 h-full w-[88vw] max-w-[280px] transform border-r border-white/10 bg-[#0a0a1f]/95 p-3 shadow-[0_20px_60px_rgba(0,0,0,0.38)] backdrop-blur-2xl transition-transform duration-300 md:relative md:top-auto md:left-auto md:z-auto md:w-[280px] md:max-w-none md:translate-x-0 md:rounded-[28px] md:border md:border-white/10 ${
+      className={`fixed top-0 left-0 z-50 h-full w-[88vw] max-w-[280px] transform border-r border-white/10 bg-[#0a0a1f]/95 p-3 shadow-[0_20px_60px_rgba(0,0,0,0.38)] backdrop-blur-2xl transition-transform duration-300 md:relative md:top-auto md:left-auto md:z-auto md:w-[292px] md:max-w-none md:translate-x-0 md:rounded-[28px] md:border md:border-white/10 ${
         mobileMenu ? "translate-x-0" : "-translate-x-full"
       }`}
     >
@@ -193,21 +195,18 @@ export default function Sidebar({
                     key={chat.id}
                     className="group flex items-center justify-between rounded-2xl border border-white/8 bg-white/[0.03] px-3 py-2.5 text-sm transition hover:bg-white/[0.06]"
                   >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        activateChat(chat.id);
-                        setMobileMenu(false);
-                      }}
-                      className="flex-1 text-left text-white/72"
-                    >
+                    <span className="flex-1 text-left text-white/72">
                       {chat.title || "Chat"}
-                    </button>
+                    </span>
 
                     <button
                       type="button"
-                      onClick={() => restoreArchivedChat(chat.id)}
-                      className="text-xs text-white/58 opacity-0 transition group-hover:opacity-100 hover:text-white"
+                      onClick={() => {
+                        restoreArchivedChat(chat.id);
+                        activateChat(chat.id);
+                        setMobileMenu(false);
+                      }}
+                      className="rounded-full border border-[#3b82f6]/25 bg-[#3b82f6]/8 px-3 py-1 text-xs text-white/74 transition hover:border-[#3b82f6]/50 hover:bg-[#3b82f6]/14 hover:text-white"
                     >
                       Restore
                     </button>
@@ -255,8 +254,12 @@ export default function Sidebar({
 
                     <button
                       type="button"
-                      onClick={() => restoreDeletedChat(chat.id)}
-                      className="text-xs text-white/58 opacity-0 transition group-hover:opacity-100 hover:text-white"
+                      onClick={() => {
+                        restoreDeletedChat(chat.id);
+                        activateChat(chat.id);
+                        setMobileMenu(false);
+                      }}
+                      className="rounded-full border border-[#3b82f6]/25 bg-[#3b82f6]/8 px-3 py-1 text-xs text-white/74 transition hover:border-[#3b82f6]/50 hover:bg-[#3b82f6]/14 hover:text-white"
                     >
                       Restore
                     </button>
@@ -277,7 +280,7 @@ export default function Sidebar({
             onClick={() => setShowFeedbackBox(true)}
             className="w-full rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-2.5 text-left text-sm text-white/88 transition hover:bg-white/[0.08]"
           >
-            💡 Feedback / Idee
+            Feedback / Idea
           </button>
 
           {!isPersonalRoute && (
@@ -286,7 +289,7 @@ export default function Sidebar({
               onClick={() => setShowLoginBox(true)}
               className="w-full rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-2.5 text-left text-sm text-white/88 transition hover:bg-white/[0.08]"
             >
-              🔐 Log in
+              Log in
             </button>
           )}
         </div>
