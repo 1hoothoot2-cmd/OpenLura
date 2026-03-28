@@ -57,6 +57,7 @@ export default function Home() {
   const personalSyncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasLoadedInitialStateRef = useRef(false);
   const hasManualChatSelectionRef = useRef(false);
+  const [initialStateReady, setInitialStateReady] = useState(false);
   const [openChatMenuId, setOpenChatMenuId] = useState<number | null>(null);
 
   const greetings = [
@@ -266,11 +267,12 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
 
     loadState().finally(() => {
       hasLoadedInitialStateRef.current = true;
+      setInitialStateReady(true);
     });
   }, [chatStorageKey, memoryStorageKey, isPersonalRoute]);
 
   useEffect(() => {
-    if (!hasLoadedInitialStateRef.current) {
+    if (!initialStateReady) {
       return;
     }
 
@@ -323,7 +325,7 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
         clearTimeout(personalSyncTimeoutRef.current);
       }
     };
-  }, [chats, chatStorageKey, isPersonalRoute, memory, personalStateLoaded]);
+  }, [chats, chatStorageKey, isPersonalRoute, memory, personalStateLoaded, initialStateReady]);
 
   useEffect(() => {
     return () => {
@@ -368,7 +370,7 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
   useEffect(() => {
     if (!isPersonalRoute) return;
 
-    const loadPersonalStateFromServer = async () => {
+    const loadPersonalStateFromServer = async (forceApply = false) => {
       try {
         const res = await fetch("/api/personal-state", {
           method: "GET",
@@ -402,13 +404,28 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
             : [],
         }));
 
-        if (!hasManualChatSelectionRef.current) {
+        const shouldApplyChats =
+          forceApply ||
+          !hasManualChatSelectionRef.current ||
+          chats.length === 0;
+
+        if (shouldApplyChats) {
           setChats(normalizedChats);
 
-          const nextActiveChatId =
-            normalizedChats.find((chat: any) => !chat.archived && !chat.deleted)?.id ?? null;
+          const currentStillExists =
+            activeChatId !== null &&
+            normalizedChats.some(
+              (chat: any) =>
+                chat.id === activeChatId && !chat.archived && !chat.deleted
+            );
+
+          const nextActiveChatId = currentStillExists
+            ? activeChatId
+            : normalizedChats.find((chat: any) => !chat.archived && !chat.deleted)?.id ?? null;
 
           preferredActiveChatIdRef.current = nextActiveChatId;
+          pendingActiveChatIdRef.current = nextActiveChatId;
+          forcedActiveChatIdRef.current = nextActiveChatId;
           setActiveChatId(nextActiveChatId);
         }
 
@@ -418,25 +435,27 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
           } else {
             setMemory(serverMemory);
           }
-        } else {
+        } else if (forceApply) {
           setMemory([]);
         }
+
+        setPersonalStateLoaded(true);
       } catch (error) {
         console.error("OpenLura personal access verify failed:", error);
       }
     };
 
     const handleWindowFocus = () => {
-      loadPersonalStateFromServer();
+      loadPersonalStateFromServer(true);
     };
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
-        loadPersonalStateFromServer();
+        loadPersonalStateFromServer(true);
       }
     };
 
-    loadPersonalStateFromServer();
+    loadPersonalStateFromServer(false);
 
     window.addEventListener("focus", handleWindowFocus);
     document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -445,7 +464,7 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
       window.removeEventListener("focus", handleWindowFocus);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [isPersonalRoute]);
+  }, [isPersonalRoute, chats.length, activeChatId]);
 
   useEffect(() => {
     const handlePaste = async (e: ClipboardEvent) => {
@@ -552,6 +571,10 @@ const activeChat =
       (chat: any) => !chat.archived && !chat.deleted
     );
 
+    if (!initialStateReady) {
+      return;
+    }
+
     if (isPersonalRoute && !personalStateLoaded && chats.length === 0) {
       return;
     }
@@ -648,7 +671,7 @@ const activeChat =
     preferredActiveChatIdRef.current = fallbackId;
     forcedActiveChatIdRef.current = fallbackId;
     setActiveChatId(fallbackId);
-  }, [isPersonalRoute, personalStateLoaded, chats, activeChatId]);
+  }, [isPersonalRoute, personalStateLoaded, chats, activeChatId, initialStateReady]);
 
   const updateChatMeta = (
     chatId: number,
@@ -1681,7 +1704,10 @@ updated[index].messages[
         .slice(0, 10);
 
       setMemory(newMemory);
-      localStorage.setItem(memoryStorageKey, JSON.stringify(newMemory));
+
+      if (initialStateReady) {
+        localStorage.setItem(memoryStorageKey, JSON.stringify(newMemory));
+      }
     }
 
     setLoading(false);
