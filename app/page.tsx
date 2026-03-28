@@ -317,17 +317,27 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
 }
 
 const hasMeaningfulPersonalState =
-  safeChats.some(
-    (chat: any) =>
-      Array.isArray(chat.messages) &&
-      chat.messages.some(
-        (msg: any) =>
-          typeof msg?.content === "string" &&
-          msg.content.trim() &&
-          msg.content !==
-            "👋 Welkom in je persoonlijke omgeving. Hier testen we privé memory, verbeterpunten en training van jouw AI-gedrag."
-      )
-  ) || memory.length > 0;
+  safeChats.some((chat: any) => {
+    const normalizedTitle = String(chat?.title || "").trim();
+    const messages = Array.isArray(chat?.messages) ? chat.messages : [];
+
+    const hasRealMessageContent = messages.some(
+      (msg: any) =>
+        typeof msg?.content === "string" &&
+        msg.content.trim() &&
+        msg.content !==
+          "👋 Welkom in je persoonlijke omgeving. Hier testen we privé memory, verbeterpunten en training van jouw AI-gedrag."
+    );
+
+    const isPersonalFallbackPlaceholder =
+      normalizedTitle === "Persoonlijke omgeving" &&
+      messages.length === 1 &&
+      messages[0]?.role === "ai" &&
+      messages[0]?.content ===
+        "👋 Welkom in je persoonlijke omgeving. Hier testen we privé memory, verbeterpunten en training van jouw AI-gedrag.";
+
+    return hasRealMessageContent || !isPersonalFallbackPlaceholder;
+  }) || memory.length > 0;
 
     if (!hasMeaningfulPersonalState) {
       return;
