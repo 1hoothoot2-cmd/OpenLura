@@ -57,6 +57,8 @@ export default function Home() {
   const personalSyncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasLoadedInitialStateRef = useRef(false);
   const hasManualChatSelectionRef = useRef(false);
+  const latestChatsRef = useRef<any[]>([]);
+  const latestActiveChatIdRef = useRef<number | null>(null);
   const [initialStateReady, setInitialStateReady] = useState(false);
   const [openChatMenuId, setOpenChatMenuId] = useState<number | null>(null);
 
@@ -160,7 +162,6 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
             });
 
             if (res.ok) {
-              if (res.ok) {
   const data = await res.json();
   const serverChats = Array.isArray(data?.chats) ? data.chats : [];
   const serverMemory = Array.isArray(data?.memory) ? data.memory : [];
@@ -207,8 +208,6 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
 
   loadedFromServer = hasServerState;
 }
-              loadedFromServer = true;
-            }
 
             setPersonalStateLoaded(true);
           } catch (error) {
@@ -280,6 +279,14 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
   }, [chatStorageKey, memoryStorageKey, isPersonalRoute]);
 
   useEffect(() => {
+    latestChatsRef.current = chats;
+  }, [chats]);
+
+  useEffect(() => {
+    latestActiveChatIdRef.current = activeChatId;
+  }, [activeChatId]);
+
+  useEffect(() => {
     if (!initialStateReady) {
       return;
     }
@@ -310,7 +317,21 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
 }
 
 const hasMeaningfulPersonalState =
-  safeChats.length > 0 || memory.length > 0;
+  safeChats.some(
+    (chat: any) =>
+      Array.isArray(chat.messages) &&
+      chat.messages.some(
+        (msg: any) =>
+          typeof msg?.content === "string" &&
+          msg.content.trim() &&
+          msg.content !==
+            "👋 Welkom in je persoonlijke omgeving. Hier testen we privé memory, verbeterpunten en training van jouw AI-gedrag."
+      )
+  ) || memory.length > 0;
+
+    if (!hasMeaningfulPersonalState) {
+      return;
+    }
 
     if (personalSyncTimeoutRef.current) {
       clearTimeout(personalSyncTimeoutRef.current);
@@ -415,7 +436,10 @@ const hasMeaningfulPersonalState =
             : [],
         }));
 
-        const hasLocalMeaningfulChats = chats.some(
+        const latestChats = latestChatsRef.current;
+        const latestActiveChatId = latestActiveChatIdRef.current;
+
+        const hasLocalMeaningfulChats = latestChats.some(
           (chat: any) =>
             Array.isArray(chat.messages) &&
             chat.messages.some(
@@ -428,8 +452,7 @@ const hasMeaningfulPersonalState =
         );
 
         const shouldApplyChats =
-          forceApply ||
-          (!hasLocalMeaningfulChats && chats.length === 0) ||
+          (!hasLocalMeaningfulChats && latestChats.length === 0) ||
           (!hasLocalMeaningfulChats && normalizedChats.length > 0);
 
         const hasServerChats = normalizedChats.length > 0;
@@ -438,14 +461,14 @@ const hasMeaningfulPersonalState =
           setChats(normalizedChats);
 
           const currentStillExists =
-            activeChatId !== null &&
+            latestActiveChatId !== null &&
             normalizedChats.some(
               (chat: any) =>
-                chat.id === activeChatId && !chat.archived && !chat.deleted
+                chat.id === latestActiveChatId && !chat.archived && !chat.deleted
             );
 
           const nextActiveChatId = currentStillExists
-            ? activeChatId
+            ? latestActiveChatId
             : normalizedChats.find((chat: any) => !chat.archived && !chat.deleted)?.id ?? null;
 
           preferredActiveChatIdRef.current=nextActiveChatId;
@@ -471,12 +494,12 @@ const hasMeaningfulPersonalState =
     };
 
     const handleWindowFocus = () => {
-      loadPersonalStateFromServer(true);
+      loadPersonalStateFromServer(false);
     };
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
-        loadPersonalStateFromServer(true);
+        loadPersonalStateFromServer(false);
       }
     };
 
