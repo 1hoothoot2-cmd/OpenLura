@@ -50,7 +50,7 @@ export default function Sidebar({
   const renderChatRow = (chat: any, isPinned: boolean) => (
     <div
       key={chat.id}
-      className={`group relative rounded-2xl border ol-interactive duration-200 ${
+      className={`group relative isolate rounded-2xl border ol-interactive duration-200 ${
         activeChatId === chat.id
           ? "border-[#3b82f6]/22 bg-[#3b82f6]/10 shadow-[inset_0_0_0_1px_rgba(59,130,246,0.10)] translate-y-[-1px]"
           : "border-transparent hover:-translate-y-[1px] hover:border-white/10 hover:bg-white/[0.05] hover:shadow-[0_6px_18px_rgba(0,0,0,0.12)]"
@@ -62,12 +62,12 @@ export default function Sidebar({
           activateChat(chat.id);
           setMobileMenu(false);
         }}
-        className={`w-full truncate py-2.5 pl-3 pr-12 text-left text-sm ${
+        className={`w-full truncate py-2.5 pl-3 pr-12 text-left text-sm ol-interactive ${
           activeChatId === chat.id
-            ? "text-white/92"
+            ? "text-white"
             : isPinned
-            ? "text-white/84 group-hover:text-white/92"
-            : "text-white/74 group-hover:text-white/88"
+            ? "text-white/84 group-hover:text-white/94"
+            : "text-white/72 group-hover:text-white/88"
         }`}
       >
         {chat.title || "New Chat"}
@@ -81,7 +81,7 @@ export default function Sidebar({
         }}
         className={`absolute right-1.5 top-1.5 flex h-8 w-8 items-center justify-center rounded-xl ol-interactive hover:bg-white/[0.07] hover:text-white active:scale-95 ${
           openChatMenuId === chat.id
-            ? "bg-white/[0.07] text-white/86 opacity-100"
+            ? "bg-white/[0.08] text-white opacity-100"
             : "text-white/40 opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100 group-focus-within:opacity-100 group-focus-within:scale-100"
         }`}
       >
@@ -89,17 +89,19 @@ export default function Sidebar({
       </button>
 
       {openChatMenuId === chat.id && (
-        <div className="absolute right-2 top-11 z-50 min-w-[152px] overflow-hidden rounded-2xl border border-white/8 bg-[#0f1728]/96 shadow-[0_20px_48px_rgba(0,0,0,0.34)] backdrop-blur-2xl animate-[fadeInUp_0.18s_ease-out]">
+        <div className="absolute right-2 top-12 z-[80] min-w-[176px] overflow-hidden rounded-2xl border border-white/10 bg-[#1f1f23] shadow-[0_18px_40px_rgba(0,0,0,0.38),0_2px_10px_rgba(0,0,0,0.18)] ring-1 ring-black/20 animate-[fadeInUp_0.18s_ease-out]">
           <button
             type="button"
             onClick={() => {
               togglePinnedChat(chat.id);
               setOpenChatMenuId(null);
             }}
-            className="w-full px-3 py-2.5 text-left text-sm text-white/82 ol-interactive hover:bg-white/[0.06] hover:text-white"
+            className="w-full px-3.5 py-2.5 text-left text-sm text-white/88 ol-interactive hover:bg-white/[0.06] hover:text-white"
           >
             {isPinned ? "Unpin" : "Pin"}
           </button>
+
+          <div className="mx-2 border-t border-white/8" />
 
           <button
             type="button"
@@ -107,10 +109,12 @@ export default function Sidebar({
               archiveChat(chat.id);
               setOpenChatMenuId(null);
             }}
-            className="w-full px-3 py-2.5 text-left text-sm text-white/82 ol-interactive hover:bg-white/[0.06] hover:text-white"
+            className="w-full px-3.5 py-2.5 text-left text-sm text-white/88 ol-interactive hover:bg-white/[0.06] hover:text-white"
           >
             Archive
           </button>
+
+          <div className="mx-2 border-t border-white/8" />
 
           <button
             type="button"
@@ -118,7 +122,7 @@ export default function Sidebar({
               deleteChat(chat.id);
               setOpenChatMenuId(null);
             }}
-            className="w-full px-3 py-2.5 text-left text-sm text-red-300/90 ol-interactive hover:bg-white/[0.06] hover:text-red-200"
+            className="w-full px-3.5 py-2.5 text-left text-sm text-red-300 ol-interactive hover:bg-white/[0.06] hover:text-red-200"
           >
             Delete
           </button>
@@ -156,10 +160,10 @@ export default function Sidebar({
           {searchedPinnedChats.length > 0 && (
             <div>
               <div className="mb-2.5 flex items-center justify-between px-1">
-                <span className="text-[11px] uppercase tracking-[0.18em] text-white/32">
+                <span className="text-[11px] uppercase tracking-[0.18em] text-white/30">
                   Pinned
                 </span>
-                <span className="rounded-full border border-white/8 bg-white/[0.04] px-2 py-0.5 text-[10px] text-white/40">
+                <span className="rounded-full border border-white/8 bg-white/[0.035] px-2 py-0.5 text-[10px] text-white/38">
                   {searchedPinnedChats.length}
                 </span>
               </div>
@@ -171,10 +175,10 @@ export default function Sidebar({
 
           <div>
             <div className="mb-2.5 flex items-center justify-between px-1">
-              <span className="text-[11px] uppercase tracking-[0.18em] text-white/32">
+              <span className="text-[11px] uppercase tracking-[0.18em] text-white/30">
                 Chats
               </span>
-              <span className="rounded-full border border-white/8 bg-white/[0.04] px-2 py-0.5 text-[10px] text-white/40">
+              <span className="rounded-full border border-white/8 bg-white/[0.035] px-2 py-0.5 text-[10px] text-white/38">
                 {regularChats.length}
               </span>
             </div>
@@ -182,7 +186,7 @@ export default function Sidebar({
               {regularChats.length > 0 ? (
                 regularChats.map((chat) => renderChatRow(chat, false))
               ) : (
-                <div className="rounded-2xl border border-white/8 bg-white/[0.025] px-3 py-2.5 text-sm text-white/34">
+                <div className="rounded-2xl border border-white/8 bg-white/[0.022] px-3 py-2.5 text-sm text-white/32">
                   No chats found
                 </div>
               )}
@@ -191,10 +195,10 @@ export default function Sidebar({
 
           <div>
             <div className="mb-2.5 flex items-center justify-between px-1">
-              <span className="text-[11px] uppercase tracking-[0.18em] text-white/32">
+              <span className="text-[11px] uppercase tracking-[0.18em] text-white/30">
                 Archived
               </span>
-              <span className="rounded-full border border-white/8 bg-white/[0.04] px-2 py-0.5 text-[10px] text-white/40">
+              <span className="rounded-full border border-white/8 bg-white/[0.035] px-2 py-0.5 text-[10px] text-white/38">
                 {archivedChats.length}
               </span>
             </div>
@@ -203,9 +207,9 @@ export default function Sidebar({
                 archivedChats.map((chat) => (
                   <div
                     key={chat.id}
-                    className="group flex items-center justify-between rounded-2xl border border-white/8 bg-white/[0.025] px-3 py-2.5 text-sm ol-interactive duration-200 hover:-translate-y-[1px] hover:border-white/10 hover:bg-white/[0.045]"
+                    className="group flex items-center justify-between rounded-2xl border border-white/8 bg-white/[0.022] px-3 py-2.5 text-sm ol-interactive hover:-translate-y-[1px] hover:border-white/10 hover:bg-white/[0.04]"
                   >
-                    <span className="flex-1 text-left text-white/42 transition-colors duration-200 group-hover:text-white/56">
+                    <span className="flex-1 text-left text-white/40 ol-interactive group-hover:text-white/54">
                       {chat.title || "Chat"}
                     </span>
 
@@ -213,17 +217,16 @@ export default function Sidebar({
                       type="button"
                       onClick={() => {
                         restoreArchivedChat(chat.id);
-                        activateChat(chat.id);
                         setMobileMenu(false);
                       }}
-                      className="rounded-full border border-[#3b82f6]/20 bg-[#3b82f6]/8 px-3 py-1 text-xs text-white/70 ol-interactive duration-200 hover:border-[#3b82f6]/36 hover:bg-[#3b82f6]/12 hover:text-white active:scale-95"
+                      className="rounded-full border border-[#3b82f6]/20 bg-[#3b82f6]/8 px-3 py-1 text-xs text-white/70 ol-interactive hover:border-[#3b82f6]/36 hover:bg-[#3b82f6]/12 hover:text-white active:scale-95"
                     >
                       Restore
                     </button>
                   </div>
                 ))
               ) : (
-                <div className="rounded-2xl border border-white/8 bg-white/[0.025] px-3 py-2.5 text-sm text-white/34">
+                <div className="rounded-2xl border border-white/8 bg-white/[0.022] px-3 py-2.5 text-sm text-white/32">
                   No archived chats
                 </div>
               )}
@@ -232,18 +235,18 @@ export default function Sidebar({
 
           <div>
             <div className="mb-2.5 flex items-center justify-between px-1">
-              <span className="text-[11px] uppercase tracking-[0.18em] text-white/32">
+              <span className="text-[11px] uppercase tracking-[0.18em] text-white/30">
                 Deleted
               </span>
               <div className="flex items-center gap-2">
-                <span className="rounded-full border border-white/8 bg-white/[0.04] px-2 py-0.5 text-[10px] text-white/40">
+                <span className="rounded-full border border-white/8 bg-white/[0.035] px-2 py-0.5 text-[10px] text-white/38">
                   {deletedChats.length}
                 </span>
                 {deletedChats.length > 0 && (
                   <button
                     type="button"
                     onClick={clearDeletedChats}
-                    className="text-[10px] uppercase tracking-[0.16em] text-red-300/78 transition-colors duration-200 hover:text-red-200"
+                    className="text-[10px] uppercase tracking-[0.16em] text-red-300/74 ol-interactive hover:text-red-200"
                   >
                     Clear
                   </button>
@@ -256,9 +259,9 @@ export default function Sidebar({
                 deletedChats.map((chat) => (
                   <div
                     key={chat.id}
-                    className="group flex items-center justify-between rounded-2xl border border-red-400/10 bg-red-500/[0.04] px-3 py-2.5 text-sm ol-interactive duration-200 hover:-translate-y-[1px] hover:border-red-400/16 hover:bg-red-500/[0.07]"
+                    className="group flex items-center justify-between rounded-2xl border border-red-400/10 bg-red-500/[0.035] px-3 py-2.5 text-sm ol-interactive hover:-translate-y-[1px] hover:border-red-400/16 hover:bg-red-500/[0.06]"
                   >
-                    <span className="flex-1 text-white/34 line-through transition-colors duration-200 group-hover:text-white/42">
+                    <span className="flex-1 text-white/32 line-through ol-interactive group-hover:text-white/40">
                       {chat.title || "Chat"}
                     </span>
 
@@ -266,17 +269,16 @@ export default function Sidebar({
                       type="button"
                       onClick={() => {
                         restoreDeletedChat(chat.id);
-                        activateChat(chat.id);
                         setMobileMenu(false);
                       }}
-                      className="rounded-full border border-[#3b82f6]/20 bg-[#3b82f6]/8 px-3 py-1 text-xs text-white/70 ol-interactive duration-200 hover:border-[#3b82f6]/36 hover:bg-[#3b82f6]/12 hover:text-white active:scale-95"
+                      className="rounded-full border border-[#3b82f6]/20 bg-[#3b82f6]/8 px-3 py-1 text-xs text-white/70 ol-interactive hover:border-[#3b82f6]/36 hover:bg-[#3b82f6]/12 hover:text-white active:scale-95"
                     >
                       Restore
                     </button>
                   </div>
                 ))
               ) : (
-                <div className="rounded-2xl border border-white/8 bg-white/[0.025] px-3 py-2.5 text-sm text-white/34">
+                <div className="rounded-2xl border border-white/8 bg-white/[0.022] px-3 py-2.5 text-sm text-white/32">
                   No deleted chats
                 </div>
               )}
