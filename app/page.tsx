@@ -404,12 +404,26 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
             : [],
         }));
 
+        const hasLocalMeaningfulChats = chats.some(
+          (chat: any) =>
+            Array.isArray(chat.messages) &&
+            chat.messages.some(
+              (msg: any) =>
+                typeof msg?.content === "string" &&
+                msg.content.trim() &&
+                msg.content !==
+                  "👋 Welkom in je persoonlijke omgeving. Hier testen we privé memory, verbeterpunten en training van jouw AI-gedrag."
+            )
+        );
+
         const shouldApplyChats =
           forceApply ||
-          !hasManualChatSelectionRef.current ||
-          chats.length === 0;
+          (!hasLocalMeaningfulChats && chats.length === 0) ||
+          (!hasLocalMeaningfulChats && normalizedChats.length > 0);
 
-        if (shouldApplyChats) {
+        const hasServerChats = normalizedChats.length > 0;
+
+        if (shouldApplyChats && (hasServerChats || !hasLocalMeaningfulChats)) {
           setChats(normalizedChats);
 
           const currentStillExists =
@@ -464,7 +478,7 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
       window.removeEventListener("focus", handleWindowFocus);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [isPersonalRoute, chats.length, activeChatId]);
+  }, [isPersonalRoute]);
 
   useEffect(() => {
     const handlePaste = async (e: ClipboardEvent) => {
