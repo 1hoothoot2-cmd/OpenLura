@@ -217,7 +217,7 @@ export async function POST(req: Request) {
         runtime: {
           userId: userId || null,
           mode: userId ? "personal" : "legacy_admin",
-          storageKey,
+          storageKey: payload.user_id || payload.key || null,
           updatedAt: payload.updated_at,
         },
       },
