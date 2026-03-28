@@ -603,7 +603,7 @@ const messageShellClass =
 const messageBubbleClass =
   "min-w-0 max-w-full overflow-hidden break-words [overflow-wrap:anywhere] break-all";
 const composerShellClass =
-  "w-full min-w-0 max-w-full shrink-0 overflow-x-hidden border-t border-white/10 bg-black/70 backdrop-blur";
+  "w-full min-w-0 max-w-full shrink-0 overflow-x-hidden";
 const composerInnerClass =
   "mx-auto w-full max-w-4xl min-w-0 px-3 pb-[max(env(safe-area-inset-bottom),12px)] pt-3 md:px-4";
 const composerInputClass =
@@ -701,6 +701,20 @@ const resizeComposerTextarea = () => {
     if (visibleChats.length === 0) {
   if (isPersonalRoute) {
     isBootstrappingChatRef.current = false;
+    return;
+  }
+
+  const hasAnyChats = chats.length > 0;
+  const hasArchivedOrDeletedChats = chats.some(
+    (chat: any) => chat.archived || chat.deleted
+  );
+
+  if (hasAnyChats || hasArchivedOrDeletedChats) {
+    isBootstrappingChatRef.current = false;
+    preferredActiveChatIdRef.current = null;
+    pendingActiveChatIdRef.current = null;
+    forcedActiveChatIdRef.current = null;
+    setActiveChatId(null);
     return;
   }
 
@@ -1057,66 +1071,6 @@ const resizeComposerTextarea = () => {
       console.error("OpenLura feedback parse failed:", error);
       return [];
     }
-  };
-
-  const getActiveLearningDebug = () => {
-    const rawFeedback = getStoredFeedback();
-    const feedbackText = rawFeedback
-      .map((f: any) => `${f.userMessage || ""} ${f.message || ""}`.toLowerCase())
-      .join(" ");
-
-    const styleRules = [
-      (
-        feedbackText.includes("korter") ||
-        feedbackText.includes("te lang") ||
-        feedbackText.includes("shorter") ||
-        feedbackText.includes("too long")
-      ) && "kortere antwoorden",
-      (
-        feedbackText.includes("duidelijker") ||
-        feedbackText.includes("onduidelijk") ||
-        feedbackText.includes("clearer") ||
-        feedbackText.includes("unclear")
-      ) && "duidelijkere uitleg",
-      (
-        feedbackText.includes("structuur") ||
-        feedbackText.includes("structure")
-      ) && "betere structuur",
-      (
-        feedbackText.includes("te vaag") ||
-        feedbackText.includes("vaag") ||
-        feedbackText.includes("vague")
-      ) && "concretere antwoorden",
-      (
-        feedbackText.includes("meer context") ||
-        feedbackText.includes("more context") ||
-        feedbackText.includes("more depth")
-      ) && "meer context waar nodig",
-      (
-        feedbackText.includes("te serieus") ||
-        feedbackText.includes("te formeel") ||
-        feedbackText.includes("menselijker") ||
-        feedbackText.includes("spontaner") ||
-        feedbackText.includes("luchtiger") ||
-        feedbackText.includes("more natural") ||
-        feedbackText.includes("too formal") ||
-        feedbackText.includes("too long for chat")
-      ) && "lossere casual stijl",
-    ].filter(Boolean) as string[];
-
-    const contentRules = [
-      memory.some((m) => m.weight > 0.6) && "persoonlijke memory actief",
-      rawFeedback.some(
-        (f: any) =>
-          f.type === "up" &&
-          (f.source?.includes("ab_test_") || f.source === "improvement_reply")
-      ) && "succesvolle antwoordpatronen opgeslagen",
-    ].filter(Boolean) as string[];
-
-    return {
-      style: styleRules.slice(0, 4),
-      content: contentRules.slice(0, 2),
-    };
   };
 
   const updateMemoryWeight = (text: string, delta: number) => {
@@ -2163,7 +2117,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
     <main className="fixed inset-0 flex bg-[#050510] text-white overflow-hidden">
       <button
   onClick={() => setMobileMenu(!mobileMenu)}
-  className="fixed left-4 top-4 z-[70] flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/[0.07] text-white/88 shadow-[0_10px_30px_rgba(0,0,0,0.22)] backdrop-blur-2xl transition hover:bg-white/[0.11] md:hidden"
+  className="fixed left-4 top-[max(env(safe-area-inset-top),16px)] z-[70] flex h-11 w-11 items-center justify-center rounded-full border border-white/8 bg-white/[0.055] text-white/82 shadow-[0_12px_32px_rgba(0,0,0,0.24)] backdrop-blur-2xl transition-[background-color,border-color,color,transform] duration-200 hover:border-white/12 hover:bg-white/[0.085] hover:text-white active:scale-95 md:hidden"
 >
   ☰
 </button>
@@ -2196,15 +2150,15 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 {mobileMenu && (
   <div
     onClick={() => setMobileMenu(false)}
-    className="fixed inset-0 z-30 bg-black/50 md:hidden"
+    className="fixed inset-0 z-30 bg-[#020308]/72 backdrop-blur-[2px] touch-none md:hidden"
   />
 )}
                   {showClearDeletedConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-[340px] rounded-[28px] border border-white/10 bg-[#0a0a1f]/95 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.38)] backdrop-blur-2xl">
-            <h2 className="mb-2 text-lg font-semibold text-white/95">Weet je het zeker?</h2>
+          <div className="w-full max-w-[340px] rounded-[28px] border border-white/8 bg-[#0a0f1d]/95 p-6 shadow-[0_24px_72px_rgba(0,0,0,0.34)] backdrop-blur-2xl">
+            <h2 className="mb-2 text-lg font-semibold text-white/95">Are you sure?</h2>
             <p className="mb-5 text-sm leading-6 text-white/60">
-              Alle verwijderde chats worden permanent verwijderd.
+              All deleted chats will be permanently removed.
             </p>
 
             <div className="flex gap-2">
@@ -2212,14 +2166,14 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                 onClick={() => setShowClearDeletedConfirm(false)}
                 className="flex-1 rounded-[20px] border border-white/10 bg-white/[0.05] p-3 text-white/90 transition hover:bg-white/[0.08]"
               >
-                Annuleren
+                Cancel
               </button>
 
               <button
                 onClick={confirmClearDeletedChats}
                 className="flex-1 rounded-[20px] border border-red-400/20 bg-red-500/80 p-3 text-white shadow-[0_10px_24px_rgba(239,68,68,0.28)] transition hover:bg-red-500"
               >
-                Verwijderen
+                Delete
               </button>
             </div>
           </div>
@@ -2229,9 +2183,9 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
       {deleteTargetChatId !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
           <div className="w-full max-w-[340px] rounded-[28px] border border-white/10 bg-[#0a0a1f]/95 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.38)] backdrop-blur-2xl">
-            <h2 className="mb-2 text-lg font-semibold text-white/95">Weet je het zeker?</h2>
+            <h2 className="mb-2 text-lg font-semibold text-white/95">Are you sure?</h2>
             <p className="mb-5 text-sm leading-6 text-white/60">
-              Deze chat wordt verplaatst naar Verwijderde chats.
+              This chat will be moved to Deleted chats.
             </p>
 
             <div className="flex gap-2">
@@ -2239,14 +2193,14 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                 onClick={() => setDeleteTargetChatId(null)}
                 className="flex-1 rounded-[20px] border border-white/10 bg-white/[0.05] p-3 text-white/90 transition hover:bg-white/[0.08]"
               >
-                Annuleren
+                Cancel
               </button>
 
               <button
                 onClick={confirmDeleteChat}
                 className="flex-1 rounded-[20px] border border-red-400/20 bg-red-500/80 p-3 text-white shadow-[0_10px_24px_rgba(239,68,68,0.28)] transition hover:bg-red-500"
               >
-                Verwijderen
+                Delete
               </button>
             </div>
           </div>
@@ -2255,8 +2209,8 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 
             {showFeedbackBox && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-[360px] rounded-[28px] border border-white/10 bg-[#0a0a1f]/95 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.38)] backdrop-blur-2xl">
-            <h2 className="mb-4 text-lg font-semibold text-white/95">Feedback / Idee</h2>
+          <div className="w-full max-w-[360px] rounded-[28px] border border-white/8 bg-[#0a0f1d]/95 p-6 shadow-[0_24px_72px_rgba(0,0,0,0.34)] backdrop-blur-2xl">
+            <h2 className="mb-4 text-lg font-semibold text-white/95">Feedback / Idea</h2>
 
             <select
               value={feedbackCategory}
@@ -2264,7 +2218,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
               className="mb-3 w-full rounded-[18px] border border-white/10 bg-white/[0.05] px-3 py-3 text-sm text-white/90 outline-none transition focus:border-white/18 focus:bg-white/[0.07]"
             >
               <option value="bug">Bug</option>
-              <option value="adjustment">Aanpassing</option>
+              <option value="adjustment">Adjustment</option>
               <option value="feedback_learning">AI feedback</option>
             </select>
 
@@ -2272,7 +2226,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
               value={feedbackText}
               onChange={(e) => setFeedbackText(e.target.value)}
               className="mb-4 min-h-[120px] w-full rounded-[20px] border border-white/10 bg-white/[0.05] px-3 py-3 text-sm text-white/92 outline-none transition placeholder:text-white/28 focus:border-white/18 focus:bg-white/[0.07]"
-              placeholder="Vertel wat je wilt verbeteren of toevoegen..."
+              placeholder="Tell us what you want to improve or add..."
             />
 
             <div className="flex gap-2">
@@ -2284,7 +2238,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                 }}
                 className="flex-1 rounded-[20px] border border-white/10 bg-white/[0.05] p-3 text-white/90 transition hover:bg-white/[0.08]"
               >
-                Annuleren
+                Cancel
               </button>
 
               <button
@@ -2296,31 +2250,31 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                     : "bg-white/10 text-white/30"
                 }`}
               >
-                Verstuur
+                Send
               </button>
             </div>
           </div>
         </div>
       )}
 
-      <div className="flex-1 min-w-0 flex items-stretch justify-center md:p-4 pt-0">
-        <div className="flex h-full w-full min-w-0 max-w-2xl flex-col border border-white/10 bg-white/[0.055] shadow-[0_24px_80px_rgba(0,0,0,0.28)] backdrop-blur-2xl md:h-[90%] md:rounded-[32px]">
+      <div className="flex-1 min-w-0 flex items-stretch justify-center pt-0 md:h-screen md:p-4 xl:justify-start">
+        <div className="flex h-full w-full min-w-0 max-w-2xl flex-col border border-white/8 bg-white/[0.045] shadow-[0_24px_72px_rgba(0,0,0,0.24)] backdrop-blur-2xl md:min-h-0 md:rounded-[32px] xl:ml-6 xl:max-w-[920px]">
 
           {usage && usage.percentage >= 0.8 && !upgradeNotice.visible && (
-            <div className="mx-4 mt-4 rounded-[24px] border border-yellow-300/20 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-100 shadow-[0_8px_24px_rgba(0,0,0,0.12)] backdrop-blur-xl">
+            <div className="mx-4 mt-4 rounded-[24px] border border-yellow-300/16 bg-yellow-500/8 px-4 py-3 text-sm text-yellow-100 shadow-[0_8px_24px_rgba(0,0,0,0.10)] backdrop-blur-xl">
               <div className="font-medium">
-                Bijna limiet bereikt
+                Near usage limit
               </div>
               <div className="mt-1 opacity-90">
-                {Math.round(usage.percentage * 100)}% gebruikt ({usage.used}/{usage.limit})
+                {Math.round(usage.percentage * 100)}% used ({usage.used}/{usage.limit})
               </div>
             </div>
           )}
 
           {upgradeNotice.visible && (
-            <div className="mx-4 mt-4 rounded-[24px] border border-amber-300/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100 shadow-[0_8px_24px_rgba(0,0,0,0.12)] backdrop-blur-xl">
+            <div className="mx-4 mt-4 rounded-[24px] border border-amber-300/16 bg-amber-500/8 px-4 py-3 text-sm text-amber-100 shadow-[0_8px_24px_rgba(0,0,0,0.10)] backdrop-blur-xl">
               <div className="font-medium">
-                Limiet bereikt {upgradeNotice.tier ? `(${upgradeNotice.tier})` : ""}
+                Limit reached {upgradeNotice.tier ? `(${upgradeNotice.tier})` : ""}
               </div>
               <div className="mt-1 opacity-90">{upgradeNotice.message}</div>
             </div>
@@ -2328,18 +2282,18 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 
           <div
   ref={messagesRef}
-  className={`${messageShellClass} flex-1 overflow-x-hidden overflow-y-auto pb-52 md:pb-5 ${
-    activeChat?.messages?.length ? "p-4 pt-20 md:px-5 md:pt-5 space-y-3.5" : "p-4 pt-20 md:px-5 md:pt-5 flex items-center justify-center"
+  className={`${messageShellClass} flex-1 min-h-0 overflow-x-hidden overflow-y-auto pb-[176px] md:pb-6 ${
+    activeChat?.messages?.length ? "space-y-4 p-4 pt-20 md:px-6 md:pt-6" : "flex items-center justify-center p-4 pt-20 md:px-6 md:pt-6"
   }`}
 >
                         {activeChat?.messages?.length === 0 ? (
               <div className="flex h-full w-full max-w-2xl -mt-20 flex-col items-center justify-center px-6 text-center">
-                <div className="rounded-[28px] border border-white/8 bg-white/[0.035] px-8 py-8 shadow-[0_18px_50px_rgba(0,0,0,0.22)] backdrop-blur-xl">
+                <div className="rounded-[28px] border border-white/7 bg-white/[0.03] px-8 py-8 shadow-[0_18px_44px_rgba(0,0,0,0.18)] backdrop-blur-xl md:px-10 md:py-10">
                   <h1 className="mb-3 bg-gradient-to-r from-white via-white to-white/70 bg-clip-text text-2xl font-semibold tracking-tight text-transparent md:text-4xl">
-                    Waar wil je vandaag mee verder?
+                    What do you want to work on today?
                   </h1>
                   <p className="mx-auto max-w-md text-sm leading-6 text-white/42">
-                    Stel een vraag, upload een afbeelding of werk verder in een eerdere chat.
+                    Ask a question, upload an image, or continue an earlier chat.
                   </p>
                 </div>
               </div>
@@ -2352,13 +2306,6 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                       "🤖 Bedankt voor je feedback. Ik sla dit op en gebruik het om toekomstige antwoorden te verbeteren."
                   )
                   .map((msg: any, i: number, arr: any[]) => {
-                    const isLastAI =
-                      msg.role === "ai" &&
-                      i === arr.length - 1;
-                    const activeLearningDebug = isLastAI
-                      ? getActiveLearningDebug()
-                      : { style: [], content: [] };
-
                     return (
                       <div
                         key={i}
@@ -2369,8 +2316,8 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                                                 <div
                           className={`${messageBubbleClass} min-w-0 max-w-[78%] overflow-hidden whitespace-pre-line rounded-[24px] px-4 py-3.5 transition-[box-shadow,transform,background-color,border-color] duration-200 ${
                             msg.role === "user"
-                              ? "ml-auto bg-gradient-to-r from-[#1d4ed8] to-[#2563eb] text-white shadow-[0_10px_28px_rgba(37,99,235,0.24)]"
-                              : "border border-white/10 bg-white/[0.06] text-white/92 backdrop-blur-xl shadow-[0_8px_28px_rgba(0,0,0,0.18)]"
+                              ? "ml-auto bg-gradient-to-r from-[#1d4ed8] to-[#2563eb] text-white shadow-[0_10px_24px_rgba(37,99,235,0.22)]"
+                              : "border border-white/8 bg-white/[0.05] text-white/90 backdrop-blur-xl shadow-[0_8px_24px_rgba(0,0,0,0.14)]"
                           }`}
                         >
                           {msg.image && (
@@ -2398,7 +2345,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
             style={{ animationDelay: "240ms" }}
           />
         </span>
-        <span className="text-sm">OpenLura denkt na</span>
+        <span className="text-sm">OpenLura is thinking</span>
       </span>
     ) : (
       <>
@@ -2449,85 +2396,72 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                           msg.content !== "🤖 Wat kan ik beter doen?" &&
                           msg.content !== "🤖 Bedankt voor je feedback. Ik sla dit op en gebruik het om toekomstige antwoorden te verbeteren." && (
                             <>
-                              {isLastAI && (
-                                <div className="mt-3 rounded-2xl border border-white/8 bg-white/[0.035] px-3 py-3 text-xs text-white/65">
-                                  <p className="mb-2">🧠 AI Learning actief:</p>
-
-                                  {activeLearningDebug.style.length === 0 &&
-                                  activeLearningDebug.content.length === 0 ? (
-                                    <p>geen actieve learning regels</p>
-                                  ) : (
-                                    <div className="space-y-2">
-                                      <div>
-                                        <p className="opacity-60 mb-1">Style learning</p>
-                                        {activeLearningDebug.style.length === 0 ? (
-                                          <p>- geen actieve stijlregels</p>
-                                        ) : (
-                                          <div className="space-y-1">
-                                            {activeLearningDebug.style.map((rule, idx) => (
-                                              <p key={idx}>- {rule}</p>
-                                            ))}
-                                          </div>
-                                        )}
-                                      </div>
-
-                                      <div>
-                                        <p className="opacity-60 mb-1">Content learning</p>
-                                        {activeLearningDebug.content.length === 0 ? (
-                                          <p>- geen actieve contentregels</p>
-                                        ) : (
-                                          <div className="space-y-1">
-                                            {activeLearningDebug.content.map((rule, idx) => (
-                                              <p key={idx}>- {rule}</p>
-                                            ))}
-                                          </div>
-                                        )}
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-
                               <div className="mt-3 flex flex-wrap items-center gap-2 pl-1">
                                 {!feedbackGiven[activeChatId + "-" + i] && (
                                   <>
                                     <button
                                       type="button"
                                       onClick={() => handleFeedback(activeChatId!, i, "up")}
-                                      className="inline-flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/[0.045] px-3 text-sm text-white/72 transition hover:border-white/16 hover:bg-white/[0.08] hover:text-white"
+                                      aria-label="Good answer"
+                                      title="Good answer"
+                                      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-white/66 transition-[background-color,border-color,color,transform] duration-200 hover:border-[#3b82f6]/35 hover:bg-[#3b82f6]/10 hover:text-white active:scale-95"
                                     >
-                                      <span aria-hidden="true">👍</span>
-                                      <span className="text-[13px]">Goed antwoord</span>
+                                      <svg
+                                        viewBox="0 0 24 24"
+                                        className="h-4 w-4"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="1.9"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        aria-hidden="true"
+                                      >
+                                        <path d="M7 11v9" />
+                                        <path d="M14 5.5 13 11h5.2a2 2 0 0 1 2 2.4l-1.1 5.5A2 2 0 0 1 17.1 20H7a2 2 0 0 1-2-2v-5.5a2 2 0 0 1 .6-1.4l5.7-5.6a1.5 1.5 0 0 1 2.7 1.3Z" />
+                                      </svg>
                                     </button>
 
                                     <button
                                       type="button"
                                       onClick={() => handleFeedback(activeChatId!, i, "down")}
-                                      className="inline-flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/[0.045] px-3 text-sm text-white/72 transition hover:border-white/16 hover:bg-white/[0.08] hover:text-white"
+                                      aria-label="Needs improvement"
+                                      title="Needs improvement"
+                                      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-white/66 transition-[background-color,border-color,color,transform] duration-200 hover:border-[#3b82f6]/35 hover:bg-[#3b82f6]/10 hover:text-white active:scale-95"
                                     >
-                                      <span aria-hidden="true">👎</span>
-                                      <span className="text-[13px]">Kan beter</span>
+                                      <svg
+                                        viewBox="0 0 24 24"
+                                        className="h-4 w-4"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="1.9"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        aria-hidden="true"
+                                      >
+                                        <path d="M17 13V4" />
+                                        <path d="m10 18.5 1-5.5H5.8a2 2 0 0 1-2-2.4l1.1-5.5A2 2 0 0 1 6.9 4H17a2 2 0 0 1 2 2v5.5a2 2 0 0 1-.6 1.4l-5.7 5.6a1.5 1.5 0 0 1-2.7-1.3Z" />
+                                      </svg>
                                     </button>
                                   </>
                                 )}
 
                                 {feedbackUI[activeChatId + "-" + i] && (
-                                  <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-white/58">
+                                  <span className="rounded-full border border-[#3b82f6]/20 bg-[#3b82f6]/8 px-3 py-2 text-xs text-white/68">
                                     {feedbackUI[activeChatId + "-" + i]}
                                   </span>
                                 )}
                               </div>
 
                 {Array.isArray(msg.sources) && msg.sources.length > 0 && (
-          <div className="mt-4 space-y-2.5">
+          <div className="mt-4 space-y-2">
             <div className="flex items-center gap-2 px-0.5">
-              <span className="text-[12px] text-white/36">🔎</span>
-              <p className="text-[11px] uppercase tracking-[0.16em] text-white/35">
-                Bronnen
+              <span className="text-[12px] text-white/30">🔎</span>
+              <p className="text-[11px] uppercase tracking-[0.18em] text-white/32">
+                Sources
               </p>
             </div>
 
-            <div className="space-y-2.5">
+            <div className="space-y-2">
               {msg.sources.map((source: any, sourceIndex: number) => {
                 let domain = "";
 
@@ -2537,7 +2471,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                   domain = source.url || "";
                 }
 
-                const title = source.title || "Bekijk bron";
+                const title = source.title || "View source";
 
                 return (
                   <a
@@ -2545,7 +2479,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                     href={source.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block w-full min-w-0 max-w-full overflow-hidden rounded-[20px] border border-white/10 bg-white/[0.045] p-3.5 shadow-[0_8px_20px_rgba(0,0,0,0.10)] transition-all hover:border-white/16 hover:bg-white/[0.075]"
+                    className="block w-full min-w-0 max-w-full overflow-hidden rounded-[20px] border border-white/8 bg-white/[0.035] p-3.5 shadow-[0_8px_18px_rgba(0,0,0,0.08)] transition-[background-color,border-color,transform] duration-200 hover:border-white/12 hover:bg-white/[0.055] hover:-translate-y-[1px]"
                     title={source.title || source.url}
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -2564,8 +2498,8 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                         </p>
                       </div>
 
-                      <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.05] px-2 py-1 text-[11px] text-white/48">
-                        Open
+                      <span className="shrink-0 rounded-full border border-white/8 bg-white/[0.04] px-2 py-1 text-[11px] text-white/42">
+                        Visit
                       </span>
                     </div>
                   </a>
@@ -2589,14 +2523,14 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
   className={`${
     activeChat?.messages?.length === 0
       ? "mt-6 w-full max-w-2xl"
-      : composerShellClass + " fixed bottom-0 left-0 right-0 md:static z-[90] p-3 pb-4 md:border-0 bg-[#050510] md:bg-transparent"
-  } flex w-full min-w-0 max-w-full overflow-x-hidden items-end gap-2 rounded-[32px] border border-white/10 bg-white/[0.055] px-3 py-3 shadow-[0_20px_56px_rgba(0,0,0,0.26)] backdrop-blur-2xl`}
+      : "fixed bottom-0 left-0 right-0 z-[90] bg-[#050510]/96 px-3 pt-3 pb-[calc(env(safe-area-inset-bottom)+12px)] md:static md:z-auto md:mt-auto md:w-full md:max-w-none md:border-0 md:bg-transparent md:p-0"
+  } flex w-full min-w-0 max-w-full overflow-x-hidden items-end gap-2 rounded-[32px] border border-white/8 bg-white/[0.045] px-3 py-3 shadow-[0_18px_44px_rgba(0,0,0,0.22)] backdrop-blur-2xl md:rounded-b-[32px] md:rounded-t-[28px] md:border-x-0 md:border-b-0 md:border-t md:px-4 md:py-4 md:shadow-none`}
 >
 
                         <button
               type="button"
               onClick={() => fileRef.current?.click()}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/8 bg-white/[0.05] text-lg text-white/80 transition-colors hover:bg-white/[0.10]"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/8 bg-white/[0.04] text-lg text-white/74 transition-[background-color,border-color,color,transform] duration-200 hover:border-white/12 hover:bg-white/[0.07] hover:text-white active:scale-95"
             >
               +
             </button>
@@ -2614,12 +2548,12 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
               <div className="relative shrink-0">
                 <img
                   src={image}
-                  className="h-16 w-16 rounded-2xl border border-white/10 object-cover shadow-[0_10px_24px_rgba(0,0,0,0.22)]"
+                  className="h-16 w-16 rounded-2xl border border-white/8 object-cover shadow-[0_10px_22px_rgba(0,0,0,0.18)]"
                 />
                 <button
                   type="button"
                   onClick={() => setImage(null)}
-                  className="absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full border border-white/10 bg-black/70 text-xs"
+                  className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full border border-white/10 bg-black/72 text-xs text-white/82 transition hover:bg-black/84"
                 >
                   ×
                 </button>
@@ -2632,6 +2566,10 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
   onFocus={() => {
     if (window.innerWidth < 768) {
       setMobileMenu(false);
+
+      requestAnimationFrame(() => {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      });
     }
   }}
   onChange={(e) => {
@@ -2656,8 +2594,9 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
       sendMessage();
     }
   }}
-  className={`${composerInputClass} flex-1 rounded-2xl bg-transparent px-2 py-3 text-[15px] leading-6 text-white/95 outline-none placeholder:text-white/32 min-h-[52px] max-h-[140px]`}
+  className={`${composerInputClass} min-h-[52px] max-h-[140px] flex-1 rounded-2xl bg-transparent px-2 py-3 text-[16px] leading-6 text-white/95 outline-none placeholder:text-white/28`}
   placeholder={activeChat?.messages?.length === 0 ? "Ask anything" : "Message OpenLura..."}
+enterKeyHint="send"
   rows={1}
 />
 
@@ -2665,12 +2604,12 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
   type="button"
   disabled={!loading && !input.trim() && !image}
   onClick={loading ? stopStreaming : sendMessage}
-  className={`flex h-12 w-12 shrink-0 touch-manipulation items-center justify-center rounded-full text-xl transition-all active:scale-95 ${
+  className={`flex h-12 w-12 shrink-0 touch-manipulation items-center justify-center rounded-full text-xl transition-[transform,background-color,box-shadow,filter,color] duration-200 active:scale-95 ${
     loading
-      ? "bg-red-500 text-white shadow-[0_8px_24px_rgba(239,68,68,0.35)]"
+      ? "bg-red-500 text-white shadow-[0_8px_22px_rgba(239,68,68,0.30)]"
       : !input.trim() && !image
-      ? "bg-white/[0.08] text-white/28 shadow-none"
-      : "bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] text-white shadow-[0_12px_28px_rgba(59,130,246,0.34)] hover:brightness-110"
+      ? "bg-white/[0.07] text-white/24 shadow-none"
+      : "bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] text-white shadow-[0_10px_24px_rgba(59,130,246,0.28)] hover:brightness-110"
   }`}
 >
   {loading ? "■" : "↑"}
@@ -2680,18 +2619,18 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
         </div>
       </div>
 
-      {isPersonalEnvironment && (
+      {false && isPersonalEnvironment && (
         <aside className="hidden xl:flex w-[320px] p-4 pr-5">
           <div className="flex h-full w-full flex-col rounded-[32px] border border-white/10 bg-white/[0.055] p-4 shadow-[0_20px_50px_rgba(0,0,0,0.28)] backdrop-blur-2xl md:h-[90%]">
             <div className="mb-5 rounded-[28px] border border-white/8 bg-white/[0.035] px-4 py-4">
               <p className="text-[11px] uppercase tracking-[0.16em] text-white/38">
-                Persoonlijke omgeving
+                Personal environment
               </p>
               <h2 className="mt-2 text-[20px] font-semibold tracking-tight text-white/95">
                 Training dashboard
               </h2>
               <p className="mt-2 text-sm leading-6 text-white/56">
-                Alleen zichtbaar in deze omgeving op desktop.
+                Only visible in this environment on desktop.
               </p>
             </div>
 
@@ -2757,7 +2696,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                 onClick={() => setShowFeedbackBox(true)}
                 className="w-full rounded-[24px] border border-white/10 bg-white/[0.05] p-3 text-left text-white/90 backdrop-blur-xl transition hover:bg-white/[0.08]"
               >
-                ✍️ Voeg persoonlijk verbeterpunt toe
+                Add personal improvement note
               </button>
 
               <button
@@ -2766,14 +2705,14 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                 }}
                 className="w-full rounded-[24px] border border-white/10 bg-white/[0.05] p-3 text-left text-white/90 backdrop-blur-xl transition hover:bg-white/[0.08]"
               >
-                📊 Open analytics
+                Open analytics
               </button>
 
               <button
                 onClick={handlePersonalLogout}
                 className="w-full rounded-[24px] border border-red-400/20 bg-red-500/16 p-3 text-left text-red-200 transition hover:bg-red-500/24"
               >
-                🚪 Log uit
+                Log out
               </button>
             </div>
           </div>
@@ -2782,16 +2721,16 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 
       {showLoginBox && !isPersonalRoute && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-[32px] border border-white/10 bg-[#0b1020]/95 p-6 shadow-[0_28px_90px_rgba(0,0,0,0.42)] backdrop-blur-2xl">
+          <div className="w-full max-w-md rounded-[32px] border border-white/8 bg-[#0b1020]/95 p-6 shadow-[0_28px_84px_rgba(0,0,0,0.38)] backdrop-blur-2xl">
             <div className="mb-5 rounded-[24px] border border-white/8 bg-white/[0.035] px-4 py-4">
               <p className="text-[11px] uppercase tracking-[0.16em] text-white/38">
-                Beveiligde toegang
+                Secure access
               </p>
               <h2 className="mt-2 text-[22px] font-semibold tracking-tight text-white/95">
                 Log in
               </h2>
               <p className="mt-2 text-sm leading-6 text-white/56">
-                Meld je aan om je persoonlijke omgeving te openen.
+                Sign in to open your personal environment.
               </p>
             </div>
 
@@ -2799,7 +2738,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
               <input
                 value={loginUsername}
                 onChange={(e) => setLoginUsername(e.target.value)}
-                placeholder="Gebruikersnaam"
+                placeholder="Username"
                 className="w-full rounded-[22px] border border-white/10 bg-white/[0.05] px-4 py-3 text-white/95 outline-none transition placeholder:text-white/30 focus:border-white/18 focus:bg-white/[0.07]"
               />
 
@@ -2807,7 +2746,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                 type="password"
                 value={loginPassword}
                 onChange={(e) => setLoginPassword(e.target.value)}
-                placeholder="Wachtwoord"
+                placeholder="Password"
                 className="w-full rounded-[22px] border border-white/10 bg-white/[0.05] px-4 py-3 text-white/95 outline-none transition placeholder:text-white/30 focus:border-white/18 focus:bg-white/[0.07]"
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !loginLoading) {
@@ -2833,7 +2772,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                 }}
                 className="flex-1 rounded-[22px] border border-white/10 bg-white/[0.05] p-3 text-white/90 backdrop-blur-xl transition hover:bg-white/[0.08]"
               >
-                Annuleren
+                Cancel
               </button>
 
               <button
@@ -2841,7 +2780,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                 disabled={loginLoading}
                 className="flex-1 rounded-[22px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] p-3 text-white shadow-[0_12px_30px_rgba(59,130,246,0.28)] transition hover:brightness-110 disabled:opacity-60"
               >
-                {loginLoading ? "Inloggen..." : "Log in"}
+              {loginLoading ? "Signing in..." : "Log in"}
               </button>
             </div>
           </div>
