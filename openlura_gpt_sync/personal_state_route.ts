@@ -149,8 +149,8 @@ export async function POST(req: Request) {
     }
 
     const payload = {
-      key: storageKey,
-      user_id: isAuthenticatedPersonal ? userId : null,
+      key: isAuthenticatedPersonal ? null : storageKey,
+      user_id: isAuthenticatedPersonal ? userId : storageKey,
       chats: Array.isArray(body?.chats) ? body.chats : [],
       memory: Array.isArray(body?.memory) ? body.memory : [],
       updated_at: new Date().toISOString(),
@@ -217,7 +217,7 @@ export async function POST(req: Request) {
         runtime: {
           userId: userId || null,
           mode: userId ? "personal" : "legacy_admin",
-          storageKey,
+          storageKey: payload.user_id || payload.key || null,
           updatedAt: payload.updated_at,
         },
       },

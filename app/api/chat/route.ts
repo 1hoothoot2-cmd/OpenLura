@@ -172,6 +172,32 @@ function buildCacheKey(input: {
   });
 }
 
+function applyFeedbackWeighting(input: {
+  personal: any[];
+  global: any[];
+}) {
+  const PERSONAL_MULTIPLIER = 2.2;
+  const PERSONAL_NEGATIVE_MULTIPLIER = 2.8;
+
+  const normalize = (items: any[], multiplier: number) =>
+    items.map((item) => {
+      const baseWeight =
+        item.type === "down" || item.type === "improve"
+          ? PERSONAL_NEGATIVE_MULTIPLIER
+          : multiplier;
+
+      return {
+        ...item,
+        _weightedScore: baseWeight,
+      };
+    });
+
+  const weightedPersonal = normalize(input.personal, PERSONAL_MULTIPLIER);
+  const weightedGlobal = normalize(input.global, 1);
+
+  return [...weightedPersonal, ...weightedGlobal];
+}
+
 function buildStyleLearningSignals(input: {
   shorter: number;
   clearer: number;
@@ -691,6 +717,120 @@ function normalizePersonalMemoryValue(value: any): string {
   return "";
 }
 
+function updateMemoryWeightsFromFeedback(input: {
+  memoryItems: { text: string; weight: number }[];
+  feedback: any[];
+}) {
+  const BOOST = 0.35;
+  const STRONG_BOOST = 0.6;
+  const DECAY = 0.05;
+
+  return input.memoryItems.map((item) => {
+    let weight = item.weight;
+
+    for (const f of input.feedback) {
+      const text = `${f.userMessage || ""} ${f.message || ""}`.toLowerCase();
+
+      if (!text.includes(item.text.toLowerCase())) continue;
+
+      if (f.type === "up") {
+        weight += BOOST;
+      }
+
+      if (f.type === "down" || f.type === "improve") {
+        weight -= STRONG_BOOST;
+      }
+    }
+
+    // decay (altijd licht omlaag tenzij boosted)
+    weight -= DECAY;
+
+    return {
+      text: item.text,
+      weight: Math.max(0, Math.min(weight, 3)),
+    };
+  });
+}
+
+function extractWeightedPersonalMemoryItems(value: any) {
+  const normalizeItem = (item: any) => {
+    if (typeof item === "string") {
+      const text = item.trim();
+      return text ? { text, weight: 0.5 } : null;
+    }
+
+    if (item && typeof item === "object") {
+      const text = typeof item.text === "string" ? item.text.trim() : "";
+      if (!text) return null;
+
+      const rawWeight =
+        typeof item.weight === "number" && Number.isFinite(item.weight)
+          ? item.weight
+          : 0.5;
+
+      return {
+        text,
+        weight: Math.max(0, Math.min(rawWeight, 3)),
+      };
+    }
+
+    return null;
+  };
+
+  if (Array.isArray(value)) {
+    return value
+      .map(normalizeItem)
+      .filter(Boolean) as { text: string; weight: number }[];
+  }
+
+  if (value && typeof value === "object" && Array.isArray(value.items)) {
+    return value.items
+      .map(normalizeItem)
+      .filter(Boolean) as { text: string; weight: number }[];
+  }
+
+  const normalized = normalizePersonalMemoryValue(value);
+  return normalized ? [{ text: normalized, weight: 0.5 }] : [];
+}
+
+function buildWeightedPersonalMemoryBlock(...values: any[]) {
+  const merged = values
+    .flatMap((value) => extractWeightedPersonalMemoryItems(value))
+    
+  .reduce((acc: { text: string; weight: number }[], item) => {
+    const existing = acc.find(
+        (entry) => entry.text.toLowerCase() === item.text.toLowerCase()
+      );
+
+      if (existing) {
+        existing.weight = Math.max(existing.weight, item.weight);
+        return acc;
+      }
+
+      acc.push(item);
+      return acc;
+    }, [])
+    .sort((a, b) => b.weight - a.weight)
+.map((item) => ({
+  ...item,
+  weight: item.weight >= 1.8 ? item.weight + 0.2 : item.weight,
+}))
+.slice(0, 6);
+
+  return merged
+    .map((item, index) => {
+      const priority =
+        item.weight >= 1.5
+          ? "high"
+          : item.weight >= 0.9
+          ? "medium"
+          : "light";
+
+      return `${index + 1}. [${priority}] ${item.text}`;
+    })
+    .join("\n");
+}
+
 async function fetchSupabasePersonalState(userId: string | null = null) {
   const resolvedUserId = userId ?? null;
 
@@ -741,11 +881,12 @@ async function fetchSupabasePersonalState(userId: string | null = null) {
         : [];
 
       const memoryText =
-        normalizePersonalMemoryValue(row.personalMemory) ||
-        normalizePersonalMemoryValue(row.memory) ||
-        normalizePersonalMemoryValue(row.profile_memory) ||
-        normalizePersonalMemoryValue(row.state?.memory) ||
-        "";
+        buildWeightedPersonalMemoryBlock(
+          row.personalMemory,
+          row.memory,
+          row.profile_memory,
+          row.state?.memory
+        ) || "";
 
       return {
         userId: resolvedUserId,
@@ -851,6 +992,8 @@ function buildPersonalOverrideProfile(input: {
     structure >= 2 && "Use cleaner structure and clearer flow.",
     context >= 2 && shorter < 2 && "Add a bit more why/context when useful.",
     casual >= 2 && "In casual chat, sound lighter, warmer, and less formal.",
+    input.personalFeedbackRows.length > 0 &&
+      "When personal feedback conflicts with global patterns, follow personal feedback first unless the current user request clearly asks otherwise.",
   ].filter(Boolean) as string[];
 
   const avoidPatterns = [
@@ -1528,7 +1671,12 @@ ${personalRecentIssues.join("\n") || "none"}
       return b.total - a.total;
     });
 
-  const bestResponsePreference = rankedResponsePreferences[0];
+  const bestPersonalResponsePreference = rankedResponsePreferences.find(
+  (item: any) => (item.personalUp || 0) > 0 || (item.personalDown || 0) > 0
+);
+
+const bestResponsePreference =
+  bestPersonalResponsePreference || rankedResponsePreferences[0];
   const hasMixedResponseFeedback =
     rankedResponsePreferences.some((item: any) => item.up > 0) &&
     rankedResponsePreferences.some((item: any) => item.down > 0);
@@ -1629,25 +1777,45 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
     return 0.25;
   };
 
-    const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
-    return Math.round(
-      items.reduce((sum: number, f: any) => {
-        const learningType = inferFeedbackLearningType(f);
+    const getPersonalFeedbackBoost = (f: any) => {
+  const isPersonal =
+    f?.userScope === "personal" ||
+    f?.environment === "personal" ||
+    f?._personalRuntime === true;
 
-        if (learningType !== "style") {
-          return sum;
-        }
+  if (!isPersonal) return 1;
 
-        const text = `${f.userMessage || ""} ${f.message || ""}`.toLowerCase();
-        const baseWeight =
-          typeof f.weight === "number" && Number.isFinite(f.weight) ? f.weight : 1;
+  if (f?.type === "down" || f?.type === "improve") {
+    return 2.8;
+  }
 
-        return pattern.test(text)
-          ? sum + getDecayWeight(f.timestamp) * baseWeight
-          : sum;
-      }, 0)
-    );
-  };
+  if (f?.type === "up") {
+    return 1.6;
+  }
+
+  return 2.2;
+};
+
+const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
+  return Math.round(
+    items.reduce((sum: number, f: any) => {
+      const learningType = inferFeedbackLearningType(f);
+
+      if (learningType !== "style") {
+        return sum;
+      }
+
+      const text = `${f.userMessage || ""} ${f.message || ""}`.toLowerCase();
+      const baseWeight =
+        typeof f.weight === "number" && Number.isFinite(f.weight) ? f.weight : 1;
+      const personalBoost = getPersonalFeedbackBoost(f);
+
+      return pattern.test(text)
+        ? sum + getDecayWeight(f.timestamp) * baseWeight * personalBoost
+        : sum;
+    }, 0)
+  );
+};
 
   const getFeedbackSignals = (items: any[]) => ({
     shorter: getWeightedSignalCount(items, /korter|te lang|too long|shorter/),
@@ -1665,7 +1833,23 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
     return "None";
   };
 
+  const personalEffectiveFeedback = effectiveFeedback.filter(
+    (f: any) =>
+      f?.userScope === "personal" ||
+      f?.environment === "personal" ||
+      f?._personalRuntime === true
+  );
+
+  const globalEffectiveFeedback = effectiveFeedback.filter(
+    (f: any) =>
+      f?.userScope !== "personal" &&
+      f?.environment !== "personal" &&
+      f?._personalRuntime !== true
+  );
+
   const feedbackSignals = getFeedbackSignals(effectiveFeedback);
+  const personalFeedbackSignals = getFeedbackSignals(personalEffectiveFeedback);
+  const globalFeedbackSignals = getFeedbackSignals(globalEffectiveFeedback);
 
   const styleLearningSignals = buildStyleLearningSignals({
     shorter: feedbackSignals.shorter,
@@ -1928,6 +2112,7 @@ Fast-path runtime learning:
 - personal environment active: ${isPersonalEnvironment ? "yes" : "no"}
 - learning scope: ${learningScope}
 - personal memory: ${resolvedPersonalMemory || "none"}
+- memory priority rule: when personal memory exists, follow higher-priority memory items before weaker global style hints unless the current user request conflicts
 
 Runtime override block:
 ${runtimeOverrideInstructionBlock}
@@ -1950,6 +2135,11 @@ Fast-path rules:
 - If structure is minimal, keep formatting very light
 - If structure is shortlist, prioritize the strongest options only
 - If personal environment is active, prioritize personal learning over global learning
+- Personal feedback signals override global signals when conflict exists
+- Negative personal feedback must be treated as high priority corrections
+- Treat personal memory as ranked guidance: high before medium before light
+- Memory weights evolve from feedback: reinforce good patterns, suppress bad ones
+- Use personal memory to shape tone, wording, and focus, but never override the user's current request
 - If a strong reusable winner exists for the same message, reuse its shape, directness, and usefulness
 - Do not copy old answers blindly word-for-word
 - If feedback is mixed, create a cleaner balanced version instead of repeating the old answer`,
@@ -2195,6 +2385,25 @@ STYLE LEARNING SIGNALS:
 - less vague: ${cappedLearningStrength.vague} (${learningConfidence.vague})
 - more context: ${cappedLearningStrength.context} (${learningConfidence.context})
 - casual/natural chat tone: ${cappedLearningStrength.casual} (${learningConfidence.casual})
+
+PERSONAL STYLE SIGNALS:
+- shorter answers: ${personalFeedbackSignals.shorter}
+- clearer explanations: ${personalFeedbackSignals.clearer}
+- better structure: ${personalFeedbackSignals.structure}
+- less vague: ${personalFeedbackSignals.vague}
+- more context: ${personalFeedbackSignals.context}
+- casual/natural chat tone: ${personalFeedbackSignals.casual}
+
+GLOBAL STYLE SIGNALS:
+- shorter answers: ${globalFeedbackSignals.shorter}
+- clearer explanations: ${globalFeedbackSignals.clearer}
+- better structure: ${globalFeedbackSignals.structure}
+- less vague: ${globalFeedbackSignals.vague}
+- more context: ${globalFeedbackSignals.context}
+- casual/natural chat tone: ${globalFeedbackSignals.casual}
+
+PRIORITY RULE:
+- current user request > personal feedback signals > global consensus > defaults
 
 RESPONSE STYLE PROFILE:
 ${sharedStyleInstructionBlock}

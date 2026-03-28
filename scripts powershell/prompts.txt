@@ -1,5 +1,7 @@
 npm run dev
 
 git add .
->> git commit -m "add feedback main page"
->> git push
+git commit -m "add feedback main page"
+git push
+
+powershell -ExecutionPolicy Bypass -File .\sync_gpt_files.ps1
