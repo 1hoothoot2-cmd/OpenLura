@@ -44,13 +44,16 @@ async function fetchPersonalStateRow(input: {
   supabaseServiceRoleKey: string;
   userId?: string | null;
 }) {
+  const newestRowOrder = "&order=updated_at.desc.nullslast&limit=1";
+
   const queries = input.userId
-  ? [
-      `select=chats,memory,user_id,key&user_id=eq.${encodeURIComponent(input.userId)}&limit=1`,
-      `select=chats,memory,user_id,key&id=eq.${encodeURIComponent(input.userId)}&limit=1`,
-      `select=chats,memory,user_id,key&key=eq.${encodeURIComponent(input.userId)}&limit=1`,
-    ]
-  : ["select=chats,memory,user_id,key&key=eq.primary&limit=1"];
+    ? [
+        `select=chats,memory,user_id,key,updated_at&user_id=eq.${encodeURIComponent(input.userId)}${newestRowOrder}`,
+        `select=chats,memory,user_id,key,updated_at&id=eq.${encodeURIComponent(input.userId)}${newestRowOrder}`,
+        `select=chats,memory,user_id,key,updated_at&key=eq.${encodeURIComponent(input.userId)}${newestRowOrder}`,
+        `select=chats,memory,user_id,key,updated_at&key=eq.primary${newestRowOrder}`,
+      ]
+    : [`select=chats,memory,user_id,key,updated_at&key=eq.primary${newestRowOrder}`];
 
   for (const query of queries) {
     try {
@@ -99,6 +102,8 @@ export async function GET(req: Request) {
         runtime: {
           userId: userId || null,
           mode: userId ? "personal" : "legacy_admin",
+          storageKey: row?.key || null,
+          updatedAt: row?.updated_at || null,
         },
       },
       {
@@ -197,10 +202,11 @@ const payload = {
       {
         success: true,
         runtime: {
-  userId: userId || null,
-  mode: userId ? "personal" : "legacy_admin",
-  storageKey,
-},
+          userId: userId || null,
+          mode: userId ? "personal" : "legacy_admin",
+          storageKey,
+          updatedAt: payload.updated_at,
+        },
       },
       {
         headers: {
