@@ -64,6 +64,7 @@ const [usage, setUsage] = useState<{
 } | null>(null);
   
   const fileRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
   const chatMenuRef = useRef<HTMLDivElement>(null);
   const preferredActiveChatIdRef = useRef<number | null>(null);
@@ -426,6 +427,10 @@ const hasMeaningfulPersonalState =
 }, [activeChatId, chats, loading]);
 
   useEffect(() => {
+    resizeComposerTextarea();
+  }, [input, image]);
+
+  useEffect(() => {
     if (!isPersonalRoute) return;
 
     const loadPersonalStateFromServer = async (forceApply = false) => {
@@ -639,6 +644,14 @@ const activeChat =
       !c.archived &&
       !c.deleted
   ) ?? null;
+
+const resizeComposerTextarea = () => {
+  const el = inputRef.current;
+  if (!el) return;
+
+  el.style.height = "0px";
+  el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
+};
 
   useEffect(() => {
     const visibleChats = chats.filter(
@@ -1501,7 +1514,7 @@ Geef alleen direct het betere antwoord.`,
 
         updated[index].messages.push({
         role: "ai",
-        content: "",
+        content: "…",
         variant: improveVariant,
         sources: improveSources,
         isStreaming: true,
@@ -1525,7 +1538,7 @@ Geef alleen direct het betere antwoord.`,
 
           updated[index].messages[
             updated[index].messages.length - 1
-          ].content = improvedText;
+          ].content = improvedText || "…";
 
           setChats([...updated]);
         }
@@ -1636,7 +1649,7 @@ setLoadingStage(imageToSend ? "analyzing" : "typing");
 // instant visual feedback (feels faster)
 updated[index].messages.push({
   role: "ai",
-  content: imageToSend ? "Analyzing image..." : "Thinking...",
+  content: "…",
   isStreaming: true,
 });
 
@@ -1824,8 +1837,8 @@ updated[index].messages[
           updated[index].messages.length - 1
         ] = {
           ...updated[index].messages[updated[index].messages.length - 1],
-          content: aiText,
-          isStreaming: false,
+          content: aiText || "…",
+          isStreaming: !aiText.trim(),
         };
 
         setChats([...updated]);
@@ -2111,7 +2124,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 )}
                   {showClearDeletedConfirm && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-[#0a0a1f] p-6 rounded-2xl w-[300px]">
+          <div className="w-[300px] rounded-[28px] border border-white/10 bg-[#0a0a1f]/95 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.38)] backdrop-blur-2xl">
             <h2 className="mb-2">Weet je het zeker?</h2>
             <p className="text-sm opacity-70 mb-4">
               Alle verwijderde chats worden permanent verwijderd.
@@ -2138,7 +2151,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 
       {deleteTargetChatId !== null && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-[#0a0a1f] p-6 rounded-2xl w-[300px]">
+          <div className="w-[300px] rounded-[28px] border border-white/10 bg-[#0a0a1f]/95 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.38)] backdrop-blur-2xl">
             <h2 className="mb-2">Weet je het zeker?</h2>
             <p className="text-sm opacity-70 mb-4">
               Deze chat wordt verplaatst naar Verwijderde chats.
@@ -2165,7 +2178,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 
             {showFeedbackBox && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-[#0a0a1f] p-6 rounded-2xl w-[300px]">
+          <div className="w-[300px] rounded-[28px] border border-white/10 bg-[#0a0a1f]/95 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.38)] backdrop-blur-2xl">
                         <h2 className="mb-2">Feedback / Idee</h2>
             <select
               value={feedbackCategory}
@@ -2195,9 +2208,9 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                             <button
                 onClick={handleIdeaSubmit}
                 disabled={!feedbackText.trim()}
-                className={`flex-1 p-2 rounded-xl ${
+                className={`flex-1 rounded-xl p-2 transition ${
                   feedbackText.trim()
-                    ? "bg-purple-500"
+                    ? "bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] text-white shadow-[0_10px_24px_rgba(59,130,246,0.28)]"
                     : "bg-white/10 text-white/30"
                 }`}
               >
@@ -2209,10 +2222,10 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
       )}
 
       <div className="flex-1 min-w-0 flex items-stretch justify-center md:p-4 pt-0">
-        <div className="w-full min-w-0 max-w-2xl h-full md:h-[90%] flex flex-col bg-white/10 md:rounded-3xl backdrop-blur-2xl">
+        <div className="flex h-full w-full min-w-0 max-w-2xl flex-col border border-white/10 bg-white/[0.055] shadow-[0_24px_80px_rgba(0,0,0,0.28)] backdrop-blur-2xl md:h-[90%] md:rounded-[32px]">
 
           {usage && usage.percentage >= 0.8 && !upgradeNotice.visible && (
-            <div className="mx-4 mt-4 rounded-2xl border border-yellow-300/30 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-100">
+            <div className="mx-4 mt-4 rounded-[24px] border border-yellow-300/20 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-100 shadow-[0_8px_24px_rgba(0,0,0,0.12)] backdrop-blur-xl">
               <div className="font-medium">
                 Bijna limiet bereikt
               </div>
@@ -2223,7 +2236,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
           )}
 
           {upgradeNotice.visible && (
-            <div className="mx-4 mt-4 rounded-2xl border border-amber-300/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+            <div className="mx-4 mt-4 rounded-[24px] border border-amber-300/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100 shadow-[0_8px_24px_rgba(0,0,0,0.12)] backdrop-blur-xl">
               <div className="font-medium">
                 Limiet bereikt {upgradeNotice.tier ? `(${upgradeNotice.tier})` : ""}
               </div>
@@ -2233,19 +2246,20 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 
           <div
   ref={messagesRef}
-  className={`${messageShellClass} flex-1 overflow-x-hidden overflow-y-auto pb-52 md:pb-4 ${
-    activeChat?.messages?.length ? "p-4 pt-20 md:pt-4 space-y-3" : "p-4 pt-20 md:pt-4 flex items-center justify-center"
+  className={`${messageShellClass} flex-1 overflow-x-hidden overflow-y-auto pb-52 md:pb-5 ${
+    activeChat?.messages?.length ? "p-4 pt-20 md:px-5 md:pt-5 space-y-3.5" : "p-4 pt-20 md:px-5 md:pt-5 flex items-center justify-center"
   }`}
 >
                         {activeChat?.messages?.length === 0 ? (
-              <div className="w-full max-w-2xl text-center px-6 flex flex-col items-center justify-center h-full -mt-20">
-                                <h1 className="text-2xl md:text-4xl font-semibold tracking-tight mb-4 bg-gradient-to-r from-white via-white to-white/60 bg-clip-text text-transparent">
-                  Waar wil je vandaag mee verder?
-                </h1>
-                <p className="text-sm opacity-30">
-                  Begin met een vraag
-                </p>
-                
+              <div className="flex h-full w-full max-w-2xl -mt-20 flex-col items-center justify-center px-6 text-center">
+                <div className="rounded-[28px] border border-white/8 bg-white/[0.035] px-8 py-8 shadow-[0_18px_50px_rgba(0,0,0,0.22)] backdrop-blur-xl">
+                  <h1 className="mb-3 bg-gradient-to-r from-white via-white to-white/70 bg-clip-text text-2xl font-semibold tracking-tight text-transparent md:text-4xl">
+                    Waar wil je vandaag mee verder?
+                  </h1>
+                  <p className="mx-auto max-w-md text-sm leading-6 text-white/42">
+                    Stel een vraag, upload een afbeelding of werk verder in een eerdere chat.
+                  </p>
+                </div>
               </div>
             ) : (
               <>
@@ -2264,12 +2278,19 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                       : { style: [], content: [] };
 
                     return (
-                      <div key={i} className={messageShellClass}>
-                        <div className={`${messageBubbleClass} min-w-0 max-w-[75%] overflow-hidden p-3 rounded-2xl whitespace-pre-line ${
-                          msg.role === "user"
-                            ? "bg-gradient-to-r from-purple-500 to-blue-500 ml-auto text-white"
-                            : "bg-white/20"
-                        }`}>
+                      <div
+                        key={i}
+                        className={`${messageShellClass} transition-[opacity,transform] duration-200 ${
+                          msg.role === "user" ? "mb-2" : "mb-4"
+                        }`}
+                      >
+                                                <div
+                          className={`${messageBubbleClass} min-w-0 max-w-[78%] overflow-hidden whitespace-pre-line rounded-[24px] px-4 py-3.5 transition-[box-shadow,transform,background-color,border-color] duration-200 ${
+                            msg.role === "user"
+                              ? "ml-auto bg-gradient-to-r from-[#1d4ed8] to-[#2563eb] text-white shadow-[0_10px_28px_rgba(37,99,235,0.24)]"
+                              : "border border-white/10 bg-white/[0.06] text-white/92 backdrop-blur-xl shadow-[0_8px_28px_rgba(0,0,0,0.18)]"
+                          }`}
+                        >
                           {msg.image && (
                             <img
                               src={msg.image}
@@ -2283,36 +2304,58 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
     className={`${msg.image ? "mt-3 " : ""}${messageBubbleClass} min-w-0 max-w-full overflow-hidden`}
   >
     {msg.isStreaming && msg.content === "…" ? (
-      <span className="opacity-50">thinking...</span>
+      <span className="inline-flex items-center gap-2 text-white/55">
+        <span className="flex items-center gap-1">
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white/55" />
+          <span
+            className="h-1.5 w-1.5 animate-pulse rounded-full bg-white/45"
+            style={{ animationDelay: "120ms" }}
+          />
+          <span
+            className="h-1.5 w-1.5 animate-pulse rounded-full bg-white/35"
+            style={{ animationDelay: "240ms" }}
+          />
+        </span>
+        <span className="text-sm">OpenLura denkt na</span>
+      </span>
     ) : (
-      msg.content.split(/(\s+)/).map((part: string, idx: number) => {
-        const isUrl = /^https?:\/\/\S+$/i.test(part);
+      <>
+        {msg.content.split(/(\s+)/).map((part: string, idx: number) => {
+          const isUrl = /^https?:\/\/\S+$/i.test(part);
 
-        if (isUrl) {
+          if (isUrl) {
+            return (
+              <a
+                key={idx}
+                href={part}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline break-all max-w-full text-blue-300 underline"
+                style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
+              >
+                {part}
+              </a>
+            );
+          }
+
           return (
-            <a
+            <span
               key={idx}
-              href={part}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline break-all max-w-full text-blue-300 underline"
+              className="break-words"
               style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
             >
               {part}
-            </a>
+            </span>
           );
-        }
+        })}
 
-        return (
+        {msg.isStreaming && msg.content !== "…" && (
           <span
-            key={idx}
-            className="break-words"
-            style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
-          >
-            {part}
-          </span>
-        );
-      })
+            className="ml-0.5 inline-block h-5 w-[2px] translate-y-[3px] rounded-full bg-white/60 align-bottom animate-pulse"
+            aria-hidden="true"
+          />
+        )}
+      </>
     )}
   </div>
 ) : null}
@@ -2325,7 +2368,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                           msg.content !== "🤖 Bedankt voor je feedback. Ik sla dit op en gebruik het om toekomstige antwoorden te verbeteren." && (
                             <>
                               {isLastAI && (
-                                <div className="mt-2 p-2 rounded-xl bg-white/5 text-xs opacity-70">
+                                <div className="mt-3 rounded-2xl border border-white/8 bg-white/[0.035] px-3 py-3 text-xs text-white/65">
                                   <p className="mb-2">🧠 AI Learning actief:</p>
 
                                   {activeLearningDebug.style.length === 0 &&
@@ -2363,7 +2406,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                                 </div>
                               )}
 
-                                                            <div className="flex gap-2 mt-1 text-sm opacity-70 items-center">
+                                                            <div className="mt-2 flex items-center gap-3 pl-1 text-sm text-white/55">
                                 {!feedbackGiven[activeChatId + "-" + i] && (
                                   <>
                                     <button onClick={() => handleFeedback(activeChatId!, i, "up")}>👍</button>
@@ -2372,14 +2415,14 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                                 )}
 
                                 {feedbackUI[activeChatId + "-" + i] && (
-                                  <span className="text-xs opacity-70 ml-2">
+                                  <span className="ml-1 text-xs text-white/55">
                                     {feedbackUI[activeChatId + "-" + i]}
                                   </span>
                                 )}
                               </div>
 
                 {Array.isArray(msg.sources) && msg.sources.length > 0 && (
-          <div className="mt-3 space-y-2">
+          <div className="mt-4 space-y-2">
             <p className="text-[11px] uppercase tracking-wide text-white/35">
               🔎 Bronnen
             </p>
@@ -2402,7 +2445,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                     href={source.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block w-full min-w-0 max-w-full overflow-hidden p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all border border-white/10"
+                    className="block w-full min-w-0 max-w-full overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-3 hover:bg-white/[0.08] transition-all"
                     title={source.title || source.url}
                   >
                     <p
@@ -2429,13 +2472,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                     );
                   })}
 
-                                {loading && (
-                  <div className="opacity-70 text-sm">
-                    {loadingStage === "analyzing"
-                      ? "OpenLura is analyzing image..."
-                      : "OpenLura is typing..."}
-                  </div>
-                )}
+                                {loading && null}
               </>
             )}
           </div>
@@ -2445,13 +2482,13 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
     activeChat?.messages?.length === 0
       ? "mt-6 w-full max-w-2xl"
       : composerShellClass + " fixed bottom-0 left-0 right-0 md:static z-[90] p-3 pb-4 md:border-0 bg-[#050510] md:bg-transparent"
-  } flex w-full min-w-0 max-w-full overflow-x-hidden items-end gap-2 rounded-[28px] border border-white/10 bg-white/5 backdrop-blur-xl px-3 py-3 shadow-[0_10px_40px_rgba(0,0,0,0.25)]`}
+  } flex w-full min-w-0 max-w-full overflow-x-hidden items-end gap-2 rounded-[32px] border border-white/10 bg-white/[0.055] px-3 py-3 shadow-[0_20px_56px_rgba(0,0,0,0.26)] backdrop-blur-2xl`}
 >
 
                         <button
               type="button"
               onClick={() => fileRef.current?.click()}
-              className="h-11 w-11 shrink-0 flex items-center justify-center rounded-full bg-white/8 text-lg hover:bg-white/12 transition-colors"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/8 bg-white/[0.05] text-lg text-white/80 transition-colors hover:bg-white/[0.10]"
             >
               +
             </button>
@@ -2469,12 +2506,12 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
               <div className="relative shrink-0">
                 <img
                   src={image}
-                  className="w-16 h-16 object-cover rounded-2xl border border-white/10"
+                  className="h-16 w-16 rounded-2xl border border-white/10 object-cover shadow-[0_10px_24px_rgba(0,0,0,0.22)]"
                 />
                 <button
                   type="button"
                   onClick={() => setImage(null)}
-                  className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-black/70 border border-white/10 text-xs flex items-center justify-center"
+                  className="absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full border border-white/10 bg-black/70 text-xs"
                 >
                   ×
                 </button>
@@ -2482,6 +2519,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
             )}
 
                         <textarea
+  ref={inputRef}
   value={input}
   onFocus={() => {
     if (window.innerWidth < 768) {
@@ -2490,18 +2528,27 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
   }}
   onChange={(e) => {
     setInput(e.target.value);
-    e.target.style.height = "auto";
-    e.target.style.height = `${Math.min(e.target.scrollHeight, 140)}px`;
   }}
   onKeyDown={(e) => {
-    const isMobile = window.innerWidth < 768;
+    const nativeEvent = e.nativeEvent as KeyboardEvent & {
+      isComposing?: boolean;
+    };
 
-    if (!isMobile && e.key === "Enter" && !e.shiftKey) {
+    if (nativeEvent.isComposing) {
+      return;
+    }
+
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
+
+      if (loading) {
+        return;
+      }
+
       sendMessage();
     }
   }}
-  className={`${composerInputClass} flex-1 bg-transparent rounded-2xl min-h-[52px] max-h-[140px] outline-none px-2 py-3 placeholder:text-white/35`}
+  className={`${composerInputClass} flex-1 rounded-2xl bg-transparent px-2 py-3 text-[15px] leading-6 text-white/95 outline-none placeholder:text-white/32 min-h-[52px] max-h-[140px]`}
   placeholder={activeChat?.messages?.length === 0 ? "Ask anything" : "Message OpenLura..."}
   rows={1}
 />
@@ -2510,14 +2557,13 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
   type="button"
   disabled={!loading && !input.trim() && !image}
   onClick={loading ? stopStreaming : sendMessage}
-
-    className={`w-12 h-12 shrink-0 flex items-center justify-center rounded-full text-xl shadow-lg touch-manipulation transition-all active:scale-95 ${
-      loading
-        ? "bg-red-500 text-white"
-        : !input.trim() && !image
-        ? "bg-white/10 text-white/30 shadow-none"
-        : "bg-gradient-to-r from-purple-500 to-blue-500 text-white shadow-purple-500/20"
-    }`}
+  className={`flex h-12 w-12 shrink-0 touch-manipulation items-center justify-center rounded-full text-xl transition-all active:scale-95 ${
+    loading
+      ? "bg-red-500 text-white shadow-[0_8px_24px_rgba(239,68,68,0.35)]"
+      : !input.trim() && !image
+      ? "bg-white/[0.08] text-white/28 shadow-none"
+      : "bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] text-white shadow-[0_12px_28px_rgba(59,130,246,0.34)] hover:brightness-110"
+  }`}
 >
   {loading ? "■" : "↑"}
 </button>
@@ -2528,46 +2574,54 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 
       {isPersonalEnvironment && (
         <aside className="hidden xl:flex w-[320px] p-4 pr-5">
-          <div className="w-full h-full md:h-[90%] bg-white/10 rounded-3xl backdrop-blur-2xl p-4 flex flex-col">
-            <div className="mb-4">
-              <p className="text-xs uppercase tracking-wide opacity-50">
+          <div className="flex h-full w-full flex-col rounded-[32px] border border-white/10 bg-white/[0.055] p-4 shadow-[0_20px_50px_rgba(0,0,0,0.28)] backdrop-blur-2xl md:h-[90%]">
+            <div className="mb-5 rounded-[28px] border border-white/8 bg-white/[0.035] px-4 py-4">
+              <p className="text-[11px] uppercase tracking-[0.16em] text-white/38">
                 Persoonlijke omgeving
               </p>
-              <h2 className="text-lg font-semibold mt-1">
+              <h2 className="mt-2 text-[20px] font-semibold tracking-tight text-white/95">
                 Training dashboard
               </h2>
-              <p className="text-sm opacity-60 mt-2">
+              <p className="mt-2 text-sm leading-6 text-white/56">
                 Alleen zichtbaar in deze omgeving op desktop.
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 mb-4 text-sm">
-              <div className="p-3 rounded-2xl bg-white/5">
-                <p className="text-xs opacity-50">Memory</p>
-                <p className="text-xl mt-1">{getPersonalEnvironmentInsights().memoryCount}</p>
+            <div className="mb-5 grid grid-cols-2 gap-3 text-sm">
+              <div className="rounded-[24px] border border-white/8 bg-white/[0.04] px-4 py-3 shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
+                <p className="text-[11px] uppercase tracking-[0.14em] text-white/38">Memory</p>
+                <p className="mt-2 text-2xl font-semibold tracking-tight text-white/95">
+                  {getPersonalEnvironmentInsights().memoryCount}
+                </p>
               </div>
-              <div className="p-3 rounded-2xl bg-white/5">
-                <p className="text-xs opacity-50">Verbeteringen</p>
-                <p className="text-xl mt-1">{getPersonalEnvironmentInsights().improvementCount}</p>
+              <div className="rounded-[24px] border border-white/8 bg-white/[0.04] px-4 py-3 shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
+                <p className="text-[11px] uppercase tracking-[0.14em] text-white/38">Verbeteringen</p>
+                <p className="mt-2 text-2xl font-semibold tracking-tight text-white/95">
+                  {getPersonalEnvironmentInsights().improvementCount}
+                </p>
               </div>
-              <div className="p-3 rounded-2xl bg-white/5">
-                <p className="text-xs opacity-50">Negatief</p>
-                <p className="text-xl mt-1">{getPersonalEnvironmentInsights().negativeCount}</p>
+              <div className="rounded-[24px] border border-white/8 bg-white/[0.04] px-4 py-3 shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
+                <p className="text-[11px] uppercase tracking-[0.14em] text-white/38">Negatief</p>
+                <p className="mt-2 text-2xl font-semibold tracking-tight text-white/95">
+                  {getPersonalEnvironmentInsights().negativeCount}
+                </p>
               </div>
-              <div className="p-3 rounded-2xl bg-white/5">
-                <p className="text-xs opacity-50">Positief</p>
-                <p className="text-xl mt-1">{getPersonalEnvironmentInsights().positiveCount}</p>
+              <div className="rounded-[24px] border border-white/8 bg-white/[0.04] px-4 py-3 shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
+                <p className="text-[11px] uppercase tracking-[0.14em] text-white/38">Positief</p>
+                <p className="mt-2 text-2xl font-semibold tracking-tight text-white/95">
+                  {getPersonalEnvironmentInsights().positiveCount}
+                </p>
               </div>
             </div>
 
-            <div className="mb-4 p-3 rounded-2xl bg-white/5">
-              <p className="text-xs uppercase tracking-wide opacity-50 mb-2">
+            <div className="mb-4 rounded-[28px] border border-white/8 bg-white/[0.035] px-4 py-4">
+              <p className="mb-3 text-[11px] uppercase tracking-[0.16em] text-white/38">
                 Actieve stijlpunten
               </p>
               {getPersonalEnvironmentInsights().styleSignals.length === 0 ? (
-                <p className="text-sm opacity-50">Nog geen duidelijke stijl-signalen</p>
+                <p className="text-sm leading-6 text-white/50">Nog geen duidelijke stijl-signalen</p>
               ) : (
-                <div className="space-y-2 text-sm">
+                <div className="space-y-2 text-sm text-white/78">
                   {getPersonalEnvironmentInsights().styleSignals.map((item, idx) => (
                     <p key={idx}>• {item}</p>
                   ))}
@@ -2575,14 +2629,14 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
               )}
             </div>
 
-            <div className="mb-4 p-3 rounded-2xl bg-white/5">
-              <p className="text-xs uppercase tracking-wide opacity-50 mb-2">
+            <div className="mb-4 rounded-[28px] border border-white/8 bg-white/[0.035] px-4 py-4">
+              <p className="mb-3 text-[11px] uppercase tracking-[0.16em] text-white/38">
                 Persoonlijke AI status
               </p>
               {getPersonalEnvironmentInsights().contentSignals.length === 0 ? (
-                <p className="text-sm opacity-50">Nog geen persoonlijke content-signalen</p>
+                <p className="text-sm leading-6 text-white/50">Nog geen persoonlijke content-signalen</p>
               ) : (
-                <div className="space-y-2 text-sm">
+                <div className="space-y-2 text-sm text-white/78">
                   {getPersonalEnvironmentInsights().contentSignals.map((item, idx) => (
                     <p key={idx}>• {item}</p>
                   ))}
@@ -2590,10 +2644,10 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
               )}
             </div>
 
-            <div className="mt-auto space-y-2">
+            <div className="mt-auto space-y-2.5">
               <button
                 onClick={() => setShowFeedbackBox(true)}
-                className="w-full p-3 rounded-2xl bg-white/10 hover:bg-white/20 text-left"
+                className="w-full rounded-[24px] border border-white/10 bg-white/[0.05] p-3 text-left text-white/90 backdrop-blur-xl transition hover:bg-white/[0.08]"
               >
                 ✍️ Voeg persoonlijk verbeterpunt toe
               </button>
@@ -2602,14 +2656,14 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                 onClick={() => {
                   window.open("/analytics", "_blank", "noopener,noreferrer");
                 }}
-                className="w-full p-3 rounded-2xl bg-white/10 hover:bg-white/20 text-left"
+                className="w-full rounded-[24px] border border-white/10 bg-white/[0.05] p-3 text-left text-white/90 backdrop-blur-xl transition hover:bg-white/[0.08]"
               >
                 📊 Open analytics
               </button>
 
               <button
                 onClick={handlePersonalLogout}
-                className="w-full p-3 rounded-2xl bg-red-500/20 hover:bg-red-500/30 text-left text-red-200"
+                className="w-full rounded-[24px] border border-red-400/20 bg-red-500/16 p-3 text-left text-red-200 transition hover:bg-red-500/24"
               >
                 🚪 Log uit
               </button>
@@ -2665,7 +2719,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                   setLoginUsername("");
                   setLoginPassword("");
                 }}
-                className="flex-1 p-3 rounded-2xl bg-white/10 hover:bg-white/20"
+                className="flex-1 p-3 rounded-2xl bg-white/10 hover:bg-white/[0.06] backdrop-blur-xl border border-white/10"
               >
                 Annuleren
               </button>

@@ -2124,7 +2124,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 )}
                   {showClearDeletedConfirm && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-[#0a0a1f] p-6 rounded-2xl w-[300px]">
+          <div className="w-[300px] rounded-[28px] border border-white/10 bg-[#0a0a1f]/95 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.38)] backdrop-blur-2xl">
             <h2 className="mb-2">Weet je het zeker?</h2>
             <p className="text-sm opacity-70 mb-4">
               Alle verwijderde chats worden permanent verwijderd.
@@ -2151,7 +2151,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 
       {deleteTargetChatId !== null && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-[#0a0a1f] p-6 rounded-2xl w-[300px]">
+          <div className="w-[300px] rounded-[28px] border border-white/10 bg-[#0a0a1f]/95 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.38)] backdrop-blur-2xl">
             <h2 className="mb-2">Weet je het zeker?</h2>
             <p className="text-sm opacity-70 mb-4">
               Deze chat wordt verplaatst naar Verwijderde chats.
@@ -2178,7 +2178,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 
             {showFeedbackBox && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-[#0a0a1f] p-6 rounded-2xl w-[300px]">
+          <div className="w-[300px] rounded-[28px] border border-white/10 bg-[#0a0a1f]/95 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.38)] backdrop-blur-2xl">
                         <h2 className="mb-2">Feedback / Idee</h2>
             <select
               value={feedbackCategory}
@@ -2222,10 +2222,10 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
       )}
 
       <div className="flex-1 min-w-0 flex items-stretch justify-center md:p-4 pt-0">
-        <div className="w-full min-w-0 max-w-2xl h-full md:h-[90%] flex flex-col bg-white/10 md:rounded-3xl backdrop-blur-2xl">
+        <div className="flex h-full w-full min-w-0 max-w-2xl flex-col border border-white/10 bg-white/[0.055] shadow-[0_24px_80px_rgba(0,0,0,0.28)] backdrop-blur-2xl md:h-[90%] md:rounded-[32px]">
 
           {usage && usage.percentage >= 0.8 && !upgradeNotice.visible && (
-            <div className="mx-4 mt-4 rounded-2xl border border-yellow-300/30 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-100">
+            <div className="mx-4 mt-4 rounded-[24px] border border-yellow-300/20 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-100 shadow-[0_8px_24px_rgba(0,0,0,0.12)] backdrop-blur-xl">
               <div className="font-medium">
                 Bijna limiet bereikt
               </div>
@@ -2236,7 +2236,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
           )}
 
           {upgradeNotice.visible && (
-            <div className="mx-4 mt-4 rounded-2xl border border-amber-300/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+            <div className="mx-4 mt-4 rounded-[24px] border border-amber-300/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100 shadow-[0_8px_24px_rgba(0,0,0,0.12)] backdrop-blur-xl">
               <div className="font-medium">
                 Limiet bereikt {upgradeNotice.tier ? `(${upgradeNotice.tier})` : ""}
               </div>
@@ -2246,8 +2246,8 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 
           <div
   ref={messagesRef}
-  className={`${messageShellClass} flex-1 overflow-x-hidden overflow-y-auto pb-52 md:pb-4 ${
-    activeChat?.messages?.length ? "p-4 pt-20 md:pt-4 space-y-3" : "p-4 pt-20 md:pt-4 flex items-center justify-center"
+  className={`${messageShellClass} flex-1 overflow-x-hidden overflow-y-auto pb-52 md:pb-5 ${
+    activeChat?.messages?.length ? "p-4 pt-20 md:px-5 md:pt-5 space-y-3.5" : "p-4 pt-20 md:px-5 md:pt-5 flex items-center justify-center"
   }`}
 >
                         {activeChat?.messages?.length === 0 ? (
@@ -2482,7 +2482,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
     activeChat?.messages?.length === 0
       ? "mt-6 w-full max-w-2xl"
       : composerShellClass + " fixed bottom-0 left-0 right-0 md:static z-[90] p-3 pb-4 md:border-0 bg-[#050510] md:bg-transparent"
-  } flex w-full min-w-0 max-w-full overflow-x-hidden items-end gap-2 rounded-[32px] border border-white/10 bg-white/[0.06] px-3 py-3 shadow-[0_18px_50px_rgba(0,0,0,0.30)] backdrop-blur-2xl`}
+  } flex w-full min-w-0 max-w-full overflow-x-hidden items-end gap-2 rounded-[32px] border border-white/10 bg-white/[0.055] px-3 py-3 shadow-[0_20px_56px_rgba(0,0,0,0.26)] backdrop-blur-2xl`}
 >
 
                         <button

@@ -31,6 +31,8 @@ export default function Sidebar({
   setSearch,
   searchedPinnedChats,
   regularChats,
+  archivedChats,
+  deletedChats,
   activeChatId,
   activateChat,
   openChatMenuId,
@@ -38,6 +40,9 @@ export default function Sidebar({
   togglePinnedChat,
   archiveChat,
   deleteChat,
+  restoreArchivedChat,
+  restoreDeletedChat,
+  clearDeletedChats,
 }: Props) {
   const renderChatRow = (chat: any, isPinned: boolean) => (
     <div
@@ -120,7 +125,7 @@ export default function Sidebar({
             createNewChat();
             setMobileMenu(false);
           }}
-          className="mb-3 rounded-xl bg-gradient-to-r from-purple-500 to-blue-500 p-2"
+          className="mb-3 rounded-xl bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] p-2"
         >
           + New Chat
         </button>
@@ -156,8 +161,83 @@ export default function Sidebar({
                   No chats found
                 </div>
               )}
+              </div>
             </div>
-          </div>
+
+          {/* ARCHIVED */}
+          {archivedChats.length > 0 && (
+            <div>
+              <div className="mb-2 px-1 text-[11px] uppercase opacity-40">
+                Archived
+              </div>
+              <div className="space-y-1">
+                {archivedChats.map((chat) => (
+                  <div
+                    key={chat.id}
+                    className="group flex items-center justify-between rounded-xl px-3 py-2 text-sm transition hover:bg-white/10"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        activateChat(chat.id);
+                        setMobileMenu(false);
+                      }}
+                      className="flex-1 text-left text-white/70"
+                    >
+                      {chat.title || "Chat"}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => restoreArchivedChat(chat.id)}
+                      className="text-xs text-white/60 opacity-0 transition group-hover:opacity-100 hover:text-white"
+                    >
+                      Restore
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* DELETED */}
+          {deletedChats.length > 0 && (
+            <div>
+              <div className="mb-2 flex items-center justify-between px-1">
+                <span className="text-[11px] uppercase opacity-40">
+                  Deleted
+                </span>
+                <button
+                  type="button"
+                  onClick={clearDeletedChats}
+                  className="text-[10px] text-red-300 transition hover:text-red-200"
+                >
+                  Clear
+                </button>
+              </div>
+
+              <div className="space-y-1">
+                {deletedChats.map((chat) => (
+                  <div
+                    key={chat.id}
+                    className="group flex items-center justify-between rounded-xl bg-red-500/5 px-3 py-2 text-sm transition hover:bg-red-500/10"
+                  >
+                    <span className="flex-1 text-white/60 line-through">
+                      {chat.title || "Chat"}
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={() => restoreDeletedChat(chat.id)}
+                      className="text-xs text-white/60 opacity-0 transition group-hover:opacity-100 hover:text-white"
+                    >
+                      Restore
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
