@@ -1,4 +1,5 @@
 "use client";
+import Sidebar from "@/components/chat/Sidebar";
 import { useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 
@@ -63,6 +64,7 @@ const [usage, setUsage] = useState<{
 } | null>(null);
   
   const fileRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
   const chatMenuRef = useRef<HTMLDivElement>(null);
   const preferredActiveChatIdRef = useRef<number | null>(null);
@@ -425,6 +427,10 @@ const hasMeaningfulPersonalState =
 }, [activeChatId, chats, loading]);
 
   useEffect(() => {
+    resizeComposerTextarea();
+  }, [input, image]);
+
+  useEffect(() => {
     if (!isPersonalRoute) return;
 
     const loadPersonalStateFromServer = async (forceApply = false) => {
@@ -639,6 +645,14 @@ const activeChat =
       !c.deleted
   ) ?? null;
 
+const resizeComposerTextarea = () => {
+  const el = inputRef.current;
+  if (!el) return;
+
+  el.style.height = "0px";
+  el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
+};
+
   useEffect(() => {
     const visibleChats = chats.filter(
       (chat: any) => !chat.archived && !chat.deleted
@@ -759,11 +773,17 @@ const activeChat =
       deleted: boolean;
     }>
   ) => {
-    const updatedChats = chats.map((chat: any) =>
-      chat.id === chatId ? { ...chat, ...updates } : chat
-    );
+    const updatedChats = chats.map((chat: any) => {
+  if (chat.id !== chatId) return chat;
 
-    setChats(updatedChats);
+  return {
+    ...chat,
+    ...updates,
+  };
+});
+
+// 🔥 force new reference + React sync zekerheid
+setChats([...updatedChats]);
 
     if (activeChatId === chatId && (updates.archived || updates.deleted)) {
       const nextVisibleChat = updatedChats.find(
@@ -802,10 +822,11 @@ const activeChat =
     });
   };
 
-      const deleteChat = (chatId: number) => {
-    setDeleteTargetChatId(chatId);
-    setOpenChatMenuId(null);
-  };
+   const deleteChat = (chatId: number) => {
+  // ensure menu sluit en state clean is
+  setOpenChatMenuId(null);
+  setDeleteTargetChatId(chatId);
+};
 
   const confirmDeleteChat = () => {
     if (deleteTargetChatId === null) return;
@@ -843,10 +864,12 @@ const activeChat =
   );
 
   const archivedChats = chats.filter(
-    (chat: any) => chat.archived && !chat.deleted
-  );
+  (chat: any) => chat.archived === true && chat.deleted !== true
+);
 
-    const deletedChats = chats.filter((chat: any) => chat.deleted);
+const deletedChats = chats.filter(
+  (chat: any) => chat.deleted === true
+);
 
     const clearDeletedChats = () => {
     setShowClearDeletedConfirm(true);
@@ -1500,7 +1523,7 @@ Geef alleen direct het betere antwoord.`,
 
         updated[index].messages.push({
         role: "ai",
-        content: "",
+        content: "…",
         variant: improveVariant,
         sources: improveSources,
         isStreaming: true,
@@ -1524,7 +1547,7 @@ Geef alleen direct het betere antwoord.`,
 
           updated[index].messages[
             updated[index].messages.length - 1
-          ].content = improvedText;
+          ].content = improvedText || "…";
 
           setChats([...updated]);
         }
@@ -1635,7 +1658,7 @@ setLoadingStage(imageToSend ? "analyzing" : "typing");
 // instant visual feedback (feels faster)
 updated[index].messages.push({
   role: "ai",
-  content: imageToSend ? "Analyzing image..." : "Thinking...",
+  content: "…",
   isStreaming: true,
 });
 
@@ -1823,8 +1846,8 @@ updated[index].messages[
           updated[index].messages.length - 1
         ] = {
           ...updated[index].messages[updated[index].messages.length - 1],
-          content: aiText,
-          isStreaming: false,
+          content: aiText || "…",
+          isStreaming: !aiText.trim(),
         };
 
         setChats([...updated]);
@@ -2072,352 +2095,61 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
     <main className="fixed inset-0 flex bg-[#050510] text-white overflow-hidden">
       <button
   onClick={() => setMobileMenu(!mobileMenu)}
-  className="fixed top-4 left-4 z-[70] md:hidden bg-white/10 backdrop-blur-xl p-2 rounded-full"
+  className="fixed left-4 top-4 z-[70] flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/[0.07] text-white/88 shadow-[0_10px_30px_rgba(0,0,0,0.22)] backdrop-blur-2xl transition hover:bg-white/[0.11] md:hidden"
 >
   ☰
 </button>
 
-                  <div className={`w-[88vw] max-w-72 p-4 bg-white/5 backdrop-blur-xl flex flex-col fixed md:relative top-0 left-0 z-50 h-full overflow-hidden transform transition-transform duration-300 ${
-        mobileMenu ? "translate-x-0" : "-translate-x-full md:translate-x-0"
-      }`}>
-        
-        <button
-          onClick={() => {
-  createNewChat();
-  setMobileMenu(false);
-}}
-          className="mb-3 p-2 rounded-xl bg-gradient-to-r from-purple-500 to-blue-500"
-        >
-          + New Chat
-        </button>
+<Sidebar
+  mobileMenu={mobileMenu}
+  setMobileMenu={setMobileMenu}
+  createNewChat={createNewChat}
+  search={search}
+  setSearch={setSearch}
+  searchedPinnedChats={searchedPinnedChats}
+  regularChats={regularChats}
+  archivedChats={archivedChats}
+  deletedChats={deletedChats}
+  activeChatId={activeChatId}
+  activateChat={activateChat}
+  openChatMenuId={openChatMenuId}
+  setOpenChatMenuId={setOpenChatMenuId}
+  togglePinnedChat={togglePinnedChat}
+  archiveChat={archiveChat}
+  deleteChat={deleteChat}
+  restoreArchivedChat={restoreArchivedChat}
+  restoreDeletedChat={restoreDeletedChat}
+  clearDeletedChats={clearDeletedChats}
+  isPersonalRoute={isPersonalRoute}
+  setShowFeedbackBox={setShowFeedbackBox}
+  setShowLoginBox={setShowLoginBox}
+/>
 
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search active chats..."
-          className="mb-3 p-2 rounded-xl bg-white/10"
-        />
-
-                        <div className="flex-1 overflow-y-auto space-y-4 pr-1">
-          {searchedPinnedChats.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-xs uppercase tracking-wide opacity-50 px-1">
-                Vastgemaakt
-              </p>
-
-              {searchedPinnedChats.map((chat: any) => (
-                <div
-                  key={chat.id}
-                  className={`group relative p-2 rounded-lg ${
-  activeChatId === chat.id
-    ? "bg-white/20 ring-1 ring-white/20"
-    : "bg-white/5 hover:bg-white/10"
-}`}
-                >
-                                    <div
-                    onClick={() => {
-                      activateChat(chat.id);
-                      setMobileMenu(false);
-                    }}
-                                        className="pr-8 cursor-pointer flex items-center gap-2 min-w-0"
-                  >
-                    <span className="text-xs opacity-70">📌</span>
-                                        <span className="truncate">{chat.title}</span>
-                  </div>
-
-                                    <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setOpenChatMenuId((prev) =>
-                        prev === chat.id ? null : chat.id
-                      );
-                    }}
-                    className="absolute right-1 top-1 h-9 w-9 flex items-center justify-center rounded-full opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:bg-white/10"
-                  >
-                    ⋯
-                  </button>
-
-                  {openChatMenuId === chat.id && (
-                                        <div ref={chatMenuRef} className="absolute right-2 top-10 z-50 w-40 rounded-xl bg-[#101025] border border-white/10 shadow-xl overflow-hidden">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          togglePinnedChat(chat.id);
-                        }}
-                        className="w-full text-left px-3 py-2 hover:bg-white/10"
-                      >
-                        Losmaken
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          archiveChat(chat.id);
-                        }}
-                        className="w-full text-left px-3 py-2 hover:bg-white/10"
-                      >
-                        Archief
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteChat(chat.id);
-                        }}
-                        className="w-full text-left px-3 py-2 hover:bg-white/10 text-red-300"
-                      >
-                        Verwijderen
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="space-y-2">
-            <p className="text-xs uppercase tracking-wide opacity-50 px-1">
-              Je chats
-            </p>
-
-            {regularChats.length === 0 ? (
-              <div className="p-2 rounded-lg bg-white/5 text-sm opacity-60">
-                Geen actieve chats gevonden.
-              </div>
-            ) : (
-              regularChats.map((chat: any) => (
-                <div
-                  key={chat.id}
-                  className={`group relative p-2 rounded-lg ${
-  activeChatId === chat.id
-    ? "bg-white/20 ring-1 ring-white/20"
-    : "bg-white/5 hover:bg-white/10"
-}`}
-                >
-                  <div
-                    onClick={() => {
-                      activateChat(chat.id);
-                      setMobileMenu(false);
-                    }}
-                                        className="pr-8 cursor-pointer truncate"
-                  >
-                    {chat.title}
-                  </div>
-
-                                    <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setOpenChatMenuId((prev) =>
-                        prev === chat.id ? null : chat.id
-                      );
-                    }}
-                    className="absolute right-1 top-1 h-9 w-9 flex items-center justify-center rounded-full opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:bg-white/10"
-                  >
-                    ⋯
-                  </button>
-
-                  {openChatMenuId === chat.id && (
-                    <div className="absolute right-2 top-10 z-50 w-40 rounded-xl bg-[#101025] border border-white/10 shadow-xl overflow-hidden">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          togglePinnedChat(chat.id);
-                        }}
-                        className="w-full text-left px-3 py-2 hover:bg-white/10"
-                      >
-                        Vastmaken
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          archiveChat(chat.id);
-                        }}
-                        className="w-full text-left px-3 py-2 hover:bg-white/10"
-                      >
-                        Archief
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteChat(chat.id);
-                        }}
-                        className="w-full text-left px-3 py-2 hover:bg-white/10 text-red-300"
-                      >
-                        Verwijderen
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <p className="text-xs uppercase tracking-wide opacity-50 px-1">
-              Archief
-            </p>
-
-            {archivedChats.length === 0 ? (
-              <div className="p-2 rounded-lg bg-white/5 text-sm opacity-60">
-                Geen gearchiveerde chats.
-              </div>
-            ) : (
-              archivedChats.map((chat: any) => (
-                <div
-                  key={chat.id}
-                  className="group relative p-2 rounded-lg bg-white/5 hover:bg-white/10"
-                >
-                  <div
-                    onClick={() => {
-                      setOpenChatMenuId(null);
-                      setMobileMenu(false);
-                    }}
-                    className="pr-8 cursor-default opacity-80"
-                  >
-                    {chat.title}
-                  </div>
-
-                                    <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setOpenChatMenuId((prev) =>
-                        prev === chat.id ? null : chat.id
-                      );
-                    }}
-                    className="absolute right-1 top-1 h-9 w-9 flex items-center justify-center rounded-full opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:bg-white/10"
-                  >
-                    ⋯
-                  </button>
-
-                  {openChatMenuId === chat.id && (
-                    <div className="absolute right-2 top-10 z-50 w-40 rounded-xl bg-[#101025] border border-white/10 shadow-xl overflow-hidden">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          restoreArchivedChat(chat.id);
-                        }}
-                        className="w-full text-left px-3 py-2 hover:bg-white/10"
-                      >
-                        Terugzetten
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteChat(chat.id);
-                        }}
-                        className="w-full text-left px-3 py-2 hover:bg-white/10 text-red-300"
-                      >
-                        Verwijderen
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
-
-                    <div className="space-y-2">
-            <div className="flex items-center justify-between px-1">
-              <p className="text-xs uppercase tracking-wide opacity-50">
-                Verwijderde chats
-              </p>
-              {deletedChats.length > 0 && (
-                <button
-                  onClick={clearDeletedChats}
-                  className="text-xs text-red-400 hover:text-red-300"
-                >
-                  Leegmaken
-                </button>
-              )}
-            </div>
-
-            {deletedChats.length === 0 ? (
-              <div className="p-2 rounded-lg bg-white/5 text-sm opacity-60">
-                Geen verwijderde chats.
-              </div>
-            ) : (
-              deletedChats.map((chat: any) => (
-                <div
-                  key={chat.id}
-                  className="group relative p-2 rounded-lg bg-white/5 hover:bg-white/10"
-                >
-                  <div className="pr-8 opacity-60">{chat.title}</div>
-
-                                    <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setOpenChatMenuId((prev) =>
-                        prev === chat.id ? null : chat.id
-                      );
-                    }}
-                    className="absolute right-1 top-1 h-9 w-9 flex items-center justify-center rounded-full opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:bg-white/10"
-                  >
-                    ⋯
-                  </button>
-
-                  {openChatMenuId === chat.id && (
-                    <div className="absolute right-2 top-10 z-50 w-40 rounded-xl bg-[#101025] border border-white/10 shadow-xl overflow-hidden">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          restoreDeletedChat(chat.id);
-                        }}
-                        className="w-full text-left px-3 py-2 hover:bg-white/10"
-                      >
-                        Terugzetten
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        <div className="mt-3 space-y-2">
-          <button
-            onClick={() => setShowFeedbackBox(true)}
-            className="w-full p-2 rounded-xl bg-white/10 hover:bg-white/20"
-          >
-            💡 Feedback / Idee
-          </button>
-
-          {!isPersonalRoute && (
-            <button
-              onClick={() => {
-                setShowLoginBox(true);
-                setLoginError("");
-              }}
-              className="w-full p-2 rounded-xl bg-white/10 hover:bg-white/20"
-            >
-              🔐 Log in
-            </button>
-          )}
-        </div>
-      </div>
 {mobileMenu && (
   <div
     onClick={() => setMobileMenu(false)}
-    className="fixed inset-0 bg-black/50 z-30 md:hidden"
+    className="fixed inset-0 z-30 bg-black/50 md:hidden"
   />
 )}
                   {showClearDeletedConfirm && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-[#0a0a1f] p-6 rounded-2xl w-[300px]">
-            <h2 className="mb-2">Weet je het zeker?</h2>
-            <p className="text-sm opacity-70 mb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-[340px] rounded-[28px] border border-white/10 bg-[#0a0a1f]/95 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.38)] backdrop-blur-2xl">
+            <h2 className="mb-2 text-lg font-semibold text-white/95">Weet je het zeker?</h2>
+            <p className="mb-5 text-sm leading-6 text-white/60">
               Alle verwijderde chats worden permanent verwijderd.
             </p>
 
             <div className="flex gap-2">
               <button
                 onClick={() => setShowClearDeletedConfirm(false)}
-                className="flex-1 p-2 bg-white/10 rounded-xl"
+                className="flex-1 rounded-[20px] border border-white/10 bg-white/[0.05] p-3 text-white/90 transition hover:bg-white/[0.08]"
               >
                 Annuleren
               </button>
 
               <button
                 onClick={confirmClearDeletedChats}
-                className="flex-1 p-2 bg-red-500 rounded-xl"
+                className="flex-1 rounded-[20px] border border-red-400/20 bg-red-500/80 p-3 text-white shadow-[0_10px_24px_rgba(239,68,68,0.28)] transition hover:bg-red-500"
               >
                 Verwijderen
               </button>
@@ -2427,24 +2159,24 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
       )}
 
       {deleteTargetChatId !== null && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-[#0a0a1f] p-6 rounded-2xl w-[300px]">
-            <h2 className="mb-2">Weet je het zeker?</h2>
-            <p className="text-sm opacity-70 mb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-[340px] rounded-[28px] border border-white/10 bg-[#0a0a1f]/95 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.38)] backdrop-blur-2xl">
+            <h2 className="mb-2 text-lg font-semibold text-white/95">Weet je het zeker?</h2>
+            <p className="mb-5 text-sm leading-6 text-white/60">
               Deze chat wordt verplaatst naar Verwijderde chats.
             </p>
 
             <div className="flex gap-2">
               <button
                 onClick={() => setDeleteTargetChatId(null)}
-                className="flex-1 p-2 bg-white/10 rounded-xl"
+                className="flex-1 rounded-[20px] border border-white/10 bg-white/[0.05] p-3 text-white/90 transition hover:bg-white/[0.08]"
               >
                 Annuleren
               </button>
 
               <button
                 onClick={confirmDeleteChat}
-                className="flex-1 p-2 bg-red-500 rounded-xl"
+                className="flex-1 rounded-[20px] border border-red-400/20 bg-red-500/80 p-3 text-white shadow-[0_10px_24px_rgba(239,68,68,0.28)] transition hover:bg-red-500"
               >
                 Verwijderen
               </button>
@@ -2454,40 +2186,45 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
       )}
 
             {showFeedbackBox && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-[#0a0a1f] p-6 rounded-2xl w-[300px]">
-                        <h2 className="mb-2">Feedback / Idee</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-[360px] rounded-[28px] border border-white/10 bg-[#0a0a1f]/95 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.38)] backdrop-blur-2xl">
+            <h2 className="mb-4 text-lg font-semibold text-white/95">Feedback / Idee</h2>
+
             <select
               value={feedbackCategory}
               onChange={(e) => setFeedbackCategory(e.target.value)}
-              className="w-full p-2 rounded bg-white/10 mb-3"
+              className="mb-3 w-full rounded-[18px] border border-white/10 bg-white/[0.05] px-3 py-3 text-sm text-white/90 outline-none transition focus:border-white/18 focus:bg-white/[0.07]"
             >
               <option value="bug">Bug</option>
               <option value="adjustment">Aanpassing</option>
               <option value="feedback_learning">AI feedback</option>
             </select>
+
             <textarea
               value={feedbackText}
               onChange={(e) => setFeedbackText(e.target.value)}
-              className="w-full p-2 rounded bg-white/10 mb-3"
+              className="mb-4 min-h-[120px] w-full rounded-[20px] border border-white/10 bg-white/[0.05] px-3 py-3 text-sm text-white/92 outline-none transition placeholder:text-white/28 focus:border-white/18 focus:bg-white/[0.07]"
+              placeholder="Vertel wat je wilt verbeteren of toevoegen..."
             />
+
             <div className="flex gap-2">
               <button
-                                onClick={() => {
+                onClick={() => {
                   setShowFeedbackBox(false);
                   setFeedbackText("");
                   setFeedbackCategory("adjustment");
                 }}
-                className="flex-1 p-2 bg-white/10 rounded-xl"
+                className="flex-1 rounded-[20px] border border-white/10 bg-white/[0.05] p-3 text-white/90 transition hover:bg-white/[0.08]"
               >
                 Annuleren
               </button>
-                            <button
+
+              <button
                 onClick={handleIdeaSubmit}
                 disabled={!feedbackText.trim()}
-                className={`flex-1 p-2 rounded-xl ${
+                className={`flex-1 rounded-[20px] p-3 transition ${
                   feedbackText.trim()
-                    ? "bg-purple-500"
+                    ? "bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] text-white shadow-[0_10px_24px_rgba(59,130,246,0.28)] hover:brightness-110"
                     : "bg-white/10 text-white/30"
                 }`}
               >
@@ -2499,10 +2236,10 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
       )}
 
       <div className="flex-1 min-w-0 flex items-stretch justify-center md:p-4 pt-0">
-        <div className="w-full min-w-0 max-w-2xl h-full md:h-[90%] flex flex-col bg-white/10 md:rounded-3xl backdrop-blur-2xl">
+        <div className="flex h-full w-full min-w-0 max-w-2xl flex-col border border-white/10 bg-white/[0.055] shadow-[0_24px_80px_rgba(0,0,0,0.28)] backdrop-blur-2xl md:h-[90%] md:rounded-[32px]">
 
           {usage && usage.percentage >= 0.8 && !upgradeNotice.visible && (
-            <div className="mx-4 mt-4 rounded-2xl border border-yellow-300/30 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-100">
+            <div className="mx-4 mt-4 rounded-[24px] border border-yellow-300/20 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-100 shadow-[0_8px_24px_rgba(0,0,0,0.12)] backdrop-blur-xl">
               <div className="font-medium">
                 Bijna limiet bereikt
               </div>
@@ -2513,7 +2250,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
           )}
 
           {upgradeNotice.visible && (
-            <div className="mx-4 mt-4 rounded-2xl border border-amber-300/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+            <div className="mx-4 mt-4 rounded-[24px] border border-amber-300/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100 shadow-[0_8px_24px_rgba(0,0,0,0.12)] backdrop-blur-xl">
               <div className="font-medium">
                 Limiet bereikt {upgradeNotice.tier ? `(${upgradeNotice.tier})` : ""}
               </div>
@@ -2523,19 +2260,20 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 
           <div
   ref={messagesRef}
-  className={`${messageShellClass} flex-1 overflow-x-hidden overflow-y-auto pb-52 md:pb-4 ${
-    activeChat?.messages?.length ? "p-4 pt-20 md:pt-4 space-y-3" : "p-4 pt-20 md:pt-4 flex items-center justify-center"
+  className={`${messageShellClass} flex-1 overflow-x-hidden overflow-y-auto pb-52 md:pb-5 ${
+    activeChat?.messages?.length ? "p-4 pt-20 md:px-5 md:pt-5 space-y-3.5" : "p-4 pt-20 md:px-5 md:pt-5 flex items-center justify-center"
   }`}
 >
                         {activeChat?.messages?.length === 0 ? (
-              <div className="w-full max-w-2xl text-center px-6 flex flex-col items-center justify-center h-full -mt-20">
-                                <h1 className="text-2xl md:text-4xl font-semibold tracking-tight mb-4 bg-gradient-to-r from-white via-white to-white/60 bg-clip-text text-transparent">
-                  Waar wil je vandaag mee verder?
-                </h1>
-                <p className="text-sm opacity-30">
-                  Begin met een vraag
-                </p>
-                
+              <div className="flex h-full w-full max-w-2xl -mt-20 flex-col items-center justify-center px-6 text-center">
+                <div className="rounded-[28px] border border-white/8 bg-white/[0.035] px-8 py-8 shadow-[0_18px_50px_rgba(0,0,0,0.22)] backdrop-blur-xl">
+                  <h1 className="mb-3 bg-gradient-to-r from-white via-white to-white/70 bg-clip-text text-2xl font-semibold tracking-tight text-transparent md:text-4xl">
+                    Waar wil je vandaag mee verder?
+                  </h1>
+                  <p className="mx-auto max-w-md text-sm leading-6 text-white/42">
+                    Stel een vraag, upload een afbeelding of werk verder in een eerdere chat.
+                  </p>
+                </div>
               </div>
             ) : (
               <>
@@ -2554,12 +2292,19 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                       : { style: [], content: [] };
 
                     return (
-                      <div key={i} className={messageShellClass}>
-                        <div className={`${messageBubbleClass} min-w-0 max-w-[75%] overflow-hidden p-3 rounded-2xl whitespace-pre-line ${
-                          msg.role === "user"
-                            ? "bg-gradient-to-r from-purple-500 to-blue-500 ml-auto text-white"
-                            : "bg-white/20"
-                        }`}>
+                      <div
+                        key={i}
+                        className={`${messageShellClass} animate-[fadeInUp_0.22s_ease-out] transition-[opacity,transform] duration-200 ${
+                          msg.role === "user" ? "mb-2" : "mb-4"
+                        }`}
+                      >
+                                                <div
+                          className={`${messageBubbleClass} min-w-0 max-w-[78%] overflow-hidden whitespace-pre-line rounded-[24px] px-4 py-3.5 transition-[box-shadow,transform,background-color,border-color] duration-200 ${
+                            msg.role === "user"
+                              ? "ml-auto bg-gradient-to-r from-[#1d4ed8] to-[#2563eb] text-white shadow-[0_10px_28px_rgba(37,99,235,0.24)]"
+                              : "border border-white/10 bg-white/[0.06] text-white/92 backdrop-blur-xl shadow-[0_8px_28px_rgba(0,0,0,0.18)]"
+                          }`}
+                        >
                           {msg.image && (
                             <img
                               src={msg.image}
@@ -2573,36 +2318,58 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
     className={`${msg.image ? "mt-3 " : ""}${messageBubbleClass} min-w-0 max-w-full overflow-hidden`}
   >
     {msg.isStreaming && msg.content === "…" ? (
-      <span className="opacity-50">thinking...</span>
+      <span className="inline-flex items-center gap-2 text-white/55">
+        <span className="flex items-center gap-1">
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white/55" />
+          <span
+            className="h-1.5 w-1.5 animate-pulse rounded-full bg-white/45"
+            style={{ animationDelay: "120ms" }}
+          />
+          <span
+            className="h-1.5 w-1.5 animate-pulse rounded-full bg-white/35"
+            style={{ animationDelay: "240ms" }}
+          />
+        </span>
+        <span className="text-sm">OpenLura denkt na</span>
+      </span>
     ) : (
-      msg.content.split(/(\s+)/).map((part: string, idx: number) => {
-        const isUrl = /^https?:\/\/\S+$/i.test(part);
+      <>
+        {msg.content.split(/(\s+)/).map((part: string, idx: number) => {
+          const isUrl = /^https?:\/\/\S+$/i.test(part);
 
-        if (isUrl) {
+          if (isUrl) {
+            return (
+              <a
+                key={idx}
+                href={part}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline break-all max-w-full text-blue-300 underline"
+                style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
+              >
+                {part}
+              </a>
+            );
+          }
+
           return (
-            <a
+            <span
               key={idx}
-              href={part}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline break-all max-w-full text-blue-300 underline"
+              className="break-words"
               style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
             >
               {part}
-            </a>
+            </span>
           );
-        }
+        })}
 
-        return (
+        {msg.isStreaming && msg.content !== "…" && (
           <span
-            key={idx}
-            className="break-words"
-            style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
-          >
-            {part}
-          </span>
-        );
-      })
+            className="ml-0.5 inline-block h-5 w-[2px] translate-y-[3px] rounded-full bg-white/60 align-bottom animate-pulse"
+            aria-hidden="true"
+          />
+        )}
+      </>
     )}
   </div>
 ) : null}
@@ -2615,7 +2382,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                           msg.content !== "🤖 Bedankt voor je feedback. Ik sla dit op en gebruik het om toekomstige antwoorden te verbeteren." && (
                             <>
                               {isLastAI && (
-                                <div className="mt-2 p-2 rounded-xl bg-white/5 text-xs opacity-70">
+                                <div className="mt-3 rounded-2xl border border-white/8 bg-white/[0.035] px-3 py-3 text-xs text-white/65">
                                   <p className="mb-2">🧠 AI Learning actief:</p>
 
                                   {activeLearningDebug.style.length === 0 &&
@@ -2653,28 +2420,46 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                                 </div>
                               )}
 
-                                                            <div className="flex gap-2 mt-1 text-sm opacity-70 items-center">
+                              <div className="mt-3 flex flex-wrap items-center gap-2 pl-1">
                                 {!feedbackGiven[activeChatId + "-" + i] && (
                                   <>
-                                    <button onClick={() => handleFeedback(activeChatId!, i, "up")}>👍</button>
-                                    <button onClick={() => handleFeedback(activeChatId!, i, "down")}>👎</button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleFeedback(activeChatId!, i, "up")}
+                                      className="inline-flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/[0.045] px-3 text-sm text-white/72 transition hover:border-white/16 hover:bg-white/[0.08] hover:text-white"
+                                    >
+                                      <span aria-hidden="true">👍</span>
+                                      <span className="text-[13px]">Goed antwoord</span>
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleFeedback(activeChatId!, i, "down")}
+                                      className="inline-flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/[0.045] px-3 text-sm text-white/72 transition hover:border-white/16 hover:bg-white/[0.08] hover:text-white"
+                                    >
+                                      <span aria-hidden="true">👎</span>
+                                      <span className="text-[13px]">Kan beter</span>
+                                    </button>
                                   </>
                                 )}
 
                                 {feedbackUI[activeChatId + "-" + i] && (
-                                  <span className="text-xs opacity-70 ml-2">
+                                  <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-white/58">
                                     {feedbackUI[activeChatId + "-" + i]}
                                   </span>
                                 )}
                               </div>
 
                 {Array.isArray(msg.sources) && msg.sources.length > 0 && (
-          <div className="mt-3 space-y-2">
-            <p className="text-[11px] uppercase tracking-wide text-white/35">
-              🔎 Bronnen
-            </p>
+          <div className="mt-4 space-y-2.5">
+            <div className="flex items-center gap-2 px-0.5">
+              <span className="text-[12px] text-white/36">🔎</span>
+              <p className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+                Bronnen
+              </p>
+            </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               {msg.sources.map((source: any, sourceIndex: number) => {
                 let domain = "";
 
@@ -2692,21 +2477,29 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                     href={source.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block w-full min-w-0 max-w-full overflow-hidden p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all border border-white/10"
+                    className="block w-full min-w-0 max-w-full overflow-hidden rounded-[20px] border border-white/10 bg-white/[0.045] p-3.5 shadow-[0_8px_20px_rgba(0,0,0,0.10)] transition-all hover:border-white/16 hover:bg-white/[0.075]"
                     title={source.title || source.url}
                   >
-                    <p
-                      className="text-sm text-white/90 break-words"
-                      style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
-                    >
-                      {title}
-                    </p>
-                    <p
-                      className="text-xs text-white/40 mt-1 break-all max-w-full overflow-hidden"
-                      style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
-                    >
-                      {domain}
-                    </p>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p
+                          className="text-sm leading-6 text-white/92 break-words"
+                          style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
+                        >
+                          {title}
+                        </p>
+                        <p
+                          className="mt-1 text-xs text-white/42 break-all max-w-full overflow-hidden"
+                          style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
+                        >
+                          {domain}
+                        </p>
+                      </div>
+
+                      <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.05] px-2 py-1 text-[11px] text-white/48">
+                        Open
+                      </span>
+                    </div>
                   </a>
                 );
               })}
@@ -2719,13 +2512,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                     );
                   })}
 
-                                {loading && (
-                  <div className="opacity-70 text-sm">
-                    {loadingStage === "analyzing"
-                      ? "OpenLura is analyzing image..."
-                      : "OpenLura is typing..."}
-                  </div>
-                )}
+                                {loading && null}
               </>
             )}
           </div>
@@ -2735,13 +2522,13 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
     activeChat?.messages?.length === 0
       ? "mt-6 w-full max-w-2xl"
       : composerShellClass + " fixed bottom-0 left-0 right-0 md:static z-[90] p-3 pb-4 md:border-0 bg-[#050510] md:bg-transparent"
-  } flex w-full min-w-0 max-w-full overflow-x-hidden items-end gap-2 rounded-[28px] border border-white/10 bg-white/5 backdrop-blur-xl px-3 py-3 shadow-[0_10px_40px_rgba(0,0,0,0.25)]`}
+  } flex w-full min-w-0 max-w-full overflow-x-hidden items-end gap-2 rounded-[32px] border border-white/10 bg-white/[0.055] px-3 py-3 shadow-[0_20px_56px_rgba(0,0,0,0.26)] backdrop-blur-2xl`}
 >
 
                         <button
               type="button"
               onClick={() => fileRef.current?.click()}
-              className="h-11 w-11 shrink-0 flex items-center justify-center rounded-full bg-white/8 text-lg hover:bg-white/12 transition-colors"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/8 bg-white/[0.05] text-lg text-white/80 transition-colors hover:bg-white/[0.10]"
             >
               +
             </button>
@@ -2759,12 +2546,12 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
               <div className="relative shrink-0">
                 <img
                   src={image}
-                  className="w-16 h-16 object-cover rounded-2xl border border-white/10"
+                  className="h-16 w-16 rounded-2xl border border-white/10 object-cover shadow-[0_10px_24px_rgba(0,0,0,0.22)]"
                 />
                 <button
                   type="button"
                   onClick={() => setImage(null)}
-                  className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-black/70 border border-white/10 text-xs flex items-center justify-center"
+                  className="absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full border border-white/10 bg-black/70 text-xs"
                 >
                   ×
                 </button>
@@ -2772,6 +2559,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
             )}
 
                         <textarea
+  ref={inputRef}
   value={input}
   onFocus={() => {
     if (window.innerWidth < 768) {
@@ -2780,18 +2568,27 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
   }}
   onChange={(e) => {
     setInput(e.target.value);
-    e.target.style.height = "auto";
-    e.target.style.height = `${Math.min(e.target.scrollHeight, 140)}px`;
   }}
   onKeyDown={(e) => {
-    const isMobile = window.innerWidth < 768;
+    const nativeEvent = e.nativeEvent as KeyboardEvent & {
+      isComposing?: boolean;
+    };
 
-    if (!isMobile && e.key === "Enter" && !e.shiftKey) {
+    if (nativeEvent.isComposing) {
+      return;
+    }
+
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
+
+      if (loading) {
+        return;
+      }
+
       sendMessage();
     }
   }}
-  className={`${composerInputClass} flex-1 bg-transparent rounded-2xl min-h-[52px] max-h-[140px] outline-none px-2 py-3 placeholder:text-white/35`}
+  className={`${composerInputClass} flex-1 rounded-2xl bg-transparent px-2 py-3 text-[15px] leading-6 text-white/95 outline-none placeholder:text-white/32 min-h-[52px] max-h-[140px]`}
   placeholder={activeChat?.messages?.length === 0 ? "Ask anything" : "Message OpenLura..."}
   rows={1}
 />
@@ -2800,14 +2597,13 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
   type="button"
   disabled={!loading && !input.trim() && !image}
   onClick={loading ? stopStreaming : sendMessage}
-
-    className={`w-12 h-12 shrink-0 flex items-center justify-center rounded-full text-xl shadow-lg touch-manipulation transition-all active:scale-95 ${
-      loading
-        ? "bg-red-500 text-white"
-        : !input.trim() && !image
-        ? "bg-white/10 text-white/30 shadow-none"
-        : "bg-gradient-to-r from-purple-500 to-blue-500 text-white shadow-purple-500/20"
-    }`}
+  className={`flex h-12 w-12 shrink-0 touch-manipulation items-center justify-center rounded-full text-xl transition-all active:scale-95 ${
+    loading
+      ? "bg-red-500 text-white shadow-[0_8px_24px_rgba(239,68,68,0.35)]"
+      : !input.trim() && !image
+      ? "bg-white/[0.08] text-white/28 shadow-none"
+      : "bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] text-white shadow-[0_12px_28px_rgba(59,130,246,0.34)] hover:brightness-110"
+  }`}
 >
   {loading ? "■" : "↑"}
 </button>
@@ -2818,46 +2614,54 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 
       {isPersonalEnvironment && (
         <aside className="hidden xl:flex w-[320px] p-4 pr-5">
-          <div className="w-full h-full md:h-[90%] bg-white/10 rounded-3xl backdrop-blur-2xl p-4 flex flex-col">
-            <div className="mb-4">
-              <p className="text-xs uppercase tracking-wide opacity-50">
+          <div className="flex h-full w-full flex-col rounded-[32px] border border-white/10 bg-white/[0.055] p-4 shadow-[0_20px_50px_rgba(0,0,0,0.28)] backdrop-blur-2xl md:h-[90%]">
+            <div className="mb-5 rounded-[28px] border border-white/8 bg-white/[0.035] px-4 py-4">
+              <p className="text-[11px] uppercase tracking-[0.16em] text-white/38">
                 Persoonlijke omgeving
               </p>
-              <h2 className="text-lg font-semibold mt-1">
+              <h2 className="mt-2 text-[20px] font-semibold tracking-tight text-white/95">
                 Training dashboard
               </h2>
-              <p className="text-sm opacity-60 mt-2">
+              <p className="mt-2 text-sm leading-6 text-white/56">
                 Alleen zichtbaar in deze omgeving op desktop.
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 mb-4 text-sm">
-              <div className="p-3 rounded-2xl bg-white/5">
-                <p className="text-xs opacity-50">Memory</p>
-                <p className="text-xl mt-1">{getPersonalEnvironmentInsights().memoryCount}</p>
+            <div className="mb-5 grid grid-cols-2 gap-3 text-sm">
+              <div className="rounded-[24px] border border-white/8 bg-white/[0.04] px-4 py-3 shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
+                <p className="text-[11px] uppercase tracking-[0.14em] text-white/38">Memory</p>
+                <p className="mt-2 text-2xl font-semibold tracking-tight text-white/95">
+                  {getPersonalEnvironmentInsights().memoryCount}
+                </p>
               </div>
-              <div className="p-3 rounded-2xl bg-white/5">
-                <p className="text-xs opacity-50">Verbeteringen</p>
-                <p className="text-xl mt-1">{getPersonalEnvironmentInsights().improvementCount}</p>
+              <div className="rounded-[24px] border border-white/8 bg-white/[0.04] px-4 py-3 shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
+                <p className="text-[11px] uppercase tracking-[0.14em] text-white/38">Verbeteringen</p>
+                <p className="mt-2 text-2xl font-semibold tracking-tight text-white/95">
+                  {getPersonalEnvironmentInsights().improvementCount}
+                </p>
               </div>
-              <div className="p-3 rounded-2xl bg-white/5">
-                <p className="text-xs opacity-50">Negatief</p>
-                <p className="text-xl mt-1">{getPersonalEnvironmentInsights().negativeCount}</p>
+              <div className="rounded-[24px] border border-white/8 bg-white/[0.04] px-4 py-3 shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
+                <p className="text-[11px] uppercase tracking-[0.14em] text-white/38">Negatief</p>
+                <p className="mt-2 text-2xl font-semibold tracking-tight text-white/95">
+                  {getPersonalEnvironmentInsights().negativeCount}
+                </p>
               </div>
-              <div className="p-3 rounded-2xl bg-white/5">
-                <p className="text-xs opacity-50">Positief</p>
-                <p className="text-xl mt-1">{getPersonalEnvironmentInsights().positiveCount}</p>
+              <div className="rounded-[24px] border border-white/8 bg-white/[0.04] px-4 py-3 shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
+                <p className="text-[11px] uppercase tracking-[0.14em] text-white/38">Positief</p>
+                <p className="mt-2 text-2xl font-semibold tracking-tight text-white/95">
+                  {getPersonalEnvironmentInsights().positiveCount}
+                </p>
               </div>
             </div>
 
-            <div className="mb-4 p-3 rounded-2xl bg-white/5">
-              <p className="text-xs uppercase tracking-wide opacity-50 mb-2">
+            <div className="mb-4 rounded-[28px] border border-white/8 bg-white/[0.035] px-4 py-4">
+              <p className="mb-3 text-[11px] uppercase tracking-[0.16em] text-white/38">
                 Actieve stijlpunten
               </p>
               {getPersonalEnvironmentInsights().styleSignals.length === 0 ? (
-                <p className="text-sm opacity-50">Nog geen duidelijke stijl-signalen</p>
+                <p className="text-sm leading-6 text-white/50">Nog geen duidelijke stijl-signalen</p>
               ) : (
-                <div className="space-y-2 text-sm">
+                <div className="space-y-2 text-sm text-white/78">
                   {getPersonalEnvironmentInsights().styleSignals.map((item, idx) => (
                     <p key={idx}>• {item}</p>
                   ))}
@@ -2865,14 +2669,14 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
               )}
             </div>
 
-            <div className="mb-4 p-3 rounded-2xl bg-white/5">
-              <p className="text-xs uppercase tracking-wide opacity-50 mb-2">
+            <div className="mb-4 rounded-[28px] border border-white/8 bg-white/[0.035] px-4 py-4">
+              <p className="mb-3 text-[11px] uppercase tracking-[0.16em] text-white/38">
                 Persoonlijke AI status
               </p>
               {getPersonalEnvironmentInsights().contentSignals.length === 0 ? (
-                <p className="text-sm opacity-50">Nog geen persoonlijke content-signalen</p>
+                <p className="text-sm leading-6 text-white/50">Nog geen persoonlijke content-signalen</p>
               ) : (
-                <div className="space-y-2 text-sm">
+                <div className="space-y-2 text-sm text-white/78">
                   {getPersonalEnvironmentInsights().contentSignals.map((item, idx) => (
                     <p key={idx}>• {item}</p>
                   ))}
@@ -2880,10 +2684,10 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
               )}
             </div>
 
-            <div className="mt-auto space-y-2">
+            <div className="mt-auto space-y-2.5">
               <button
                 onClick={() => setShowFeedbackBox(true)}
-                className="w-full p-3 rounded-2xl bg-white/10 hover:bg-white/20 text-left"
+                className="w-full rounded-[24px] border border-white/10 bg-white/[0.05] p-3 text-left text-white/90 backdrop-blur-xl transition hover:bg-white/[0.08]"
               >
                 ✍️ Voeg persoonlijk verbeterpunt toe
               </button>
@@ -2892,14 +2696,14 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                 onClick={() => {
                   window.open("/analytics", "_blank", "noopener,noreferrer");
                 }}
-                className="w-full p-3 rounded-2xl bg-white/10 hover:bg-white/20 text-left"
+                className="w-full rounded-[24px] border border-white/10 bg-white/[0.05] p-3 text-left text-white/90 backdrop-blur-xl transition hover:bg-white/[0.08]"
               >
                 📊 Open analytics
               </button>
 
               <button
                 onClick={handlePersonalLogout}
-                className="w-full p-3 rounded-2xl bg-red-500/20 hover:bg-red-500/30 text-left text-red-200"
+                className="w-full rounded-[24px] border border-red-400/20 bg-red-500/16 p-3 text-left text-red-200 transition hover:bg-red-500/24"
               >
                 🚪 Log uit
               </button>
@@ -2909,14 +2713,16 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
       )}
 
       {showLoginBox && !isPersonalRoute && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-md rounded-3xl bg-[#111322] border border-white/10 p-6">
-            <div className="mb-4">
-              <p className="text-xs uppercase tracking-wide opacity-50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-[32px] border border-white/10 bg-[#0b1020]/95 p-6 shadow-[0_28px_90px_rgba(0,0,0,0.42)] backdrop-blur-2xl">
+            <div className="mb-5 rounded-[24px] border border-white/8 bg-white/[0.035] px-4 py-4">
+              <p className="text-[11px] uppercase tracking-[0.16em] text-white/38">
                 Beveiligde toegang
               </p>
-              <h2 className="text-xl font-semibold mt-1">Log in</h2>
-              <p className="text-sm opacity-60 mt-2">
+              <h2 className="mt-2 text-[22px] font-semibold tracking-tight text-white/95">
+                Log in
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-white/56">
                 Meld je aan om je persoonlijke omgeving te openen.
               </p>
             </div>
@@ -2926,7 +2732,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                 value={loginUsername}
                 onChange={(e) => setLoginUsername(e.target.value)}
                 placeholder="Gebruikersnaam"
-                className="w-full p-3 rounded-2xl bg-white/10 border border-white/10 outline-none"
+                className="w-full rounded-[22px] border border-white/10 bg-white/[0.05] px-4 py-3 text-white/95 outline-none transition placeholder:text-white/30 focus:border-white/18 focus:bg-white/[0.07]"
               />
 
               <input
@@ -2934,7 +2740,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                 value={loginPassword}
                 onChange={(e) => setLoginPassword(e.target.value)}
                 placeholder="Wachtwoord"
-                className="w-full p-3 rounded-2xl bg-white/10 border border-white/10 outline-none"
+                className="w-full rounded-[22px] border border-white/10 bg-white/[0.05] px-4 py-3 text-white/95 outline-none transition placeholder:text-white/30 focus:border-white/18 focus:bg-white/[0.07]"
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !loginLoading) {
                     handlePersonalLogin();
@@ -2943,7 +2749,9 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
               />
 
               {loginError && (
-                <p className="text-sm text-red-300">{loginError}</p>
+                <p className="rounded-2xl border border-red-400/20 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+                  {loginError}
+                </p>
               )}
             </div>
 
@@ -2955,7 +2763,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                   setLoginUsername("");
                   setLoginPassword("");
                 }}
-                className="flex-1 p-3 rounded-2xl bg-white/10 hover:bg-white/20"
+                className="flex-1 rounded-[22px] border border-white/10 bg-white/[0.05] p-3 text-white/90 backdrop-blur-xl transition hover:bg-white/[0.08]"
               >
                 Annuleren
               </button>
@@ -2963,7 +2771,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
               <button
                 onClick={handlePersonalLogin}
                 disabled={loginLoading}
-                className="flex-1 p-3 rounded-2xl bg-white text-black hover:bg-white/90 disabled:opacity-60"
+                className="flex-1 rounded-[22px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] p-3 text-white shadow-[0_12px_30px_rgba(59,130,246,0.28)] transition hover:brightness-110 disabled:opacity-60"
               >
                 {loginLoading ? "Inloggen..." : "Log in"}
               </button>
@@ -2971,6 +2779,18 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
           </div>
         </div>
       )}
+    <style jsx global>{`
+      @keyframes fadeInUp {
+        from {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+    `}</style>
     </main>
   );
 }

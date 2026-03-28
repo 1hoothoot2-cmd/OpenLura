@@ -21,9 +21,14 @@ $filesToSync = @(
 
     # MEMORY FILES
     @{ Source = "OPENLURA_PROJECT_MEMORY.md"; Destination = "OPENLURA_PROJECT_MEMORY.md" },
-    @{ Source = "OPENLURA_RULES.md"; Destination = "OPENLURA_RULES.md" }
-    @{ Source = "lib\auth\adminSession.ts"; Destination = "lib_auth_adminSession.ts" }
-    @{ Source = "lib\auth\requestIdentity.ts"; Destination = "lib_auth_requestIdentity.ts" }
+    @{ Source = "OPENLURA_RULES.md"; Destination = "OPENLURA_RULES.md" },
+
+    # AUTH
+    @{ Source = "lib\auth\adminSession.ts"; Destination = "lib_auth_adminSession.ts" },
+    @{ Source = "lib\auth\requestIdentity.ts"; Destination = "lib_auth_requestIdentity.ts" },
+
+    # COMPONENTS
+    @{ Source = "components\chat\Sidebar.tsx"; Destination = "components_chat_Sidebar.tsx" }
 )
 
 Write-Host ""
