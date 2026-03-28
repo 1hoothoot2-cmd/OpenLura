@@ -819,42 +819,16 @@ const resizeComposerTextarea = () => {
       deleted: boolean;
     }>
   ) => {
-    setChats((prev) => {
-      const updatedChats = prev.map((chat: any) => {
-        if (chat.id !== chatId) return chat;
-
-        return {
-          ...chat,
-          ...updates,
-        };
-      });
-
-      const targetChat = updatedChats.find((chat: any) => chat.id === chatId) || null;
-      const targetIsVisible = !!targetChat && !targetChat.archived && !targetChat.deleted;
-
-      if (targetIsVisible) {
-        preferredActiveChatIdRef.current = chatId;
-        pendingActiveChatIdRef.current = chatId;
-        forcedActiveChatIdRef.current = chatId;
-        setActiveChatId(chatId);
-      } else if (activeChatId === chatId || updates.archived || updates.deleted) {
-        const nextVisibleChat = updatedChats.find(
-          (chat: any) => !chat.archived && !chat.deleted
-        );
-        const nextFallbackChat = updatedChats.find(
-          (chat: any) => !chat.deleted
-        );
-        const nextActiveChatId =
-          nextVisibleChat?.id ?? nextFallbackChat?.id ?? null;
-
-        preferredActiveChatIdRef.current = nextActiveChatId;
-        pendingActiveChatIdRef.current = nextActiveChatId;
-        forcedActiveChatIdRef.current = nextActiveChatId;
-        setActiveChatId(nextActiveChatId);
-      }
-
-      return updatedChats;
-    });
+    setChats((prev) =>
+      prev.map((chat: any) =>
+        chat.id === chatId
+          ? {
+              ...chat,
+              ...updates,
+            }
+          : chat
+      )
+    );
 
     setOpenChatMenuId(null);
   };
@@ -867,22 +841,6 @@ const resizeComposerTextarea = () => {
   };
 
   const archiveChat = (chatId: number) => {
-    const nextVisibleChat = chats.find(
-      (chat: any) => chat.id !== chatId && !chat.archived && !chat.deleted
-    );
-    const nextFallbackChat = chats.find(
-      (chat: any) => chat.id !== chatId && !chat.deleted
-    );
-    const nextActiveChatId =
-      nextVisibleChat?.id ?? nextFallbackChat?.id ?? null;
-
-    if (activeChatId === chatId) {
-      preferredActiveChatIdRef.current = nextActiveChatId;
-      pendingActiveChatIdRef.current = nextActiveChatId;
-      forcedActiveChatIdRef.current = nextActiveChatId;
-      setActiveChatId(nextActiveChatId);
-    }
-
     updateChatMeta(chatId, {
       archived: true,
       deleted: false,
@@ -894,12 +852,13 @@ const resizeComposerTextarea = () => {
     preferredActiveChatIdRef.current = chatId;
     pendingActiveChatIdRef.current = chatId;
     forcedActiveChatIdRef.current = chatId;
-    setActiveChatId(chatId);
 
     updateChatMeta(chatId, {
       archived: false,
       deleted: false,
     });
+
+    setActiveChatId(chatId);
   };
 
    const deleteChat = (chatId: number) => {
@@ -910,22 +869,6 @@ const resizeComposerTextarea = () => {
 
   const confirmDeleteChat = () => {
     if (deleteTargetChatId === null) return;
-
-    const nextVisibleChat = chats.find(
-      (chat: any) => chat.id !== deleteTargetChatId && !chat.archived && !chat.deleted
-    );
-    const nextFallbackChat = chats.find(
-      (chat: any) => chat.id !== deleteTargetChatId && !chat.deleted
-    );
-    const nextActiveChatId =
-      nextVisibleChat?.id ?? nextFallbackChat?.id ?? null;
-
-    if (activeChatId === deleteTargetChatId) {
-      preferredActiveChatIdRef.current = nextActiveChatId;
-      pendingActiveChatIdRef.current = nextActiveChatId;
-      forcedActiveChatIdRef.current = nextActiveChatId;
-      setActiveChatId(nextActiveChatId);
-    }
 
     updateChatMeta(deleteTargetChatId, {
       deleted: true,
@@ -940,12 +883,13 @@ const resizeComposerTextarea = () => {
     preferredActiveChatIdRef.current = chatId;
     pendingActiveChatIdRef.current = chatId;
     forcedActiveChatIdRef.current = chatId;
-    setActiveChatId(chatId);
 
     updateChatMeta(chatId, {
       deleted: false,
       archived: false,
     });
+
+    setActiveChatId(chatId);
   };
 
     const clearDeletedChats = () => {
