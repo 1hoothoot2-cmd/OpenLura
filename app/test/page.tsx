@@ -2258,7 +2258,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
       )}
 
       <div className="flex-1 min-w-0 flex items-stretch justify-center pt-0 md:h-screen md:p-4 xl:justify-start">
-        <div className="flex h-full w-full min-w-0 max-w-2xl flex-col border border-white/8 bg-white/[0.04] shadow-[0_22px_64px_rgba(0,0,0,0.22)] backdrop-blur-2xl md:min-h-0 md:rounded-[32px] xl:ml-6 xl:max-w-[920px]">
+        <div className="flex h-full w-full min-w-0 max-w-2xl flex-col border border-white/8 bg-white/[0.04] shadow-[0_22px_64px_rgba(0,0,0,0.22)] backdrop-blur-2xl md:min-h-0 md:rounded-[28px] xl:ml-6 xl:max-w-[920px]">
 
           {usage && usage.percentage >= 0.8 && !upgradeNotice.visible && (
             <div className="mx-4 mt-4 rounded-[24px] border border-yellow-300/14 bg-yellow-500/[0.07] px-4 py-3 text-sm text-yellow-100 shadow-[0_8px_20px_rgba(0,0,0,0.09)] backdrop-blur-xl">
@@ -2523,8 +2523,8 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
   className={`${
     activeChat?.messages?.length === 0
       ? "mt-6 w-full max-w-2xl"
-      : "fixed bottom-0 left-0 right-0 z-[90] bg-[#050510]/96 px-3 pt-3 pb-[calc(env(safe-area-inset-bottom)+12px)] md:static md:z-auto md:mt-auto md:w-full md:max-w-none md:border-0 md:bg-transparent md:p-0"
-  } flex w-full min-w-0 max-w-full overflow-x-hidden items-end gap-2 rounded-[32px] border border-white/8 bg-white/[0.04] shadow-[0_16px_36px_rgba(0,0,0,0.18)] backdrop-blur-2xl md:rounded-b-[32px] md:rounded-t-[28px] md:border-x-0 md:border-b-0 md:border-t md:px-4 md:py-4 md:shadow-none`}
+      : "fixed bottom-0 left-1/2 z-[90] w-full max-w-2xl -translate-x-1/2 bg-[#050510]/96 px-3 pt-3 pb-[calc(env(safe-area-inset-bottom)+12px)] md:static md:z-auto md:mt-auto md:w-full md:max-w-none md:border-0 md:bg-transparent md:p-0"
+  } flex w-full min-w-0 max-w-full overflow-x-hidden items-end gap-2 rounded-[28px] border border-white/8 bg-white/[0.04] shadow-[0_16px_36px_rgba(0,0,0,0.18)] backdrop-blur-2xl md:rounded-b-[32px] md:rounded-t-[28px] md:border-x-0 md:border-b-0 md:border-t md:px-4 md:py-4 md:shadow-none`}
 >
 
                         <button
@@ -2621,7 +2621,7 @@ enterKeyHint="send"
 
       {showLoginBox && !isPersonalRoute && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-[32px] border border-white/8 bg-[#0b1020]/95 p-6 shadow-[0_24px_72px_rgba(0,0,0,0.34)] backdrop-blur-2xl">
+          <div className="w-full max-w-md rounded-[28px] border border-white/8 bg-[#0b1020]/95 p-6 shadow-[0_24px_72px_rgba(0,0,0,0.34)] backdrop-blur-2xl">
             <div className="mb-5 rounded-[24px] border border-white/8 bg-white/[0.032] px-4 py-4">
               <p className="text-[11px] uppercase tracking-[0.16em] text-white/38">
                 Secure access
@@ -2689,7 +2689,7 @@ enterKeyHint="send"
 
       {showLoginBox && !isPersonalRoute && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-[32px] border border-white/8 bg-[#0b1020]/95 p-6 shadow-[0_24px_72px_rgba(0,0,0,0.34)] backdrop-blur-2xl">
+          <div className="w-full max-w-md rounded-[28px] border border-white/8 bg-[#0b1020]/95 p-6 shadow-[0_24px_72px_rgba(0,0,0,0.34)] backdrop-blur-2xl">
             <div className="mb-5 rounded-[24px] border border-white/8 bg-white/[0.035] px-4 py-4">
               <p className="text-[11px] uppercase tracking-[0.16em] text-white/38">
                 Secure access
