@@ -2280,12 +2280,12 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                     return (
                       <div
                         key={i}
-                        className={`${messageShellClass} ${
+                        className={`${messageShellClass} transition-[opacity,transform] duration-200 ${
                           msg.role === "user" ? "mb-2" : "mb-4"
                         }`}
                       >
                                                 <div
-                          className={`${messageBubbleClass} min-w-0 max-w-[78%] overflow-hidden whitespace-pre-line rounded-[24px] px-4 py-3.5 ${
+                          className={`${messageBubbleClass} min-w-0 max-w-[78%] overflow-hidden whitespace-pre-line rounded-[24px] px-4 py-3.5 transition-[box-shadow,transform,background-color,border-color] duration-200 ${
                             msg.role === "user"
                               ? "ml-auto bg-gradient-to-r from-[#1d4ed8] to-[#2563eb] text-white shadow-[0_10px_28px_rgba(37,99,235,0.24)]"
                               : "border border-white/10 bg-white/[0.06] text-white/92 backdrop-blur-xl shadow-[0_8px_28px_rgba(0,0,0,0.18)]"
@@ -2319,34 +2319,43 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
         <span className="text-sm">OpenLura denkt na</span>
       </span>
     ) : (
-      msg.content.split(/(\s+)/).map((part: string, idx: number) => {
-        const isUrl = /^https?:\/\/\S+$/i.test(part);
+      <>
+        {msg.content.split(/(\s+)/).map((part: string, idx: number) => {
+          const isUrl = /^https?:\/\/\S+$/i.test(part);
 
-        if (isUrl) {
+          if (isUrl) {
+            return (
+              <a
+                key={idx}
+                href={part}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline break-all max-w-full text-blue-300 underline"
+                style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
+              >
+                {part}
+              </a>
+            );
+          }
+
           return (
-            <a
+            <span
               key={idx}
-              href={part}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline break-all max-w-full text-blue-300 underline"
+              className="break-words"
               style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
             >
               {part}
-            </a>
+            </span>
           );
-        }
+        })}
 
-        return (
+        {msg.isStreaming && msg.content !== "…" && (
           <span
-            key={idx}
-            className="break-words"
-            style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
-          >
-            {part}
-          </span>
-        );
-      })
+            className="ml-0.5 inline-block h-5 w-[2px] translate-y-[3px] rounded-full bg-white/60 align-bottom animate-pulse"
+            aria-hidden="true"
+          />
+        )}
+      </>
     )}
   </div>
 ) : null}
