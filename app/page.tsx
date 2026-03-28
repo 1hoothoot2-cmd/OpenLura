@@ -773,11 +773,17 @@ const resizeComposerTextarea = () => {
       deleted: boolean;
     }>
   ) => {
-    const updatedChats = chats.map((chat: any) =>
-      chat.id === chatId ? { ...chat, ...updates } : chat
-    );
+    const updatedChats = chats.map((chat: any) => {
+  if (chat.id !== chatId) return chat;
 
-    setChats(updatedChats);
+  return {
+    ...chat,
+    ...updates,
+  };
+});
+
+// 🔥 force new reference + React sync zekerheid
+setChats([...updatedChats]);
 
     if (activeChatId === chatId && (updates.archived || updates.deleted)) {
       const nextVisibleChat = updatedChats.find(
@@ -816,10 +822,11 @@ const resizeComposerTextarea = () => {
     });
   };
 
-      const deleteChat = (chatId: number) => {
-    setDeleteTargetChatId(chatId);
-    setOpenChatMenuId(null);
-  };
+   const deleteChat = (chatId: number) => {
+  // ensure menu sluit en state clean is
+  setOpenChatMenuId(null);
+  setDeleteTargetChatId(chatId);
+};
 
   const confirmDeleteChat = () => {
     if (deleteTargetChatId === null) return;
@@ -857,10 +864,12 @@ const resizeComposerTextarea = () => {
   );
 
   const archivedChats = chats.filter(
-    (chat: any) => chat.archived && !chat.deleted
-  );
+  (chat: any) => chat.archived === true && chat.deleted !== true
+);
 
-    const deletedChats = chats.filter((chat: any) => chat.deleted);
+const deletedChats = chats.filter(
+  (chat: any) => chat.deleted === true
+);
 
     const clearDeletedChats = () => {
     setShowClearDeletedConfirm(true);
@@ -2411,28 +2420,46 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                                 </div>
                               )}
 
-                                                            <div className="mt-2 flex items-center gap-3 pl-1 text-sm text-white/55">
+                              <div className="mt-3 flex flex-wrap items-center gap-2 pl-1">
                                 {!feedbackGiven[activeChatId + "-" + i] && (
                                   <>
-                                    <button onClick={() => handleFeedback(activeChatId!, i, "up")}>👍</button>
-                                    <button onClick={() => handleFeedback(activeChatId!, i, "down")}>👎</button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleFeedback(activeChatId!, i, "up")}
+                                      className="inline-flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/[0.045] px-3 text-sm text-white/72 transition hover:border-white/16 hover:bg-white/[0.08] hover:text-white"
+                                    >
+                                      <span aria-hidden="true">👍</span>
+                                      <span className="text-[13px]">Goed antwoord</span>
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleFeedback(activeChatId!, i, "down")}
+                                      className="inline-flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/[0.045] px-3 text-sm text-white/72 transition hover:border-white/16 hover:bg-white/[0.08] hover:text-white"
+                                    >
+                                      <span aria-hidden="true">👎</span>
+                                      <span className="text-[13px]">Kan beter</span>
+                                    </button>
                                   </>
                                 )}
 
                                 {feedbackUI[activeChatId + "-" + i] && (
-                                  <span className="ml-1 text-xs text-white/55">
+                                  <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-white/58">
                                     {feedbackUI[activeChatId + "-" + i]}
                                   </span>
                                 )}
                               </div>
 
                 {Array.isArray(msg.sources) && msg.sources.length > 0 && (
-          <div className="mt-4 space-y-2">
-            <p className="text-[11px] uppercase tracking-wide text-white/35">
-              🔎 Bronnen
-            </p>
+          <div className="mt-4 space-y-2.5">
+            <div className="flex items-center gap-2 px-0.5">
+              <span className="text-[12px] text-white/36">🔎</span>
+              <p className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+                Bronnen
+              </p>
+            </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               {msg.sources.map((source: any, sourceIndex: number) => {
                 let domain = "";
 
@@ -2450,21 +2477,29 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                     href={source.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block w-full min-w-0 max-w-full overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-3 hover:bg-white/[0.08] transition-all"
+                    className="block w-full min-w-0 max-w-full overflow-hidden rounded-[20px] border border-white/10 bg-white/[0.045] p-3.5 shadow-[0_8px_20px_rgba(0,0,0,0.10)] transition-all hover:border-white/16 hover:bg-white/[0.075]"
                     title={source.title || source.url}
                   >
-                    <p
-                      className="text-sm text-white/90 break-words"
-                      style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
-                    >
-                      {title}
-                    </p>
-                    <p
-                      className="text-xs text-white/40 mt-1 break-all max-w-full overflow-hidden"
-                      style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
-                    >
-                      {domain}
-                    </p>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p
+                          className="text-sm leading-6 text-white/92 break-words"
+                          style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
+                        >
+                          {title}
+                        </p>
+                        <p
+                          className="mt-1 text-xs text-white/42 break-all max-w-full overflow-hidden"
+                          style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
+                        >
+                          {domain}
+                        </p>
+                      </div>
+
+                      <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.05] px-2 py-1 text-[11px] text-white/48">
+                        Open
+                      </span>
+                    </div>
                   </a>
                 );
               })}

@@ -773,11 +773,17 @@ const resizeComposerTextarea = () => {
       deleted: boolean;
     }>
   ) => {
-    const updatedChats = chats.map((chat: any) =>
-      chat.id === chatId ? { ...chat, ...updates } : chat
-    );
+    const updatedChats = chats.map((chat: any) => {
+  if (chat.id !== chatId) return chat;
 
-    setChats(updatedChats);
+  return {
+    ...chat,
+    ...updates,
+  };
+});
+
+// 🔥 force new reference + React sync zekerheid
+setChats([...updatedChats]);
 
     if (activeChatId === chatId && (updates.archived || updates.deleted)) {
       const nextVisibleChat = updatedChats.find(
@@ -816,10 +822,11 @@ const resizeComposerTextarea = () => {
     });
   };
 
-      const deleteChat = (chatId: number) => {
-    setDeleteTargetChatId(chatId);
-    setOpenChatMenuId(null);
-  };
+   const deleteChat = (chatId: number) => {
+  // ensure menu sluit en state clean is
+  setOpenChatMenuId(null);
+  setDeleteTargetChatId(chatId);
+};
 
   const confirmDeleteChat = () => {
     if (deleteTargetChatId === null) return;
@@ -857,10 +864,12 @@ const resizeComposerTextarea = () => {
   );
 
   const archivedChats = chats.filter(
-    (chat: any) => chat.archived && !chat.deleted
-  );
+  (chat: any) => chat.archived === true && chat.deleted !== true
+);
 
-    const deletedChats = chats.filter((chat: any) => chat.deleted);
+const deletedChats = chats.filter(
+  (chat: any) => chat.deleted === true
+);
 
     const clearDeletedChats = () => {
     setShowClearDeletedConfirm(true);
@@ -2086,7 +2095,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
     <main className="fixed inset-0 flex bg-[#050510] text-white overflow-hidden">
       <button
   onClick={() => setMobileMenu(!mobileMenu)}
-  className="fixed top-4 left-4 z-[70] md:hidden bg-white/10 backdrop-blur-xl p-2 rounded-full"
+  className="fixed left-4 top-4 z-[70] flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/[0.07] text-white/88 shadow-[0_10px_30px_rgba(0,0,0,0.22)] backdrop-blur-2xl transition hover:bg-white/[0.11] md:hidden"
 >
   ☰
 </button>
@@ -2123,24 +2132,24 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
   />
 )}
                   {showClearDeletedConfirm && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="w-[300px] rounded-[28px] border border-white/10 bg-[#0a0a1f]/95 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.38)] backdrop-blur-2xl">
-            <h2 className="mb-2">Weet je het zeker?</h2>
-            <p className="text-sm opacity-70 mb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-[340px] rounded-[28px] border border-white/10 bg-[#0a0a1f]/95 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.38)] backdrop-blur-2xl">
+            <h2 className="mb-2 text-lg font-semibold text-white/95">Weet je het zeker?</h2>
+            <p className="mb-5 text-sm leading-6 text-white/60">
               Alle verwijderde chats worden permanent verwijderd.
             </p>
 
             <div className="flex gap-2">
               <button
                 onClick={() => setShowClearDeletedConfirm(false)}
-                className="flex-1 p-2 bg-white/10 rounded-xl"
+                className="flex-1 rounded-[20px] border border-white/10 bg-white/[0.05] p-3 text-white/90 transition hover:bg-white/[0.08]"
               >
                 Annuleren
               </button>
 
               <button
                 onClick={confirmClearDeletedChats}
-                className="flex-1 p-2 bg-red-500 rounded-xl"
+                className="flex-1 rounded-[20px] border border-red-400/20 bg-red-500/80 p-3 text-white shadow-[0_10px_24px_rgba(239,68,68,0.28)] transition hover:bg-red-500"
               >
                 Verwijderen
               </button>
@@ -2150,24 +2159,24 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
       )}
 
       {deleteTargetChatId !== null && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="w-[300px] rounded-[28px] border border-white/10 bg-[#0a0a1f]/95 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.38)] backdrop-blur-2xl">
-            <h2 className="mb-2">Weet je het zeker?</h2>
-            <p className="text-sm opacity-70 mb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-[340px] rounded-[28px] border border-white/10 bg-[#0a0a1f]/95 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.38)] backdrop-blur-2xl">
+            <h2 className="mb-2 text-lg font-semibold text-white/95">Weet je het zeker?</h2>
+            <p className="mb-5 text-sm leading-6 text-white/60">
               Deze chat wordt verplaatst naar Verwijderde chats.
             </p>
 
             <div className="flex gap-2">
               <button
                 onClick={() => setDeleteTargetChatId(null)}
-                className="flex-1 p-2 bg-white/10 rounded-xl"
+                className="flex-1 rounded-[20px] border border-white/10 bg-white/[0.05] p-3 text-white/90 transition hover:bg-white/[0.08]"
               >
                 Annuleren
               </button>
 
               <button
                 onClick={confirmDeleteChat}
-                className="flex-1 p-2 bg-red-500 rounded-xl"
+                className="flex-1 rounded-[20px] border border-red-400/20 bg-red-500/80 p-3 text-white shadow-[0_10px_24px_rgba(239,68,68,0.28)] transition hover:bg-red-500"
               >
                 Verwijderen
               </button>
@@ -2177,40 +2186,45 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
       )}
 
             {showFeedbackBox && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="w-[300px] rounded-[28px] border border-white/10 bg-[#0a0a1f]/95 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.38)] backdrop-blur-2xl">
-                        <h2 className="mb-2">Feedback / Idee</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-[360px] rounded-[28px] border border-white/10 bg-[#0a0a1f]/95 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.38)] backdrop-blur-2xl">
+            <h2 className="mb-4 text-lg font-semibold text-white/95">Feedback / Idee</h2>
+
             <select
               value={feedbackCategory}
               onChange={(e) => setFeedbackCategory(e.target.value)}
-              className="w-full p-2 rounded bg-white/10 mb-3"
+              className="mb-3 w-full rounded-[18px] border border-white/10 bg-white/[0.05] px-3 py-3 text-sm text-white/90 outline-none transition focus:border-white/18 focus:bg-white/[0.07]"
             >
               <option value="bug">Bug</option>
               <option value="adjustment">Aanpassing</option>
               <option value="feedback_learning">AI feedback</option>
             </select>
+
             <textarea
               value={feedbackText}
               onChange={(e) => setFeedbackText(e.target.value)}
-              className="w-full p-2 rounded bg-white/10 mb-3"
+              className="mb-4 min-h-[120px] w-full rounded-[20px] border border-white/10 bg-white/[0.05] px-3 py-3 text-sm text-white/92 outline-none transition placeholder:text-white/28 focus:border-white/18 focus:bg-white/[0.07]"
+              placeholder="Vertel wat je wilt verbeteren of toevoegen..."
             />
+
             <div className="flex gap-2">
               <button
-                                onClick={() => {
+                onClick={() => {
                   setShowFeedbackBox(false);
                   setFeedbackText("");
                   setFeedbackCategory("adjustment");
                 }}
-                className="flex-1 p-2 bg-white/10 rounded-xl"
+                className="flex-1 rounded-[20px] border border-white/10 bg-white/[0.05] p-3 text-white/90 transition hover:bg-white/[0.08]"
               >
                 Annuleren
               </button>
-                            <button
+
+              <button
                 onClick={handleIdeaSubmit}
                 disabled={!feedbackText.trim()}
-                className={`flex-1 rounded-xl p-2 transition ${
+                className={`flex-1 rounded-[20px] p-3 transition ${
                   feedbackText.trim()
-                    ? "bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] text-white shadow-[0_10px_24px_rgba(59,130,246,0.28)]"
+                    ? "bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] text-white shadow-[0_10px_24px_rgba(59,130,246,0.28)] hover:brightness-110"
                     : "bg-white/10 text-white/30"
                 }`}
               >
@@ -2280,7 +2294,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                     return (
                       <div
                         key={i}
-                        className={`${messageShellClass} transition-[opacity,transform] duration-200 ${
+                        className={`${messageShellClass} animate-[fadeInUp_0.22s_ease-out] transition-[opacity,transform] duration-200 ${
                           msg.role === "user" ? "mb-2" : "mb-4"
                         }`}
                       >
@@ -2406,28 +2420,46 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                                 </div>
                               )}
 
-                                                            <div className="mt-2 flex items-center gap-3 pl-1 text-sm text-white/55">
+                              <div className="mt-3 flex flex-wrap items-center gap-2 pl-1">
                                 {!feedbackGiven[activeChatId + "-" + i] && (
                                   <>
-                                    <button onClick={() => handleFeedback(activeChatId!, i, "up")}>👍</button>
-                                    <button onClick={() => handleFeedback(activeChatId!, i, "down")}>👎</button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleFeedback(activeChatId!, i, "up")}
+                                      className="inline-flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/[0.045] px-3 text-sm text-white/72 transition hover:border-white/16 hover:bg-white/[0.08] hover:text-white"
+                                    >
+                                      <span aria-hidden="true">👍</span>
+                                      <span className="text-[13px]">Goed antwoord</span>
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleFeedback(activeChatId!, i, "down")}
+                                      className="inline-flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/[0.045] px-3 text-sm text-white/72 transition hover:border-white/16 hover:bg-white/[0.08] hover:text-white"
+                                    >
+                                      <span aria-hidden="true">👎</span>
+                                      <span className="text-[13px]">Kan beter</span>
+                                    </button>
                                   </>
                                 )}
 
                                 {feedbackUI[activeChatId + "-" + i] && (
-                                  <span className="ml-1 text-xs text-white/55">
+                                  <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-white/58">
                                     {feedbackUI[activeChatId + "-" + i]}
                                   </span>
                                 )}
                               </div>
 
                 {Array.isArray(msg.sources) && msg.sources.length > 0 && (
-          <div className="mt-4 space-y-2">
-            <p className="text-[11px] uppercase tracking-wide text-white/35">
-              🔎 Bronnen
-            </p>
+          <div className="mt-4 space-y-2.5">
+            <div className="flex items-center gap-2 px-0.5">
+              <span className="text-[12px] text-white/36">🔎</span>
+              <p className="text-[11px] uppercase tracking-[0.16em] text-white/35">
+                Bronnen
+              </p>
+            </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               {msg.sources.map((source: any, sourceIndex: number) => {
                 let domain = "";
 
@@ -2445,21 +2477,29 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                     href={source.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block w-full min-w-0 max-w-full overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-3 hover:bg-white/[0.08] transition-all"
+                    className="block w-full min-w-0 max-w-full overflow-hidden rounded-[20px] border border-white/10 bg-white/[0.045] p-3.5 shadow-[0_8px_20px_rgba(0,0,0,0.10)] transition-all hover:border-white/16 hover:bg-white/[0.075]"
                     title={source.title || source.url}
                   >
-                    <p
-                      className="text-sm text-white/90 break-words"
-                      style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
-                    >
-                      {title}
-                    </p>
-                    <p
-                      className="text-xs text-white/40 mt-1 break-all max-w-full overflow-hidden"
-                      style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
-                    >
-                      {domain}
-                    </p>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p
+                          className="text-sm leading-6 text-white/92 break-words"
+                          style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
+                        >
+                          {title}
+                        </p>
+                        <p
+                          className="mt-1 text-xs text-white/42 break-all max-w-full overflow-hidden"
+                          style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
+                        >
+                          {domain}
+                        </p>
+                      </div>
+
+                      <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.05] px-2 py-1 text-[11px] text-white/48">
+                        Open
+                      </span>
+                    </div>
                   </a>
                 );
               })}
@@ -2673,14 +2713,16 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
       )}
 
       {showLoginBox && !isPersonalRoute && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-md rounded-3xl bg-[#111322] border border-white/10 p-6">
-            <div className="mb-4">
-              <p className="text-xs uppercase tracking-wide opacity-50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-[32px] border border-white/10 bg-[#0b1020]/95 p-6 shadow-[0_28px_90px_rgba(0,0,0,0.42)] backdrop-blur-2xl">
+            <div className="mb-5 rounded-[24px] border border-white/8 bg-white/[0.035] px-4 py-4">
+              <p className="text-[11px] uppercase tracking-[0.16em] text-white/38">
                 Beveiligde toegang
               </p>
-              <h2 className="text-xl font-semibold mt-1">Log in</h2>
-              <p className="text-sm opacity-60 mt-2">
+              <h2 className="mt-2 text-[22px] font-semibold tracking-tight text-white/95">
+                Log in
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-white/56">
                 Meld je aan om je persoonlijke omgeving te openen.
               </p>
             </div>
@@ -2690,7 +2732,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                 value={loginUsername}
                 onChange={(e) => setLoginUsername(e.target.value)}
                 placeholder="Gebruikersnaam"
-                className="w-full p-3 rounded-2xl bg-white/10 border border-white/10 outline-none"
+                className="w-full rounded-[22px] border border-white/10 bg-white/[0.05] px-4 py-3 text-white/95 outline-none transition placeholder:text-white/30 focus:border-white/18 focus:bg-white/[0.07]"
               />
 
               <input
@@ -2698,7 +2740,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                 value={loginPassword}
                 onChange={(e) => setLoginPassword(e.target.value)}
                 placeholder="Wachtwoord"
-                className="w-full p-3 rounded-2xl bg-white/10 border border-white/10 outline-none"
+                className="w-full rounded-[22px] border border-white/10 bg-white/[0.05] px-4 py-3 text-white/95 outline-none transition placeholder:text-white/30 focus:border-white/18 focus:bg-white/[0.07]"
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !loginLoading) {
                     handlePersonalLogin();
@@ -2707,7 +2749,9 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
               />
 
               {loginError && (
-                <p className="text-sm text-red-300">{loginError}</p>
+                <p className="rounded-2xl border border-red-400/20 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+                  {loginError}
+                </p>
               )}
             </div>
 
@@ -2719,7 +2763,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                   setLoginUsername("");
                   setLoginPassword("");
                 }}
-                className="flex-1 p-3 rounded-2xl bg-white/10 hover:bg-white/[0.06] backdrop-blur-xl border border-white/10"
+                className="flex-1 rounded-[22px] border border-white/10 bg-white/[0.05] p-3 text-white/90 backdrop-blur-xl transition hover:bg-white/[0.08]"
               >
                 Annuleren
               </button>
@@ -2727,7 +2771,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
               <button
                 onClick={handlePersonalLogin}
                 disabled={loginLoading}
-                className="flex-1 p-3 rounded-2xl bg-white text-black hover:bg-white/90 disabled:opacity-60"
+                className="flex-1 rounded-[22px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] p-3 text-white shadow-[0_12px_30px_rgba(59,130,246,0.28)] transition hover:brightness-110 disabled:opacity-60"
               >
                 {loginLoading ? "Inloggen..." : "Log in"}
               </button>
@@ -2735,6 +2779,18 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
           </div>
         </div>
       )}
+    <style jsx global>{`
+      @keyframes fadeInUp {
+        from {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+    `}</style>
     </main>
   );
 }
