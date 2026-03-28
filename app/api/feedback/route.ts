@@ -5,6 +5,7 @@ import {
   getCookieValue,
   isValidAdminSession,
 } from "@/lib/auth/adminSession";
+import { resolveOpenLuraRequestIdentity } from "@/lib/auth/requestIdentity";
 
 export const dynamic = "force-dynamic";
 
@@ -19,66 +20,19 @@ const analyticsSessionSecret =
 const ANALYTICS_COOKIE_NAME = "openlura_analytics_session";
 const ANALYTICS_SESSION_MAX_AGE = 60 * 60 * 3;
 
-function getBearerTokenFromRequest(req: Request) {
-  const authHeader = req.headers.get("authorization") || "";
-  const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
-  if (bearerMatch?.[1]) return bearerMatch[1].trim();
-
-  const directCookie =
-    getCookieValue(req, "sb-access-token") ||
-    getCookieValue(req, "supabase-access-token");
-
-  if (directCookie) return decodeURIComponent(directCookie);
-
-  const packedCookie =
-    getCookieValue(req, "supabase-auth-token") ||
-    getCookieValue(req, "sb-auth-token");
-
-  if (!packedCookie) return null;
-
-  try {
-    const decoded = decodeURIComponent(packedCookie);
-    const parsed = JSON.parse(decoded);
-
-    if (typeof parsed === "string") return parsed;
-    if (Array.isArray(parsed) && typeof parsed[0] === "string") return parsed[0];
-    if (typeof parsed?.access_token === "string") return parsed.access_token;
-  } catch {}
-
-  return null;
-}
-
-async function fetchSupabaseAuthUser(accessToken?: string | null) {
-  if (!supabaseUrl || !supabaseServiceRoleKey || !accessToken) return null;
-
-  try {
-    const res = await fetch(`${supabaseUrl}/auth/v1/user`, {
-      method: "GET",
-      headers: {
-        apikey: supabaseServiceRoleKey,
-        Authorization: `Bearer ${accessToken}`,
-      },
-      cache: "no-store",
-    });
-
-    if (!res.ok) return null;
-
-    return await res.json();
-  } catch (error) {
-    console.error("Feedback auth user fetch failed:", error);
-    return null;
-  }
-}
-
 async function resolveFeedbackUserId(req: Request) {
-  const accessToken = getBearerTokenFromRequest(req);
-  const authUser = await fetchSupabaseAuthUser(accessToken);
+  const identity = await resolveOpenLuraRequestIdentity(req);
+  const isAdmin = isValidAdminSession(
+    getCookieValue(req, ADMIN_COOKIE_NAME)
+  );
+  const isPersonalEnvironment =
+    req.headers.get("x-openlura-personal-env") === "true";
 
-  const headerUserId =
-    req.headers.get("x-openlura-user-id") ||
-    req.headers.get("x-user-id");
-
-  return authUser?.id || headerUserId || null;
+  return (
+    identity.authUser?.id ||
+    (isAdmin && isPersonalEnvironment ? "primary" : identity.headerUserId) ||
+    null
+  );
 }
 
 function signAnalyticsSession(expiresAt: string) {

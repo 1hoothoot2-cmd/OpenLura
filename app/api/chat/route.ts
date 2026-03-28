@@ -955,7 +955,9 @@ async function resolvePersonalRuntimeContext(input: {
     getCookieValue(input.req, ADMIN_COOKIE_NAME)
   );
 
-  const personalUserId = authUser?.id || null;
+  const personalUserId =
+    authUser?.id ||
+    (explicitPersonalEnvHeader && hasAdminSession ? "primary" : null);
   const hasAuthenticatedPersonalUser = !!personalUserId;
 
   const personalState = hasAuthenticatedPersonalUser

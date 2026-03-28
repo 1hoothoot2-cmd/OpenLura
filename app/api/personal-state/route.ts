@@ -4,6 +4,7 @@ import {
   getCookieValue,
   isValidAdminSession,
 } from "@/lib/auth/adminSession";
+import { resolveOpenLuraRequestIdentity } from "@/lib/auth/requestIdentity";
 
 export const dynamic = "force-dynamic";
 
@@ -12,68 +13,17 @@ const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const personalStateTable =
   process.env.OPENLURA_PERSONAL_STATE_TABLE || "openlura_personal_state";
 
-function getBearerTokenFromRequest(req: Request) {
-  const authHeader = req.headers.get("authorization") || "";
-  const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
-  if (bearerMatch?.[1]) return bearerMatch[1].trim();
-
-  const directCookie =
-    getCookieValue(req, "sb-access-token") ||
-    getCookieValue(req, "supabase-access-token");
-
-  if (directCookie) return decodeURIComponent(directCookie);
-
-  const packedCookie =
-    getCookieValue(req, "supabase-auth-token") ||
-    getCookieValue(req, "sb-auth-token");
-
-  if (!packedCookie) return null;
-
-  try {
-    const decoded = decodeURIComponent(packedCookie);
-    const parsed = JSON.parse(decoded);
-
-    if (typeof parsed === "string") return parsed;
-    if (Array.isArray(parsed) && typeof parsed[0] === "string") return parsed[0];
-    if (typeof parsed?.access_token === "string") return parsed.access_token;
-  } catch {}
-
-  return null;
-}
-
-async function fetchSupabaseAuthUser(accessToken?: string | null) {
-  if (!supabaseUrl || !supabaseServiceRoleKey || !accessToken) return null;
-
-  try {
-    const res = await fetch(`${supabaseUrl}/auth/v1/user`, {
-      method: "GET",
-      headers: {
-        apikey: supabaseServiceRoleKey,
-        Authorization: `Bearer ${accessToken}`,
-      },
-      cache: "no-store",
-    });
-
-    if (!res.ok) return null;
-
-    return await res.json();
-  } catch (error) {
-    console.error("Personal state auth user fetch failed:", error);
-    return null;
-  }
-}
-
 async function resolvePersonalStateIdentity(req: Request) {
-  const accessToken = getBearerTokenFromRequest(req);
-  const authUser = await fetchSupabaseAuthUser(accessToken);
-  const headerUserId =
-    req.headers.get("x-openlura-user-id") ||
-    req.headers.get("x-user-id");
+  const identity = await resolveOpenLuraRequestIdentity(req);
 
-  const adminSession = isValidAdminSession(getCookieValue(req, ADMIN_COOKIE_NAME));
+  const adminSession = isValidAdminSession(
+    getCookieValue(req, ADMIN_COOKIE_NAME)
+  );
+
+  const userId = identity.authUser?.id || (adminSession ? "primary" : null);
 
   return {
-    userId: authUser?.id || headerUserId || null,
+    userId,
     isAdmin: adminSession,
   };
 }
@@ -95,13 +45,12 @@ async function fetchPersonalStateRow(input: {
   userId?: string | null;
 }) {
   const queries = input.userId
-    ? [
-        `select=chats,memory,user_id,key&user_id=eq.${encodeURIComponent(input.userId)}&limit=1`,
-        `select=chats,memory,user_id,key&id=eq.${encodeURIComponent(input.userId)}&limit=1`,
-        `select=chats,memory,user_id,key&key=eq.${encodeURIComponent(input.userId)}&limit=1`,
-        "select=chats,memory,user_id,key&key=eq.primary&limit=1",
-      ]
-    : ["select=chats,memory,user_id,key&key=eq.primary&limit=1"];
+  ? [
+      `select=chats,memory,user_id,key&user_id=eq.${encodeURIComponent(input.userId)}&limit=1`,
+      `select=chats,memory,user_id,key&id=eq.${encodeURIComponent(input.userId)}&limit=1`,
+      `select=chats,memory,user_id,key&key=eq.${encodeURIComponent(input.userId)}&limit=1`,
+    ]
+  : ["select=chats,memory,user_id,key&key=eq.primary&limit=1"];
 
   for (const query of queries) {
     try {
@@ -178,13 +127,16 @@ export async function POST(req: Request) {
       throw new Error("Unauthorized");
     }
 
-    const payload = {
-      key: userId || "primary",
-      user_id: userId || null,
-      chats: Array.isArray(body?.chats) ? body.chats : [],
-      memory: Array.isArray(body?.memory) ? body.memory : [],
-      updated_at: new Date().toISOString(),
-    };
+    const isPersonalWrite = !!userId;
+const storageKey = isPersonalWrite ? userId : "primary";
+
+const payload = {
+  key: storageKey,
+  user_id: isPersonalWrite ? userId : null,
+  chats: Array.isArray(body?.chats) ? body.chats : [],
+  memory: Array.isArray(body?.memory) ? body.memory : [],
+  updated_at: new Date().toISOString(),
+};
 
     let res = await fetch(personalStateTableUrl, {
       method: "POST",
@@ -245,9 +197,10 @@ export async function POST(req: Request) {
       {
         success: true,
         runtime: {
-          userId: userId || null,
-          mode: userId ? "personal" : "legacy_admin",
-        },
+  userId: userId || null,
+  mode: userId ? "personal" : "legacy_admin",
+  storageKey,
+},
       },
       {
         headers: {
