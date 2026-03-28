@@ -20,11 +20,17 @@ async function resolvePersonalStateIdentity(req: Request) {
     getCookieValue(req, ADMIN_COOKIE_NAME)
   );
 
-  const userId = identity.authUser?.id || (adminSession ? "primary" : null);
+  const authUserId = identity.authUser?.id ?? null;
+  const isLegacyAdmin = !authUserId && adminSession;
+  const userId = authUserId ?? (isLegacyAdmin ? "primary" : null);
+  const storageKey = authUserId ?? (isLegacyAdmin ? "primary" : null);
 
   return {
     userId,
+    storageKey,
     isAdmin: adminSession,
+    isLegacyAdmin,
+    isAuthenticatedPersonal: !!authUserId,
   };
 }
 
@@ -42,58 +48,62 @@ function getSupabaseConfig() {
 async function fetchPersonalStateRow(input: {
   personalStateTableUrl: string;
   supabaseServiceRoleKey: string;
+  storageKey?: string | null;
   userId?: string | null;
 }) {
   const newestRowOrder = "&order=updated_at.desc.nullslast&limit=1";
 
-  const queries = input.userId
-    ? [
-        `select=chats,memory,user_id,key,updated_at&user_id=eq.${encodeURIComponent(input.userId)}${newestRowOrder}`,
-        `select=chats,memory,user_id,key,updated_at&id=eq.${encodeURIComponent(input.userId)}${newestRowOrder}`,
-        `select=chats,memory,user_id,key,updated_at&key=eq.${encodeURIComponent(input.userId)}${newestRowOrder}`,
-        `select=chats,memory,user_id,key,updated_at&key=eq.primary${newestRowOrder}`,
-      ]
-    : [`select=chats,memory,user_id,key,updated_at&key=eq.primary${newestRowOrder}`];
+  const query = input.userId
+    ? `select=chats,memory,user_id,key,updated_at&user_id=eq.${encodeURIComponent(input.userId)}${newestRowOrder}`
+    : input.storageKey
+    ? `select=chats,memory,user_id,key,updated_at&key=eq.${encodeURIComponent(input.storageKey)}${newestRowOrder}`
+    : null;
 
-  for (const query of queries) {
-    try {
-      const res = await fetch(`${input.personalStateTableUrl}?${query}`, {
-        method: "GET",
-        headers: {
-          apikey: input.supabaseServiceRoleKey,
-          Authorization: `Bearer ${input.supabaseServiceRoleKey}`,
-        },
-        cache: "no-store",
-      });
+  if (!query) return null;
 
-      if (!res.ok) continue;
+  try {
+    const res = await fetch(`${input.personalStateTableUrl}?${query}`, {
+      method: "GET",
+      headers: {
+        apikey: input.supabaseServiceRoleKey,
+        Authorization: `Bearer ${input.supabaseServiceRoleKey}`,
+      },
+      cache: "no-store",
+    });
 
-      const rows = await res.json();
-      const row = Array.isArray(rows) ? rows[0] : null;
-
-      if (row) return row;
-    } catch (error) {
-      console.error("Personal state row fetch failed:", error);
+    if (!res.ok) {
+      return null;
     }
-  }
 
-  return null;
+    const rows = await res.json();
+    return Array.isArray(rows) ? rows[0] ?? null : null;
+  } catch (error) {
+    console.error("Personal state row fetch failed:", error);
+    return null;
+  }
 }
 
 export async function GET(req: Request) {
   try {
     const { personalStateTableUrl, supabaseServiceRoleKey } = getSupabaseConfig();
-    const { userId, isAdmin } = await resolvePersonalStateIdentity(req);
+   const {
+  userId,
+  storageKey,
+  isAdmin,
+  isLegacyAdmin,
+  isAuthenticatedPersonal,
+} = await resolvePersonalStateIdentity(req);
 
-    if (!userId && !isAdmin) {
-      throw new Error("Unauthorized");
-    }
+if (!storageKey && !isAdmin) {
+  throw new Error("Unauthorized");
+}
 
-    const row = await fetchPersonalStateRow({
-      personalStateTableUrl,
-      supabaseServiceRoleKey,
-      userId,
-    });
+const row = await fetchPersonalStateRow({
+  personalStateTableUrl,
+  supabaseServiceRoleKey,
+  storageKey,
+  userId: isAuthenticatedPersonal ? userId : null,
+});
 
     return NextResponse.json(
       {
@@ -101,8 +111,8 @@ export async function GET(req: Request) {
         memory: Array.isArray(row?.memory) ? row.memory : [],
         runtime: {
           userId: userId || null,
-          mode: userId ? "personal" : "legacy_admin",
-          storageKey: row?.key || null,
+          mode: isLegacyAdmin ? "legacy_admin" : "personal",
+          storageKey: row?.key || storageKey || null,
           updatedAt: row?.updated_at || null,
         },
       },
@@ -126,22 +136,25 @@ export async function POST(req: Request) {
   try {
     const { personalStateTableUrl, supabaseServiceRoleKey } = getSupabaseConfig();
     const body = await req.json();
-    const { userId, isAdmin } = await resolvePersonalStateIdentity(req);
+    const {
+      userId,
+      storageKey,
+      isAdmin,
+      isLegacyAdmin,
+      isAuthenticatedPersonal,
+    } = await resolvePersonalStateIdentity(req);
 
-    if (!userId && !isAdmin) {
+    if (!storageKey && !isAdmin) {
       throw new Error("Unauthorized");
     }
 
-    const isPersonalWrite = !!userId;
-const storageKey = isPersonalWrite ? userId : "primary";
-
-const payload = {
-  key: storageKey,
-  user_id: isPersonalWrite ? userId : null,
-  chats: Array.isArray(body?.chats) ? body.chats : [],
-  memory: Array.isArray(body?.memory) ? body.memory : [],
-  updated_at: new Date().toISOString(),
-};
+    const payload = {
+      key: storageKey,
+      user_id: isAuthenticatedPersonal ? userId : null,
+      chats: Array.isArray(body?.chats) ? body.chats : [],
+      memory: Array.isArray(body?.memory) ? body.memory : [],
+      updated_at: new Date().toISOString(),
+    };
 
     let res = await fetch(personalStateTableUrl, {
       method: "POST",

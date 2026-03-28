@@ -1,5 +1,7 @@
 "use client";
 
-export default function Placeholder() {
-  return null;
+import Home from "@/app/page";
+
+export default function PersoonlijkeOmgevingPage() {
+  return <Home />;
 }

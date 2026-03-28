@@ -26,7 +26,8 @@ export default function AnalyticsPage() {
       ? { "Content-Type": "application/json" }
       : {};
 
-    const resolvedUserId = getOrCreateOpenLuraUserId();
+    // ⚠️ Only fallback identity (no override)
+const resolvedUserId = getOrCreateOpenLuraUserId();
 
     if (resolvedUserId) {
       headers["x-openlura-user-id"] = resolvedUserId;
