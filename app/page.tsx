@@ -2287,7 +2287,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
   }`}
 >
                         {activeChat?.messages?.length === 0 ? (
-              <div className="flex h-full w-full max-w-2xl -mt-20 flex-col items-center justify-center px-6 text-center">
+              <div className="flex h-full w-full max-w-2xl -mt-20 flex-col items-center justify-center px-4 md:px-6 text-center">
                 <div className="rounded-[28px] border border-white/8 bg-white/[0.028] px-8 py-8 shadow-[0_16px_40px_rgba(0,0,0,0.16)] backdrop-blur-xl md:px-10 md:py-10">
                   <h1 className="mb-3 bg-gradient-to-r from-white via-white to-white/70 bg-clip-text text-2xl font-semibold tracking-tight text-transparent md:text-4xl">
                     What do you want to work on today?
@@ -2522,7 +2522,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                                         <div
   className={`${
     activeChat?.messages?.length === 0
-      ? "mx-auto mt-6 w-[calc(100%-24px)] max-w-2xl"
+      ? "mx-auto mt-6 w-full max-w-2xl px-3 md:px-4"
       : "fixed bottom-0 left-1/2 z-[90] w-full max-w-2xl -translate-x-1/2 bg-[#050510]/96 px-3 pt-3 pb-[calc(env(safe-area-inset-bottom)+12px)] md:static md:z-auto md:mt-auto md:w-full md:max-w-none md:border-0 md:bg-transparent md:p-0"
   } flex w-full min-w-0 max-w-full overflow-x-hidden items-end gap-2 rounded-[28px] border border-white/8 bg-white/[0.04] shadow-[0_16px_36px_rgba(0,0,0,0.18)] backdrop-blur-2xl md:rounded-b-[32px] md:rounded-t-[28px] md:border-x-0 md:border-b-0 md:border-t md:px-4 md:py-4 md:shadow-none`}
 >
