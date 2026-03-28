@@ -2208,9 +2208,9 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                             <button
                 onClick={handleIdeaSubmit}
                 disabled={!feedbackText.trim()}
-                className={`flex-1 p-2 rounded-xl ${
+                className={`flex-1 rounded-xl p-2 transition ${
                   feedbackText.trim()
-                    ? "bg-purple-500"
+                    ? "bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] text-white shadow-[0_10px_24px_rgba(59,130,246,0.28)]"
                     : "bg-white/10 text-white/30"
                 }`}
               >
@@ -2251,14 +2251,15 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
   }`}
 >
                         {activeChat?.messages?.length === 0 ? (
-              <div className="w-full max-w-2xl text-center px-6 flex flex-col items-center justify-center h-full -mt-20">
-                                <h1 className="text-2xl md:text-4xl font-semibold tracking-tight mb-4 bg-gradient-to-r from-white via-white to-white/60 bg-clip-text text-transparent">
-                  Waar wil je vandaag mee verder?
-                </h1>
-                <p className="text-sm opacity-30">
-                  Begin met een vraag
-                </p>
-                
+              <div className="flex h-full w-full max-w-2xl -mt-20 flex-col items-center justify-center px-6 text-center">
+                <div className="rounded-[28px] border border-white/8 bg-white/[0.035] px-8 py-8 shadow-[0_18px_50px_rgba(0,0,0,0.22)] backdrop-blur-xl">
+                  <h1 className="mb-3 bg-gradient-to-r from-white via-white to-white/70 bg-clip-text text-2xl font-semibold tracking-tight text-transparent md:text-4xl">
+                    Waar wil je vandaag mee verder?
+                  </h1>
+                  <p className="mx-auto max-w-md text-sm leading-6 text-white/42">
+                    Stel een vraag, upload een afbeelding of werk verder in een eerdere chat.
+                  </p>
+                </div>
               </div>
             ) : (
               <>
@@ -2465,13 +2466,13 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
     activeChat?.messages?.length === 0
       ? "mt-6 w-full max-w-2xl"
       : composerShellClass + " fixed bottom-0 left-0 right-0 md:static z-[90] p-3 pb-4 md:border-0 bg-[#050510] md:bg-transparent"
-  } flex w-full min-w-0 max-w-full overflow-x-hidden items-end gap-2 rounded-[30px] border border-white/10 bg-white/[0.07] px-3 py-3 shadow-[0_12px_40px_rgba(0,0,0,0.32)] backdrop-blur-2xl`}
+  } flex w-full min-w-0 max-w-full overflow-x-hidden items-end gap-2 rounded-[32px] border border-white/10 bg-white/[0.06] px-3 py-3 shadow-[0_18px_50px_rgba(0,0,0,0.30)] backdrop-blur-2xl`}
 >
 
                         <button
               type="button"
               onClick={() => fileRef.current?.click()}
-              className="h-11 w-11 shrink-0 flex items-center justify-center rounded-full bg-white/8 text-lg hover:bg-white/12 transition-colors"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/8 bg-white/[0.05] text-lg text-white/80 transition-colors hover:bg-white/[0.10]"
             >
               +
             </button>
@@ -2489,7 +2490,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
               <div className="relative shrink-0">
                 <img
                   src={image}
-                  className="w-16 h-16 object-cover rounded-2xl border border-white/10"
+                  className="h-16 w-16 rounded-2xl border border-white/10 object-cover shadow-[0_10px_24px_rgba(0,0,0,0.22)]"
                 />
                 <button
                   type="button"
@@ -2531,7 +2532,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
       sendMessage();
     }
   }}
-  className={`${composerInputClass} flex-1 rounded-2xl bg-transparent px-2 py-3 text-[15px] leading-6 outline-none placeholder:text-white/35 min-h-[52px] max-h-[140px]`}
+  className={`${composerInputClass} flex-1 rounded-2xl bg-transparent px-2 py-3 text-[15px] leading-6 text-white/95 outline-none placeholder:text-white/32 min-h-[52px] max-h-[140px]`}
   placeholder={activeChat?.messages?.length === 0 ? "Ask anything" : "Message OpenLura..."}
   rows={1}
 />
@@ -2540,12 +2541,12 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
   type="button"
   disabled={!loading && !input.trim() && !image}
   onClick={loading ? stopStreaming : sendMessage}
-  className={`h-12 w-12 shrink-0 touch-manipulation rounded-full text-xl transition-all active:scale-95 flex items-center justify-center ${
+  className={`flex h-12 w-12 shrink-0 touch-manipulation items-center justify-center rounded-full text-xl transition-all active:scale-95 ${
     loading
       ? "bg-red-500 text-white shadow-[0_8px_24px_rgba(239,68,68,0.35)]"
       : !input.trim() && !image
-      ? "bg-white/10 text-white/30 shadow-none"
-      : "bg-gradient-to-r from-[#1d4ed8] to-[#2563eb] text-white shadow-[0_10px_24px_rgba(99,102,241,0.32)] hover:brightness-110"
+      ? "bg-white/[0.08] text-white/28 shadow-none"
+      : "bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] text-white shadow-[0_12px_28px_rgba(59,130,246,0.34)] hover:brightness-110"
   }`}
 >
   {loading ? "■" : "↑"}
@@ -2557,46 +2558,54 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 
       {isPersonalEnvironment && (
         <aside className="hidden xl:flex w-[320px] p-4 pr-5">
-          <div className="w-full h-full md:h-[90%] bg-white/10 rounded-3xl backdrop-blur-2xl p-4 flex flex-col">
-            <div className="mb-4">
-              <p className="text-xs uppercase tracking-wide opacity-50">
+          <div className="flex h-full w-full flex-col rounded-[32px] border border-white/10 bg-white/[0.055] p-4 shadow-[0_20px_50px_rgba(0,0,0,0.28)] backdrop-blur-2xl md:h-[90%]">
+            <div className="mb-5 rounded-[28px] border border-white/8 bg-white/[0.035] px-4 py-4">
+              <p className="text-[11px] uppercase tracking-[0.16em] text-white/38">
                 Persoonlijke omgeving
               </p>
-              <h2 className="text-lg font-semibold mt-1">
+              <h2 className="mt-2 text-[20px] font-semibold tracking-tight text-white/95">
                 Training dashboard
               </h2>
-              <p className="text-sm opacity-60 mt-2">
+              <p className="mt-2 text-sm leading-6 text-white/56">
                 Alleen zichtbaar in deze omgeving op desktop.
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 mb-4 text-sm">
-              <div className="p-3 rounded-2xl bg-white/5">
-                <p className="text-xs opacity-50">Memory</p>
-                <p className="text-xl mt-1">{getPersonalEnvironmentInsights().memoryCount}</p>
+            <div className="mb-5 grid grid-cols-2 gap-3 text-sm">
+              <div className="rounded-[24px] border border-white/8 bg-white/[0.04] px-4 py-3 shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
+                <p className="text-[11px] uppercase tracking-[0.14em] text-white/38">Memory</p>
+                <p className="mt-2 text-2xl font-semibold tracking-tight text-white/95">
+                  {getPersonalEnvironmentInsights().memoryCount}
+                </p>
               </div>
-              <div className="p-3 rounded-2xl bg-white/5">
-                <p className="text-xs opacity-50">Verbeteringen</p>
-                <p className="text-xl mt-1">{getPersonalEnvironmentInsights().improvementCount}</p>
+              <div className="rounded-[24px] border border-white/8 bg-white/[0.04] px-4 py-3 shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
+                <p className="text-[11px] uppercase tracking-[0.14em] text-white/38">Verbeteringen</p>
+                <p className="mt-2 text-2xl font-semibold tracking-tight text-white/95">
+                  {getPersonalEnvironmentInsights().improvementCount}
+                </p>
               </div>
-              <div className="p-3 rounded-2xl bg-white/5">
-                <p className="text-xs opacity-50">Negatief</p>
-                <p className="text-xl mt-1">{getPersonalEnvironmentInsights().negativeCount}</p>
+              <div className="rounded-[24px] border border-white/8 bg-white/[0.04] px-4 py-3 shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
+                <p className="text-[11px] uppercase tracking-[0.14em] text-white/38">Negatief</p>
+                <p className="mt-2 text-2xl font-semibold tracking-tight text-white/95">
+                  {getPersonalEnvironmentInsights().negativeCount}
+                </p>
               </div>
-              <div className="p-3 rounded-2xl bg-white/5">
-                <p className="text-xs opacity-50">Positief</p>
-                <p className="text-xl mt-1">{getPersonalEnvironmentInsights().positiveCount}</p>
+              <div className="rounded-[24px] border border-white/8 bg-white/[0.04] px-4 py-3 shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
+                <p className="text-[11px] uppercase tracking-[0.14em] text-white/38">Positief</p>
+                <p className="mt-2 text-2xl font-semibold tracking-tight text-white/95">
+                  {getPersonalEnvironmentInsights().positiveCount}
+                </p>
               </div>
             </div>
 
-            <div className="mb-4 p-3 rounded-2xl bg-white/5">
-              <p className="text-xs uppercase tracking-wide opacity-50 mb-2">
+            <div className="mb-4 rounded-[28px] border border-white/8 bg-white/[0.035] px-4 py-4">
+              <p className="mb-3 text-[11px] uppercase tracking-[0.16em] text-white/38">
                 Actieve stijlpunten
               </p>
               {getPersonalEnvironmentInsights().styleSignals.length === 0 ? (
-                <p className="text-sm opacity-50">Nog geen duidelijke stijl-signalen</p>
+                <p className="text-sm leading-6 text-white/50">Nog geen duidelijke stijl-signalen</p>
               ) : (
-                <div className="space-y-2 text-sm">
+                <div className="space-y-2 text-sm text-white/78">
                   {getPersonalEnvironmentInsights().styleSignals.map((item, idx) => (
                     <p key={idx}>• {item}</p>
                   ))}
@@ -2604,14 +2613,14 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
               )}
             </div>
 
-            <div className="mb-4 p-3 rounded-2xl bg-white/5">
-              <p className="text-xs uppercase tracking-wide opacity-50 mb-2">
+            <div className="mb-4 rounded-[28px] border border-white/8 bg-white/[0.035] px-4 py-4">
+              <p className="mb-3 text-[11px] uppercase tracking-[0.16em] text-white/38">
                 Persoonlijke AI status
               </p>
               {getPersonalEnvironmentInsights().contentSignals.length === 0 ? (
-                <p className="text-sm opacity-50">Nog geen persoonlijke content-signalen</p>
+                <p className="text-sm leading-6 text-white/50">Nog geen persoonlijke content-signalen</p>
               ) : (
-                <div className="space-y-2 text-sm">
+                <div className="space-y-2 text-sm text-white/78">
                   {getPersonalEnvironmentInsights().contentSignals.map((item, idx) => (
                     <p key={idx}>• {item}</p>
                   ))}
@@ -2619,10 +2628,10 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
               )}
             </div>
 
-            <div className="mt-auto space-y-2">
+            <div className="mt-auto space-y-2.5">
               <button
                 onClick={() => setShowFeedbackBox(true)}
-                className="w-full p-3 rounded-2xl bg-white/10 hover:bg-white/[0.06] backdrop-blur-xl border border-white/10 text-left"
+                className="w-full rounded-[24px] border border-white/10 bg-white/[0.05] p-3 text-left text-white/90 backdrop-blur-xl transition hover:bg-white/[0.08]"
               >
                 ✍️ Voeg persoonlijk verbeterpunt toe
               </button>
@@ -2631,14 +2640,14 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                 onClick={() => {
                   window.open("/analytics", "_blank", "noopener,noreferrer");
                 }}
-                className="w-full p-3 rounded-2xl bg-white/10 hover:bg-white/[0.06] backdrop-blur-xl border border-white/10 text-left"
+                className="w-full rounded-[24px] border border-white/10 bg-white/[0.05] p-3 text-left text-white/90 backdrop-blur-xl transition hover:bg-white/[0.08]"
               >
                 📊 Open analytics
               </button>
 
               <button
                 onClick={handlePersonalLogout}
-                className="w-full p-3 rounded-2xl bg-red-500/20 hover:bg-red-500/30 text-left text-red-200"
+                className="w-full rounded-[24px] border border-red-400/20 bg-red-500/16 p-3 text-left text-red-200 transition hover:bg-red-500/24"
               >
                 🚪 Log uit
               </button>
