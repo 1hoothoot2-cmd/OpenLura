@@ -898,6 +898,84 @@ function rebalancePersonalMemoryFromFeedback(input: {
   return buildWeightedPersonalMemoryBlock(adjustedItems);
 }
 
+async function persistSupabasePersonalMemory(input: {
+  userId: string;
+  memory: string;
+  existingState?: any;
+}) {
+  if (!supabaseUrl || !supabaseServiceRoleKey || !input.userId) {
+    return false;
+  }
+
+  const existingState = input.existingState && typeof input.existingState === "object"
+    ? input.existingState
+    : {};
+
+  const existingChats = Array.isArray(existingState.chats) ? existingState.chats : [];
+  const existingKey =
+    typeof existingState.key === "string" && existingState.key.trim()
+      ? existingState.key.trim()
+      : input.userId;
+
+  const memoryItems = extractWeightedPersonalMemoryItems(input.memory);
+
+  const payload = {
+    user_id: input.userId,
+    key: existingKey,
+    chats: existingChats,
+    memory: memoryItems,
+    updated_at: new Date().toISOString(),
+  };
+
+  try {
+    const upsertRes = await fetch(`${supabaseUrl}/rest/v1/${personalStateTable}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: supabaseServiceRoleKey,
+        Authorization: `Bearer ${supabaseServiceRoleKey}`,
+        Prefer: "resolution=merge-duplicates,return=minimal",
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+
+    if (upsertRes.ok) {
+      return true;
+    }
+
+    const errorText = await upsertRes.text();
+
+    const patchRes = await fetch(
+      `${supabaseUrl}/rest/v1/${personalStateTable}?user_id=eq.${encodeURIComponent(input.userId)}`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: supabaseServiceRoleKey,
+          Authorization: `Bearer ${supabaseServiceRoleKey}`,
+          Prefer: "return=minimal",
+        },
+        body: JSON.stringify({
+          memory: memoryItems,
+          updated_at: new Date().toISOString(),
+        }),
+        cache: "no-store",
+      }
+    );
+
+    if (!patchRes.ok) {
+      console.error("OpenLura personal memory persist failed:", patchRes.status, await patchRes.text());
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error("OpenLura personal memory persist error:", error);
+    return false;
+  }
+}
+
 async function fetchSupabasePersonalState(userId: string | null = null) {
   const resolvedUserId = userId ?? null;
 
@@ -1585,6 +1663,12 @@ export async function POST(req: Request) {
     feedbackRows: [...personalLayer, ...userLayer],
   });
 
+  const shouldPersistRuntimeMemory =
+    isPersonalEnvironment &&
+    !!personalUserId &&
+    !!runtimePersonalMemory.trim() &&
+    runtimePersonalMemory.trim() !== String(resolvedPersonalMemory || "").trim();
+
   const feedbackLikes = globalLearningFeedback.filter(
     (f: any) => f.type === "up"
   ).length;
@@ -2095,6 +2179,14 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
       activeLearningRules: resolvedActiveLearningRules,
     });
 
+    if (shouldPersistRuntimeMemory && personalUserId) {
+      await persistSupabasePersonalMemory({
+        userId: personalUserId,
+        memory: runtimePersonalMemory,
+        existingState: personalState.raw,
+      });
+    }
+
     const personalOverrideProfile = buildPersonalOverrideProfile({
       isPersonalEnvironment,
       personalFeedbackRows: personalLearningFeedback,
@@ -2211,6 +2303,7 @@ Fast-path rules:
 - Negative personal feedback must be treated as high priority corrections
 - Treat personal memory as ranked guidance: high before medium before light
 - Memory weights evolve from feedback: reinforce good patterns, suppress bad ones
+- When personal environment is active, updated personal memory may be persisted for future sessions
 - Use personal memory to shape tone, wording, and focus, but never override the user's current request
 - If a strong reusable winner exists for the same message, reuse its shape, directness, and usefulness
 - Do not copy old answers blindly word-for-word
