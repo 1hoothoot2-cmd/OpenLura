@@ -22,6 +22,7 @@ $filesToSync = @(
     # MEMORY FILES
     @{ Source = "OPENLURA_PROJECT_MEMORY.md"; Destination = "OPENLURA_PROJECT_MEMORY.md" },
     @{ Source = "OPENLURA_RULES.md"; Destination = "OPENLURA_RULES.md" }
+    @{ Source = "lib\auth\adminSession.ts"; Destination = "lib_auth_adminSession.ts" }
 )
 
 Write-Host ""

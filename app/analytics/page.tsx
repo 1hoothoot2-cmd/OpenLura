@@ -2,6 +2,38 @@
 import { useEffect, useState } from "react";
 
 export default function AnalyticsPage() {
+   const getOrCreateOpenLuraUserId = () => {
+    if (typeof window === "undefined") return "";
+
+    const storageKey = "openlura_user_id";
+    const existing = localStorage.getItem(storageKey);
+
+    if (existing?.trim()) {
+      return existing.trim();
+    }
+
+    const newId =
+      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `openlura_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+
+    localStorage.setItem(storageKey, newId);
+    return newId;
+  };
+
+  const getOpenLuraRequestHeaders = (includeJson = true) => {
+    const headers: Record<string, string> = includeJson
+      ? { "Content-Type": "application/json" }
+      : {};
+
+    const resolvedUserId = getOrCreateOpenLuraUserId();
+
+    if (resolvedUserId) {
+      headers["x-openlura-user-id"] = resolvedUserId;
+    }
+
+    return headers;
+  };
         const [feedback, setFeedback] = useState<any[]>([]);
     const [activeTab, setActiveTab] = useState("all");
     const [ideaFilter, setIdeaFilter] = useState("all");
@@ -110,8 +142,10 @@ export default function AnalyticsPage() {
     const checkAnalyticsAccess = async () => {
       try {
         const res = await fetch("/api/feedback", {
-          cache: "no-store",
-        });
+  method: "GET",
+  headers: getOpenLuraRequestHeaders(false),
+  cache: "no-store",
+});
 
         setIsUnlocked(res.ok);
       } catch {
@@ -691,9 +725,7 @@ return () => {
     try {
       const res = await fetch("/api/feedback", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: getOpenLuraRequestHeaders(true),
         body: JSON.stringify({
           action: "unlock_analytics",
           password: analyticsPassword,
@@ -731,9 +763,7 @@ return () => {
     try {
       const res = await fetch("/api/feedback", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: getOpenLuraRequestHeaders(true),
         body: JSON.stringify({
           type: "idea",
           message,
@@ -771,9 +801,7 @@ return () => {
     if (action === "shorter_answers") {
       await fetch("/api/feedback", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: getOpenLuraRequestHeaders(true),
         body: JSON.stringify({
           type: "idea",
           message: "AI antwoorden zijn te lang, maak antwoorden korter en directer",
@@ -789,9 +817,7 @@ return () => {
     if (action === "clearer_structure") {
       await fetch("/api/feedback", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: getOpenLuraRequestHeaders(true),
         body: JSON.stringify({
           type: "idea",
           message: "Veel users willen duidelijkere structuur en helderdere opbouw in antwoorden",
@@ -816,9 +842,7 @@ return () => {
 
       await fetch("/api/feedback", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: getOpenLuraRequestHeaders(true),
         body: JSON.stringify({
           action: "update_workflow_status",
           chatId: item?.chatId ?? null,
@@ -892,17 +916,7 @@ return () => {
             <div className="flex items-center justify-between mb-6">
   <h1 className="text-2xl">📊 OpenLura Analytics</h1>
     <button
-    onClick={async () => {
-      try {
-        await fetch("/api/feedback", {
-          method: "DELETE",
-        });
-      } catch (error) {
-        console.error("Analytics logout failed:", error);
-      }
-
-      document.cookie =
-        "openlura_analytics_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+    onClick={() => {
       localStorage.removeItem("openlura_auto_learning_insights");
       setIsUnlocked(false);
       setFeedback([]);

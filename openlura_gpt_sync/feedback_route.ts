@@ -1,5 +1,10 @@
 import { createHmac, timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
+import {
+  ADMIN_COOKIE_NAME,
+  getCookieValue,
+  isValidAdminSession,
+} from "@/lib/auth/adminSession";
 
 export const dynamic = "force-dynamic";
 
@@ -13,11 +18,6 @@ const analyticsSessionSecret =
   "openlura-analytics-session-secret";
 const ANALYTICS_COOKIE_NAME = "openlura_analytics_session";
 const ANALYTICS_SESSION_MAX_AGE = 60 * 60 * 3;
-const ADMIN_COOKIE_NAME = "openlura_admin_session";
-const adminSessionSecret =
-  process.env.ADMIN_SESSION_SECRET ||
-  process.env.SUPABASE_SERVICE_ROLE_KEY ||
-  "openlura-admin-session-secret";
 
 function getBearerTokenFromRequest(req: Request) {
   const authHeader = req.headers.get("authorization") || "";
@@ -87,37 +87,6 @@ function signAnalyticsSession(expiresAt: string) {
     .digest("hex");
 }
 
-function signAdminSession(expiresAt: string) {
-  return createHmac("sha256", adminSessionSecret).update(expiresAt).digest("hex");
-}
-
-function isValidAdminSession(value?: string | null) {
-  if (!value) return false;
-
-  const [expiresAt, signature] = value.split(".");
-  if (!expiresAt || !signature) return false;
-  if (Number(expiresAt) <= Date.now()) return false;
-
-  const expected = signAdminSession(expiresAt);
-
-  try {
-    return timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
-  } catch {
-    return false;
-  }
-}
-
-function getCookieValue(req: Request, name: string) {
-  return (
-    req.headers
-      .get("cookie")
-      ?.split(";")
-      .map((part) => part.trim())
-      .find((part) => part.startsWith(`${name}=`))
-      ?.split("=")[1] ?? null
-  );
-}
-
 function getUserScopeFromRequest(req: Request) {
   return isValidAdminSession(getCookieValue(req, ADMIN_COOKIE_NAME))
     ? "admin"
@@ -128,14 +97,13 @@ function createAnalyticsSessionValue() {
   const expiresAt = String(Date.now() + ANALYTICS_SESSION_MAX_AGE * 1000);
   const signature = signAnalyticsSession(expiresAt);
   return `${expiresAt}.${signature}`;
+  
 }
-
 function isValidAnalyticsSession(value?: string | null) {
   if (!value) return false;
 
   const [expiresAt, signature] = value.split(".");
   if (!expiresAt || !signature) return false;
-
   if (Number(expiresAt) <= Date.now()) return false;
 
   const expected = signAnalyticsSession(expiresAt);
@@ -145,6 +113,9 @@ function isValidAnalyticsSession(value?: string | null) {
   } catch {
     return false;
   }
+}
+function getAnalyticsSessionCookie(req: Request) {
+  return getCookieValue(req, ANALYTICS_COOKIE_NAME);
 }
 
 function getSupabaseConfig() {
@@ -408,13 +379,7 @@ export async function POST(req: Request) {
 
 export async function GET(req: Request) {
   try {
-    const sessionCookie =
-      req.headers
-        .get("cookie")
-        ?.split(";")
-        .map((part) => part.trim())
-        .find((part) => part.startsWith(`${ANALYTICS_COOKIE_NAME}=`))
-        ?.split("=")[1] ?? null;
+    const sessionCookie = getAnalyticsSessionCookie(req);
 
     if (!isValidAnalyticsSession(sessionCookie)) {
       return NextResponse.json(
@@ -470,6 +435,46 @@ export async function GET(req: Request) {
       {
         success: false,
         error: "Feedback ophalen mislukt",
+        details: String(error),
+      },
+      { status: 500 }
+    );
+  }
+}
+export async function DELETE(req: Request) {
+  try {
+    const hadSession = isValidAnalyticsSession(getAnalyticsSessionCookie(req));
+
+    const response = NextResponse.json(
+      {
+        success: true,
+        runtime: {
+          clearedSession: hadSession,
+          sessionType: "analytics_admin",
+        },
+      },
+      {
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      }
+    );
+
+    response.cookies.set(ANALYTICS_COOKIE_NAME, "", {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      expires: new Date(0),
+    });
+
+    return response;
+  } catch (error) {
+    console.error("Feedback DELETE failed:", error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Analytics logout mislukt",
         details: String(error),
       },
       { status: 500 }

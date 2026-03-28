@@ -1,5 +1,9 @@
-import OpenAI from "openai"; 
-import { createHmac, timingSafeEqual } from "crypto";
+import OpenAI from "openai";
+import {
+  ADMIN_COOKIE_NAME,
+  getCookieValue,
+  isValidAdminSession,
+} from "@/lib/auth/adminSession";
 
 let globalFeedback: any[] = [];
 const responseCache = new Map<
@@ -7,11 +11,6 @@ const responseCache = new Map<
   { text: string; sources: { title: string; url: string }[]; timestamp: number }
 >();
 const RESPONSE_CACHE_TTL_MS = 1000 * 60 * 10;
-const ADMIN_COOKIE_NAME = "openlura_admin_session";
-const adminSessionSecret =
-  process.env.ADMIN_SESSION_SECRET ||
-  process.env.SUPABASE_SERVICE_ROLE_KEY ||
-  "openlura-admin-session-secret";
 
 function detectCasualStyleMismatch(input: {
   userMessage: string;
@@ -957,37 +956,6 @@ function buildAutoDebugSignature(input: {
   });
 }
 
-function signAdminSession(expiresAt: string) {
-  return createHmac("sha256", adminSessionSecret).update(expiresAt).digest("hex");
-}
-
-function isValidAdminSession(value?: string | null) {
-  if (!value) return false;
-
-  const [expiresAt, signature] = value.split(".");
-  if (!expiresAt || !signature) return false;
-  if (Number(expiresAt) <= Date.now()) return false;
-
-  const expected = signAdminSession(expiresAt);
-
-  try {
-    return timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
-  } catch {
-    return false;
-  }
-}
-
-function getCookieValue(req: Request, name: string) {
-  return (
-    req.headers
-      .get("cookie")
-      ?.split(";")
-      .map((part) => part.trim())
-      .find((part) => part.startsWith(`${name}=`))
-      ?.split("=")[1] ?? null
-  );
-}
-
 function getUserScopeFromRequest(input: {
   req: Request;
   isPersonalEnvironment?: boolean;
@@ -1893,7 +1861,7 @@ Fast-path rules:
         "Content-Type": "text/plain; charset=utf-8",
         "X-OpenLura-Variant": responseVariant,
         "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
-        "X-OpenLura-Speed": "fast_text",
+        "X-OpenLura-Speed": "fast_image",
         "X-OpenLura-Learning-Scope": learningScope,
       },
         }

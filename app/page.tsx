@@ -438,10 +438,35 @@ const composerInnerClass =
 const composerInputClass =
   "w-full min-w-0 max-w-full resize-none overflow-x-hidden break-words [overflow-wrap:anywhere]";
 
+  const getOrCreateOpenLuraUserId = () => {
+  if (typeof window === "undefined") return "";
+
+  const storageKey = "openlura_user_id";
+  const existing = localStorage.getItem(storageKey);
+
+  if (existing?.trim()) {
+    return existing.trim();
+  }
+
+  const newId =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `openlura_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+
+  localStorage.setItem(storageKey, newId);
+  return newId;
+};
+
 const getOpenLuraRequestHeaders = (includeJson = true) => {
   const headers: Record<string, string> = includeJson
     ? { "Content-Type": "application/json" }
     : {};
+
+  const resolvedUserId = getOrCreateOpenLuraUserId();
+
+  if (resolvedUserId) {
+    headers["x-openlura-user-id"] = resolvedUserId;
+  }
 
   if (isPersonalRoute) {
     headers["x-openlura-personal-env"] = "true";
