@@ -1,4 +1,5 @@
 "use client";
+import Sidebar from "@/components/chat/Sidebar";
 import { useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 
@@ -47,14 +48,20 @@ export default function Home() {
   const [loginError, setLoginError] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
   const [upgradeNotice, setUpgradeNotice] = useState<{
-    visible: boolean;
-    message: string;
-    tier: string;
-  }>({
-    visible: false,
-    message: "",
-    tier: "",
-  });
+  visible: boolean;
+  message: string;
+  tier: string;
+}>({
+  visible: false,
+  message: "",
+  tier: "",
+});
+
+const [usage, setUsage] = useState<{
+  used: number;
+  limit: number;
+  percentage: number;
+} | null>(null);
   
   const fileRef = useRef<HTMLInputElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
@@ -1685,7 +1692,7 @@ setChats([...updated]);
       .join(" | ");
 
     const res = await fetch("/api/chat", {
-      method: "POST", // ✅ VERPLICHT
+      method: "POST",
       signal: controller.signal,
       headers: getOpenLuraRequestHeaders(true),
       body: JSON.stringify({
@@ -1759,8 +1766,21 @@ setChats([...updated]);
       return;
     }
 
-        const reader = res.body.getReader();
+    const reader = res.body.getReader();
     const decoder = new TextDecoder();
+    const usageUsed = Number(res.headers.get("X-OpenLura-Usage-Used") || 0);
+    const usageLimit = Number(res.headers.get("X-OpenLura-Usage-Limit") || 0);
+
+    if (usageLimit > 0) {
+      const percentage = usageUsed / usageLimit;
+
+      setUsage({
+        used: usageUsed,
+        limit: usageLimit,
+        percentage,
+      });
+    }
+
     const responseVariant = res.headers.get("X-OpenLura-Variant") || "unknown";
     const responseSourcesHeader = res.headers.get("X-OpenLura-Sources");
         let responseSources: any[] = [];
@@ -2058,326 +2078,35 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
   ☰
 </button>
 
-                  <div className={`w-[88vw] max-w-72 p-4 bg-white/5 backdrop-blur-xl flex flex-col fixed md:relative top-0 left-0 z-50 h-full overflow-hidden transform transition-transform duration-300 ${
-        mobileMenu ? "translate-x-0" : "-translate-x-full md:translate-x-0"
-      }`}>
-        
-        <button
-          onClick={() => {
-  createNewChat();
-  setMobileMenu(false);
-}}
-          className="mb-3 p-2 rounded-xl bg-gradient-to-r from-purple-500 to-blue-500"
-        >
-          + New Chat
-        </button>
+<Sidebar
+  mobileMenu={mobileMenu}
+  setMobileMenu={setMobileMenu}
+  createNewChat={createNewChat}
+  search={search}
+  setSearch={setSearch}
+  searchedPinnedChats={searchedPinnedChats}
+  regularChats={regularChats}
+  archivedChats={archivedChats}
+  deletedChats={deletedChats}
+  activeChatId={activeChatId}
+  activateChat={activateChat}
+  openChatMenuId={openChatMenuId}
+  setOpenChatMenuId={setOpenChatMenuId}
+  togglePinnedChat={togglePinnedChat}
+  archiveChat={archiveChat}
+  deleteChat={deleteChat}
+  restoreArchivedChat={restoreArchivedChat}
+  restoreDeletedChat={restoreDeletedChat}
+  clearDeletedChats={clearDeletedChats}
+  isPersonalRoute={isPersonalRoute}
+  setShowFeedbackBox={setShowFeedbackBox}
+  setShowLoginBox={setShowLoginBox}
+/>
 
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search active chats..."
-          className="mb-3 p-2 rounded-xl bg-white/10"
-        />
-
-                        <div className="flex-1 overflow-y-auto space-y-4 pr-1">
-          {searchedPinnedChats.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-xs uppercase tracking-wide opacity-50 px-1">
-                Vastgemaakt
-              </p>
-
-              {searchedPinnedChats.map((chat: any) => (
-                <div
-                  key={chat.id}
-                  className={`group relative p-2 rounded-lg ${
-  activeChatId === chat.id
-    ? "bg-white/20 ring-1 ring-white/20"
-    : "bg-white/5 hover:bg-white/10"
-}`}
-                >
-                                    <div
-                    onClick={() => {
-                      activateChat(chat.id);
-                      setMobileMenu(false);
-                    }}
-                                        className="pr-8 cursor-pointer flex items-center gap-2 min-w-0"
-                  >
-                    <span className="text-xs opacity-70">📌</span>
-                                        <span className="truncate">{chat.title}</span>
-                  </div>
-
-                                    <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setOpenChatMenuId((prev) =>
-                        prev === chat.id ? null : chat.id
-                      );
-                    }}
-                    className="absolute right-1 top-1 h-9 w-9 flex items-center justify-center rounded-full opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:bg-white/10"
-                  >
-                    ⋯
-                  </button>
-
-                  {openChatMenuId === chat.id && (
-                                        <div ref={chatMenuRef} className="absolute right-2 top-10 z-50 w-40 rounded-xl bg-[#101025] border border-white/10 shadow-xl overflow-hidden">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          togglePinnedChat(chat.id);
-                        }}
-                        className="w-full text-left px-3 py-2 hover:bg-white/10"
-                      >
-                        Losmaken
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          archiveChat(chat.id);
-                        }}
-                        className="w-full text-left px-3 py-2 hover:bg-white/10"
-                      >
-                        Archief
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteChat(chat.id);
-                        }}
-                        className="w-full text-left px-3 py-2 hover:bg-white/10 text-red-300"
-                      >
-                        Verwijderen
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="space-y-2">
-            <p className="text-xs uppercase tracking-wide opacity-50 px-1">
-              Je chats
-            </p>
-
-            {regularChats.length === 0 ? (
-              <div className="p-2 rounded-lg bg-white/5 text-sm opacity-60">
-                Geen actieve chats gevonden.
-              </div>
-            ) : (
-              regularChats.map((chat: any) => (
-                <div
-                  key={chat.id}
-                  className={`group relative p-2 rounded-lg ${
-  activeChatId === chat.id
-    ? "bg-white/20 ring-1 ring-white/20"
-    : "bg-white/5 hover:bg-white/10"
-}`}
-                >
-                  <div
-                    onClick={() => {
-                      activateChat(chat.id);
-                      setMobileMenu(false);
-                    }}
-                                        className="pr-8 cursor-pointer truncate"
-                  >
-                    {chat.title}
-                  </div>
-
-                                    <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setOpenChatMenuId((prev) =>
-                        prev === chat.id ? null : chat.id
-                      );
-                    }}
-                    className="absolute right-1 top-1 h-9 w-9 flex items-center justify-center rounded-full opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:bg-white/10"
-                  >
-                    ⋯
-                  </button>
-
-                  {openChatMenuId === chat.id && (
-                    <div className="absolute right-2 top-10 z-50 w-40 rounded-xl bg-[#101025] border border-white/10 shadow-xl overflow-hidden">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          togglePinnedChat(chat.id);
-                        }}
-                        className="w-full text-left px-3 py-2 hover:bg-white/10"
-                      >
-                        Vastmaken
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          archiveChat(chat.id);
-                        }}
-                        className="w-full text-left px-3 py-2 hover:bg-white/10"
-                      >
-                        Archief
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteChat(chat.id);
-                        }}
-                        className="w-full text-left px-3 py-2 hover:bg-white/10 text-red-300"
-                      >
-                        Verwijderen
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <p className="text-xs uppercase tracking-wide opacity-50 px-1">
-              Archief
-            </p>
-
-            {archivedChats.length === 0 ? (
-              <div className="p-2 rounded-lg bg-white/5 text-sm opacity-60">
-                Geen gearchiveerde chats.
-              </div>
-            ) : (
-              archivedChats.map((chat: any) => (
-                <div
-                  key={chat.id}
-                  className="group relative p-2 rounded-lg bg-white/5 hover:bg-white/10"
-                >
-                  <div
-                    onClick={() => {
-                      setOpenChatMenuId(null);
-                      setMobileMenu(false);
-                    }}
-                    className="pr-8 cursor-default opacity-80"
-                  >
-                    {chat.title}
-                  </div>
-
-                                    <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setOpenChatMenuId((prev) =>
-                        prev === chat.id ? null : chat.id
-                      );
-                    }}
-                    className="absolute right-1 top-1 h-9 w-9 flex items-center justify-center rounded-full opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:bg-white/10"
-                  >
-                    ⋯
-                  </button>
-
-                  {openChatMenuId === chat.id && (
-                    <div className="absolute right-2 top-10 z-50 w-40 rounded-xl bg-[#101025] border border-white/10 shadow-xl overflow-hidden">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          restoreArchivedChat(chat.id);
-                        }}
-                        className="w-full text-left px-3 py-2 hover:bg-white/10"
-                      >
-                        Terugzetten
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteChat(chat.id);
-                        }}
-                        className="w-full text-left px-3 py-2 hover:bg-white/10 text-red-300"
-                      >
-                        Verwijderen
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
-
-                    <div className="space-y-2">
-            <div className="flex items-center justify-between px-1">
-              <p className="text-xs uppercase tracking-wide opacity-50">
-                Verwijderde chats
-              </p>
-              {deletedChats.length > 0 && (
-                <button
-                  onClick={clearDeletedChats}
-                  className="text-xs text-red-400 hover:text-red-300"
-                >
-                  Leegmaken
-                </button>
-              )}
-            </div>
-
-            {deletedChats.length === 0 ? (
-              <div className="p-2 rounded-lg bg-white/5 text-sm opacity-60">
-                Geen verwijderde chats.
-              </div>
-            ) : (
-              deletedChats.map((chat: any) => (
-                <div
-                  key={chat.id}
-                  className="group relative p-2 rounded-lg bg-white/5 hover:bg-white/10"
-                >
-                  <div className="pr-8 opacity-60">{chat.title}</div>
-
-                                    <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setOpenChatMenuId((prev) =>
-                        prev === chat.id ? null : chat.id
-                      );
-                    }}
-                    className="absolute right-1 top-1 h-9 w-9 flex items-center justify-center rounded-full opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:bg-white/10"
-                  >
-                    ⋯
-                  </button>
-
-                  {openChatMenuId === chat.id && (
-                    <div className="absolute right-2 top-10 z-50 w-40 rounded-xl bg-[#101025] border border-white/10 shadow-xl overflow-hidden">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          restoreDeletedChat(chat.id);
-                        }}
-                        className="w-full text-left px-3 py-2 hover:bg-white/10"
-                      >
-                        Terugzetten
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        <div className="mt-3 space-y-2">
-          <button
-            onClick={() => setShowFeedbackBox(true)}
-            className="w-full p-2 rounded-xl bg-white/10 hover:bg-white/20"
-          >
-            💡 Feedback / Idee
-          </button>
-
-          {!isPersonalRoute && (
-            <button
-              onClick={() => {
-                setShowLoginBox(true);
-                setLoginError("");
-              }}
-              className="w-full p-2 rounded-xl bg-white/10 hover:bg-white/20"
-            >
-              🔐 Log in
-            </button>
-          )}
-        </div>
-      </div>
 {mobileMenu && (
   <div
     onClick={() => setMobileMenu(false)}
-    className="fixed inset-0 bg-black/50 z-30 md:hidden"
+    className="fixed inset-0 z-30 bg-black/50 md:hidden"
   />
 )}
                   {showClearDeletedConfirm && (
@@ -2481,6 +2210,17 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 
       <div className="flex-1 min-w-0 flex items-stretch justify-center md:p-4 pt-0">
         <div className="w-full min-w-0 max-w-2xl h-full md:h-[90%] flex flex-col bg-white/10 md:rounded-3xl backdrop-blur-2xl">
+
+          {usage && usage.percentage >= 0.8 && !upgradeNotice.visible && (
+            <div className="mx-4 mt-4 rounded-2xl border border-yellow-300/30 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-100">
+              <div className="font-medium">
+                Bijna limiet bereikt
+              </div>
+              <div className="mt-1 opacity-90">
+                {Math.round(usage.percentage * 100)}% gebruikt ({usage.used}/{usage.limit})
+              </div>
+            </div>
+          )}
 
           {upgradeNotice.visible && (
             <div className="mx-4 mt-4 rounded-2xl border border-amber-300/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">

@@ -1,4 +1,5 @@
 "use client";
+import Sidebar from "@/components/chat/Sidebar";
 import { useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 
@@ -63,6 +64,7 @@ const [usage, setUsage] = useState<{
 } | null>(null);
   
   const fileRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
   const chatMenuRef = useRef<HTMLDivElement>(null);
   const preferredActiveChatIdRef = useRef<number | null>(null);
@@ -425,6 +427,10 @@ const hasMeaningfulPersonalState =
 }, [activeChatId, chats, loading]);
 
   useEffect(() => {
+    resizeComposerTextarea();
+  }, [input, image]);
+
+  useEffect(() => {
     if (!isPersonalRoute) return;
 
     const loadPersonalStateFromServer = async (forceApply = false) => {
@@ -638,6 +644,14 @@ const activeChat =
       !c.archived &&
       !c.deleted
   ) ?? null;
+
+const resizeComposerTextarea = () => {
+  const el = inputRef.current;
+  if (!el) return;
+
+  el.style.height = "0px";
+  el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
+};
 
   useEffect(() => {
     const visibleChats = chats.filter(
@@ -2077,326 +2091,35 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
   ☰
 </button>
 
-                  <div className={`w-[88vw] max-w-72 p-4 bg-white/5 backdrop-blur-xl flex flex-col fixed md:relative top-0 left-0 z-50 h-full overflow-hidden transform transition-transform duration-300 ${
-        mobileMenu ? "translate-x-0" : "-translate-x-full md:translate-x-0"
-      }`}>
-        
-        <button
-          onClick={() => {
-  createNewChat();
-  setMobileMenu(false);
-}}
-          className="mb-3 p-2 rounded-xl bg-gradient-to-r from-purple-500 to-blue-500"
-        >
-          + New Chat
-        </button>
+<Sidebar
+  mobileMenu={mobileMenu}
+  setMobileMenu={setMobileMenu}
+  createNewChat={createNewChat}
+  search={search}
+  setSearch={setSearch}
+  searchedPinnedChats={searchedPinnedChats}
+  regularChats={regularChats}
+  archivedChats={archivedChats}
+  deletedChats={deletedChats}
+  activeChatId={activeChatId}
+  activateChat={activateChat}
+  openChatMenuId={openChatMenuId}
+  setOpenChatMenuId={setOpenChatMenuId}
+  togglePinnedChat={togglePinnedChat}
+  archiveChat={archiveChat}
+  deleteChat={deleteChat}
+  restoreArchivedChat={restoreArchivedChat}
+  restoreDeletedChat={restoreDeletedChat}
+  clearDeletedChats={clearDeletedChats}
+  isPersonalRoute={isPersonalRoute}
+  setShowFeedbackBox={setShowFeedbackBox}
+  setShowLoginBox={setShowLoginBox}
+/>
 
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search active chats..."
-          className="mb-3 p-2 rounded-xl bg-white/10"
-        />
-
-                        <div className="flex-1 overflow-y-auto space-y-4 pr-1">
-          {searchedPinnedChats.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-xs uppercase tracking-wide opacity-50 px-1">
-                Vastgemaakt
-              </p>
-
-              {searchedPinnedChats.map((chat: any) => (
-                <div
-                  key={chat.id}
-                  className={`group relative p-2 rounded-lg ${
-  activeChatId === chat.id
-    ? "bg-white/20 ring-1 ring-white/20"
-    : "bg-white/5 hover:bg-white/10"
-}`}
-                >
-                                    <div
-                    onClick={() => {
-                      activateChat(chat.id);
-                      setMobileMenu(false);
-                    }}
-                                        className="pr-8 cursor-pointer flex items-center gap-2 min-w-0"
-                  >
-                    <span className="text-xs opacity-70">📌</span>
-                                        <span className="truncate">{chat.title}</span>
-                  </div>
-
-                                    <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setOpenChatMenuId((prev) =>
-                        prev === chat.id ? null : chat.id
-                      );
-                    }}
-                    className="absolute right-1 top-1 h-9 w-9 flex items-center justify-center rounded-full opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:bg-white/10"
-                  >
-                    ⋯
-                  </button>
-
-                  {openChatMenuId === chat.id && (
-                                        <div ref={chatMenuRef} className="absolute right-2 top-10 z-50 w-40 rounded-xl bg-[#101025] border border-white/10 shadow-xl overflow-hidden">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          togglePinnedChat(chat.id);
-                        }}
-                        className="w-full text-left px-3 py-2 hover:bg-white/10"
-                      >
-                        Losmaken
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          archiveChat(chat.id);
-                        }}
-                        className="w-full text-left px-3 py-2 hover:bg-white/10"
-                      >
-                        Archief
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteChat(chat.id);
-                        }}
-                        className="w-full text-left px-3 py-2 hover:bg-white/10 text-red-300"
-                      >
-                        Verwijderen
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="space-y-2">
-            <p className="text-xs uppercase tracking-wide opacity-50 px-1">
-              Je chats
-            </p>
-
-            {regularChats.length === 0 ? (
-              <div className="p-2 rounded-lg bg-white/5 text-sm opacity-60">
-                Geen actieve chats gevonden.
-              </div>
-            ) : (
-              regularChats.map((chat: any) => (
-                <div
-                  key={chat.id}
-                  className={`group relative p-2 rounded-lg ${
-  activeChatId === chat.id
-    ? "bg-white/20 ring-1 ring-white/20"
-    : "bg-white/5 hover:bg-white/10"
-}`}
-                >
-                  <div
-                    onClick={() => {
-                      activateChat(chat.id);
-                      setMobileMenu(false);
-                    }}
-                                        className="pr-8 cursor-pointer truncate"
-                  >
-                    {chat.title}
-                  </div>
-
-                                    <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setOpenChatMenuId((prev) =>
-                        prev === chat.id ? null : chat.id
-                      );
-                    }}
-                    className="absolute right-1 top-1 h-9 w-9 flex items-center justify-center rounded-full opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:bg-white/10"
-                  >
-                    ⋯
-                  </button>
-
-                  {openChatMenuId === chat.id && (
-                    <div className="absolute right-2 top-10 z-50 w-40 rounded-xl bg-[#101025] border border-white/10 shadow-xl overflow-hidden">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          togglePinnedChat(chat.id);
-                        }}
-                        className="w-full text-left px-3 py-2 hover:bg-white/10"
-                      >
-                        Vastmaken
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          archiveChat(chat.id);
-                        }}
-                        className="w-full text-left px-3 py-2 hover:bg-white/10"
-                      >
-                        Archief
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteChat(chat.id);
-                        }}
-                        className="w-full text-left px-3 py-2 hover:bg-white/10 text-red-300"
-                      >
-                        Verwijderen
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <p className="text-xs uppercase tracking-wide opacity-50 px-1">
-              Archief
-            </p>
-
-            {archivedChats.length === 0 ? (
-              <div className="p-2 rounded-lg bg-white/5 text-sm opacity-60">
-                Geen gearchiveerde chats.
-              </div>
-            ) : (
-              archivedChats.map((chat: any) => (
-                <div
-                  key={chat.id}
-                  className="group relative p-2 rounded-lg bg-white/5 hover:bg-white/10"
-                >
-                  <div
-                    onClick={() => {
-                      setOpenChatMenuId(null);
-                      setMobileMenu(false);
-                    }}
-                    className="pr-8 cursor-default opacity-80"
-                  >
-                    {chat.title}
-                  </div>
-
-                                    <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setOpenChatMenuId((prev) =>
-                        prev === chat.id ? null : chat.id
-                      );
-                    }}
-                    className="absolute right-1 top-1 h-9 w-9 flex items-center justify-center rounded-full opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:bg-white/10"
-                  >
-                    ⋯
-                  </button>
-
-                  {openChatMenuId === chat.id && (
-                    <div className="absolute right-2 top-10 z-50 w-40 rounded-xl bg-[#101025] border border-white/10 shadow-xl overflow-hidden">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          restoreArchivedChat(chat.id);
-                        }}
-                        className="w-full text-left px-3 py-2 hover:bg-white/10"
-                      >
-                        Terugzetten
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteChat(chat.id);
-                        }}
-                        className="w-full text-left px-3 py-2 hover:bg-white/10 text-red-300"
-                      >
-                        Verwijderen
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
-
-                    <div className="space-y-2">
-            <div className="flex items-center justify-between px-1">
-              <p className="text-xs uppercase tracking-wide opacity-50">
-                Verwijderde chats
-              </p>
-              {deletedChats.length > 0 && (
-                <button
-                  onClick={clearDeletedChats}
-                  className="text-xs text-red-400 hover:text-red-300"
-                >
-                  Leegmaken
-                </button>
-              )}
-            </div>
-
-            {deletedChats.length === 0 ? (
-              <div className="p-2 rounded-lg bg-white/5 text-sm opacity-60">
-                Geen verwijderde chats.
-              </div>
-            ) : (
-              deletedChats.map((chat: any) => (
-                <div
-                  key={chat.id}
-                  className="group relative p-2 rounded-lg bg-white/5 hover:bg-white/10"
-                >
-                  <div className="pr-8 opacity-60">{chat.title}</div>
-
-                                    <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setOpenChatMenuId((prev) =>
-                        prev === chat.id ? null : chat.id
-                      );
-                    }}
-                    className="absolute right-1 top-1 h-9 w-9 flex items-center justify-center rounded-full opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:bg-white/10"
-                  >
-                    ⋯
-                  </button>
-
-                  {openChatMenuId === chat.id && (
-                    <div className="absolute right-2 top-10 z-50 w-40 rounded-xl bg-[#101025] border border-white/10 shadow-xl overflow-hidden">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          restoreDeletedChat(chat.id);
-                        }}
-                        className="w-full text-left px-3 py-2 hover:bg-white/10"
-                      >
-                        Terugzetten
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        <div className="mt-3 space-y-2">
-          <button
-            onClick={() => setShowFeedbackBox(true)}
-            className="w-full p-2 rounded-xl bg-white/10 hover:bg-white/20"
-          >
-            💡 Feedback / Idee
-          </button>
-
-          {!isPersonalRoute && (
-            <button
-              onClick={() => {
-                setShowLoginBox(true);
-                setLoginError("");
-              }}
-              className="w-full p-2 rounded-xl bg-white/10 hover:bg-white/20"
-            >
-              🔐 Log in
-            </button>
-          )}
-        </div>
-      </div>
 {mobileMenu && (
   <div
     onClick={() => setMobileMenu(false)}
-    className="fixed inset-0 bg-black/50 z-30 md:hidden"
+    className="fixed inset-0 z-30 bg-black/50 md:hidden"
   />
 )}
                   {showClearDeletedConfirm && (
@@ -2557,7 +2280,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                       <div key={i} className={messageShellClass}>
                         <div className={`${messageBubbleClass} min-w-0 max-w-[75%] overflow-hidden p-3 rounded-2xl whitespace-pre-line ${
                           msg.role === "user"
-                            ? "bg-gradient-to-r from-purple-500 to-blue-500 ml-auto text-white"
+                            ? "bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] ml-auto text-white"
                             : "bg-white/20"
                         }`}>
                           {msg.image && (
@@ -2735,7 +2458,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
     activeChat?.messages?.length === 0
       ? "mt-6 w-full max-w-2xl"
       : composerShellClass + " fixed bottom-0 left-0 right-0 md:static z-[90] p-3 pb-4 md:border-0 bg-[#050510] md:bg-transparent"
-  } flex w-full min-w-0 max-w-full overflow-x-hidden items-end gap-2 rounded-[28px] border border-white/10 bg-white/5 backdrop-blur-xl px-3 py-3 shadow-[0_10px_40px_rgba(0,0,0,0.25)]`}
+  } flex w-full min-w-0 max-w-full overflow-x-hidden items-end gap-2 rounded-[30px] border border-white/10 bg-white/[0.07] px-3 py-3 shadow-[0_12px_40px_rgba(0,0,0,0.32)] backdrop-blur-2xl`}
 >
 
                         <button
@@ -2764,7 +2487,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                 <button
                   type="button"
                   onClick={() => setImage(null)}
-                  className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-black/70 border border-white/10 text-xs flex items-center justify-center"
+                  className="absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full border border-white/10 bg-black/70 text-xs"
                 >
                   ×
                 </button>
@@ -2772,6 +2495,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
             )}
 
                         <textarea
+  ref={inputRef}
   value={input}
   onFocus={() => {
     if (window.innerWidth < 768) {
@@ -2780,18 +2504,27 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
   }}
   onChange={(e) => {
     setInput(e.target.value);
-    e.target.style.height = "auto";
-    e.target.style.height = `${Math.min(e.target.scrollHeight, 140)}px`;
   }}
   onKeyDown={(e) => {
-    const isMobile = window.innerWidth < 768;
+    const nativeEvent = e.nativeEvent as KeyboardEvent & {
+      isComposing?: boolean;
+    };
 
-    if (!isMobile && e.key === "Enter" && !e.shiftKey) {
+    if (nativeEvent.isComposing) {
+      return;
+    }
+
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
+
+      if (loading) {
+        return;
+      }
+
       sendMessage();
     }
   }}
-  className={`${composerInputClass} flex-1 bg-transparent rounded-2xl min-h-[52px] max-h-[140px] outline-none px-2 py-3 placeholder:text-white/35`}
+  className={`${composerInputClass} flex-1 rounded-2xl bg-transparent px-2 py-3 text-[15px] leading-6 outline-none placeholder:text-white/35 min-h-[52px] max-h-[140px]`}
   placeholder={activeChat?.messages?.length === 0 ? "Ask anything" : "Message OpenLura..."}
   rows={1}
 />
@@ -2800,14 +2533,13 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
   type="button"
   disabled={!loading && !input.trim() && !image}
   onClick={loading ? stopStreaming : sendMessage}
-
-    className={`w-12 h-12 shrink-0 flex items-center justify-center rounded-full text-xl shadow-lg touch-manipulation transition-all active:scale-95 ${
-      loading
-        ? "bg-red-500 text-white"
-        : !input.trim() && !image
-        ? "bg-white/10 text-white/30 shadow-none"
-        : "bg-gradient-to-r from-purple-500 to-blue-500 text-white shadow-purple-500/20"
-    }`}
+  className={`h-12 w-12 shrink-0 touch-manipulation rounded-full text-xl transition-all active:scale-95 flex items-center justify-center ${
+    loading
+      ? "bg-red-500 text-white shadow-[0_8px_24px_rgba(239,68,68,0.35)]"
+      : !input.trim() && !image
+      ? "bg-white/10 text-white/30 shadow-none"
+      : "bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] text-white shadow-[0_10px_24px_rgba(99,102,241,0.32)] hover:brightness-110"
+  }`}
 >
   {loading ? "■" : "↑"}
 </button>

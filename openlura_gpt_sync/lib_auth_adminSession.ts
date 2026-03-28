@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "crypto";
 
 export const ADMIN_COOKIE_NAME = "openlura_admin_session";
+export const ADMIN_SESSION_MAX_AGE = 60 * 60 * 24 * 7;
 
 function getAdminSessionSecret() {
   return (
@@ -14,6 +15,12 @@ export function signAdminSession(expiresAt: string) {
   return createHmac("sha256", getAdminSessionSecret())
     .update(expiresAt)
     .digest("hex");
+}
+
+export function createAdminSessionValue() {
+  const expiresAt = String(Date.now() + ADMIN_SESSION_MAX_AGE * 1000);
+  const signature = signAdminSession(expiresAt);
+  return `${expiresAt}.${signature}`;
 }
 
 export function isValidAdminSession(value?: string | null) {

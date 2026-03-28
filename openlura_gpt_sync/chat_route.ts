@@ -172,6 +172,32 @@ function buildCacheKey(input: {
   });
 }
 
+function applyFeedbackWeighting(input: {
+  personal: any[];
+  global: any[];
+}) {
+  const PERSONAL_MULTIPLIER = 2.2;
+  const PERSONAL_NEGATIVE_MULTIPLIER = 2.8;
+
+  const normalize = (items: any[], multiplier: number) =>
+    items.map((item) => {
+      const baseWeight =
+        item.type === "down" || item.type === "improve"
+          ? PERSONAL_NEGATIVE_MULTIPLIER
+          : multiplier;
+
+      return {
+        ...item,
+        _weightedScore: baseWeight,
+      };
+    });
+
+  const weightedPersonal = normalize(input.personal, PERSONAL_MULTIPLIER);
+  const weightedGlobal = normalize(input.global, 1);
+
+  return [...weightedPersonal, ...weightedGlobal];
+}
+
 function buildStyleLearningSignals(input: {
   shorter: number;
   clearer: number;
@@ -611,10 +637,39 @@ type OpenLuraFeedbackRow = {
   weight?: number;
 };
 
+type OpenLuraUsageStats = {
+  requestCount?: number;
+  personalRequestCount?: number;
+  imageRequestCount?: number;
+  webSearchCount?: number;
+  lastRequestAt?: string | null;
+  periodKey?: string | null;
+  tier?: "free" | "pro" | "admin";
+};
+
+type OpenLuraPersonalStateStyleProfile = {
+  preferredBrevity?: "tight" | "compact" | "balanced";
+  preferredClarity?: "high" | "elevated" | "normal";
+  preferredStructure?: "minimal" | "structured" | "balanced";
+  preferredDepth?: "concise" | "standard" | "expanded";
+  preferredTone?:
+    | "casual_light"
+    | "casual_balanced"
+    | "default_premium"
+    | "practical_grounded"
+    | "visual_direct";
+  hardRules?: string[];
+  avoidPatterns?: string[];
+  memoryDirectives?: string[];
+  updatedAt?: string;
+};
+
 type OpenLuraPersonalState = {
   userId: string | null;
   memory: string;
   feedback: OpenLuraFeedbackRow[];
+  styleProfile: OpenLuraPersonalStateStyleProfile | null;
+  usageStats: OpenLuraUsageStats | null;
   raw: any;
 };
 
@@ -691,6 +746,434 @@ function normalizePersonalMemoryValue(value: any): string {
   return "";
 }
 
+function updateMemoryWeightsFromFeedback(input: {
+  memoryItems: { text: string; weight: number }[];
+  feedback: any[];
+}) {
+  const BOOST = 0.35;
+  const STRONG_BOOST = 0.6;
+  const DECAY = 0.05;
+
+  return input.memoryItems.map((item) => {
+    let weight = item.weight;
+
+    for (const f of input.feedback) {
+      const text = `${f.userMessage || ""} ${f.message || ""}`.toLowerCase();
+
+      if (!text.includes(item.text.toLowerCase())) continue;
+
+      if (f.type === "up") {
+        weight += BOOST;
+      }
+
+      if (f.type === "down" || f.type === "improve") {
+        weight -= STRONG_BOOST;
+      }
+    }
+
+    // decay (altijd licht omlaag tenzij boosted)
+    weight -= DECAY;
+
+    return {
+      text: item.text,
+      weight: Math.max(0, Math.min(weight, 3)),
+    };
+  });
+}
+
+function extractWeightedPersonalMemoryItems(value: any) {
+  const normalizeItem = (item: any) => {
+    if (typeof item === "string") {
+      const raw = item.trim();
+      if (!raw) return null;
+
+      const priorityMatch = raw.match(/^\d+\.\s*\[(high|medium|light)\]\s*(.+)$/i);
+      const priority = priorityMatch?.[1]?.toLowerCase() || null;
+      const text = (priorityMatch?.[2] || raw).trim();
+
+      const inferredWeight =
+        priority === "high" ? 1.8 : priority === "medium" ? 1.1 : 0.5;
+
+      return text ? { text, weight: inferredWeight } : null;
+    }
+
+    if (item && typeof item === "object") {
+      const text = typeof item.text === "string" ? item.text.trim() : "";
+      if (!text) return null;
+
+      const rawWeight =
+        typeof item.weight === "number" && Number.isFinite(item.weight)
+          ? item.weight
+          : 0.5;
+
+      return {
+        text,
+        weight: Math.max(0, Math.min(rawWeight, 3)),
+      };
+    }
+
+    return null;
+  };
+
+  if (Array.isArray(value)) {
+    return value
+      .map(normalizeItem)
+      .filter(Boolean) as { text: string; weight: number }[];
+  }
+
+  if (value && typeof value === "object" && Array.isArray(value.items)) {
+    return value.items
+      .map(normalizeItem)
+      .filter(Boolean) as { text: string; weight: number }[];
+  }
+
+  const normalized = normalizePersonalMemoryValue(value);
+  return normalized ? [{ text: normalized, weight: 0.5 }] : [];
+}
+
+function buildWeightedPersonalMemoryBlock(...values: any[]) {
+  const merged = cleanupWeightedMemoryItems(
+    values.flatMap((value) => extractWeightedPersonalMemoryItems(value)),
+    {
+      minWeight: 0.35,
+      maxItems: 6,
+    }
+  );
+
+  return merged
+    .map((item, index) => {
+      const priority =
+        item.weight >= 1.5
+          ? "high"
+          : item.weight >= 0.9
+          ? "medium"
+          : "light";
+
+      return `${index + 1}. [${priority}] ${item.text}`;
+    })
+    .join("\n");
+}
+
+function normalizeMemoryComparisonText(text: string) {
+  return String(text || "")
+    .toLowerCase()
+    .trim()
+    .replace(/^\d+\.\s*\[(high|medium|light)\]\s*/i, "")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ");
+}
+
+function getMemoryTokenSignature(text: string) {
+  return normalizeMemoryComparisonText(text)
+    .split(" ")
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 4)
+    .slice(0, 8)
+    .sort()
+    .join("|");
+}
+
+function cleanupWeightedMemoryItems(
+  items: { text: string; weight: number }[],
+  options?: {
+    minWeight?: number;
+    maxItems?: number;
+  }
+) {
+  const minWeight = options?.minWeight ?? 0.35;
+  const maxItems = options?.maxItems ?? 6;
+
+  const merged = items.reduce((acc: { text: string; weight: number }[], item) => {
+    const normalizedText = normalizeMemoryComparisonText(item.text);
+    const signature = getMemoryTokenSignature(item.text);
+
+    const existing = acc.find((entry) => {
+      const existingNormalizedText = normalizeMemoryComparisonText(entry.text);
+      const existingSignature = getMemoryTokenSignature(entry.text);
+
+      return (
+        existingNormalizedText === normalizedText ||
+        (signature && existingSignature && existingSignature === signature)
+      );
+    });
+
+    if (existing) {
+      existing.weight = Math.max(existing.weight, item.weight);
+
+      if (normalizeMemoryComparisonText(item.text).length >
+          normalizeMemoryComparisonText(existing.text).length) {
+        existing.text = item.text;
+      }
+
+      return acc;
+    }
+
+    acc.push({
+      text: item.text.trim(),
+      weight: Math.max(0, Math.min(item.weight, 3)),
+    });
+
+    return acc;
+  }, []);
+
+  return merged
+    .filter((item) => item.text && item.weight >= minWeight)
+    .sort((a, b) => b.weight - a.weight)
+    .slice(0, maxItems);
+}
+
+function doesFeedbackMatchMemoryItem(feedback: any, memoryText: string) {
+  const feedbackText = `${feedback?.userMessage || ""} ${feedback?.message || ""}`
+    .toLowerCase()
+    .trim();
+  const normalizedMemoryText = String(memoryText || "").toLowerCase().trim();
+
+  if (!feedbackText || !normalizedMemoryText) return false;
+  if (feedbackText.includes(normalizedMemoryText)) return true;
+
+  const memoryTokens = normalizedMemoryText
+    .split(/[^a-z0-9à-ÿ]+/i)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 4)
+    .slice(0, 8);
+
+  if (memoryTokens.length === 0) return false;
+
+  const matchedTokenCount = memoryTokens.filter((token) =>
+    feedbackText.includes(token)
+  ).length;
+
+  return matchedTokenCount >= Math.min(2, memoryTokens.length);
+}
+
+function rebalancePersonalMemoryFromFeedback(input: {
+  personalMemory?: string;
+  feedbackRows?: any[];
+}) {
+  const memoryItems = extractWeightedPersonalMemoryItems(input.personalMemory || "");
+  const feedbackRows = Array.isArray(input.feedbackRows) ? input.feedbackRows : [];
+
+  if (memoryItems.length === 0) {
+    return String(input.personalMemory || "").trim();
+  }
+
+  const adjustedItems = memoryItems.map((item) => {
+    let nextWeight = item.weight;
+
+    for (const feedback of feedbackRows) {
+      if (!doesFeedbackMatchMemoryItem(feedback, item.text)) continue;
+
+      if (feedback?.type === "up") {
+        nextWeight += 0.2;
+      }
+
+      if (feedback?.type === "down") {
+        nextWeight -= 0.3;
+      }
+
+      if (feedback?.type === "improve") {
+        nextWeight -= 0.2;
+      }
+    }
+
+    return {
+      text: item.text,
+      weight: Math.max(0.2, Math.min(nextWeight, 3)),
+    };
+  });
+
+  const cleanedItems = cleanupWeightedMemoryItems(adjustedItems, {
+    minWeight: 0.35,
+    maxItems: 6,
+  });
+
+  return buildWeightedPersonalMemoryBlock(cleanedItems);
+}
+
+function getUsagePeriodKey(date = new Date()) {
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function resolveUsageTier(input: {
+  userScope?: "admin" | "guest" | "personal";
+  existingUsageStats?: OpenLuraUsageStats | null;
+}) {
+  if (input.userScope === "admin") return "admin";
+  if (input.existingUsageStats?.tier === "pro") return "pro";
+  return "free";
+}
+
+function buildUpdatedUsageStats(input: {
+  existingUsageStats?: OpenLuraUsageStats | null;
+  isPersonalEnvironment: boolean;
+  usedWebSearch: boolean;
+  usedImage: boolean;
+  userScope?: "admin" | "guest" | "personal";
+}) {
+  const now = new Date();
+  const periodKey = getUsagePeriodKey(now);
+  const existing = input.existingUsageStats || null;
+  const shouldReset = existing?.periodKey !== periodKey;
+
+  const base: OpenLuraUsageStats = shouldReset
+    ? {
+        requestCount: 0,
+        personalRequestCount: 0,
+        imageRequestCount: 0,
+        webSearchCount: 0,
+        lastRequestAt: null,
+        periodKey,
+        tier: resolveUsageTier({
+          userScope: input.userScope,
+          existingUsageStats: existing,
+        }),
+      }
+    : {
+        requestCount: existing?.requestCount || 0,
+        personalRequestCount: existing?.personalRequestCount || 0,
+        imageRequestCount: existing?.imageRequestCount || 0,
+        webSearchCount: existing?.webSearchCount || 0,
+        lastRequestAt: existing?.lastRequestAt || null,
+        periodKey,
+        tier: resolveUsageTier({
+          userScope: input.userScope,
+          existingUsageStats: existing,
+        }),
+      };
+
+  return {
+    ...base,
+    requestCount: (base.requestCount || 0) + 1,
+    personalRequestCount:
+      (base.personalRequestCount || 0) + (input.isPersonalEnvironment ? 1 : 0),
+    imageRequestCount:
+      (base.imageRequestCount || 0) + (input.usedImage ? 1 : 0),
+    webSearchCount:
+      (base.webSearchCount || 0) + (input.usedWebSearch ? 1 : 0),
+    lastRequestAt: now.toISOString(),
+  } satisfies OpenLuraUsageStats;
+}
+
+function getUsageLimitSnapshot(input: {
+  usageStats?: OpenLuraUsageStats | null;
+}) {
+  const tier = input.usageStats?.tier || "free";
+
+  const limits =
+    tier === "admin"
+      ? { monthlyRequests: Infinity, monthlyWebSearches: Infinity }
+      : tier === "pro"
+      ? { monthlyRequests: 5000, monthlyWebSearches: 1500 }
+      : { monthlyRequests: 500, monthlyWebSearches: 150 };
+
+  const requestCount = input.usageStats?.requestCount || 0;
+  const webSearchCount = input.usageStats?.webSearchCount || 0;
+
+  return {
+    tier,
+    requestCount,
+    webSearchCount,
+    monthlyRequests: limits.monthlyRequests,
+    monthlyWebSearches: limits.monthlyWebSearches,
+    requestsRemaining:
+      limits.monthlyRequests === Infinity
+        ? Infinity
+        : Math.max(0, limits.monthlyRequests - requestCount),
+    webSearchesRemaining:
+      limits.monthlyWebSearches === Infinity
+        ? Infinity
+        : Math.max(0, limits.monthlyWebSearches - webSearchCount),
+    exceeded:
+      (limits.monthlyRequests !== Infinity && requestCount >= limits.monthlyRequests) ||
+      (limits.monthlyWebSearches !== Infinity &&
+        webSearchCount >= limits.monthlyWebSearches),
+  };
+}
+
+async function persistSupabasePersonalMemory(input: {
+  userId: string;
+  memory: string;
+  styleProfile?: OpenLuraPersonalStateStyleProfile | null;
+  usageStats?: OpenLuraUsageStats | null;
+  existingState?: any;
+}) {
+  if (!supabaseUrl || !supabaseServiceRoleKey || !input.userId) {
+    return false;
+  }
+
+  const existingState = input.existingState && typeof input.existingState === "object"
+    ? input.existingState
+    : {};
+
+  const existingChats = Array.isArray(existingState.chats) ? existingState.chats : [];
+  const existingKey =
+    typeof existingState.key === "string" && existingState.key.trim()
+      ? existingState.key.trim()
+      : input.userId;
+
+  const memoryItems = extractWeightedPersonalMemoryItems(input.memory);
+
+  const payload = {
+    user_id: input.userId,
+    key: existingKey,
+    chats: existingChats,
+    memory: memoryItems,
+    style_profile: input.styleProfile || existingState.style_profile || null,
+    usage_stats: input.usageStats || existingState.usage_stats || null,
+    updated_at: new Date().toISOString(),
+  };
+
+  try {
+    const upsertRes = await fetch(`${supabaseUrl}/rest/v1/${personalStateTable}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: supabaseServiceRoleKey,
+        Authorization: `Bearer ${supabaseServiceRoleKey}`,
+        Prefer: "resolution=merge-duplicates,return=minimal",
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+
+    if (upsertRes.ok) {
+      return true;
+    }
+
+    const errorText = await upsertRes.text();
+
+    const patchRes = await fetch(
+      `${supabaseUrl}/rest/v1/${personalStateTable}?user_id=eq.${encodeURIComponent(input.userId)}`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: supabaseServiceRoleKey,
+          Authorization: `Bearer ${supabaseServiceRoleKey}`,
+          Prefer: "return=minimal",
+        },
+        body: JSON.stringify({
+          memory: memoryItems,
+          style_profile: input.styleProfile || existingState.style_profile || null,
+          usage_stats: input.usageStats || existingState.usage_stats || null,
+          updated_at: new Date().toISOString(),
+        }),
+        cache: "no-store",
+      }
+    );
+
+    if (!patchRes.ok) {
+      console.error("OpenLura personal memory persist failed:", patchRes.status, await patchRes.text());
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error("OpenLura personal memory persist error:", error);
+    return false;
+  }
+}
+
 async function fetchSupabasePersonalState(userId: string | null = null) {
   const resolvedUserId = userId ?? null;
 
@@ -699,6 +1182,8 @@ async function fetchSupabasePersonalState(userId: string | null = null) {
       userId: resolvedUserId,
       memory: "",
       feedback: [],
+      styleProfile: null,
+      usageStats: null,
       raw: null,
     } satisfies OpenLuraPersonalState;
   }
@@ -741,16 +1226,25 @@ async function fetchSupabasePersonalState(userId: string | null = null) {
         : [];
 
       const memoryText =
-        normalizePersonalMemoryValue(row.personalMemory) ||
-        normalizePersonalMemoryValue(row.memory) ||
-        normalizePersonalMemoryValue(row.profile_memory) ||
-        normalizePersonalMemoryValue(row.state?.memory) ||
-        "";
+        buildWeightedPersonalMemoryBlock(
+          row.personalMemory,
+          row.memory,
+          row.profile_memory,
+          row.state?.memory
+        ) || "";
 
       return {
         userId: resolvedUserId,
         memory: memoryText,
         feedback: nestedFeedback,
+        styleProfile:
+          row?.style_profile && typeof row.style_profile === "object"
+            ? row.style_profile
+            : null,
+        usageStats:
+          row?.usage_stats && typeof row.usage_stats === "object"
+            ? row.usage_stats
+            : null,
         raw: row,
       } satisfies OpenLuraPersonalState;
     } catch (error) {
@@ -762,6 +1256,8 @@ async function fetchSupabasePersonalState(userId: string | null = null) {
     userId: resolvedUserId,
     memory: "",
     feedback: [],
+    styleProfile: null,
+    usageStats: null,
     raw: null,
   } satisfies OpenLuraPersonalState;
 }
@@ -851,6 +1347,8 @@ function buildPersonalOverrideProfile(input: {
     structure >= 2 && "Use cleaner structure and clearer flow.",
     context >= 2 && shorter < 2 && "Add a bit more why/context when useful.",
     casual >= 2 && "In casual chat, sound lighter, warmer, and less formal.",
+    input.personalFeedbackRows.length > 0 &&
+      "When personal feedback conflicts with global patterns, follow personal feedback first unless the current user request clearly asks otherwise.",
   ].filter(Boolean) as string[];
 
   const avoidPatterns = [
@@ -890,18 +1388,30 @@ function buildResolvedRuntimeInstructionProfile(input: {
     clarity: string;
     depth: string;
   };
+  persistedStyleProfile?: OpenLuraPersonalStateStyleProfile | null;
   personalOverrideProfile: OpenLuraPersonalOverrideProfile;
   activeLearningRulesText: string;
 }) {
   const personal = input.personalOverrideProfile;
+  const persisted = input.persistedStyleProfile || null;
   const usePersonal = input.isPersonalEnvironment && personal.active;
 
   return {
-    tone: usePersonal ? personal.preferredTone : input.baseProfile.tone,
-    brevity: usePersonal ? personal.preferredBrevity : input.baseProfile.brevity,
-    structure: usePersonal ? personal.preferredStructure : input.baseProfile.structure,
-    clarity: usePersonal ? personal.preferredClarity : input.baseProfile.clarity,
-    depth: usePersonal ? personal.preferredDepth : input.baseProfile.depth,
+    tone: usePersonal
+      ? personal.preferredTone
+      : persisted?.preferredTone || input.baseProfile.tone,
+    brevity: usePersonal
+      ? personal.preferredBrevity
+      : persisted?.preferredBrevity || input.baseProfile.brevity,
+    structure: usePersonal
+      ? personal.preferredStructure
+      : persisted?.preferredStructure || input.baseProfile.structure,
+    clarity: usePersonal
+      ? personal.preferredClarity
+      : persisted?.preferredClarity || input.baseProfile.clarity,
+    depth: usePersonal
+      ? personal.preferredDepth
+      : persisted?.preferredDepth || input.baseProfile.depth,
     priorityOrder: usePersonal
       ? "user > personal > global > default"
       : "user > global > default",
@@ -966,6 +1476,8 @@ async function resolvePersonalRuntimeContext(input: {
         userId: null,
         memory: "",
         feedback: [],
+        styleProfile: null,
+        usageStats: null,
         raw: null,
       } satisfies OpenLuraPersonalState);
 
@@ -1370,6 +1882,21 @@ export async function POST(req: Request) {
   const personalLayer = isPersonalEnvironment ? personalLearningFeedback : [];
   const userLayer = userRuntimeFeedback;
 
+  const runtimePersonalMemory = rebalancePersonalMemoryFromFeedback({
+    personalMemory: resolvedPersonalMemory,
+    feedbackRows: [...personalLayer, ...userLayer],
+  });
+
+  const shouldPersistRuntimeMemory =
+    isPersonalEnvironment &&
+    !!personalUserId &&
+    !!runtimePersonalMemory.trim() &&
+    runtimePersonalMemory.trim() !== String(resolvedPersonalMemory || "").trim();
+
+  const shouldPersistUsageStats =
+    isPersonalEnvironment &&
+    !!personalUserId;
+
   const feedbackLikes = globalLearningFeedback.filter(
     (f: any) => f.type === "up"
   ).length;
@@ -1528,7 +2055,12 @@ ${personalRecentIssues.join("\n") || "none"}
       return b.total - a.total;
     });
 
-  const bestResponsePreference = rankedResponsePreferences[0];
+  const bestPersonalResponsePreference = rankedResponsePreferences.find(
+  (item: any) => (item.personalUp || 0) > 0 || (item.personalDown || 0) > 0
+);
+
+const bestResponsePreference =
+  bestPersonalResponsePreference || rankedResponsePreferences[0];
   const hasMixedResponseFeedback =
     rankedResponsePreferences.some((item: any) => item.up > 0) &&
     rankedResponsePreferences.some((item: any) => item.down > 0);
@@ -1629,25 +2161,45 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
     return 0.25;
   };
 
-    const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
-    return Math.round(
-      items.reduce((sum: number, f: any) => {
-        const learningType = inferFeedbackLearningType(f);
+    const getPersonalFeedbackBoost = (f: any) => {
+  const isPersonal =
+    f?.userScope === "personal" ||
+    f?.environment === "personal" ||
+    f?._personalRuntime === true;
 
-        if (learningType !== "style") {
-          return sum;
-        }
+  if (!isPersonal) return 1;
 
-        const text = `${f.userMessage || ""} ${f.message || ""}`.toLowerCase();
-        const baseWeight =
-          typeof f.weight === "number" && Number.isFinite(f.weight) ? f.weight : 1;
+  if (f?.type === "down" || f?.type === "improve") {
+    return 2.8;
+  }
 
-        return pattern.test(text)
-          ? sum + getDecayWeight(f.timestamp) * baseWeight
-          : sum;
-      }, 0)
-    );
-  };
+  if (f?.type === "up") {
+    return 1.6;
+  }
+
+  return 2.2;
+};
+
+const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
+  return Math.round(
+    items.reduce((sum: number, f: any) => {
+      const learningType = inferFeedbackLearningType(f);
+
+      if (learningType !== "style") {
+        return sum;
+      }
+
+      const text = `${f.userMessage || ""} ${f.message || ""}`.toLowerCase();
+      const baseWeight =
+        typeof f.weight === "number" && Number.isFinite(f.weight) ? f.weight : 1;
+      const personalBoost = getPersonalFeedbackBoost(f);
+
+      return pattern.test(text)
+        ? sum + getDecayWeight(f.timestamp) * baseWeight * personalBoost
+        : sum;
+    }, 0)
+  );
+};
 
   const getFeedbackSignals = (items: any[]) => ({
     shorter: getWeightedSignalCount(items, /korter|te lang|too long|shorter/),
@@ -1665,7 +2217,23 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
     return "None";
   };
 
+  const personalEffectiveFeedback = effectiveFeedback.filter(
+    (f: any) =>
+      f?.userScope === "personal" ||
+      f?.environment === "personal" ||
+      f?._personalRuntime === true
+  );
+
+  const globalEffectiveFeedback = effectiveFeedback.filter(
+    (f: any) =>
+      f?.userScope !== "personal" &&
+      f?.environment !== "personal" &&
+      f?._personalRuntime !== true
+  );
+
   const feedbackSignals = getFeedbackSignals(effectiveFeedback);
+  const personalFeedbackSignals = getFeedbackSignals(personalEffectiveFeedback);
+  const globalFeedbackSignals = getFeedbackSignals(globalEffectiveFeedback);
 
   const styleLearningSignals = buildStyleLearningSignals({
     shorter: feedbackSignals.shorter,
@@ -1824,6 +2392,53 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
       isConversationDependentFollowUp(message || "") &&
       hasRecentConversationContext;
 
+    const updatedUsageStats = buildUpdatedUsageStats({
+      existingUsageStats: personalState.usageStats,
+      isPersonalEnvironment,
+      usedWebSearch: shouldUseWebSearch,
+      usedImage: !!image,
+      userScope,
+    });
+
+    const usageLimitSnapshot = getUsageLimitSnapshot({
+      usageStats: updatedUsageStats,
+    });
+
+    const shouldBlockForUsageLimit =
+      isPersonalEnvironment &&
+      usageLimitSnapshot.exceeded &&
+      userScope !== "admin";
+
+    if (shouldBlockForUsageLimit) {
+      if (personalUserId) {
+        await persistSupabasePersonalMemory({
+          userId: personalUserId,
+          memory: runtimePersonalMemory,
+          styleProfile: personalState.styleProfile,
+          usageStats: updatedUsageStats,
+          existingState: personalState.raw,
+        });
+      }
+
+      const limitMessage =
+        usageLimitSnapshot.tier === "free"
+          ? "Je hebt je maandelijkse limiet bereikt voor je huidige plan. Upgrade nodig om door te gaan met je persoonlijke AI."
+          : "Je huidige gebruikslimiet is bereikt. Controleer je plan of verhoog je limiet.";
+
+      return new Response(limitMessage, {
+        status: 429,
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+          "X-OpenLura-Variant": responseVariant,
+          "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
+          "X-OpenLura-Learning-Scope": learningScope,
+          "X-OpenLura-Usage-Tier": String(usageLimitSnapshot.tier),
+          "X-OpenLura-Usage-Exceeded": "true",
+          "Retry-After": "86400",
+        },
+      });
+    }
+
     const responseStyleProfile = buildResponseStyleProfile({
       isCasualChatRequest,
       shouldUseWebSearch,
@@ -1842,13 +2457,34 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
     const personalOverrideProfile = buildPersonalOverrideProfile({
       isPersonalEnvironment,
       personalFeedbackRows: personalLearningFeedback,
-      personalMemory: resolvedPersonalMemory,
+      personalMemory: runtimePersonalMemory,
     });
+
+    if ((shouldPersistRuntimeMemory || shouldPersistUsageStats) && personalUserId) {
+      await persistSupabasePersonalMemory({
+        userId: personalUserId,
+        memory: runtimePersonalMemory,
+        styleProfile: {
+          preferredBrevity: personalOverrideProfile.preferredBrevity,
+          preferredClarity: personalOverrideProfile.preferredClarity,
+          preferredStructure: personalOverrideProfile.preferredStructure,
+          preferredDepth: personalOverrideProfile.preferredDepth,
+          preferredTone: personalOverrideProfile.preferredTone,
+          hardRules: personalOverrideProfile.hardRules,
+          avoidPatterns: personalOverrideProfile.avoidPatterns,
+          memoryDirectives: personalOverrideProfile.memoryDirectives,
+          updatedAt: new Date().toISOString(),
+        },
+        usageStats: updatedUsageStats,
+        existingState: personalState.raw,
+      });
+    }
 
     const resolvedRuntimeInstructionProfile =
       buildResolvedRuntimeInstructionProfile({
         isPersonalEnvironment,
         baseProfile: responseStyleProfile,
+        persistedStyleProfile: personalState.styleProfile,
         personalOverrideProfile,
         activeLearningRulesText: activeLearningRules,
       });
@@ -1891,7 +2527,7 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
         ? ""
         : buildCacheKey({
             message: message || "",
-            personalMemory: resolvedPersonalMemory,
+            personalMemory: runtimePersonalMemory,
             learningScope,
           });
 
@@ -1927,7 +2563,8 @@ ${sharedStyleInstructionBlock}
 Fast-path runtime learning:
 - personal environment active: ${isPersonalEnvironment ? "yes" : "no"}
 - learning scope: ${learningScope}
-- personal memory: ${resolvedPersonalMemory || "none"}
+- personal memory: ${runtimePersonalMemory || "none"}
+- memory priority rule: when personal memory exists, follow higher-priority memory items before weaker global style hints unless the current user request conflicts
 
 Runtime override block:
 ${runtimeOverrideInstructionBlock}
@@ -1950,6 +2587,13 @@ Fast-path rules:
 - If structure is minimal, keep formatting very light
 - If structure is shortlist, prioritize the strongest options only
 - If personal environment is active, prioritize personal learning over global learning
+- Personal feedback signals override global signals when conflict exists
+- Negative personal feedback must be treated as high priority corrections
+- Treat personal memory as ranked guidance: high before medium before light
+- Memory weights evolve from feedback: reinforce good patterns, suppress bad ones
+- When personal environment is active, updated personal memory may be persisted for future sessions
+- Low-signal or duplicate personal memory may be merged down or removed over time
+- Use personal memory to shape tone, wording, and focus, but never override the user's current request
 - If a strong reusable winner exists for the same message, reuse its shape, directness, and usefulness
 - Do not copy old answers blindly word-for-word
 - If feedback is mixed, create a cleaner balanced version instead of repeating the old answer`,
@@ -1976,8 +2620,8 @@ Fast-path rules:
 
             const cacheKey = buildCacheKey({
               message: message || "",
-              personalMemory: resolvedPersonalMemory,
-        learningScope,
+              personalMemory: runtimePersonalMemory,
+              learningScope,
             });
 
             if (cacheKey && fullText.trim()) {
@@ -2080,7 +2724,7 @@ Do not use web search for this path.`,
     const cacheKey = canUseCache
       ? JSON.stringify({
           message: normalizedMessageForRouting,
-          memory: resolvedPersonalMemory,
+          memory: runtimePersonalMemory,
           learningScope,
           variant: shouldForceFastCompactOutput ? "fast" : responseVariant,
         })
@@ -2196,6 +2840,25 @@ STYLE LEARNING SIGNALS:
 - more context: ${cappedLearningStrength.context} (${learningConfidence.context})
 - casual/natural chat tone: ${cappedLearningStrength.casual} (${learningConfidence.casual})
 
+PERSONAL STYLE SIGNALS:
+- shorter answers: ${personalFeedbackSignals.shorter}
+- clearer explanations: ${personalFeedbackSignals.clearer}
+- better structure: ${personalFeedbackSignals.structure}
+- less vague: ${personalFeedbackSignals.vague}
+- more context: ${personalFeedbackSignals.context}
+- casual/natural chat tone: ${personalFeedbackSignals.casual}
+
+GLOBAL STYLE SIGNALS:
+- shorter answers: ${globalFeedbackSignals.shorter}
+- clearer explanations: ${globalFeedbackSignals.clearer}
+- better structure: ${globalFeedbackSignals.structure}
+- less vague: ${globalFeedbackSignals.vague}
+- more context: ${globalFeedbackSignals.context}
+- casual/natural chat tone: ${globalFeedbackSignals.casual}
+
+PRIORITY RULE:
+- current user request > personal feedback signals > global consensus > defaults
+
 RESPONSE STYLE PROFILE:
 ${sharedStyleInstructionBlock}
 
@@ -2244,6 +2907,15 @@ RUNTIME LEARNING PRIORITY:
 - personal runtime feedback rows: ${normalizedPersonalFeedbackRows.length}
 - personal state feedback rows: ${normalizedPersonalStateFeedback.length}
 - priority order: ${isPersonalEnvironment ? "user > personal > global > default" : "user > global > default"}
+
+USAGE SNAPSHOT:
+- tier: ${usageLimitSnapshot.tier}
+- monthly requests used: ${usageLimitSnapshot.requestCount}
+- monthly web searches used: ${usageLimitSnapshot.webSearchCount}
+- requests remaining: ${usageLimitSnapshot.requestsRemaining === Infinity ? "unlimited" : usageLimitSnapshot.requestsRemaining}
+- web searches remaining: ${usageLimitSnapshot.webSearchesRemaining === Infinity ? "unlimited" : usageLimitSnapshot.webSearchesRemaining}
+- limit exceeded: ${usageLimitSnapshot.exceeded ? "yes" : "no"}
+
 SUCCESSFUL PATTERNS (completed items):
 ${completedFeedback
   .filter(
@@ -2389,7 +3061,7 @@ CONTEXT:
 Recent conversation:
 ${recentConversationTranscript || "none"}
 
-Personal user memory: ${resolvedPersonalMemory || "none"}
+Personal user memory: ${runtimePersonalMemory || "none"}
 User location: ${location ? JSON.stringify(location) : "unknown"}
 
 BAD OUTPUT:
@@ -2611,6 +3283,8 @@ ${aiText}`,
         "X-OpenLura-Variant": responseVariant,
         "X-OpenLura-Sources": encodeURIComponent(JSON.stringify(sources)),
         "X-OpenLura-Learning-Scope": learningScope,
+        "X-OpenLura-Usage-Tier": String(usageLimitSnapshot.tier),
+        "X-OpenLura-Usage-Exceeded": usageLimitSnapshot.exceeded ? "true" : "false",
       },
     }
   );
