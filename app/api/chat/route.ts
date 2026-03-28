@@ -803,23 +803,13 @@ function extractWeightedPersonalMemoryItems(value: any) {
 }
 
 function buildWeightedPersonalMemoryBlock(...values: any[]) {
-  const merged = values
-    .flatMap((value) => extractWeightedPersonalMemoryItems(value))
-    .reduce((acc: { text: string; weight: number }[], item) => {
-      const existing = acc.find(
-        (entry) => entry.text.toLowerCase() === item.text.toLowerCase()
-      );
-
-      if (existing) {
-        existing.weight = Math.max(existing.weight, item.weight);
-        return acc;
-      }
-
-      acc.push(item);
-      return acc;
-    }, [])
-    .sort((a, b) => b.weight - a.weight)
-    .slice(0, 6);
+  const merged = cleanupWeightedMemoryItems(
+    values.flatMap((value) => extractWeightedPersonalMemoryItems(value)),
+    {
+      minWeight: 0.35,
+      maxItems: 6,
+    }
+  );
 
   return merged
     .map((item, index) => {
@@ -833,6 +823,74 @@ function buildWeightedPersonalMemoryBlock(...values: any[]) {
       return `${index + 1}. [${priority}] ${item.text}`;
     })
     .join("\n");
+}
+
+function normalizeMemoryComparisonText(text: string) {
+  return String(text || "")
+    .toLowerCase()
+    .trim()
+    .replace(/^\d+\.\s*\[(high|medium|light)\]\s*/i, "")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ");
+}
+
+function getMemoryTokenSignature(text: string) {
+  return normalizeMemoryComparisonText(text)
+    .split(" ")
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 4)
+    .slice(0, 8)
+    .sort()
+    .join("|");
+}
+
+function cleanupWeightedMemoryItems(
+  items: { text: string; weight: number }[],
+  options?: {
+    minWeight?: number;
+    maxItems?: number;
+  }
+) {
+  const minWeight = options?.minWeight ?? 0.35;
+  const maxItems = options?.maxItems ?? 6;
+
+  const merged = items.reduce((acc: { text: string; weight: number }[], item) => {
+    const normalizedText = normalizeMemoryComparisonText(item.text);
+    const signature = getMemoryTokenSignature(item.text);
+
+    const existing = acc.find((entry) => {
+      const existingNormalizedText = normalizeMemoryComparisonText(entry.text);
+      const existingSignature = getMemoryTokenSignature(entry.text);
+
+      return (
+        existingNormalizedText === normalizedText ||
+        (signature && existingSignature && existingSignature === signature)
+      );
+    });
+
+    if (existing) {
+      existing.weight = Math.max(existing.weight, item.weight);
+
+      if (normalizeMemoryComparisonText(item.text).length >
+          normalizeMemoryComparisonText(existing.text).length) {
+        existing.text = item.text;
+      }
+
+      return acc;
+    }
+
+    acc.push({
+      text: item.text.trim(),
+      weight: Math.max(0, Math.min(item.weight, 3)),
+    });
+
+    return acc;
+  }, []);
+
+  return merged
+    .filter((item) => item.text && item.weight >= minWeight)
+    .sort((a, b) => b.weight - a.weight)
+    .slice(0, maxItems);
 }
 
 function doesFeedbackMatchMemoryItem(feedback: any, memoryText: string) {
@@ -895,7 +953,12 @@ function rebalancePersonalMemoryFromFeedback(input: {
     };
   });
 
-  return buildWeightedPersonalMemoryBlock(adjustedItems);
+  const cleanedItems = cleanupWeightedMemoryItems(adjustedItems, {
+    minWeight: 0.35,
+    maxItems: 6,
+  });
+
+  return buildWeightedPersonalMemoryBlock(cleanedItems);
 }
 
 async function persistSupabasePersonalMemory(input: {
@@ -2304,6 +2367,7 @@ Fast-path rules:
 - Treat personal memory as ranked guidance: high before medium before light
 - Memory weights evolve from feedback: reinforce good patterns, suppress bad ones
 - When personal environment is active, updated personal memory may be persisted for future sessions
+- Low-signal or duplicate personal memory may be merged down or removed over time
 - Use personal memory to shape tone, wording, and focus, but never override the user's current request
 - If a strong reusable winner exists for the same message, reuse its shape, directness, and usefulness
 - Do not copy old answers blindly word-for-word
