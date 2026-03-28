@@ -637,6 +637,16 @@ type OpenLuraFeedbackRow = {
   weight?: number;
 };
 
+type OpenLuraUsageStats = {
+  requestCount?: number;
+  personalRequestCount?: number;
+  imageRequestCount?: number;
+  webSearchCount?: number;
+  lastRequestAt?: string | null;
+  periodKey?: string | null;
+  tier?: "free" | "pro" | "admin";
+};
+
 type OpenLuraPersonalStateStyleProfile = {
   preferredBrevity?: "tight" | "compact" | "balanced";
   preferredClarity?: "high" | "elevated" | "normal";
@@ -659,6 +669,7 @@ type OpenLuraPersonalState = {
   memory: string;
   feedback: OpenLuraFeedbackRow[];
   styleProfile: OpenLuraPersonalStateStyleProfile | null;
+  usageStats: OpenLuraUsageStats | null;
   raw: any;
 };
 
@@ -979,10 +990,111 @@ function rebalancePersonalMemoryFromFeedback(input: {
   return buildWeightedPersonalMemoryBlock(cleanedItems);
 }
 
+function getUsagePeriodKey(date = new Date()) {
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function resolveUsageTier(input: {
+  userScope?: "admin" | "guest" | "personal";
+  existingUsageStats?: OpenLuraUsageStats | null;
+}) {
+  if (input.userScope === "admin") return "admin";
+  if (input.existingUsageStats?.tier === "pro") return "pro";
+  return "free";
+}
+
+function buildUpdatedUsageStats(input: {
+  existingUsageStats?: OpenLuraUsageStats | null;
+  isPersonalEnvironment: boolean;
+  usedWebSearch: boolean;
+  usedImage: boolean;
+  userScope?: "admin" | "guest" | "personal";
+}) {
+  const now = new Date();
+  const periodKey = getUsagePeriodKey(now);
+  const existing = input.existingUsageStats || null;
+  const shouldReset = existing?.periodKey !== periodKey;
+
+  const base: OpenLuraUsageStats = shouldReset
+    ? {
+        requestCount: 0,
+        personalRequestCount: 0,
+        imageRequestCount: 0,
+        webSearchCount: 0,
+        lastRequestAt: null,
+        periodKey,
+        tier: resolveUsageTier({
+          userScope: input.userScope,
+          existingUsageStats: existing,
+        }),
+      }
+    : {
+        requestCount: existing?.requestCount || 0,
+        personalRequestCount: existing?.personalRequestCount || 0,
+        imageRequestCount: existing?.imageRequestCount || 0,
+        webSearchCount: existing?.webSearchCount || 0,
+        lastRequestAt: existing?.lastRequestAt || null,
+        periodKey,
+        tier: resolveUsageTier({
+          userScope: input.userScope,
+          existingUsageStats: existing,
+        }),
+      };
+
+  return {
+    ...base,
+    requestCount: (base.requestCount || 0) + 1,
+    personalRequestCount:
+      (base.personalRequestCount || 0) + (input.isPersonalEnvironment ? 1 : 0),
+    imageRequestCount:
+      (base.imageRequestCount || 0) + (input.usedImage ? 1 : 0),
+    webSearchCount:
+      (base.webSearchCount || 0) + (input.usedWebSearch ? 1 : 0),
+    lastRequestAt: now.toISOString(),
+  } satisfies OpenLuraUsageStats;
+}
+
+function getUsageLimitSnapshot(input: {
+  usageStats?: OpenLuraUsageStats | null;
+}) {
+  const tier = input.usageStats?.tier || "free";
+
+  const limits =
+    tier === "admin"
+      ? { monthlyRequests: Infinity, monthlyWebSearches: Infinity }
+      : tier === "pro"
+      ? { monthlyRequests: 5000, monthlyWebSearches: 1500 }
+      : { monthlyRequests: 500, monthlyWebSearches: 150 };
+
+  const requestCount = input.usageStats?.requestCount || 0;
+  const webSearchCount = input.usageStats?.webSearchCount || 0;
+
+  return {
+    tier,
+    requestCount,
+    webSearchCount,
+    monthlyRequests: limits.monthlyRequests,
+    monthlyWebSearches: limits.monthlyWebSearches,
+    requestsRemaining:
+      limits.monthlyRequests === Infinity
+        ? Infinity
+        : Math.max(0, limits.monthlyRequests - requestCount),
+    webSearchesRemaining:
+      limits.monthlyWebSearches === Infinity
+        ? Infinity
+        : Math.max(0, limits.monthlyWebSearches - webSearchCount),
+    exceeded:
+      (limits.monthlyRequests !== Infinity && requestCount >= limits.monthlyRequests) ||
+      (limits.monthlyWebSearches !== Infinity &&
+        webSearchCount >= limits.monthlyWebSearches),
+  };
+}
+
 async function persistSupabasePersonalMemory(input: {
   userId: string;
   memory: string;
   styleProfile?: OpenLuraPersonalStateStyleProfile | null;
+  usageStats?: OpenLuraUsageStats | null;
   existingState?: any;
 }) {
   if (!supabaseUrl || !supabaseServiceRoleKey || !input.userId) {
@@ -1007,6 +1119,7 @@ async function persistSupabasePersonalMemory(input: {
     chats: existingChats,
     memory: memoryItems,
     style_profile: input.styleProfile || existingState.style_profile || null,
+    usage_stats: input.usageStats || existingState.usage_stats || null,
     updated_at: new Date().toISOString(),
   };
 
@@ -1042,6 +1155,7 @@ async function persistSupabasePersonalMemory(input: {
         body: JSON.stringify({
           memory: memoryItems,
           style_profile: input.styleProfile || existingState.style_profile || null,
+          usage_stats: input.usageStats || existingState.usage_stats || null,
           updated_at: new Date().toISOString(),
         }),
         cache: "no-store",
@@ -1069,6 +1183,7 @@ async function fetchSupabasePersonalState(userId: string | null = null) {
       memory: "",
       feedback: [],
       styleProfile: null,
+      usageStats: null,
       raw: null,
     } satisfies OpenLuraPersonalState;
   }
@@ -1126,6 +1241,10 @@ async function fetchSupabasePersonalState(userId: string | null = null) {
           row?.style_profile && typeof row.style_profile === "object"
             ? row.style_profile
             : null,
+        usageStats:
+          row?.usage_stats && typeof row.usage_stats === "object"
+            ? row.usage_stats
+            : null,
         raw: row,
       } satisfies OpenLuraPersonalState;
     } catch (error) {
@@ -1138,6 +1257,7 @@ async function fetchSupabasePersonalState(userId: string | null = null) {
     memory: "",
     feedback: [],
     styleProfile: null,
+    usageStats: null,
     raw: null,
   } satisfies OpenLuraPersonalState;
 }
@@ -1357,6 +1477,7 @@ async function resolvePersonalRuntimeContext(input: {
         memory: "",
         feedback: [],
         styleProfile: null,
+        usageStats: null,
         raw: null,
       } satisfies OpenLuraPersonalState);
 
@@ -1771,6 +1892,10 @@ export async function POST(req: Request) {
     !!personalUserId &&
     !!runtimePersonalMemory.trim() &&
     runtimePersonalMemory.trim() !== String(resolvedPersonalMemory || "").trim();
+
+  const shouldPersistUsageStats =
+    isPersonalEnvironment &&
+    !!personalUserId;
 
   const feedbackLikes = globalLearningFeedback.filter(
     (f: any) => f.type === "up"
@@ -2267,6 +2392,53 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
       isConversationDependentFollowUp(message || "") &&
       hasRecentConversationContext;
 
+    const updatedUsageStats = buildUpdatedUsageStats({
+      existingUsageStats: personalState.usageStats,
+      isPersonalEnvironment,
+      usedWebSearch: shouldUseWebSearch,
+      usedImage: !!image,
+      userScope,
+    });
+
+    const usageLimitSnapshot = getUsageLimitSnapshot({
+      usageStats: updatedUsageStats,
+    });
+
+    const shouldBlockForUsageLimit =
+      isPersonalEnvironment &&
+      usageLimitSnapshot.exceeded &&
+      userScope !== "admin";
+
+    if (shouldBlockForUsageLimit) {
+      if (personalUserId) {
+        await persistSupabasePersonalMemory({
+          userId: personalUserId,
+          memory: runtimePersonalMemory,
+          styleProfile: personalState.styleProfile,
+          usageStats: updatedUsageStats,
+          existingState: personalState.raw,
+        });
+      }
+
+      const limitMessage =
+        usageLimitSnapshot.tier === "free"
+          ? "Je hebt je maandelijkse limiet bereikt voor je huidige plan. Upgrade nodig om door te gaan met je persoonlijke AI."
+          : "Je huidige gebruikslimiet is bereikt. Controleer je plan of verhoog je limiet.";
+
+      return new Response(limitMessage, {
+        status: 429,
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+          "X-OpenLura-Variant": responseVariant,
+          "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
+          "X-OpenLura-Learning-Scope": learningScope,
+          "X-OpenLura-Usage-Tier": String(usageLimitSnapshot.tier),
+          "X-OpenLura-Usage-Exceeded": "true",
+          "Retry-After": "86400",
+        },
+      });
+    }
+
     const responseStyleProfile = buildResponseStyleProfile({
       isCasualChatRequest,
       shouldUseWebSearch,
@@ -2288,7 +2460,7 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
       personalMemory: runtimePersonalMemory,
     });
 
-    if (shouldPersistRuntimeMemory && personalUserId) {
+    if ((shouldPersistRuntimeMemory || shouldPersistUsageStats) && personalUserId) {
       await persistSupabasePersonalMemory({
         userId: personalUserId,
         memory: runtimePersonalMemory,
@@ -2303,6 +2475,7 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
           memoryDirectives: personalOverrideProfile.memoryDirectives,
           updatedAt: new Date().toISOString(),
         },
+        usageStats: updatedUsageStats,
         existingState: personalState.raw,
       });
     }
@@ -2734,6 +2907,15 @@ RUNTIME LEARNING PRIORITY:
 - personal runtime feedback rows: ${normalizedPersonalFeedbackRows.length}
 - personal state feedback rows: ${normalizedPersonalStateFeedback.length}
 - priority order: ${isPersonalEnvironment ? "user > personal > global > default" : "user > global > default"}
+
+USAGE SNAPSHOT:
+- tier: ${usageLimitSnapshot.tier}
+- monthly requests used: ${usageLimitSnapshot.requestCount}
+- monthly web searches used: ${usageLimitSnapshot.webSearchCount}
+- requests remaining: ${usageLimitSnapshot.requestsRemaining === Infinity ? "unlimited" : usageLimitSnapshot.requestsRemaining}
+- web searches remaining: ${usageLimitSnapshot.webSearchesRemaining === Infinity ? "unlimited" : usageLimitSnapshot.webSearchesRemaining}
+- limit exceeded: ${usageLimitSnapshot.exceeded ? "yes" : "no"}
+
 SUCCESSFUL PATTERNS (completed items):
 ${completedFeedback
   .filter(
@@ -3101,6 +3283,8 @@ ${aiText}`,
         "X-OpenLura-Variant": responseVariant,
         "X-OpenLura-Sources": encodeURIComponent(JSON.stringify(sources)),
         "X-OpenLura-Learning-Scope": learningScope,
+        "X-OpenLura-Usage-Tier": String(usageLimitSnapshot.tier),
+        "X-OpenLura-Usage-Exceeded": usageLimitSnapshot.exceeded ? "true" : "false",
       },
     }
   );
