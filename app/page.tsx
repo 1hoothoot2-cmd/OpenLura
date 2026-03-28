@@ -270,6 +270,10 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
   }, [chatStorageKey, memoryStorageKey, isPersonalRoute]);
 
   useEffect(() => {
+    if (!hasLoadedInitialStateRef.current) {
+      return;
+    }
+
     const safeChats = chats.map((chat: any) => ({
       ...chat,
       messages: (chat.messages || []).map((msg: any) => {
@@ -291,7 +295,7 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
       console.error("OpenLura local chat persistence failed:", error);
     }
 
-    if (!isPersonalRoute || !personalStateLoaded || !hasLoadedInitialStateRef.current) {
+    if (!isPersonalRoute || !personalStateLoaded) {
       return;
     }
 
@@ -364,7 +368,7 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
   useEffect(() => {
     if (!isPersonalRoute) return;
 
-    const verifyPersonalAccess = async () => {
+    const loadPersonalStateFromServer = async () => {
       try {
         const res = await fetch("/api/personal-state", {
           method: "GET",
@@ -374,13 +378,73 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
 
         if (res.status === 401) {
           window.location.href = "/";
+          return;
+        }
+
+        if (!res.ok) {
+          return;
+        }
+
+        const data = await res.json();
+        const serverChats = Array.isArray(data?.chats) ? data.chats : [];
+        const serverMemory = Array.isArray(data?.memory) ? data.memory : [];
+
+        const normalizedChats = serverChats.map((chat: any) => ({
+          ...chat,
+          pinned: chat.pinned ?? false,
+          archived: chat.archived ?? false,
+          deleted: chat.deleted ?? false,
+          messages: Array.isArray(chat.messages)
+            ? chat.messages.map((msg: any) => ({
+                ...msg,
+                image: msg.image === "[image-uploaded]" ? null : msg.image ?? null,
+              }))
+            : [],
+        }));
+
+        if (!hasManualChatSelectionRef.current) {
+          setChats(normalizedChats);
+
+          const nextActiveChatId =
+            normalizedChats.find((chat: any) => !chat.archived && !chat.deleted)?.id ?? null;
+
+          preferredActiveChatIdRef.current = nextActiveChatId;
+          setActiveChatId(nextActiveChatId);
+        }
+
+        if (serverMemory.length > 0) {
+          if (typeof serverMemory[0] === "string") {
+            setMemory(serverMemory.map((m: string) => ({ text: m, weight: 0.5 })));
+          } else {
+            setMemory(serverMemory);
+          }
+        } else {
+          setMemory([]);
         }
       } catch (error) {
         console.error("OpenLura personal access verify failed:", error);
       }
     };
 
-    verifyPersonalAccess();
+    const handleWindowFocus = () => {
+      loadPersonalStateFromServer();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        loadPersonalStateFromServer();
+      }
+    };
+
+    loadPersonalStateFromServer();
+
+    window.addEventListener("focus", handleWindowFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("focus", handleWindowFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, [isPersonalRoute]);
 
   useEffect(() => {
