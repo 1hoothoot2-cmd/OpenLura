@@ -4,6 +4,7 @@ import {
   getCookieValue,
   isValidAdminSession,
 } from "@/lib/auth/adminSession";
+import { resolveOpenLuraRequestIdentity } from "@/lib/auth/requestIdentity";
 
 let globalFeedback: any[] = [];
 const responseCache = new Map<
@@ -605,7 +606,7 @@ type OpenLuraFeedbackRow = {
   userMessage?: string | null;
   source?: string | null;
   learningType?: string | null;
-  userScope?: string | null;
+  userScope?: "admin" | "guest" | "personal" | "user" | null;
   timestamp?: string | number | null;
   weight?: number;
 };
@@ -624,6 +625,36 @@ type OpenLuraPersonalRuntimeContext = {
   personalFeedbackRows: OpenLuraFeedbackRow[];
   resolvedPersonalMemory: string;
   learningScope: string;
+};
+
+type OpenLuraPersonalOverrideProfile = {
+  active: boolean;
+  preferredBrevity: "tight" | "compact" | "balanced";
+  preferredClarity: "high" | "elevated" | "normal";
+  preferredStructure: "minimal" | "structured" | "balanced";
+  preferredDepth: "concise" | "standard" | "expanded";
+  preferredTone:
+    | "casual_light"
+    | "casual_balanced"
+    | "default_premium"
+    | "practical_grounded"
+    | "visual_direct";
+  hardRules: string[];
+  avoidPatterns: string[];
+  memoryDirectives: string[];
+};
+
+type OpenLuraResolvedRuntimeInstructionProfile = {
+  tone: string;
+  brevity: string;
+  structure: string;
+  clarity: string;
+  depth: string;
+  priorityOrder: string;
+  hardRules: string[];
+  softRules: string[];
+  avoidPatterns: string[];
+  memoryDirectives: string[];
 };
 
 function normalizePersonalMemoryValue(value: any): string {
@@ -658,58 +689,6 @@ function normalizePersonalMemoryValue(value: any): string {
   }
 
   return "";
-}
-
-function getBearerTokenFromRequest(req: Request) {
-  const authHeader = req.headers.get("authorization") || "";
-  const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
-  if (bearerMatch?.[1]) return bearerMatch[1].trim();
-
-  const directCookie =
-    getCookieValue(req, "sb-access-token") ||
-    getCookieValue(req, "supabase-access-token");
-
-  if (directCookie) return decodeURIComponent(directCookie);
-
-  const packedCookie =
-    getCookieValue(req, "supabase-auth-token") ||
-    getCookieValue(req, "sb-auth-token");
-
-  if (!packedCookie) return null;
-
-  try {
-    const decoded = decodeURIComponent(packedCookie);
-    const parsed = JSON.parse(decoded);
-    if (typeof parsed === "string") return parsed;
-    if (Array.isArray(parsed) && typeof parsed[0] === "string") return parsed[0];
-    if (typeof parsed?.access_token === "string") return parsed.access_token;
-  } catch {}
-
-  return null;
-}
-
-async function fetchSupabaseAuthUser(accessToken?: string | null) {
-  if (!supabaseUrl || !supabaseServiceRoleKey || !accessToken) return null;
-
-  try {
-    const res = await fetch(`${supabaseUrl}/auth/v1/user`, {
-      method: "GET",
-      headers: {
-        apikey: supabaseServiceRoleKey,
-        Authorization: `Bearer ${accessToken}`,
-      },
-      cache: "no-store",
-    });
-
-    if (!res.ok) {
-      return null;
-    }
-
-    return await res.json();
-  } catch (error) {
-    console.error("OpenLura auth user fetch failed:", error);
-    return null;
-  }
 }
 
 async function fetchSupabasePersonalState(userId: string | null = null) {
@@ -827,41 +806,181 @@ function mergeLearningFeedbackLayers(input: {
   ];
 }
 
+function buildPersonalOverrideProfile(input: {
+  isPersonalEnvironment: boolean;
+  personalFeedbackRows: OpenLuraFeedbackRow[];
+  personalMemory?: string;
+}) {
+  const normalizedMemory = String(input.personalMemory || "").trim();
+
+  const weightedCount = (pattern: RegExp) =>
+    Math.round(
+      input.personalFeedbackRows.reduce((sum, item) => {
+        const learningType = inferFeedbackLearningType(item);
+        if (learningType !== "style") return sum;
+
+        const text = `${item.userMessage || ""} ${item.message || ""}`.toLowerCase();
+        const weight =
+          typeof item.weight === "number" && Number.isFinite(item.weight)
+            ? item.weight
+            : 1;
+
+        return pattern.test(text) ? sum + weight : sum;
+      }, 0)
+    );
+
+  const shorter = weightedCount(/korter|te lang|too long|shorter/);
+  const clearer = weightedCount(/duidelijker|onduidelijk|clearer|unclear/);
+  const structure = weightedCount(/andere structuur|structuur|structure/);
+  const vague = weightedCount(/te vaag|vaag|vague|concreet|concreter/);
+  const context = weightedCount(/meer context|te oppervlakkig|more context|more depth/);
+  const casual = weightedCount(/te serieus|te formeel|menselijker|spontaner|luchtiger|more natural|too formal|too long for chat/);
+
+  const memoryDirectives = normalizedMemory
+    ? normalizedMemory
+        .split(/\n+/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .slice(0, 6)
+    : [];
+
+  const hardRules = [
+    shorter >= 2 && "Keep replies shorter and remove filler aggressively.",
+    clearer >= 2 && "Use simpler wording and make the answer easier to follow.",
+    vague >= 2 && "Be concrete and specific. Avoid generic wording.",
+    structure >= 2 && "Use cleaner structure and clearer flow.",
+    context >= 2 && shorter < 2 && "Add a bit more why/context when useful.",
+    casual >= 2 && "In casual chat, sound lighter, warmer, and less formal.",
+  ].filter(Boolean) as string[];
+
+  const avoidPatterns = [
+    shorter >= 2 && "long answers",
+    clearer >= 2 && "unclear explanations",
+    vague >= 2 && "vague wording",
+    structure >= 2 && "messy structure",
+    casual >= 2 && "formal essay tone",
+  ].filter(Boolean) as string[];
+
+  return {
+    active:
+      input.isPersonalEnvironment &&
+      (input.personalFeedbackRows.length > 0 || memoryDirectives.length > 0),
+    preferredBrevity: shorter >= 2 ? "tight" : shorter >= 1 ? "compact" : "balanced",
+    preferredClarity: clearer >= 2 || vague >= 2 ? "high" : clearer >= 1 ? "elevated" : "normal",
+    preferredStructure: structure >= 2 ? "structured" : casual >= 2 || shorter >= 2 ? "minimal" : "balanced",
+    preferredDepth: context >= 2 && shorter === 0 ? "expanded" : shorter >= 2 ? "concise" : "standard",
+    preferredTone:
+      casual >= 2
+        ? "casual_light"
+        : context >= 2
+        ? "default_premium"
+        : "casual_balanced",
+    hardRules,
+    avoidPatterns,
+    memoryDirectives,
+  } satisfies OpenLuraPersonalOverrideProfile;
+}
+
+function buildResolvedRuntimeInstructionProfile(input: {
+  isPersonalEnvironment: boolean;
+  baseProfile: {
+    tone: string;
+    brevity: string;
+    structure: string;
+    clarity: string;
+    depth: string;
+  };
+  personalOverrideProfile: OpenLuraPersonalOverrideProfile;
+  activeLearningRulesText: string;
+}) {
+  const personal = input.personalOverrideProfile;
+  const usePersonal = input.isPersonalEnvironment && personal.active;
+
+  return {
+    tone: usePersonal ? personal.preferredTone : input.baseProfile.tone,
+    brevity: usePersonal ? personal.preferredBrevity : input.baseProfile.brevity,
+    structure: usePersonal ? personal.preferredStructure : input.baseProfile.structure,
+    clarity: usePersonal ? personal.preferredClarity : input.baseProfile.clarity,
+    depth: usePersonal ? personal.preferredDepth : input.baseProfile.depth,
+    priorityOrder: usePersonal
+      ? "user > personal > global > default"
+      : "user > global > default",
+    hardRules: usePersonal ? personal.hardRules : [],
+    softRules: input.activeLearningRulesText
+      ? input.activeLearningRulesText
+          .split("\n")
+          .map((line) => line.trim())
+          .filter(Boolean)
+          .slice(0, 8)
+      : [],
+    avoidPatterns: usePersonal ? personal.avoidPatterns : [],
+    memoryDirectives: usePersonal ? personal.memoryDirectives : [],
+  } satisfies OpenLuraResolvedRuntimeInstructionProfile;
+}
+
+function buildRuntimeOverrideInstructionBlock(
+  profile: OpenLuraResolvedRuntimeInstructionProfile
+) {
+  return `Resolved runtime override profile:
+- tone: ${profile.tone}
+- brevity: ${profile.brevity}
+- structure: ${profile.structure}
+- clarity: ${profile.clarity}
+- depth: ${profile.depth}
+- priority order: ${profile.priorityOrder}
+
+Hard override rules:
+${profile.hardRules.map((rule) => `- ${rule}`).join("\n") || "- none"}
+
+Avoid patterns:
+${profile.avoidPatterns.map((rule) => `- ${rule}`).join("\n") || "- none"}
+
+Personal memory directives:
+${profile.memoryDirectives.map((rule) => `- ${rule}`).join("\n") || "- none"}
+
+Soft global rules:
+${profile.softRules.map((rule) => `- ${rule.replace(/^- /, "")}`).join("\n") || "- none"}`;
+}
+
 async function resolvePersonalRuntimeContext(input: {
   req: Request;
   personalMemory?: string;
   memory?: string;
 }) {
-  const accessToken = getBearerTokenFromRequest(input.req);
-  const authUser = await fetchSupabaseAuthUser(accessToken);
-  const headerPersonalUserId = input.req.headers.get("x-openlura-user-id");
+  const identity = await resolveOpenLuraRequestIdentity(input.req);
+  const authUser = identity.authUser;
   const explicitPersonalEnvHeader =
     input.req.headers.get("x-openlura-personal-env") === "true";
+  const hasAdminSession = isValidAdminSession(
+    getCookieValue(input.req, ADMIN_COOKIE_NAME)
+  );
 
-  const personalUserId = authUser?.id || headerPersonalUserId || null;
-  const personalState = await fetchSupabasePersonalState(personalUserId);
-  const personalFeedbackRows = await getPersonalFeedbackRows(personalUserId);
+  const personalUserId = authUser?.id || null;
+  const hasAuthenticatedPersonalUser = !!personalUserId;
 
-  const hasTrustedPersonalSignal =
-    !!personalUserId ||
-    (explicitPersonalEnvHeader &&
-      isValidAdminSession(getCookieValue(input.req, ADMIN_COOKIE_NAME)));
+  const personalState = hasAuthenticatedPersonalUser
+    ? await fetchSupabasePersonalState(personalUserId)
+    : ({
+        userId: null,
+        memory: "",
+        feedback: [],
+        raw: null,
+      } satisfies OpenLuraPersonalState);
 
-  const isPersonalEnvironment =
-    hasTrustedPersonalSignal ||
-    (!!personalUserId &&
-      (
-        !!personalState.memory ||
-        personalState.feedback.length > 0 ||
-        personalFeedbackRows.length > 0
-      ));
+  const personalFeedbackRows = hasAuthenticatedPersonalUser
+    ? await getPersonalFeedbackRows(personalUserId)
+    : [];
+
+  const isPersonalEnvironment = hasAuthenticatedPersonalUser;
 
   const resolvedPersonalMemory = isPersonalEnvironment
     ? input.personalMemory || personalState.memory || input.memory || ""
     : input.memory || "";
 
   const learningScope = isPersonalEnvironment
-    ? `personal:${personalUserId || "active"}`
+    ? `personal:${personalUserId}`
+    : explicitPersonalEnvHeader && hasAdminSession
+    ? "global_admin_personal_ui"
     : "global";
 
   return {
@@ -1690,7 +1809,6 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
       normalizedMessage: normalizedMessageForRouting,
       isSimpleImageAnalysis,
       shouldUseWebSearch,
-      isSearchStyleRequest,
       isCasualChatRequest,
       shouldForceFastCompactOutput,
       shouldUseFastTextPath,
@@ -1718,6 +1836,25 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
       cappedLearningStrength,
       activeLearningRules: resolvedActiveLearningRules,
     });
+
+    const personalOverrideProfile = buildPersonalOverrideProfile({
+      isPersonalEnvironment,
+      personalFeedbackRows: personalLearningFeedback,
+      personalMemory: resolvedPersonalMemory,
+    });
+
+    const resolvedRuntimeInstructionProfile =
+      buildResolvedRuntimeInstructionProfile({
+        isPersonalEnvironment,
+        baseProfile: responseStyleProfile,
+        personalOverrideProfile,
+        activeLearningRulesText: activeLearningRules,
+      });
+
+    const runtimeOverrideInstructionBlock =
+      buildRuntimeOverrideInstructionBlock(
+        resolvedRuntimeInstructionProfile
+      );
 
     const fastRouteDecisionInput = {
       shouldUseFastTextPath: conversationDependentFollowUp
@@ -1790,6 +1927,9 @@ Fast-path runtime learning:
 - learning scope: ${learningScope}
 - personal memory: ${resolvedPersonalMemory || "none"}
 
+Runtime override block:
+${runtimeOverrideInstructionBlock}
+
 Exact-message content preference:
 ${contentLearningState.responsePreferenceContext}
 
@@ -1861,7 +2001,7 @@ Fast-path rules:
         "Content-Type": "text/plain; charset=utf-8",
         "X-OpenLura-Variant": responseVariant,
         "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
-        "X-OpenLura-Speed": "fast_image",
+        "X-OpenLura-Speed": "fast_text",
         "X-OpenLura-Learning-Scope": learningScope,
       },
         }
@@ -1922,7 +2062,7 @@ Do not use web search for this path.`,
             "Content-Type": "text/plain; charset=utf-8",
             "X-OpenLura-Variant": responseVariant,
             "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
-            "X-OpenLura-Speed": "fast_image",
+            "X-OpenLura-Speed": "fast_text",
           },
         }
       );
@@ -2057,6 +2197,9 @@ STYLE LEARNING SIGNALS:
 RESPONSE STYLE PROFILE:
 ${sharedStyleInstructionBlock}
 
+RUNTIME OVERRIDE PROFILE:
+${runtimeOverrideInstructionBlock}
+
 GLOBAL LEARNING:
 Total sessions: ${globalFeedback.length}
 
@@ -2125,6 +2268,9 @@ ADAPTATION RULES:
 - If PERSONAL ENVIRONMENT is active, use priority order: user > personal > global > default
 - If PERSONAL ENVIRONMENT is not active, use priority order: user > global > default
 - Use global learning as fallback consensus, not as an override against active user or personal learning
+- Treat RUNTIME OVERRIDE PROFILE as more important than GLOBAL LEARNING whenever PERSONAL ENVIRONMENT is active
+- Apply hard override rules first, then personal memory directives, then soft global rules
+- Never let global style pressure cancel a strong personal preference
 - If RESPONSE CONTENT PREFERENCE FOR THIS EXACT MESSAGE contains a strong positively rated answer, reuse that style as the default for similar future messages
 - If RESPONSE CONTENT PREFERENCE FOR THIS EXACT MESSAGE shows mixed feedback, do not copy the old answer literally; create a balanced improved version between too short and too verbose
 - If SUCCESSFUL RESPONSE REUSE says reusable winner exists = yes, reuse the winning answer's shape, strengths, and level of usefulness as the starting point
