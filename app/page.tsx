@@ -47,14 +47,20 @@ export default function Home() {
   const [loginError, setLoginError] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
   const [upgradeNotice, setUpgradeNotice] = useState<{
-    visible: boolean;
-    message: string;
-    tier: string;
-  }>({
-    visible: false,
-    message: "",
-    tier: "",
-  });
+  visible: boolean;
+  message: string;
+  tier: string;
+}>({
+  visible: false,
+  message: "",
+  tier: "",
+});
+
+const [usage, setUsage] = useState<{
+  used: number;
+  limit: number;
+  percentage: number;
+} | null>(null);
   
   const fileRef = useRef<HTMLInputElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
@@ -1685,7 +1691,7 @@ setChats([...updated]);
       .join(" | ");
 
     const res = await fetch("/api/chat", {
-      method: "POST", // ✅ VERPLICHT
+      method: "POST",
       signal: controller.signal,
       headers: getOpenLuraRequestHeaders(true),
       body: JSON.stringify({
@@ -1759,8 +1765,21 @@ setChats([...updated]);
       return;
     }
 
-        const reader = res.body.getReader();
+    const reader = res.body.getReader();
     const decoder = new TextDecoder();
+    const usageUsed = Number(res.headers.get("X-OpenLura-Usage-Used") || 0);
+    const usageLimit = Number(res.headers.get("X-OpenLura-Usage-Limit") || 0);
+
+    if (usageLimit > 0) {
+      const percentage = usageUsed / usageLimit;
+
+      setUsage({
+        used: usageUsed,
+        limit: usageLimit,
+        percentage,
+      });
+    }
+
     const responseVariant = res.headers.get("X-OpenLura-Variant") || "unknown";
     const responseSourcesHeader = res.headers.get("X-OpenLura-Sources");
         let responseSources: any[] = [];
@@ -2481,6 +2500,17 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 
       <div className="flex-1 min-w-0 flex items-stretch justify-center md:p-4 pt-0">
         <div className="w-full min-w-0 max-w-2xl h-full md:h-[90%] flex flex-col bg-white/10 md:rounded-3xl backdrop-blur-2xl">
+
+          {usage && usage.percentage >= 0.8 && !upgradeNotice.visible && (
+            <div className="mx-4 mt-4 rounded-2xl border border-yellow-300/30 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-100">
+              <div className="font-medium">
+                Bijna limiet bereikt
+              </div>
+              <div className="mt-1 opacity-90">
+                {Math.round(usage.percentage * 100)}% gebruikt ({usage.used}/{usage.limit})
+              </div>
+            </div>
+          )}
 
           {upgradeNotice.visible && (
             <div className="mx-4 mt-4 rounded-2xl border border-amber-300/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
