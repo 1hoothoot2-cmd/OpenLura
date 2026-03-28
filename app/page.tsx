@@ -704,6 +704,20 @@ const resizeComposerTextarea = () => {
     return;
   }
 
+  const hasAnyChats = chats.length > 0;
+  const hasArchivedOrDeletedChats = chats.some(
+    (chat: any) => chat.archived || chat.deleted
+  );
+
+  if (hasAnyChats || hasArchivedOrDeletedChats) {
+    isBootstrappingChatRef.current = false;
+    preferredActiveChatIdRef.current = null;
+    pendingActiveChatIdRef.current = null;
+    forcedActiveChatIdRef.current = null;
+    setActiveChatId(null);
+    return;
+  }
+
   if (isBootstrappingChatRef.current) {
     return;
   }
