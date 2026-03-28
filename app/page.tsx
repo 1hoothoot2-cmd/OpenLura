@@ -603,7 +603,7 @@ const messageShellClass =
 const messageBubbleClass =
   "min-w-0 max-w-full overflow-hidden break-words [overflow-wrap:anywhere] break-all";
 const composerShellClass =
-  "w-full min-w-0 max-w-full shrink-0 overflow-x-hidden border-t border-white/10 bg-black/70 backdrop-blur";
+  "w-full min-w-0 max-w-full shrink-0 overflow-x-hidden";
 const composerInnerClass =
   "mx-auto w-full max-w-4xl min-w-0 px-3 pb-[max(env(safe-area-inset-bottom),12px)] pt-3 md:px-4";
 const composerInputClass =
@@ -2257,8 +2257,8 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
         </div>
       )}
 
-      <div className="flex-1 min-w-0 flex items-stretch justify-center xl:justify-start md:p-4 pt-0">
-        <div className="flex h-full w-full min-w-0 max-w-2xl xl:max-w-[920px] xl:ml-6 flex-col border border-white/10 bg-white/[0.055] shadow-[0_24px_80px_rgba(0,0,0,0.28)] backdrop-blur-2xl md:h-[90%] md:rounded-[32px]">
+      <div className="flex-1 min-w-0 flex items-stretch justify-center xl:justify-start md:h-screen md:p-4 pt-0">
+        <div className="flex h-full w-full min-w-0 max-w-2xl xl:max-w-[920px] xl:ml-6 flex-col border border-white/10 bg-white/[0.055] shadow-[0_24px_80px_rgba(0,0,0,0.28)] backdrop-blur-2xl md:min-h-0 md:rounded-[32px]">
 
           {usage && usage.percentage >= 0.8 && !upgradeNotice.visible && (
             <div className="mx-4 mt-4 rounded-[24px] border border-yellow-300/20 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-100 shadow-[0_8px_24px_rgba(0,0,0,0.12)] backdrop-blur-xl">
@@ -2282,7 +2282,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 
           <div
   ref={messagesRef}
-  className={`${messageShellClass} flex-1 overflow-x-hidden overflow-y-auto pb-52 md:pb-6 ${
+  className={`${messageShellClass} flex-1 min-h-0 overflow-x-hidden overflow-y-auto pb-40 md:pb-6 ${
     activeChat?.messages?.length ? "p-4 pt-20 md:px-6 md:pt-6 space-y-4" : "p-4 pt-20 md:px-6 md:pt-6 flex items-center justify-center"
   }`}
 >
@@ -2523,8 +2523,8 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
   className={`${
     activeChat?.messages?.length === 0
       ? "mt-6 w-full max-w-2xl"
-      : composerShellClass + " fixed bottom-0 left-0 right-0 md:static z-[90] p-3 pb-4 md:border-0 bg-[#050510] md:bg-transparent"
-  } flex w-full min-w-0 max-w-full overflow-x-hidden items-end gap-2 rounded-[32px] border border-white/10 bg-white/[0.055] px-3 py-3 shadow-[0_20px_56px_rgba(0,0,0,0.26)] backdrop-blur-2xl md:mx-auto md:max-w-[880px]`}
+      : "fixed bottom-0 left-0 right-0 z-[90] p-3 pb-4 bg-[#050510] md:static md:z-auto md:mt-auto md:w-full md:max-w-none md:border-0 md:bg-transparent md:p-0"
+  } flex w-full min-w-0 max-w-full overflow-x-hidden items-end gap-2 rounded-[32px] border border-white/10 bg-white/[0.055] px-3 py-3 shadow-[0_20px_56px_rgba(0,0,0,0.26)] backdrop-blur-2xl md:rounded-b-[32px] md:rounded-t-[28px] md:border-x-0 md:border-b-0 md:border-t md:px-4 md:py-4 md:shadow-none`}
 >
 
                         <button
