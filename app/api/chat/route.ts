@@ -755,8 +755,17 @@ function updateMemoryWeightsFromFeedback(input: {
 function extractWeightedPersonalMemoryItems(value: any) {
   const normalizeItem = (item: any) => {
     if (typeof item === "string") {
-      const text = item.trim();
-      return text ? { text, weight: 0.5 } : null;
+      const raw = item.trim();
+      if (!raw) return null;
+
+      const priorityMatch = raw.match(/^\d+\.\s*\[(high|medium|light)\]\s*(.+)$/i);
+      const priority = priorityMatch?.[1]?.toLowerCase() || null;
+      const text = (priorityMatch?.[2] || raw).trim();
+
+      const inferredWeight =
+        priority === "high" ? 1.8 : priority === "medium" ? 1.1 : 0.5;
+
+      return text ? { text, weight: inferredWeight } : null;
     }
 
     if (item && typeof item === "object") {
@@ -796,9 +805,8 @@ function extractWeightedPersonalMemoryItems(value: any) {
 function buildWeightedPersonalMemoryBlock(...values: any[]) {
   const merged = values
     .flatMap((value) => extractWeightedPersonalMemoryItems(value))
-    
-  .reduce((acc: { text: string; weight: number }[], item) => {
-    const existing = acc.find(
+    .reduce((acc: { text: string; weight: number }[], item) => {
+      const existing = acc.find(
         (entry) => entry.text.toLowerCase() === item.text.toLowerCase()
       );
 
@@ -811,11 +819,7 @@ function buildWeightedPersonalMemoryBlock(...values: any[]) {
       return acc;
     }, [])
     .sort((a, b) => b.weight - a.weight)
-.map((item) => ({
-  ...item,
-  weight: item.weight >= 1.8 ? item.weight + 0.2 : item.weight,
-}))
-.slice(0, 6);
+    .slice(0, 6);
 
   return merged
     .map((item, index) => {
@@ -829,6 +833,69 @@ function buildWeightedPersonalMemoryBlock(...values: any[]) {
       return `${index + 1}. [${priority}] ${item.text}`;
     })
     .join("\n");
+}
+
+function doesFeedbackMatchMemoryItem(feedback: any, memoryText: string) {
+  const feedbackText = `${feedback?.userMessage || ""} ${feedback?.message || ""}`
+    .toLowerCase()
+    .trim();
+  const normalizedMemoryText = String(memoryText || "").toLowerCase().trim();
+
+  if (!feedbackText || !normalizedMemoryText) return false;
+  if (feedbackText.includes(normalizedMemoryText)) return true;
+
+  const memoryTokens = normalizedMemoryText
+    .split(/[^a-z0-9à-ÿ]+/i)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 4)
+    .slice(0, 8);
+
+  if (memoryTokens.length === 0) return false;
+
+  const matchedTokenCount = memoryTokens.filter((token) =>
+    feedbackText.includes(token)
+  ).length;
+
+  return matchedTokenCount >= Math.min(2, memoryTokens.length);
+}
+
+function rebalancePersonalMemoryFromFeedback(input: {
+  personalMemory?: string;
+  feedbackRows?: any[];
+}) {
+  const memoryItems = extractWeightedPersonalMemoryItems(input.personalMemory || "");
+  const feedbackRows = Array.isArray(input.feedbackRows) ? input.feedbackRows : [];
+
+  if (memoryItems.length === 0) {
+    return String(input.personalMemory || "").trim();
+  }
+
+  const adjustedItems = memoryItems.map((item) => {
+    let nextWeight = item.weight;
+
+    for (const feedback of feedbackRows) {
+      if (!doesFeedbackMatchMemoryItem(feedback, item.text)) continue;
+
+      if (feedback?.type === "up") {
+        nextWeight += 0.2;
+      }
+
+      if (feedback?.type === "down") {
+        nextWeight -= 0.3;
+      }
+
+      if (feedback?.type === "improve") {
+        nextWeight -= 0.2;
+      }
+    }
+
+    return {
+      text: item.text,
+      weight: Math.max(0.2, Math.min(nextWeight, 3)),
+    };
+  });
+
+  return buildWeightedPersonalMemoryBlock(adjustedItems);
 }
 
 async function fetchSupabasePersonalState(userId: string | null = null) {
@@ -1513,6 +1580,11 @@ export async function POST(req: Request) {
   const personalLayer = isPersonalEnvironment ? personalLearningFeedback : [];
   const userLayer = userRuntimeFeedback;
 
+  const runtimePersonalMemory = rebalancePersonalMemoryFromFeedback({
+    personalMemory: resolvedPersonalMemory,
+    feedbackRows: [...personalLayer, ...userLayer],
+  });
+
   const feedbackLikes = globalLearningFeedback.filter(
     (f: any) => f.type === "up"
   ).length;
@@ -2026,7 +2098,7 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
     const personalOverrideProfile = buildPersonalOverrideProfile({
       isPersonalEnvironment,
       personalFeedbackRows: personalLearningFeedback,
-      personalMemory: resolvedPersonalMemory,
+      personalMemory: runtimePersonalMemory,
     });
 
     const resolvedRuntimeInstructionProfile =
@@ -2075,7 +2147,7 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
         ? ""
         : buildCacheKey({
             message: message || "",
-            personalMemory: resolvedPersonalMemory,
+            personalMemory: runtimePersonalMemory,
             learningScope,
           });
 
@@ -2111,7 +2183,7 @@ ${sharedStyleInstructionBlock}
 Fast-path runtime learning:
 - personal environment active: ${isPersonalEnvironment ? "yes" : "no"}
 - learning scope: ${learningScope}
-- personal memory: ${resolvedPersonalMemory || "none"}
+- personal memory: ${runtimePersonalMemory || "none"}
 - memory priority rule: when personal memory exists, follow higher-priority memory items before weaker global style hints unless the current user request conflicts
 
 Runtime override block:
@@ -2166,8 +2238,8 @@ Fast-path rules:
 
             const cacheKey = buildCacheKey({
               message: message || "",
-              personalMemory: resolvedPersonalMemory,
-        learningScope,
+              personalMemory: runtimePersonalMemory,
+              learningScope,
             });
 
             if (cacheKey && fullText.trim()) {
@@ -2270,7 +2342,7 @@ Do not use web search for this path.`,
     const cacheKey = canUseCache
       ? JSON.stringify({
           message: normalizedMessageForRouting,
-          memory: resolvedPersonalMemory,
+          memory: runtimePersonalMemory,
           learningScope,
           variant: shouldForceFastCompactOutput ? "fast" : responseVariant,
         })
@@ -2598,7 +2670,7 @@ CONTEXT:
 Recent conversation:
 ${recentConversationTranscript || "none"}
 
-Personal user memory: ${resolvedPersonalMemory || "none"}
+Personal user memory: ${runtimePersonalMemory || "none"}
 User location: ${location ? JSON.stringify(location) : "unknown"}
 
 BAD OUTPUT:
