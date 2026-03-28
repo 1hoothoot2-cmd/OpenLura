@@ -1514,7 +1514,7 @@ Geef alleen direct het betere antwoord.`,
 
         updated[index].messages.push({
         role: "ai",
-        content: "",
+        content: "…",
         variant: improveVariant,
         sources: improveSources,
         isStreaming: true,
@@ -1538,7 +1538,7 @@ Geef alleen direct het betere antwoord.`,
 
           updated[index].messages[
             updated[index].messages.length - 1
-          ].content = improvedText;
+          ].content = improvedText || "…";
 
           setChats([...updated]);
         }
@@ -1649,7 +1649,7 @@ setLoadingStage(imageToSend ? "analyzing" : "typing");
 // instant visual feedback (feels faster)
 updated[index].messages.push({
   role: "ai",
-  content: imageToSend ? "Analyzing image..." : "Thinking...",
+  content: "…",
   isStreaming: true,
 });
 
@@ -1837,8 +1837,8 @@ updated[index].messages[
           updated[index].messages.length - 1
         ] = {
           ...updated[index].messages[updated[index].messages.length - 1],
-          content: aiText,
-          isStreaming: false,
+          content: aiText || "…",
+          isStreaming: !aiText.trim(),
         };
 
         setChats([...updated]);
@@ -2304,7 +2304,20 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
     className={`${msg.image ? "mt-3 " : ""}${messageBubbleClass} min-w-0 max-w-full overflow-hidden`}
   >
     {msg.isStreaming && msg.content === "…" ? (
-      <span className="opacity-50">thinking...</span>
+      <span className="inline-flex items-center gap-2 text-white/55">
+        <span className="flex items-center gap-1">
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white/55" />
+          <span
+            className="h-1.5 w-1.5 animate-pulse rounded-full bg-white/45"
+            style={{ animationDelay: "120ms" }}
+          />
+          <span
+            className="h-1.5 w-1.5 animate-pulse rounded-full bg-white/35"
+            style={{ animationDelay: "240ms" }}
+          />
+        </span>
+        <span className="text-sm">OpenLura denkt na</span>
+      </span>
     ) : (
       msg.content.split(/(\s+)/).map((part: string, idx: number) => {
         const isUrl = /^https?:\/\/\S+$/i.test(part);
@@ -2450,13 +2463,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                     );
                   })}
 
-                                {loading && (
-                  <div className="px-1 text-sm text-white/55">
-                    {loadingStage === "analyzing"
-                      ? "OpenLura is analyzing image..."
-                      : "OpenLura is typing..."}
-                  </div>
-                )}
+                                {loading && null}
               </>
             )}
           </div>
