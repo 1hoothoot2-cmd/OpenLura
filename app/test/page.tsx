@@ -46,6 +46,15 @@ export default function Home() {
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
+  const [upgradeNotice, setUpgradeNotice] = useState<{
+    visible: boolean;
+    message: string;
+    tier: string;
+  }>({
+    visible: false,
+    message: "",
+    tier: "",
+  });
   
   const fileRef = useRef<HTMLInputElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
@@ -927,6 +936,19 @@ const activeChat =
       e.target.value = "";
     };
 
+  const getUsageLimitMessage = async (res: Response) => {
+    try {
+      const text = (await res.text()).trim();
+      if (text) return text;
+    } catch {}
+
+    const tier = res.headers.get("X-OpenLura-Usage-Tier") || "free";
+
+    return tier === "free"
+      ? "Je hebt je maandelijkse limiet bereikt voor je persoonlijke AI. Upgrade je plan om verder te chatten."
+      : "Je huidige gebruikslimiet is bereikt. Controleer je plan of verhoog je limiet.";
+  };
+
   const getStoredFeedback = () => {
     try {
       return JSON.parse(
@@ -1421,6 +1443,28 @@ Geef alleen direct het betere antwoord.`,
         return;
       }
 
+      if (improveRes.status === 429) {
+        const limitMessage = await getUsageLimitMessage(improveRes);
+        const usageTier = improveRes.headers.get("X-OpenLura-Usage-Tier") || "free";
+
+        setUpgradeNotice({
+          visible: true,
+          message: limitMessage,
+          tier: usageTier,
+        });
+
+        updated[index].messages.push({
+          role: "ai",
+          content: limitMessage,
+          disableFeedback: true,
+        });
+        setChats([...updated]);
+        setStreamController(null);
+        setLoading(false);
+        setLoadingStage("idle");
+        return;
+      }
+
       if (!improveRes.ok || !improveRes.body) {
         updated[index].messages.push({
           role: "ai",
@@ -1503,6 +1547,14 @@ Geef alleen direct het betere antwoord.`,
       return;
     }
         if (!input && !image) return;
+
+    if (upgradeNotice.visible) {
+      setUpgradeNotice({
+        visible: false,
+        message: "",
+        tier: "",
+      });
+    }
 
     let updated = [...chats];
     let index = updated.findIndex((c) => c.id === activeChatId);
@@ -1662,11 +1714,44 @@ setChats([...updated]);
       }),
     });
 
-    if (!res.ok || !res.body) {
-      updated[index].messages.push({
-        role: "ai",
-        content: "OpenLura kon nu geen antwoord ophalen. Probeer het opnieuw.",
+    if (res.status === 429) {
+      const limitMessage = await getUsageLimitMessage(res);
+      const usageTier = res.headers.get("X-OpenLura-Usage-Tier") || "free";
+
+      setUpgradeNotice({
+        visible: true,
+        message: limitMessage,
+        tier: usageTier,
       });
+
+      updated[index].messages[
+        updated[index].messages.length - 1
+      ] = {
+        ...updated[index].messages[
+          updated[index].messages.length - 1
+        ],
+        content: limitMessage,
+        isStreaming: false,
+        disableFeedback: true,
+      };
+
+      setChats([...updated]);
+      setStreamController(null);
+      setLoading(false);
+      setLoadingStage("idle");
+      return;
+    }
+
+    if (!res.ok || !res.body) {
+      updated[index].messages[
+        updated[index].messages.length - 1
+      ] = {
+        ...updated[index].messages[
+          updated[index].messages.length - 1
+        ],
+        content: "OpenLura kon nu geen antwoord ophalen. Probeer het opnieuw.",
+        isStreaming: false,
+      };
       setChats([...updated]);
       setStreamController(null);
       setLoading(false);
@@ -2397,7 +2482,16 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
       <div className="flex-1 min-w-0 flex items-stretch justify-center md:p-4 pt-0">
         <div className="w-full min-w-0 max-w-2xl h-full md:h-[90%] flex flex-col bg-white/10 md:rounded-3xl backdrop-blur-2xl">
 
-                    <div
+          {upgradeNotice.visible && (
+            <div className="mx-4 mt-4 rounded-2xl border border-amber-300/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+              <div className="font-medium">
+                Limiet bereikt {upgradeNotice.tier ? `(${upgradeNotice.tier})` : ""}
+              </div>
+              <div className="mt-1 opacity-90">{upgradeNotice.message}</div>
+            </div>
+          )}
+
+          <div
   ref={messagesRef}
   className={`${messageShellClass} flex-1 overflow-x-hidden overflow-y-auto pb-52 md:pb-4 ${
     activeChat?.messages?.length ? "p-4 pt-20 md:pt-4 space-y-3" : "p-4 pt-20 md:pt-4 flex items-center justify-center"
