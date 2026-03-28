@@ -2277,12 +2277,19 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                       : { style: [], content: [] };
 
                     return (
-                      <div key={i} className={messageShellClass}>
-                        <div className={`${messageBubbleClass} min-w-0 max-w-[75%] overflow-hidden p-3 rounded-2xl whitespace-pre-line ${
-                          msg.role === "user"
-                            ? "bg-gradient-to-r from-[#1d4ed8] to-[#2563eb] ml-auto text-white"
-                            : "bg-white/20"
-                        }`}>
+                      <div
+                        key={i}
+                        className={`${messageShellClass} ${
+                          msg.role === "user" ? "mb-2" : "mb-4"
+                        }`}
+                      >
+                                                <div
+                          className={`${messageBubbleClass} min-w-0 max-w-[78%] overflow-hidden whitespace-pre-line rounded-[24px] px-4 py-3.5 ${
+                            msg.role === "user"
+                              ? "ml-auto bg-gradient-to-r from-[#1d4ed8] to-[#2563eb] text-white shadow-[0_10px_28px_rgba(37,99,235,0.24)]"
+                              : "border border-white/10 bg-white/[0.06] text-white/92 backdrop-blur-xl shadow-[0_8px_28px_rgba(0,0,0,0.18)]"
+                          }`}
+                        >
                           {msg.image && (
                             <img
                               src={msg.image}
@@ -2338,7 +2345,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                           msg.content !== "🤖 Bedankt voor je feedback. Ik sla dit op en gebruik het om toekomstige antwoorden te verbeteren." && (
                             <>
                               {isLastAI && (
-                                <div className="mt-2 p-2 rounded-xl bg-white/5 text-xs opacity-70">
+                                <div className="mt-3 rounded-2xl border border-white/8 bg-white/[0.035] px-3 py-3 text-xs text-white/65">
                                   <p className="mb-2">🧠 AI Learning actief:</p>
 
                                   {activeLearningDebug.style.length === 0 &&
@@ -2376,7 +2383,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                                 </div>
                               )}
 
-                                                            <div className="flex gap-2 mt-1 text-sm opacity-70 items-center">
+                                                            <div className="mt-2 flex items-center gap-3 pl-1 text-sm text-white/55">
                                 {!feedbackGiven[activeChatId + "-" + i] && (
                                   <>
                                     <button onClick={() => handleFeedback(activeChatId!, i, "up")}>👍</button>
@@ -2385,14 +2392,14 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                                 )}
 
                                 {feedbackUI[activeChatId + "-" + i] && (
-                                  <span className="text-xs opacity-70 ml-2">
+                                  <span className="ml-1 text-xs text-white/55">
                                     {feedbackUI[activeChatId + "-" + i]}
                                   </span>
                                 )}
                               </div>
 
                 {Array.isArray(msg.sources) && msg.sources.length > 0 && (
-          <div className="mt-3 space-y-2">
+          <div className="mt-4 space-y-2">
             <p className="text-[11px] uppercase tracking-wide text-white/35">
               🔎 Bronnen
             </p>
@@ -2415,7 +2422,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                     href={source.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block w-full min-w-0 max-w-full overflow-hidden p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all border border-white/10"
+                    className="block w-full min-w-0 max-w-full overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-3 hover:bg-white/[0.08] transition-all"
                     title={source.title || source.url}
                   >
                     <p
@@ -2443,7 +2450,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                   })}
 
                                 {loading && (
-                  <div className="opacity-70 text-sm">
+                  <div className="px-1 text-sm text-white/55">
                     {loadingStage === "analyzing"
                       ? "OpenLura is analyzing image..."
                       : "OpenLura is typing..."}
