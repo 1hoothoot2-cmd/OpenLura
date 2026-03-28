@@ -1084,9 +1084,27 @@ function getUsageLimitSnapshot(input: {
         ? Infinity
         : Math.max(0, limits.monthlyWebSearches - webSearchCount),
     exceeded:
-      (limits.monthlyRequests !== Infinity && requestCount >= limits.monthlyRequests) ||
+      (limits.monthlyRequests !== Infinity &&
+        requestCount >= limits.monthlyRequests) ||
       (limits.monthlyWebSearches !== Infinity &&
         webSearchCount >= limits.monthlyWebSearches),
+  };
+}
+
+function buildUsageHeaders(usageLimitSnapshot: {
+  tier: string;
+  requestCount: number;
+  monthlyRequests: number;
+  exceeded: boolean;
+}) {
+  return {
+    "X-OpenLura-Usage-Tier": String(usageLimitSnapshot.tier),
+    "X-OpenLura-Usage-Exceeded": usageLimitSnapshot.exceeded ? "true" : "false",
+    "X-OpenLura-Usage-Used": String(usageLimitSnapshot.requestCount || 0),
+    "X-OpenLura-Usage-Limit":
+      usageLimitSnapshot.monthlyRequests === Infinity
+        ? "0"
+        : String(usageLimitSnapshot.monthlyRequests || 0),
   };
 }
 
@@ -1692,7 +1710,7 @@ async function storeAutoDebugSignals(input: {
 
       if (isSchemaMismatch) {
         const fallbackRows = rows.map((row: any) => {
-          const { user_id, learningType, ...rest } = row;
+          const { user_id, learningType, userScope, environment, ...rest } = row;
           return rest;
         });
 
@@ -2432,8 +2450,7 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
           "X-OpenLura-Variant": responseVariant,
           "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
           "X-OpenLura-Learning-Scope": learningScope,
-          "X-OpenLura-Usage-Tier": String(usageLimitSnapshot.tier),
-          "X-OpenLura-Usage-Exceeded": "true",
+          ...buildUsageHeaders(usageLimitSnapshot),
           "Retry-After": "86400",
         },
       });
@@ -2535,13 +2552,14 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
 
       if (cached && Date.now() - cached.timestamp < RESPONSE_CACHE_TTL_MS) {
         return new Response(cached.text, {
-      headers: {
-        "Content-Type": "text/plain; charset=utf-8",
-        "X-OpenLura-Variant": responseVariant,
-        "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
-        "X-OpenLura-Speed": "fast_text",
-        "X-OpenLura-Learning-Scope": learningScope,
-      },
+          headers: {
+            "Content-Type": "text/plain; charset=utf-8",
+            "X-OpenLura-Variant": responseVariant,
+            "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
+            "X-OpenLura-Speed": "fast_text",
+            "X-OpenLura-Learning-Scope": learningScope,
+            ...buildUsageHeaders(usageLimitSnapshot),
+          },
         });
       }
 
@@ -2643,13 +2661,14 @@ Fast-path rules:
           },
         }),
         {
-       headers: {
-        "Content-Type": "text/plain; charset=utf-8",
-        "X-OpenLura-Variant": responseVariant,
-        "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
-        "X-OpenLura-Speed": "fast_text",
-        "X-OpenLura-Learning-Scope": learningScope,
-      },
+          headers: {
+            "Content-Type": "text/plain; charset=utf-8",
+            "X-OpenLura-Variant": responseVariant,
+            "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
+            "X-OpenLura-Speed": "fast_text",
+            "X-OpenLura-Learning-Scope": learningScope,
+            ...buildUsageHeaders(usageLimitSnapshot),
+          },
         }
       );
     }
@@ -2709,6 +2728,8 @@ Do not use web search for this path.`,
             "X-OpenLura-Variant": responseVariant,
             "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
             "X-OpenLura-Speed": "fast_text",
+            "X-OpenLura-Learning-Scope": learningScope,
+            ...buildUsageHeaders(usageLimitSnapshot),
           },
         }
       );
@@ -2741,6 +2762,7 @@ Do not use web search for this path.`,
             "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
             "X-OpenLura-Speed": "default",
             "X-OpenLura-Learning-Scope": learningScope,
+            ...buildUsageHeaders(usageLimitSnapshot),
           },
         });
       }
@@ -3283,8 +3305,7 @@ ${aiText}`,
         "X-OpenLura-Variant": responseVariant,
         "X-OpenLura-Sources": encodeURIComponent(JSON.stringify(sources)),
         "X-OpenLura-Learning-Scope": learningScope,
-        "X-OpenLura-Usage-Tier": String(usageLimitSnapshot.tier),
-        "X-OpenLura-Usage-Exceeded": usageLimitSnapshot.exceeded ? "true" : "false",
+        ...buildUsageHeaders(usageLimitSnapshot),
       },
     }
   );
