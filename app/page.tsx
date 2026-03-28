@@ -2280,7 +2280,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                       <div key={i} className={messageShellClass}>
                         <div className={`${messageBubbleClass} min-w-0 max-w-[75%] overflow-hidden p-3 rounded-2xl whitespace-pre-line ${
                           msg.role === "user"
-                            ? "bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] ml-auto text-white"
+                            ? "bg-gradient-to-r from-[#1d4ed8] to-[#2563eb] ml-auto text-white"
                             : "bg-white/20"
                         }`}>
                           {msg.image && (
@@ -2538,7 +2538,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
       ? "bg-red-500 text-white shadow-[0_8px_24px_rgba(239,68,68,0.35)]"
       : !input.trim() && !image
       ? "bg-white/10 text-white/30 shadow-none"
-      : "bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] text-white shadow-[0_10px_24px_rgba(99,102,241,0.32)] hover:brightness-110"
+      : "bg-gradient-to-r from-[#1d4ed8] to-[#2563eb] text-white shadow-[0_10px_24px_rgba(99,102,241,0.32)] hover:brightness-110"
   }`}
 >
   {loading ? "■" : "↑"}
@@ -2615,7 +2615,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
             <div className="mt-auto space-y-2">
               <button
                 onClick={() => setShowFeedbackBox(true)}
-                className="w-full p-3 rounded-2xl bg-white/10 hover:bg-white/20 text-left"
+                className="w-full p-3 rounded-2xl bg-white/10 hover:bg-white/[0.06] backdrop-blur-xl border border-white/10 text-left"
               >
                 ✍️ Voeg persoonlijk verbeterpunt toe
               </button>
@@ -2624,7 +2624,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                 onClick={() => {
                   window.open("/analytics", "_blank", "noopener,noreferrer");
                 }}
-                className="w-full p-3 rounded-2xl bg-white/10 hover:bg-white/20 text-left"
+                className="w-full p-3 rounded-2xl bg-white/10 hover:bg-white/[0.06] backdrop-blur-xl border border-white/10 text-left"
               >
                 📊 Open analytics
               </button>
@@ -2687,7 +2687,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                   setLoginUsername("");
                   setLoginPassword("");
                 }}
-                className="flex-1 p-3 rounded-2xl bg-white/10 hover:bg-white/20"
+                className="flex-1 p-3 rounded-2xl bg-white/10 hover:bg-white/[0.06] backdrop-blur-xl border border-white/10"
               >
                 Annuleren
               </button>
