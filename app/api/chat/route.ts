@@ -637,10 +637,28 @@ type OpenLuraFeedbackRow = {
   weight?: number;
 };
 
+type OpenLuraPersonalStateStyleProfile = {
+  preferredBrevity?: "tight" | "compact" | "balanced";
+  preferredClarity?: "high" | "elevated" | "normal";
+  preferredStructure?: "minimal" | "structured" | "balanced";
+  preferredDepth?: "concise" | "standard" | "expanded";
+  preferredTone?:
+    | "casual_light"
+    | "casual_balanced"
+    | "default_premium"
+    | "practical_grounded"
+    | "visual_direct";
+  hardRules?: string[];
+  avoidPatterns?: string[];
+  memoryDirectives?: string[];
+  updatedAt?: string;
+};
+
 type OpenLuraPersonalState = {
   userId: string | null;
   memory: string;
   feedback: OpenLuraFeedbackRow[];
+  styleProfile: OpenLuraPersonalStateStyleProfile | null;
   raw: any;
 };
 
@@ -964,6 +982,7 @@ function rebalancePersonalMemoryFromFeedback(input: {
 async function persistSupabasePersonalMemory(input: {
   userId: string;
   memory: string;
+  styleProfile?: OpenLuraPersonalStateStyleProfile | null;
   existingState?: any;
 }) {
   if (!supabaseUrl || !supabaseServiceRoleKey || !input.userId) {
@@ -987,6 +1006,7 @@ async function persistSupabasePersonalMemory(input: {
     key: existingKey,
     chats: existingChats,
     memory: memoryItems,
+    style_profile: input.styleProfile || existingState.style_profile || null,
     updated_at: new Date().toISOString(),
   };
 
@@ -1021,6 +1041,7 @@ async function persistSupabasePersonalMemory(input: {
         },
         body: JSON.stringify({
           memory: memoryItems,
+          style_profile: input.styleProfile || existingState.style_profile || null,
           updated_at: new Date().toISOString(),
         }),
         cache: "no-store",
@@ -1047,6 +1068,7 @@ async function fetchSupabasePersonalState(userId: string | null = null) {
       userId: resolvedUserId,
       memory: "",
       feedback: [],
+      styleProfile: null,
       raw: null,
     } satisfies OpenLuraPersonalState;
   }
@@ -1100,6 +1122,10 @@ async function fetchSupabasePersonalState(userId: string | null = null) {
         userId: resolvedUserId,
         memory: memoryText,
         feedback: nestedFeedback,
+        styleProfile:
+          row?.style_profile && typeof row.style_profile === "object"
+            ? row.style_profile
+            : null,
         raw: row,
       } satisfies OpenLuraPersonalState;
     } catch (error) {
@@ -1111,6 +1137,7 @@ async function fetchSupabasePersonalState(userId: string | null = null) {
     userId: resolvedUserId,
     memory: "",
     feedback: [],
+    styleProfile: null,
     raw: null,
   } satisfies OpenLuraPersonalState;
 }
@@ -1241,18 +1268,30 @@ function buildResolvedRuntimeInstructionProfile(input: {
     clarity: string;
     depth: string;
   };
+  persistedStyleProfile?: OpenLuraPersonalStateStyleProfile | null;
   personalOverrideProfile: OpenLuraPersonalOverrideProfile;
   activeLearningRulesText: string;
 }) {
   const personal = input.personalOverrideProfile;
+  const persisted = input.persistedStyleProfile || null;
   const usePersonal = input.isPersonalEnvironment && personal.active;
 
   return {
-    tone: usePersonal ? personal.preferredTone : input.baseProfile.tone,
-    brevity: usePersonal ? personal.preferredBrevity : input.baseProfile.brevity,
-    structure: usePersonal ? personal.preferredStructure : input.baseProfile.structure,
-    clarity: usePersonal ? personal.preferredClarity : input.baseProfile.clarity,
-    depth: usePersonal ? personal.preferredDepth : input.baseProfile.depth,
+    tone: usePersonal
+      ? personal.preferredTone
+      : persisted?.preferredTone || input.baseProfile.tone,
+    brevity: usePersonal
+      ? personal.preferredBrevity
+      : persisted?.preferredBrevity || input.baseProfile.brevity,
+    structure: usePersonal
+      ? personal.preferredStructure
+      : persisted?.preferredStructure || input.baseProfile.structure,
+    clarity: usePersonal
+      ? personal.preferredClarity
+      : persisted?.preferredClarity || input.baseProfile.clarity,
+    depth: usePersonal
+      ? personal.preferredDepth
+      : persisted?.preferredDepth || input.baseProfile.depth,
     priorityOrder: usePersonal
       ? "user > personal > global > default"
       : "user > global > default",
@@ -1317,6 +1356,7 @@ async function resolvePersonalRuntimeContext(input: {
         userId: null,
         memory: "",
         feedback: [],
+        styleProfile: null,
         raw: null,
       } satisfies OpenLuraPersonalState);
 
@@ -2242,24 +2282,36 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
       activeLearningRules: resolvedActiveLearningRules,
     });
 
-    if (shouldPersistRuntimeMemory && personalUserId) {
-      await persistSupabasePersonalMemory({
-        userId: personalUserId,
-        memory: runtimePersonalMemory,
-        existingState: personalState.raw,
-      });
-    }
-
     const personalOverrideProfile = buildPersonalOverrideProfile({
       isPersonalEnvironment,
       personalFeedbackRows: personalLearningFeedback,
       personalMemory: runtimePersonalMemory,
     });
 
+    if (shouldPersistRuntimeMemory && personalUserId) {
+      await persistSupabasePersonalMemory({
+        userId: personalUserId,
+        memory: runtimePersonalMemory,
+        styleProfile: {
+          preferredBrevity: personalOverrideProfile.preferredBrevity,
+          preferredClarity: personalOverrideProfile.preferredClarity,
+          preferredStructure: personalOverrideProfile.preferredStructure,
+          preferredDepth: personalOverrideProfile.preferredDepth,
+          preferredTone: personalOverrideProfile.preferredTone,
+          hardRules: personalOverrideProfile.hardRules,
+          avoidPatterns: personalOverrideProfile.avoidPatterns,
+          memoryDirectives: personalOverrideProfile.memoryDirectives,
+          updatedAt: new Date().toISOString(),
+        },
+        existingState: personalState.raw,
+      });
+    }
+
     const resolvedRuntimeInstructionProfile =
       buildResolvedRuntimeInstructionProfile({
         isPersonalEnvironment,
         baseProfile: responseStyleProfile,
+        persistedStyleProfile: personalState.styleProfile,
         personalOverrideProfile,
         activeLearningRulesText: activeLearningRules,
       });
