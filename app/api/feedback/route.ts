@@ -7,13 +7,16 @@ import {
   isValidAnalyticsSession,
 } from "@/lib/auth/analyticsSession";
 import { NextResponse } from "next/server";
-import { resolveOpenLuraRequestIdentity } from "@/lib/auth/requestIdentity";
+import {
+  requireOpenLuraIdentity,
+  resolveOpenLuraRequestIdentity,
+} from "@/lib/auth/requestIdentity";
 
 export const dynamic = "force-dynamic";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const analyticsAdminPassword = process.env.ANALYTICS_ADMIN_PASSWORD;
+const analyticsAdminPassword = process.env.ANALYTICS_ADMIN_PASSWORD?.trim() || null;
 const ANALYTICS_SESSION_TYPE = "analytics_admin";
 
 const NO_STORE_HEADERS = {
@@ -259,11 +262,24 @@ function getContentLength(req: Request) {
 }
 
 async function resolveFeedbackIdentity(req: Request) {
-  const identity = await resolveOpenLuraRequestIdentity(req);
+  const softIdentity = await resolveOpenLuraRequestIdentity(req);
 
   return {
-    userId: identity.userId,
-    isAuthenticatedPersonalUser: !!identity.userId,
+    userId: softIdentity.userId,
+    isAuthenticatedPersonalUser: softIdentity.isAuthenticated && !!softIdentity.userId,
+  };
+}
+
+async function requirePersonalFeedbackIdentity(req: Request) {
+  const result = await requireOpenLuraIdentity(req);
+
+  if (!result.ok) {
+    return null;
+  }
+
+  return {
+    userId: result.identity.userId,
+    accessToken: result.identity.accessToken,
   };
 }
 
@@ -273,14 +289,15 @@ async function saveFeedbackEntry(input: {
   entry: Record<string, unknown>;
   errorLabel: string;
 }) {
+  const headers = new Headers();
+  headers.set("Content-Type", "application/json");
+  headers.set("apikey", input.supabaseServiceRoleKey);
+  headers.set("Authorization", `Bearer ${input.supabaseServiceRoleKey}`);
+  headers.set("Prefer", "return=representation");
+
   const res = await fetch(input.feedbackTableUrl, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      apikey: input.supabaseServiceRoleKey,
-      Authorization: `Bearer ${input.supabaseServiceRoleKey}`,
-      Prefer: "return=representation",
-    } as HeadersInit,
+    headers,
     body: JSON.stringify(input.entry),
     cache: "no-store",
   });
@@ -391,7 +408,9 @@ export async function POST(req: Request) {
         );
       }
 
-      if ((data.password || "") !== analyticsAdminPassword) {
+      const submittedPassword = (data.password || "").trim();
+
+      if (!analyticsAdminPassword || submittedPassword !== analyticsAdminPassword) {
         return NextResponse.json(
           { success: false, error: "Verkeerd wachtwoord" },
           {
@@ -425,12 +444,18 @@ export async function POST(req: Request) {
 
     const identity = await resolveFeedbackIdentity(req);
     const wantsPersonalEnvironment = data.environment === "personal";
-    const isPersonalEnvironment =
-      identity.isAuthenticatedPersonalUser && wantsPersonalEnvironment;
 
-    if (wantsPersonalEnvironment && !identity.isAuthenticatedPersonalUser) {
-      return unauthorized("Personal feedback requires authentication", rateLimit);
+    let personalIdentity: Awaited<ReturnType<typeof requirePersonalFeedbackIdentity>> = null;
+
+    if (wantsPersonalEnvironment) {
+      personalIdentity = await requirePersonalFeedbackIdentity(req);
+
+      if (!personalIdentity) {
+        return unauthorized("Personal feedback requires authentication", rateLimit);
+      }
     }
+
+    const isPersonalEnvironment = !!personalIdentity;
 
     if (data.action === "update_workflow_status" && !isFeedbackReadAuthorized(req)) {
       return unauthorized("Analytics authorization required", rateLimit);
@@ -444,7 +469,7 @@ export async function POST(req: Request) {
       userMessage: data.userMessage,
       source: inferIdeaSource(data.type, data.message, data.source),
       userScope: isPersonalEnvironment ? "personal" : "guest",
-      user_id: identity.userId,
+      user_id: isPersonalEnvironment ? personalIdentity!.userId : null,
       environment: isPersonalEnvironment ? "personal" : "default",
       timestamp: new Date().toISOString(),
     };
@@ -518,12 +543,13 @@ export async function GET(req: Request) {
       "select=chatId,msgIndex,type,message,userMessage,source,userScope,user_id,environment,timestamp" +
       "&order=timestamp.desc";
 
+    const headers = new Headers();
+    headers.set("apikey", supabaseServiceRoleKey);
+    headers.set("Authorization", `Bearer ${supabaseServiceRoleKey}`);
+
     const res = await fetch(`${feedbackTableUrl}?${query}`, {
       method: "GET",
-      headers: {
-        apikey: supabaseServiceRoleKey,
-        Authorization: `Bearer ${supabaseServiceRoleKey}`,
-      } as HeadersInit,
+      headers,
       cache: "no-store",
     });
 
