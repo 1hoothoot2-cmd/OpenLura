@@ -6,6 +6,7 @@ import {
   getClearedAnalyticsSessionCookieOptions,
   isValidAnalyticsSession,
 } from "@/lib/auth/analyticsSession";
+import { timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
 import { resolveOpenLuraRequestIdentity } from "@/lib/auth/requestIdentity";
 
@@ -254,6 +255,44 @@ function normalizeLearningType(value: unknown) {
   return normalized;
 }
 
+function safeSecretEquals(input: string, expected: string) {
+  const inputBuffer = Buffer.from(input);
+  const expectedBuffer = Buffer.from(expected);
+
+  if (inputBuffer.length !== expectedBuffer.length) {
+    return false;
+  }
+
+  return timingSafeEqual(inputBuffer, expectedBuffer);
+}
+
+async function readJsonBodyWithinLimit(req: Request, maxBytes: number) {
+  const rawText = await req.text();
+  const rawBytes = Buffer.byteLength(rawText, "utf8");
+
+  if (rawBytes > maxBytes) {
+    return {
+      ok: false as const,
+      reason: "too_large" as const,
+      body: null,
+    };
+  }
+
+  try {
+    return {
+      ok: true as const,
+      reason: null,
+      body: JSON.parse(rawText) as unknown,
+    };
+  } catch {
+    return {
+      ok: false as const,
+      reason: "invalid_json" as const,
+      body: null,
+    };
+  }
+}
+
 function createFeedbackWorkflowKey(input: {
   chatId: string | null;
   msgIndex: number | null;
@@ -427,15 +466,17 @@ export async function POST(req: Request) {
 
     const { feedbackTableUrl, supabaseServiceRoleKey } = getSupabaseConfig();
 
-    let rawBody: unknown;
+    const parsedBody = await readJsonBodyWithinLimit(req, MAX_REQUEST_BYTES);
 
-    try {
-      rawBody = await req.json();
-    } catch {
+    if (!parsedBody.ok) {
+      if (parsedBody.reason === "too_large") {
+        return payloadTooLarge(rateLimit);
+      }
+
       return badRequest("Invalid request body", rateLimit);
     }
 
-    const data = parseFeedbackRequestBody(rawBody);
+    const data = parseFeedbackRequestBody(parsedBody.body);
 
     if (!data) {
       return badRequest("Invalid request body", rateLimit);
@@ -454,7 +495,7 @@ export async function POST(req: Request) {
 
   const submittedPassword = (data.password || "").trim();
 
-  if (submittedPassword !== analyticsAdminPassword) {
+  if (!safeSecretEquals(submittedPassword, analyticsAdminPassword)) {
     return NextResponse.json(
       { success: false, error: "Verkeerd wachtwoord" },
       {
@@ -488,16 +529,24 @@ export async function POST(req: Request) {
 
 const identity = await resolveFeedbackIdentity(req);
 const wantsPersonalEnvironment = data.environment === "personal";
-const isPersonalEnvironment =
-  identity.isAuthenticatedPersonalUser && wantsPersonalEnvironment;
+const isAnalyticsWorkflowUpdate = data.action === "update_workflow_status";
+const hasAnalyticsAccess = isFeedbackReadAuthorized(req);
 
-if (wantsPersonalEnvironment && !identity.isAuthenticatedPersonalUser) {
+if (isAnalyticsWorkflowUpdate && !hasAnalyticsAccess) {
+  return unauthorized("Analytics authorization required", rateLimit);
+}
+
+if (
+  wantsPersonalEnvironment &&
+  !identity.isAuthenticatedPersonalUser &&
+  !isAnalyticsWorkflowUpdate
+) {
   return unauthorized("Personal feedback requires authentication", rateLimit);
 }
 
-if (data.action === "update_workflow_status" && !isFeedbackReadAuthorized(req)) {
-  return unauthorized("Analytics authorization required", rateLimit);
-}
+const isPersonalEnvironment =
+  wantsPersonalEnvironment &&
+  (identity.isAuthenticatedPersonalUser || isAnalyticsWorkflowUpdate);
 
 if (data.action === "update_workflow_status") {
   if (!data.workflowKey || !data.workflowStatus) {
@@ -505,9 +554,14 @@ if (data.action === "update_workflow_status") {
   }
 }
 
-if (!data.type) {
+if (!data.type && !isAnalyticsWorkflowUpdate) {
   return badRequest("Missing feedback type", rateLimit);
 }
+
+if (isAnalyticsWorkflowUpdate && !data.type) {
+  data.type = "workflow_status";
+}
+
 if (
   data.action !== "update_workflow_status" &&
   data.type === "workflow_status"
@@ -516,9 +570,17 @@ if (
 }
 
 const timestamp = new Date().toISOString();
-const userScope = isPersonalEnvironment ? "personal" : "guest";
-const user_id = isPersonalEnvironment ? identity.userId || null : null;
 const environment = isPersonalEnvironment ? "personal" : "default";
+const hasAuthenticatedUser =
+  !isAnalyticsWorkflowUpdate &&
+  identity.isAuthenticatedPersonalUser &&
+  !!identity.userId;
+const userScope = isAnalyticsWorkflowUpdate
+  ? "admin"
+  : hasAuthenticatedUser
+  ? "personal"
+  : "guest";
+const user_id = hasAuthenticatedUser ? identity.userId || null : null;
 
 const baseEntry = {
   chatId: data.chatId,
@@ -547,30 +609,74 @@ const workflowKey =
 const entry = {
   ...baseEntry,
   workflowKey,
-  workflowStatus: data.action === "update_workflow_status" ? data.workflowStatus || null : null,
+  workflowStatus:
+    data.action === "update_workflow_status"
+      ? data.workflowStatus || null
+      : null,
 };
 
-    try {
-      const saved = await saveFeedbackEntry({
+try {
+  let saved;
+
+  if (data.action === "update_workflow_status") {
+    const workflowHeaders = new Headers();
+    workflowHeaders.set("Content-Type", "application/json");
+    workflowHeaders.set("apikey", supabaseServiceRoleKey);
+    workflowHeaders.set("Authorization", `Bearer ${supabaseServiceRoleKey}`);
+    workflowHeaders.set("Prefer", "return=representation");
+
+    const updateRes = await fetch(
+      `${feedbackTableUrl}?workflowKey=eq.${encodeURIComponent(workflowKey)}`,
+      {
+        method: "PATCH",
+        headers: workflowHeaders,
+        body: JSON.stringify({
+          workflowStatus: entry.workflowStatus,
+        }),
+        cache: "no-store",
+      }
+    );
+
+    if (!updateRes.ok) {
+      const errorText = await updateRes.text();
+      throw new Error(`Workflow update failed ${updateRes.status}: ${errorText}`);
+    }
+
+    const updatedRows: unknown = await updateRes.json();
+    const normalizedUpdatedRows = Array.isArray(updatedRows) ? updatedRows : [];
+
+    if (normalizedUpdatedRows.length > 0) {
+      saved = normalizedUpdatedRows;
+    } else {
+      saved = await saveFeedbackEntry({
         feedbackTableUrl,
         supabaseServiceRoleKey,
         entry,
-        errorLabel:
-          data.action === "update_workflow_status"
-            ? "Workflow status opslaan mislukt:"
-            : "Feedback opslaan mislukt:",
+        errorLabel: "Workflow status opslaan mislukt:",
       });
+    }
+  } else {
+    // ✅ normale feedback → insert
+    saved = await saveFeedbackEntry({
+      feedbackTableUrl,
+      supabaseServiceRoleKey,
+      entry,
+      errorLabel: "Feedback opslaan mislukt:",
+    });
+  }
 
-      return NextResponse.json(
-        {
-          success: true,
-          item: saved[0] ?? entry,
-        },
-        {
-          headers: buildHeadersWithRateLimit(rateLimit),
-        }
-      );
-    } catch (error) {
+  return NextResponse.json(
+    {
+      success: true,
+      item: saved[0] ?? entry,
+    },
+    {
+      headers: buildHeadersWithRateLimit(rateLimit),
+    }
+  );
+}
+    
+    catch (error) {
       logSafeError("Feedback POST save failed", error, {
         action: data.action || "feedback",
         environment: entry.environment,

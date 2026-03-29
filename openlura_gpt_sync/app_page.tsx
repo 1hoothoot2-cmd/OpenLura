@@ -77,6 +77,13 @@ const [usage, setUsage] = useState<{
   const [initialStateReady, setInitialStateReady] = useState(false);
   const [openChatMenuId, setOpenChatMenuId] = useState<number | null>(null);
 
+  const hasBlockingOverlay =
+    mobileMenu ||
+    showFeedbackBox ||
+    showClearDeletedConfirm ||
+    deleteTargetChatId !== null ||
+    showLoginBox;
+
   const closeMobileSidebar = () => {
     if (typeof window !== "undefined" && window.innerWidth < 768) {
       setMobileMenu(false);
@@ -180,56 +187,81 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
               method: "GET",
               headers: getOpenLuraRequestHeaders(false),
               cache: "no-store",
+              credentials: "same-origin",
             });
 
-            if (res.ok) {
-  const data = await res.json();
-  const serverChats = Array.isArray(data?.chats) ? data.chats : [];
-  const serverMemory = Array.isArray(data?.memory) ? data.memory : [];
+            if (res.status === 401) {
+              preferredActiveChatIdRef.current = null;
+              pendingActiveChatIdRef.current = null;
+              forcedActiveChatIdRef.current = null;
 
-  const normalizedChats = serverChats.map((chat: any) => ({
-    ...chat,
-    pinned: chat.pinned ?? false,
-    archived: chat.archived ?? false,
-    deleted: chat.deleted ?? false,
-    messages: Array.isArray(chat.messages)
-      ? chat.messages.map((msg: any) => ({
-          ...msg,
-          image: msg.image === "[image-uploaded]" ? null : msg.image ?? null,
-        }))
-      : [],
-  }));
+              setChats([]);
+              setMemory([]);
+              setActiveChatId(null);
+              setPersonalStateLoaded(true);
+              loadedFromServer = true;
+              return;
+            }
 
-  const hasServerState =
-    normalizedChats.length > 0 || serverMemory.length > 0;
+            if (!res.ok) {
+              setPersonalStateLoaded(true);
+              loadedFromServer = true;
+              return;
+            }
 
-  if (hasServerState && !hasManualChatSelectionRef.current) {
-    setChats(normalizedChats);
+            const data = await res.json();
+            const serverChats = Array.isArray(data?.chats) ? data.chats : [];
+            const serverMemory = Array.isArray(data?.memory) ? data.memory : [];
 
-    const nextActiveChatId =
-      normalizedChats.find((chat: any) => !chat.archived && !chat.deleted)?.id ??
-      normalizedChats.find((chat: any) => !chat.deleted)?.id ??
-      null;
+            const normalizedChats = serverChats.map((chat: any) => ({
+              ...chat,
+              pinned: chat.pinned ?? false,
+              archived: chat.archived ?? false,
+              deleted: chat.deleted ?? false,
+              messages: Array.isArray(chat.messages)
+                ? chat.messages.map((msg: any) => ({
+                    ...msg,
+                    image: msg.image === "[image-uploaded]" ? null : msg.image ?? null,
+                  }))
+                : [],
+            }));
 
-    preferredActiveChatIdRef.current = nextActiveChatId;
-    setActiveChatId(nextActiveChatId);
-  }
+            const hasServerChats = normalizedChats.length > 0;
+            const hasServerMemory = serverMemory.length > 0;
 
-  if (hasServerState) {
-    if (serverMemory.length > 0) {
-      if (typeof serverMemory[0] === "string") {
-        setMemory(serverMemory.map((m: string) => ({ text: m, weight: 0.5 })));
-      } else {
-        setMemory(serverMemory);
-      }
-    } else {
-      setMemory([]);
-    }
-  }
+            if (!hasManualChatSelectionRef.current) {
+              if (hasServerChats) {
+                setChats(normalizedChats);
 
-  loadedFromServer = hasServerState;
-}
+                const nextActiveChatId =
+                  normalizedChats.find((chat: any) => !chat.archived && !chat.deleted)?.id ??
+                  normalizedChats.find((chat: any) => !chat.deleted)?.id ??
+                  null;
 
+                preferredActiveChatIdRef.current = nextActiveChatId;
+                pendingActiveChatIdRef.current = nextActiveChatId;
+                forcedActiveChatIdRef.current = nextActiveChatId;
+                setActiveChatId(nextActiveChatId);
+              } else {
+                setChats([]);
+                preferredActiveChatIdRef.current = null;
+                pendingActiveChatIdRef.current = null;
+                forcedActiveChatIdRef.current = null;
+                setActiveChatId(null);
+              }
+            }
+
+            if (hasServerMemory) {
+              if (typeof serverMemory[0] === "string") {
+                setMemory(serverMemory.map((m: string) => ({ text: m, weight: 0.5 })));
+              } else {
+                setMemory(serverMemory);
+              }
+            } else if (!hasManualChatSelectionRef.current) {
+              setMemory([]);
+            }
+
+            loadedFromServer = true;
             setPersonalStateLoaded(true);
           } catch (error) {
             console.error("OpenLura personal server load failed:", error);
@@ -240,43 +272,47 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
         const saved = localStorage.getItem(chatStorageKey);
         const mem = localStorage.getItem(memoryStorageKey);
 
-        if (!loadedFromServer && saved) {
-  const parsed = JSON.parse(saved);
-  const normalizedChats = parsed.map((chat: any) => ({
-    ...chat,
-    pinned: chat.pinned ?? false,
-    archived: chat.archived ?? false,
-    deleted: chat.deleted ?? false,
-    messages: Array.isArray(chat.messages)
-      ? chat.messages.map((msg: any) => ({
-          ...msg,
-          image: msg.image === "[image-uploaded]" ? null : msg.image ?? null,
-        }))
-      : [],
-  }));
+        if (!loadedFromServer && !isPersonalRoute && saved) {
+          const parsed = JSON.parse(saved);
+          const normalizedChats = parsed.map((chat: any) => ({
+            ...chat,
+            pinned: chat.pinned ?? false,
+            archived: chat.archived ?? false,
+            deleted: chat.deleted ?? false,
+            messages: Array.isArray(chat.messages)
+              ? chat.messages.map((msg: any) => ({
+                  ...msg,
+                  image: msg.image === "[image-uploaded]" ? null : msg.image ?? null,
+                }))
+              : [],
+          }));
 
-  if (!hasManualChatSelectionRef.current) {
-    setChats(normalizedChats);
+          if (!hasManualChatSelectionRef.current) {
+            setChats(normalizedChats);
 
-    const nextActiveChatId =
-      normalizedChats.find((chat: any) => !chat.archived && !chat.deleted)?.id ??
-      normalizedChats.find((chat: any) => !chat.deleted)?.id ??
-      null;
+            const nextActiveChatId =
+              normalizedChats.find((chat: any) => !chat.archived && !chat.deleted)?.id ??
+              normalizedChats.find((chat: any) => !chat.deleted)?.id ??
+              null;
 
-    preferredActiveChatIdRef.current = nextActiveChatId;
-    setActiveChatId(nextActiveChatId);
-  }
-} else if (!saved && !isPersonalRoute && !hasManualChatSelectionRef.current) {
-  createNewChat();
-}
+            preferredActiveChatIdRef.current = nextActiveChatId;
+            pendingActiveChatIdRef.current = nextActiveChatId;
+            forcedActiveChatIdRef.current = nextActiveChatId;
+            setActiveChatId(nextActiveChatId);
+          }
+        } else if (!saved && !isPersonalRoute && !hasManualChatSelectionRef.current) {
+          createNewChat();
+        }
 
-        if (!loadedFromServer && mem) {
+        if (!loadedFromServer && !isPersonalRoute && mem) {
           const parsed = JSON.parse(mem);
           if (parsed.length && typeof parsed[0] === "string") {
             setMemory(parsed.map((m: string) => ({ text: m, weight: 0.5 })));
           } else {
             setMemory(parsed);
           }
+        } else if (!loadedFromServer && isPersonalRoute) {
+          setMemory([]);
         }
       } catch (error) {
         console.error("OpenLura load failed:", error);
@@ -301,16 +337,14 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
   useEffect(() => {
     if (typeof document === "undefined") return;
 
-    const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
-    if (!isMobile) return;
-
     const body = document.body;
+    const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
     const previousOverflow = body.style.overflow;
     const previousTouchAction = body.style.touchAction;
 
-    if (mobileMenu) {
+    if (hasBlockingOverlay) {
       body.style.overflow = "hidden";
-      body.style.touchAction = "none";
+      body.style.touchAction = isMobile ? "none" : "";
     } else {
       body.style.overflow = "";
       body.style.touchAction = "";
@@ -320,7 +354,7 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
       body.style.overflow = previousOverflow;
       body.style.touchAction = previousTouchAction;
     };
-  }, [mobileMenu]);
+  }, [hasBlockingOverlay]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -328,6 +362,9 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
 
       if (window.innerWidth >= 768) {
         setMobileMenu(true);
+      } else {
+        setMobileMenu(false);
+        setOpenChatMenuId(null);
       }
     };
 
@@ -412,6 +449,7 @@ const hasMeaningfulPersonalState =
         await fetch("/api/personal-state", {
           method: "POST",
           headers: getOpenLuraRequestHeaders(true),
+          credentials: "same-origin",
           body: JSON.stringify({
             chats: safeChats,
             memory,
@@ -440,6 +478,59 @@ const hasMeaningfulPersonalState =
   useEffect(() => {
     setOpenChatMenuId(null);
   }, [activeChatId]);
+
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+
+      if (showLoginBox) {
+        setShowLoginBox(false);
+        setLoginError("");
+        setLoginUsername("");
+        setLoginPassword("");
+        return;
+      }
+
+      if (showFeedbackBox) {
+        setShowFeedbackBox(false);
+        setFeedbackText("");
+        setFeedbackCategory("adjustment");
+        return;
+      }
+
+      if (showClearDeletedConfirm) {
+        setShowClearDeletedConfirm(false);
+        return;
+      }
+
+      if (deleteTargetChatId !== null) {
+        setDeleteTargetChatId(null);
+        return;
+      }
+
+      if (openChatMenuId !== null) {
+        setOpenChatMenuId(null);
+        return;
+      }
+
+      if (mobileMenu && typeof window !== "undefined" && window.innerWidth < 768) {
+        setMobileMenu(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+
+    return () => {
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [
+    mobileMenu,
+    openChatMenuId,
+    showLoginBox,
+    showFeedbackBox,
+    showClearDeletedConfirm,
+    deleteTargetChatId
+  ]);
 
   useEffect(() => {
   const el = messagesRef.current;
@@ -480,10 +571,18 @@ const hasMeaningfulPersonalState =
           method: "GET",
           headers: getOpenLuraRequestHeaders(false),
           cache: "no-store",
+          credentials: "same-origin",
         });
 
         if (res.status === 401) {
-          window.location.href = "/";
+          console.warn("OpenLura personal verify unauthorized");
+          setPersonalStateLoaded(true);
+          preferredActiveChatIdRef.current = null;
+          pendingActiveChatIdRef.current = null;
+          forcedActiveChatIdRef.current = null;
+          setActiveChatId(null);
+          setChats([]);
+          setMemory([]);
           return;
         }
 
@@ -524,12 +623,13 @@ const hasMeaningfulPersonalState =
         );
 
         const shouldApplyChats =
+          forceApply ||
           (!hasLocalMeaningfulChats && latestChats.length === 0) ||
           (!hasLocalMeaningfulChats && normalizedChats.length > 0);
 
         const hasServerChats = normalizedChats.length > 0;
 
-        if (shouldApplyChats && (hasServerChats || !hasLocalMeaningfulChats)) {
+        if (shouldApplyChats) {
           setChats(normalizedChats);
 
           const currentStillExists =
@@ -539,13 +639,16 @@ const hasMeaningfulPersonalState =
                 chat.id === latestActiveChatId && !chat.archived && !chat.deleted
             );
 
-          const nextActiveChatId = currentStillExists
-            ? latestActiveChatId
-            : normalizedChats.find((chat: any) => !chat.archived && !chat.deleted)?.id ??
-              normalizedChats.find((chat: any) => !chat.deleted)?.id ??
-              null;
+          const nextActiveChatId =
+            hasServerChats
+              ? currentStillExists
+                ? latestActiveChatId
+                : normalizedChats.find((chat: any) => !chat.archived && !chat.deleted)?.id ??
+                  normalizedChats.find((chat: any) => !chat.deleted)?.id ??
+                  null
+              : null;
 
-          preferredActiveChatIdRef.current=nextActiveChatId;
+          preferredActiveChatIdRef.current = nextActiveChatId;
           pendingActiveChatIdRef.current = nextActiveChatId;
           forcedActiveChatIdRef.current = nextActiveChatId;
           setActiveChatId(nextActiveChatId);
@@ -642,8 +745,8 @@ const composerInputClass =
 const getOrCreateOpenLuraUserId = () => {
   if (typeof window === "undefined") return "";
 
-const storageKey = "openlura_user_id";
-const existing = localStorage.getItem(storageKey);
+  const storageKey = "openlura_user_id";
+  const existing = localStorage.getItem(storageKey);
 
   if (existing?.trim()) {
     return existing.trim();
@@ -731,6 +834,12 @@ const resizeComposerTextarea = () => {
     if (visibleChats.length === 0) {
   if (isPersonalRoute) {
     isBootstrappingChatRef.current = false;
+    preferredActiveChatIdRef.current = null;
+    pendingActiveChatIdRef.current = null;
+    forcedActiveChatIdRef.current = null;
+    if (activeChatId !== null) {
+      setActiveChatId(null);
+    }
     return;
   }
 
@@ -1131,6 +1240,28 @@ const restoreDeletedChat = (chatId: number) => {
       streamController.abort();
       setStreamController(null);
     }
+
+    setChats((prev) =>
+      prev.map((chat: any) => {
+        if (chat.id !== activeChatId) return chat;
+
+        const nextMessages = [...(chat.messages || [])];
+        const lastIndex = nextMessages.length - 1;
+
+        if (lastIndex >= 0 && nextMessages[lastIndex]?.isStreaming) {
+          nextMessages[lastIndex] = {
+            ...nextMessages[lastIndex],
+            isStreaming: false,
+          };
+        }
+
+        return {
+          ...chat,
+          messages: nextMessages,
+        };
+      })
+    );
+
     setLoading(false);
   };
 
@@ -1142,6 +1273,7 @@ const restoreDeletedChat = (chatId: number) => {
       const res = await fetch("/api/auth", {
         method: "POST",
         headers: getOpenLuraRequestHeaders(true),
+        credentials: "same-origin",
         body: JSON.stringify({
           username: loginUsername,
           password: loginPassword,
@@ -1152,6 +1284,29 @@ const restoreDeletedChat = (chatId: number) => {
 
       if (!res.ok || !data?.success) {
         setLoginError(data?.error || "Inloggen mislukt");
+        return;
+      }
+
+      let verified = false;
+
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        const verifyRes = await fetch("/api/personal-state", {
+          method: "GET",
+          headers: getOpenLuraRequestHeaders(true),
+          credentials: "same-origin",
+          cache: "no-store",
+        });
+
+        if (verifyRes.ok) {
+          verified = true;
+          break;
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+
+      if (!verified) {
+        setLoginError("Persoonlijke sessie is nog niet actief. Probeer opnieuw.");
         return;
       }
 
@@ -1171,6 +1326,7 @@ const restoreDeletedChat = (chatId: number) => {
       await fetch("/api/auth", {
         method: "DELETE",
         headers: getOpenLuraRequestHeaders(false),
+        credentials: "same-origin",
       });
     } catch (error) {
       console.error("OpenLura logout failed:", error);
@@ -1894,7 +2050,6 @@ updated[index].messages[
     }
   };
   const handleFeedback = async (chatId: number, msgIndex: number, type: string) => {
-console.log("FEEDBACK CLICKED", { chatId, msgIndex, type });
   const key = isPersonalRoute
     ? "openlura_personal_feedback"
     : "openlura_feedback";
@@ -2030,6 +2185,8 @@ console.log("FEEDBACK CLICKED", { chatId, msgIndex, type });
         userMessage: isPersonalEnvironment ? "Persoonlijke omgeving feedback" : "Feedback / Idee",
         source: isPersonalEnvironment ? "personal_environment" : `idea_${feedbackCategory}`,
         environment: isPersonalEnvironment ? "personal" : "default",
+        learningType:
+          feedbackCategory === "feedback_learning" ? "style" : "content",
       }),
     })
       .then((res) => {
@@ -2129,6 +2286,7 @@ console.log("FEEDBACK CLICKED", { chatId, msgIndex, type });
 
             <div className="flex gap-2">
               <button
+                type="button"
                 onClick={() => setDeleteTargetChatId(null)}
                 className="flex-1 rounded-[20px] border border-white/8 bg-white/[0.04] p-3 text-white/88 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.99]"
               >
@@ -2136,6 +2294,7 @@ console.log("FEEDBACK CLICKED", { chatId, msgIndex, type });
               </button>
 
               <button
+                type="button"
                 onClick={confirmDeleteChat}
                 className="flex-1 rounded-[20px] border border-red-400/18 bg-red-500/80 p-3 text-white shadow-[0_10px_22px_rgba(239,68,68,0.24)] ol-interactive transition-[transform,background-color,box-shadow] duration-200 hover:bg-red-500 hover:shadow-[0_12px_26px_rgba(239,68,68,0.28)] active:scale-[0.99]"
               >

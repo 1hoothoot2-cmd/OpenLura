@@ -190,62 +190,78 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
               credentials: "same-origin",
             });
 
-            if (res.ok) {
-  const data = await res.json();
-  const serverChats = Array.isArray(data?.chats) ? data.chats : [];
-  const serverMemory = Array.isArray(data?.memory) ? data.memory : [];
+            if (res.status === 401) {
+              preferredActiveChatIdRef.current = null;
+              pendingActiveChatIdRef.current = null;
+              forcedActiveChatIdRef.current = null;
 
-  const normalizedChats = serverChats.map((chat: any) => ({
-    ...chat,
-    pinned: chat.pinned ?? false,
-    archived: chat.archived ?? false,
-    deleted: chat.deleted ?? false,
-    messages: Array.isArray(chat.messages)
-      ? chat.messages.map((msg: any) => ({
-          ...msg,
-          image: msg.image === "[image-uploaded]" ? null : msg.image ?? null,
-        }))
-      : [],
-  }));
+              setChats([]);
+              setMemory([]);
+              setActiveChatId(null);
+              setPersonalStateLoaded(true);
+              loadedFromServer = true;
+              return;
+            }
 
-const hasServerChats = normalizedChats.length > 0;
-const hasServerMemory = serverMemory.length > 0;
+            if (!res.ok) {
+              setPersonalStateLoaded(true);
+              loadedFromServer = true;
+              return;
+            }
 
-  if (!hasManualChatSelectionRef.current) {
-    if (hasServerChats) {
-      setChats(normalizedChats);
+            const data = await res.json();
+            const serverChats = Array.isArray(data?.chats) ? data.chats : [];
+            const serverMemory = Array.isArray(data?.memory) ? data.memory : [];
 
-      const nextActiveChatId =
-        normalizedChats.find((chat: any) => !chat.archived && !chat.deleted)?.id ??
-        normalizedChats.find((chat: any) => !chat.deleted)?.id ??
-        null;
+            const normalizedChats = serverChats.map((chat: any) => ({
+              ...chat,
+              pinned: chat.pinned ?? false,
+              archived: chat.archived ?? false,
+              deleted: chat.deleted ?? false,
+              messages: Array.isArray(chat.messages)
+                ? chat.messages.map((msg: any) => ({
+                    ...msg,
+                    image: msg.image === "[image-uploaded]" ? null : msg.image ?? null,
+                  }))
+                : [],
+            }));
 
-      preferredActiveChatIdRef.current = nextActiveChatId;
-      pendingActiveChatIdRef.current = nextActiveChatId;
-      forcedActiveChatIdRef.current = nextActiveChatId;
-      setActiveChatId(nextActiveChatId);
-    } else {
-      setChats([]);
-      preferredActiveChatIdRef.current = null;
-      pendingActiveChatIdRef.current = null;
-      forcedActiveChatIdRef.current = null;
-      setActiveChatId(null);
-    }
-  }
+            const hasServerChats = normalizedChats.length > 0;
+            const hasServerMemory = serverMemory.length > 0;
 
-  if (hasServerMemory) {
-    if (typeof serverMemory[0] === "string") {
-      setMemory(serverMemory.map((m: string) => ({ text: m, weight: 0.5 })));
-    } else {
-      setMemory(serverMemory);
-    }
-  } else if (!hasManualChatSelectionRef.current) {
-    setMemory([]);
-  }
+            if (!hasManualChatSelectionRef.current) {
+              if (hasServerChats) {
+                setChats(normalizedChats);
 
-  loadedFromServer = true;
-}
+                const nextActiveChatId =
+                  normalizedChats.find((chat: any) => !chat.archived && !chat.deleted)?.id ??
+                  normalizedChats.find((chat: any) => !chat.deleted)?.id ??
+                  null;
 
+                preferredActiveChatIdRef.current = nextActiveChatId;
+                pendingActiveChatIdRef.current = nextActiveChatId;
+                forcedActiveChatIdRef.current = nextActiveChatId;
+                setActiveChatId(nextActiveChatId);
+              } else {
+                setChats([]);
+                preferredActiveChatIdRef.current = null;
+                pendingActiveChatIdRef.current = null;
+                forcedActiveChatIdRef.current = null;
+                setActiveChatId(null);
+              }
+            }
+
+            if (hasServerMemory) {
+              if (typeof serverMemory[0] === "string") {
+                setMemory(serverMemory.map((m: string) => ({ text: m, weight: 0.5 })));
+              } else {
+                setMemory(serverMemory);
+              }
+            } else if (!hasManualChatSelectionRef.current) {
+              setMemory([]);
+            }
+
+            loadedFromServer = true;
             setPersonalStateLoaded(true);
           } catch (error) {
             console.error("OpenLura personal server load failed:", error);
@@ -256,39 +272,39 @@ const hasServerMemory = serverMemory.length > 0;
         const saved = localStorage.getItem(chatStorageKey);
         const mem = localStorage.getItem(memoryStorageKey);
 
-        if (!loadedFromServer && saved) {
-  const parsed = JSON.parse(saved);
-  const normalizedChats = parsed.map((chat: any) => ({
-    ...chat,
-    pinned: chat.pinned ?? false,
-    archived: chat.archived ?? false,
-    deleted: chat.deleted ?? false,
-    messages: Array.isArray(chat.messages)
-      ? chat.messages.map((msg: any) => ({
-          ...msg,
-          image: msg.image === "[image-uploaded]" ? null : msg.image ?? null,
-        }))
-      : [],
-  }));
+        if (!loadedFromServer && !isPersonalRoute && saved) {
+          const parsed = JSON.parse(saved);
+          const normalizedChats = parsed.map((chat: any) => ({
+            ...chat,
+            pinned: chat.pinned ?? false,
+            archived: chat.archived ?? false,
+            deleted: chat.deleted ?? false,
+            messages: Array.isArray(chat.messages)
+              ? chat.messages.map((msg: any) => ({
+                  ...msg,
+                  image: msg.image === "[image-uploaded]" ? null : msg.image ?? null,
+                }))
+              : [],
+          }));
 
-  if (!hasManualChatSelectionRef.current) {
-    setChats(normalizedChats);
+          if (!hasManualChatSelectionRef.current) {
+            setChats(normalizedChats);
 
-    const nextActiveChatId =
-      normalizedChats.find((chat: any) => !chat.archived && !chat.deleted)?.id ??
-      normalizedChats.find((chat: any) => !chat.deleted)?.id ??
-      null;
+            const nextActiveChatId =
+              normalizedChats.find((chat: any) => !chat.archived && !chat.deleted)?.id ??
+              normalizedChats.find((chat: any) => !chat.deleted)?.id ??
+              null;
 
-    preferredActiveChatIdRef.current = nextActiveChatId;
-    pendingActiveChatIdRef.current = nextActiveChatId;
-    forcedActiveChatIdRef.current = nextActiveChatId;
-    setActiveChatId(nextActiveChatId);
-  }
-} else if (!saved && !isPersonalRoute && !hasManualChatSelectionRef.current) {
-  createNewChat();
-}
+            preferredActiveChatIdRef.current = nextActiveChatId;
+            pendingActiveChatIdRef.current = nextActiveChatId;
+            forcedActiveChatIdRef.current = nextActiveChatId;
+            setActiveChatId(nextActiveChatId);
+          }
+        } else if (!saved && !isPersonalRoute && !hasManualChatSelectionRef.current) {
+          createNewChat();
+        }
 
-        if (!loadedFromServer && mem) {
+        if (!loadedFromServer && !isPersonalRoute && mem) {
           const parsed = JSON.parse(mem);
           if (parsed.length && typeof parsed[0] === "string") {
             setMemory(parsed.map((m: string) => ({ text: m, weight: 0.5 })));
@@ -432,7 +448,7 @@ const hasMeaningfulPersonalState =
       try {
         await fetch("/api/personal-state", {
           method: "POST",
-          headers: getOpenLuraRequestHeaders(false),
+          headers: getOpenLuraRequestHeaders(true),
           credentials: "same-origin",
           body: JSON.stringify({
             chats: safeChats,
@@ -1256,7 +1272,7 @@ const restoreDeletedChat = (chatId: number) => {
     try {
       const res = await fetch("/api/auth", {
         method: "POST",
-        headers: getOpenLuraRequestHeaders(false),
+        headers: getOpenLuraRequestHeaders(true),
         credentials: "same-origin",
         body: JSON.stringify({
           username: loginUsername,
