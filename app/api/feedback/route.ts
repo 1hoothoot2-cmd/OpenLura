@@ -39,6 +39,9 @@ type FeedbackRequestBody = {
   userMessage: string | null;
   source: string | null;
   environment: string | null;
+  workflowKey: string | null;
+  workflowStatus: string | null;
+  learningType: string | null;
 };
 
 type RateLimitResult = {
@@ -223,6 +226,60 @@ function normalizeOptionalNumber(value: unknown) {
   return value;
 }
 
+function normalizeWorkflowStatus(value: unknown) {
+  const normalized = normalizeOptionalString(value, 100)?.toLowerCase() || null;
+
+  if (!normalized) {
+    return null;
+  }
+
+  if (!/^[a-z0-9_-]+$/.test(normalized)) {
+    return null;
+  }
+
+  return normalized;
+}
+
+function normalizeLearningType(value: unknown) {
+  const normalized = normalizeOptionalString(value, 50)?.toLowerCase() || null;
+
+  if (!normalized) {
+    return null;
+  }
+
+  if (normalized !== "style" && normalized !== "content") {
+    return null;
+  }
+
+  return normalized;
+}
+
+function createFeedbackWorkflowKey(input: {
+  chatId: string | null;
+  msgIndex: number | null;
+  type: string | null;
+  message: string | null;
+  userMessage: string | null;
+  source: string | null;
+  environment: string | null;
+  userScope: string | null;
+  user_id: string | null;
+  timestamp?: string | null;
+}) {
+  return [
+    input.chatId || "",
+    input.msgIndex ?? "",
+    input.type || "",
+    input.source || "",
+    input.environment || "",
+    input.userScope || "",
+    input.user_id || "",
+    input.userMessage || "",
+    input.message || "",
+    input.timestamp || "",
+  ].join("::");
+}
+
 function parseFeedbackRequestBody(body: unknown): FeedbackRequestBody | null {
   if (!isPlainObject(body)) {
     return null;
@@ -241,6 +298,9 @@ function parseFeedbackRequestBody(body: unknown): FeedbackRequestBody | null {
     userMessage: normalizeOptionalString(body.userMessage),
     source: normalizeOptionalString(body.source, 100),
     environment: normalizeOptionalString(body.environment, 50),
+    workflowKey: normalizeOptionalString(body.workflowKey, 500),
+    workflowStatus: normalizeWorkflowStatus(body.workflowStatus),
+    learningType: normalizeLearningType(body.learningType),
   };
 }
 
@@ -382,75 +442,110 @@ export async function POST(req: Request) {
     }
 
     if (data.action === "unlock_analytics") {
-      if (!analyticsAdminPassword) {
-        return NextResponse.json(
-          { success: false, error: "Analytics auth not configured" },
-          {
-            status: 500,
-            headers: buildHeadersWithRateLimit(rateLimit),
-          }
-        );
+  if (!analyticsAdminPassword) {
+    return NextResponse.json(
+      { success: false, error: "Analytics auth not configured" },
+      {
+        status: 500,
+        headers: buildHeadersWithRateLimit(rateLimit),
       }
+    );
+  }
 
-      const submittedPassword = (data.password || "").trim();
+  const submittedPassword = (data.password || "").trim();
 
-      if (submittedPassword !== analyticsAdminPassword) {
-        return NextResponse.json(
-          { success: false, error: "Verkeerd wachtwoord" },
-          {
-            status: 401,
-            headers: buildHeadersWithRateLimit(rateLimit),
-          }
-        );
+  if (submittedPassword !== analyticsAdminPassword) {
+    return NextResponse.json(
+      { success: false, error: "Verkeerd wachtwoord" },
+      {
+        status: 401,
+        headers: buildHeadersWithRateLimit(rateLimit),
       }
+    );
+  }
 
-      const response = NextResponse.json(
-        {
-          success: true,
-          runtime: {
-            sessionType: ANALYTICS_SESSION_TYPE,
-            authenticated: true,
-          },
-        },
-        {
-          headers: buildHeadersWithRateLimit(rateLimit),
-        }
-      );
-
-      response.cookies.set(
-        ANALYTICS_COOKIE_NAME,
-        createAnalyticsSessionValue(),
-        getAnalyticsSessionCookieOptions()
-      );
-
-      return response;
+  const response = NextResponse.json(
+    {
+      success: true,
+      runtime: {
+        sessionType: ANALYTICS_SESSION_TYPE,
+        authenticated: true,
+      },
+    },
+    {
+      headers: buildHeadersWithRateLimit(rateLimit),
     }
+  );
 
-    const identity = await resolveFeedbackIdentity(req);
-    const wantsPersonalEnvironment = data.environment === "personal";
-    const isPersonalEnvironment =
-      identity.isAuthenticatedPersonalUser && wantsPersonalEnvironment;
+  response.cookies.set(
+    ANALYTICS_COOKIE_NAME,
+    createAnalyticsSessionValue(),
+    getAnalyticsSessionCookieOptions()
+  );
 
-    if (wantsPersonalEnvironment && !identity.isAuthenticatedPersonalUser) {
-      return unauthorized("Personal feedback requires authentication", rateLimit);
-    }
+  return response;
+}
 
-    if (data.action === "update_workflow_status" && !isFeedbackReadAuthorized(req)) {
-      return unauthorized("Analytics authorization required", rateLimit);
-    }
+const identity = await resolveFeedbackIdentity(req);
+const wantsPersonalEnvironment = data.environment === "personal";
+const isPersonalEnvironment =
+  identity.isAuthenticatedPersonalUser && wantsPersonalEnvironment;
 
-    const entry = {
-      chatId: data.chatId,
-      msgIndex: data.msgIndex,
-      type: data.type,
-      message: data.message,
-      userMessage: data.userMessage,
-      source: inferIdeaSource(data.type, data.message, data.source),
-      userScope: isPersonalEnvironment ? "personal" : "guest",
-      user_id: isPersonalEnvironment ? identity.userId : null,
-      environment: isPersonalEnvironment ? "personal" : "default",
-      timestamp: new Date().toISOString(),
-    };
+if (wantsPersonalEnvironment && !identity.isAuthenticatedPersonalUser) {
+  return unauthorized("Personal feedback requires authentication", rateLimit);
+}
+
+if (data.action === "update_workflow_status" && !isFeedbackReadAuthorized(req)) {
+  return unauthorized("Analytics authorization required", rateLimit);
+}
+
+if (!data.type) {
+  return badRequest("Missing feedback type", rateLimit);
+}
+if (
+  data.action !== "update_workflow_status" &&
+  data.type === "workflow_status"
+) {
+  return badRequest("Invalid feedback type for this action", rateLimit);
+}
+
+const timestamp = new Date().toISOString();
+const userScope = isPersonalEnvironment ? "personal" : "guest";
+
+// 🔒 ALWAYS enforce user_id (critical for Phase 4 consistency)
+const user_id = identity.userId || null;
+
+const environment = isPersonalEnvironment ? "personal" : "default";
+
+const baseEntry = {
+  chatId: data.chatId,
+  msgIndex: data.msgIndex,
+  type: data.type,
+  message: data.message,
+  userMessage: data.userMessage,
+  source: inferIdeaSource(data.type, data.message, data.source),
+  userScope,
+  user_id,
+  environment,
+  timestamp,
+  learningType: data.learningType,
+};
+
+const workflowKey =
+  data.workflowKey ||
+  createFeedbackWorkflowKey({
+    ...baseEntry,
+    userScope,
+    user_id,
+    environment,
+    timestamp,
+  });
+
+const entry = {
+  ...baseEntry,
+  workflowKey,
+  workflowStatus: data.workflowStatus || null,
+};
 
     try {
       const saved = await saveFeedbackEntry({
@@ -517,8 +612,8 @@ export async function GET(req: Request) {
 
     const { feedbackTableUrl, supabaseServiceRoleKey } = getSupabaseConfig();
     const query =
-      "select=chatId,msgIndex,type,message,userMessage,source,userScope,user_id,environment,timestamp" +
-      "&order=timestamp.desc";
+  "select=chatId,msgIndex,type,message,userMessage,source,userScope,user_id,environment,timestamp,workflowKey,workflowStatus,learningType" +
+  "&order=timestamp.desc";
 
     const headers = new Headers();
     headers.set("apikey", String(supabaseServiceRoleKey));

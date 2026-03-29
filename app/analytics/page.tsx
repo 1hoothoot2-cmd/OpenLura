@@ -2,6 +2,21 @@
 import { useEffect, useState } from "react";
 
 export default function AnalyticsPage() {
+    type AnalyticsFeedbackItem = {
+    chatId?: string | null;
+    msgIndex?: number | null;
+    type?: string | null;
+    message?: string | null;
+    userMessage?: string | null;
+    source?: string | null;
+    environment?: string | null;
+    userScope?: string | null;
+    workflowKey?: string | null;
+    workflowStatus?: string | null;
+    timestamp?: string | null;
+    learningType?: string | null;
+    _localOnly?: boolean;
+  };
    const getOrCreateOpenLuraUserId = () => {
     if (typeof window === "undefined") return "";
 
@@ -35,16 +50,16 @@ const resolvedUserId = getOrCreateOpenLuraUserId();
 
     return headers;
   };
-        const [feedback, setFeedback] = useState<any[]>([]);
+    const [feedback, setFeedback] = useState<AnalyticsFeedbackItem[]>([]);
     const [activeTab, setActiveTab] = useState("all");
     const [ideaFilter, setIdeaFilter] = useState("all");
-        const [analyticsPassword, setAnalyticsPassword] = useState("");
+    const [analyticsPassword, setAnalyticsPassword] = useState("");
     const [isUnlocked, setIsUnlocked] = useState(false);
     const [authError, setAuthError] = useState("");
     const [authLoading, setAuthLoading] = useState(true);
 
     const ANALYTICS_UNLOCK_STORAGE_KEY = "openlura_analytics_unlocked";
-    const [itemStatus, setItemStatus] = useState<{ [key: string]: string }>({});
+    const [itemStatus, setItemStatus] = useState<Record<string, string>>({});
     const [workflowFilter, setWorkflowFilter] = useState("all");
     const [learningTypeFilter, setLearningTypeFilter] = useState("all");
     const [autoDebugConfidenceFilter, setAutoDebugConfidenceFilter] = useState("all");
@@ -54,7 +69,11 @@ const resolvedUserId = getOrCreateOpenLuraUserId();
   useEffect(() => {
     const saved = localStorage.getItem("openlura_analytics_status");
     if (saved) {
-      setItemStatus(JSON.parse(saved));
+      try {
+        setItemStatus(JSON.parse(saved));
+      } catch {
+        localStorage.removeItem("openlura_analytics_status");
+      }
     }
 
     if (typeof window !== "undefined") {
@@ -174,11 +193,8 @@ const resolvedUserId = getOrCreateOpenLuraUserId();
     checkAnalyticsAccess();
   }, []);
 
-            const filteredFeedback = feedback.filter((f: any) => {
-        const currentStatus =
-      itemStatus[
-        [f.type || "", f.source || "", f.timestamp || "", f.userMessage || "", f.message || ""].join("::")
-      ] || getAutoStatus(f);
+        const filteredFeedback = feedback.filter((f: any) => {
+        const currentStatus = itemStatus[getItemKey(f)] || getAutoStatus(f);
 
     if (workflowFilter !== "all" && currentStatus !== workflowFilter) {
       return false;
@@ -625,10 +641,23 @@ useEffect(() => {
       type: normalizedType,
       source: normalizedSource,
       userScope: "guest",
+      workflowKey:
+        item.workflowKey ||
+        [
+          item.chatId || "",
+          item.msgIndex ?? "",
+          normalizedType || "",
+          normalizedSource || "",
+          item.environment || "default",
+          "guest",
+          item.userMessage || "",
+          item.message || "",
+          item.timestamp || "",
+        ].join("::"),
     };
   });
 
-    let data: any[] = [];
+    let data: AnalyticsFeedbackItem[] = [];
 
   try {
     const res = await fetch("/api/feedback", {
@@ -651,18 +680,21 @@ useEffect(() => {
   }
 
   const workflowEntries = data.filter(
-    (item: any) =>
-      item.type === "workflow_status" && item.source === "analytics_workflow"
+    (item: AnalyticsFeedbackItem) =>
+      item.type === "workflow_status" &&
+      item.source === "analytics_workflow" &&
+      item.workflowKey &&
+      item.workflowStatus
   );
 
   const serverStatusMap = workflowEntries
     .sort(
-      (a: any, b: any) =>
+      (a: AnalyticsFeedbackItem, b: AnalyticsFeedbackItem) =>
         new Date(a.timestamp || 0).getTime() - new Date(b.timestamp || 0).getTime()
     )
-    .reduce((acc: any, item: any) => {
-      if (item.userMessage && item.message) {
-        acc[item.userMessage] = item.message;
+    .reduce((acc: Record<string, string>, item: AnalyticsFeedbackItem) => {
+      if (item.workflowKey && item.workflowStatus) {
+        acc[item.workflowKey] = item.workflowStatus;
       }
       return acc;
     }, {});
@@ -674,8 +706,8 @@ useEffect(() => {
   });
 
  const normalServerFeedback = data
-  .filter((item: any) => item.type !== "workflow_status")
-  .map((item: any) => ({
+  .filter((item: AnalyticsFeedbackItem) => item.type !== "workflow_status")
+  .map((item: AnalyticsFeedbackItem) => ({
     ...item,
     userScope:
       item.userScope === "admin" ||
@@ -690,29 +722,19 @@ useEffect(() => {
 
 const combined = [...normalServerFeedback, ...normalizedLocal];
 
-  const deduped = combined.filter((item: any, index: number, arr: any[]) => {
-    const itemType = item.type || "down";
-    const itemMessage = (item.message || "").trim();
-    const itemUserMessage = (item.userMessage || "").trim();
+  const deduped = combined.filter(
+    (item: AnalyticsFeedbackItem, index: number, arr: AnalyticsFeedbackItem[]) => {
+      const itemKey = getItemKey(item);
 
-    return (
-      index ===
-      arr.findIndex((x: any) => {
-        const sameType = (x.type || "down") === itemType;
-        const sameMessage = ((x.message || "").trim() === itemMessage);
-        const sameUserMessage =
-          ((x.userMessage || "").trim() === itemUserMessage);
+      return index === arr.findIndex((x: AnalyticsFeedbackItem) => getItemKey(x) === itemKey);
+    }
+  );
 
-        return sameType && sameMessage && sameUserMessage;
-      })
-    );
-  });
-
-    const sorted = [...deduped].sort((a: any, b: any) => {
-    const timeA = a?.timestamp ? new Date(a.timestamp).getTime() : 0;
-    const timeB = b?.timestamp ? new Date(b.timestamp).getTime() : 0;
-    return timeB - timeA;
-  });
+      const sorted = [...deduped].sort((a: AnalyticsFeedbackItem, b: AnalyticsFeedbackItem) => {
+      const timeA = a?.timestamp ? new Date(a.timestamp).getTime() : 0;
+      const timeB = b?.timestamp ? new Date(b.timestamp).getTime() : 0;
+      return timeB - timeA;
+    });
 
   setFeedback(sorted);
 };
@@ -765,13 +787,28 @@ return () => {
       setIsUnlocked(true);
       setAuthError("");
       setAnalyticsPassword("");
+      window.dispatchEvent(new Event("openlura_feedback_update"));
     } catch {
       setAuthError("Inloggen mislukt");
     }
   };
 
-      function getItemKey(f: any) {
-    return [f.type || "", f.source || "", f.timestamp || "", f.userMessage || "", f.message || ""].join("::");
+      function getItemKey(f: AnalyticsFeedbackItem) {
+    if (f.workflowKey?.trim()) {
+      return f.workflowKey.trim();
+    }
+
+    return [
+      f.chatId || "",
+      f.msgIndex ?? "",
+      f.type || "",
+      f.source || "",
+      f.environment || "",
+      f.userScope || "",
+      f.userMessage || "",
+      f.message || "",
+      f.timestamp || "",
+    ].join("::");
   }
 
       function getAutoStatus(f: any) {
@@ -794,6 +831,8 @@ return () => {
           message,
           userMessage: "Auto learning insight",
           source: "idea_feedback_learning",
+          learningType: "content",
+          environment: "default",
         }),
       });
 
@@ -832,6 +871,8 @@ return () => {
           message: "AI antwoorden zijn te lang, maak antwoorden korter en directer",
           userMessage: "AI insight action",
           source: "idea_feedback_learning",
+          learningType: "style",
+          environment: "default",
         }),
       });
 
@@ -848,6 +889,8 @@ return () => {
           message: "Veel users willen duidelijkere structuur en helderdere opbouw in antwoorden",
           userMessage: "AI insight action",
           source: "idea_feedback_learning",
+          learningType: "style",
+          environment: "default",
         }),
       });
 
@@ -863,9 +906,13 @@ return () => {
     });
 
     try {
-      const item = feedback.find((f: any) => getItemKey(f) === key);
+      const item = feedback.find((f: AnalyticsFeedbackItem) => getItemKey(f) === key);
 
-      await fetch("/api/feedback", {
+      if (!item) {
+        return;
+      }
+
+      const res = await fetch("/api/feedback", {
         method: "POST",
         headers: getOpenLuraRequestHeaders(true),
         body: JSON.stringify({
@@ -874,14 +921,20 @@ return () => {
           msgIndex: item?.msgIndex ?? null,
           type: "workflow_status",
           message: status,
-          userMessage: key,
+          userMessage: item?.userMessage ?? null,
           source: "analytics_workflow",
           environment:
             getUserScope(item) === "personal" || item?.environment === "personal"
               ? "personal"
               : "default",
+          workflowKey: key,
+          workflowStatus: status,
         }),
       });
+
+      if (!res.ok) {
+        throw new Error("Workflow status sync failed");
+      }
     } catch (error) {
       console.error("Workflow status sync failed:", error);
     }
