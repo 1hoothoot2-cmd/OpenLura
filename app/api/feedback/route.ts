@@ -7,10 +7,7 @@ import {
   isValidAnalyticsSession,
 } from "@/lib/auth/analyticsSession";
 import { NextResponse } from "next/server";
-import {
-  requireOpenLuraIdentity,
-  resolveOpenLuraRequestIdentity,
-} from "@/lib/auth/requestIdentity";
+import { resolveOpenLuraRequestIdentity } from "@/lib/auth/requestIdentity";
 
 export const dynamic = "force-dynamic";
 
@@ -270,19 +267,6 @@ async function resolveFeedbackIdentity(req: Request) {
   };
 }
 
-async function requirePersonalFeedbackIdentity(req: Request) {
-  const result = await requireOpenLuraIdentity(req);
-
-  if (!result.ok) {
-    return null;
-  }
-
-  return {
-    userId: result.identity.userId,
-    accessToken: result.identity.accessToken,
-  };
-}
-
 async function saveFeedbackEntry(input: {
   feedbackTableUrl: string;
   supabaseServiceRoleKey: string;
@@ -410,7 +394,7 @@ export async function POST(req: Request) {
 
       const submittedPassword = (data.password || "").trim();
 
-      if (!analyticsAdminPassword || submittedPassword !== analyticsAdminPassword) {
+      if (submittedPassword !== analyticsAdminPassword) {
         return NextResponse.json(
           { success: false, error: "Verkeerd wachtwoord" },
           {
@@ -433,27 +417,13 @@ export async function POST(req: Request) {
         }
       );
 
-      try {
-        response.cookies.set(
-          ANALYTICS_COOKIE_NAME,
-          createAnalyticsSessionValue(),
-          getAnalyticsSessionCookieOptions()
-        );
+      response.cookies.set(
+        ANALYTICS_COOKIE_NAME,
+        createAnalyticsSessionValue(),
+        getAnalyticsSessionCookieOptions()
+      );
 
-        return response;
-      } catch (error) {
-        logSafeError("Analytics unlock session creation failed", error, {
-          hasAnalyticsAdminPassword: !!analyticsAdminPassword,
-        });
-
-        return NextResponse.json(
-          { success: false, error: "Analytics session config error" },
-          {
-            status: 500,
-            headers: buildHeadersWithRateLimit(rateLimit),
-          }
-        );
-      }
+      return response;
     }
 
     const identity = await resolveFeedbackIdentity(req);
@@ -477,7 +447,7 @@ export async function POST(req: Request) {
       userMessage: data.userMessage,
       source: inferIdeaSource(data.type, data.message, data.source),
       userScope: isPersonalEnvironment ? "personal" : "guest",
-      user_id: identity.userId,
+      user_id: isPersonalEnvironment ? identity.userId : null,
       environment: isPersonalEnvironment ? "personal" : "default",
       timestamp: new Date().toISOString(),
     };
