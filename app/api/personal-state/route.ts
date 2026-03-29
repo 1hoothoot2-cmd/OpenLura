@@ -4,7 +4,8 @@ import { resolveOpenLuraRequestIdentity } from "@/lib/auth/requestIdentity";
 export const dynamic = "force-dynamic";
 
 const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseAnonKey =
+  process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const personalStateTable =
   process.env.OPENLURA_PERSONAL_STATE_TABLE || "openlura_personal_state";
 
@@ -14,22 +15,28 @@ const NO_STORE_HEADERS = {
 
 const MAX_ITEMS_PER_COLLECTION = 500;
 const MAX_REQUEST_BYTES = 1024 * 1024;
+const MAX_JSON_DEPTH = 12;
+const MAX_STRING_LENGTH = 100_000;
 
 type PersonalStateBody = {
   chats: unknown[];
   memory: unknown[];
 };
 
-function getSupabaseConfig() {
-  if (!supabaseUrl || !supabaseServiceRoleKey) {
-    throw new Error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
-  }
+type AuthenticatedIdentity = {
+  accessToken: string;
+  userId: string;
+};
 
-  return {
-    personalStateTableUrl: `${supabaseUrl}/rest/v1/${personalStateTable}`,
-    supabaseServiceRoleKey,
-  };
-}
+type FetchPersonalStateResult =
+  | {
+      ok: true;
+      row: { chats?: unknown; memory?: unknown; updated_at?: unknown } | null;
+    }
+  | {
+      ok: false;
+      reason: "unauthorized" | "error";
+    };
 
 function unauthorizedResponse() {
   return NextResponse.json(
@@ -61,8 +68,73 @@ function internalErrorResponse(message: string) {
   );
 }
 
-function isPlainObject(value: unknown) {
+function toSafeErrorMeta(error: unknown) {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+    };
+  }
+
+  return {
+    message: "Unknown error",
+  };
+}
+
+function logSafeError(label: string, error: unknown, extra?: Record<string, unknown>) {
+  console.error(label, {
+    ...extra,
+    ...toSafeErrorMeta(error),
+  });
+}
+
+function getSupabaseConfig() {
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error("Missing SUPABASE_URL or SUPABASE_ANON_KEY");
+  }
+
+  return {
+    personalStateTableUrl: `${supabaseUrl}/rest/v1/${personalStateTable}`,
+    supabaseAnonKey,
+  };
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isJsonSafeValue(value: unknown, depth = 0): boolean {
+  if (depth > MAX_JSON_DEPTH) {
+    return false;
+  }
+
+  if (
+    value === null ||
+    typeof value === "boolean" ||
+    typeof value === "number"
+  ) {
+    return Number.isFinite(value as number) || typeof value !== "number";
+  }
+
+  if (typeof value === "string") {
+    return value.length <= MAX_STRING_LENGTH;
+  }
+
+  if (Array.isArray(value)) {
+    return value.every((item) => isJsonSafeValue(item, depth + 1));
+  }
+
+  if (isPlainObject(value)) {
+    return Object.entries(value).every(([key, nestedValue]) => {
+      if (key.length > 500) {
+        return false;
+      }
+
+      return isJsonSafeValue(nestedValue, depth + 1);
+    });
+  }
+
+  return false;
 }
 
 function validatePersonalStateBody(body: unknown): PersonalStateBody | null {
@@ -89,85 +161,165 @@ function validatePersonalStateBody(body: unknown): PersonalStateBody | null {
     return null;
   }
 
+  if (!isJsonSafeValue(chats) || !isJsonSafeValue(memory)) {
+    return null;
+  }
+
   return {
     chats,
     memory,
   };
 }
 
-async function resolveAuthenticatedUserId(req: Request) {
+function getContentLength(req: Request) {
+  const raw = req.headers.get("content-length");
+
+  if (!raw || !/^\d+$/.test(raw)) {
+    return null;
+  }
+
+  return Number(raw);
+}
+
+async function resolveAuthenticatedIdentity(
+  req: Request
+): Promise<AuthenticatedIdentity | null> {
   const identity = await resolveOpenLuraRequestIdentity(req);
-  return identity.userId;
+
+  if (!identity.accessToken || !identity.userId) {
+    return null;
+  }
+
+  return {
+    accessToken: identity.accessToken,
+    userId: identity.userId,
+  };
 }
 
 async function fetchPersonalStateRow(input: {
   personalStateTableUrl: string;
-  supabaseServiceRoleKey: string;
+  supabaseAnonKey: string;
+  accessToken: string;
   userId: string;
-}) {
+}): Promise<FetchPersonalStateResult> {
   const query =
     `select=chats,memory,updated_at` +
     `&user_id=eq.${encodeURIComponent(input.userId)}` +
     `&order=updated_at.desc.nullslast` +
-    `&limit=1`;
+    `&limit=2`;
 
   try {
     const res = await fetch(`${input.personalStateTableUrl}?${query}`, {
       method: "GET",
       headers: {
-        apikey: input.supabaseServiceRoleKey,
-        Authorization: `Bearer ${input.supabaseServiceRoleKey}`,
+        apikey: input.supabaseAnonKey,
+        Authorization: `Bearer ${input.accessToken}`,
+        Accept: "application/json",
       },
       cache: "no-store",
     });
 
+    if (res.status === 401 || res.status === 403) {
+      return {
+        ok: false,
+        reason: "unauthorized",
+      };
+    }
+
     if (!res.ok) {
-      return null;
+      const errorText = await res.text();
+
+      logSafeError("OpenLura personal state fetch failed", new Error(errorText), {
+        status: res.status,
+      });
+
+      return {
+        ok: false,
+        reason: "error",
+      };
     }
 
     const rows: unknown = await res.json();
 
     if (!Array.isArray(rows)) {
-      return null;
+      return {
+        ok: false,
+        reason: "error",
+      };
     }
 
-    return rows[0] ?? null;
+    if (rows.length > 1) {
+      logSafeError(
+        "OpenLura personal state anomaly: multiple rows for one user",
+        new Error("Multiple rows returned"),
+        {
+          rowCount: rows.length,
+          userIdPresent: !!input.userId,
+        }
+      );
+    }
+
+    const firstRow = rows[0];
+
+    if (firstRow !== undefined && !isPlainObject(firstRow)) {
+      return {
+        ok: false,
+        reason: "error",
+      };
+    }
+
+    return {
+      ok: true,
+      row: (firstRow as { chats?: unknown; memory?: unknown; updated_at?: unknown } | undefined) ?? null,
+    };
   } catch (error) {
-    console.error("Personal state row fetch failed");
-    return null;
+    logSafeError("OpenLura personal state fetch failed", error);
+    return {
+      ok: false,
+      reason: "error",
+    };
   }
 }
 
 export async function GET(req: Request) {
   try {
-    const userId = await resolveAuthenticatedUserId(req);
+    const identity = await resolveAuthenticatedIdentity(req);
 
-    if (!userId) {
+    if (!identity) {
       return unauthorizedResponse();
     }
 
-    const { personalStateTableUrl, supabaseServiceRoleKey } = getSupabaseConfig();
+    const { personalStateTableUrl, supabaseAnonKey } = getSupabaseConfig();
 
-    const row = await fetchPersonalStateRow({
+    const result = await fetchPersonalStateRow({
       personalStateTableUrl,
-      supabaseServiceRoleKey,
-      userId,
+      supabaseAnonKey,
+      accessToken: identity.accessToken,
+      userId: identity.userId,
     });
+
+    if (!result.ok && result.reason === "unauthorized") {
+      return unauthorizedResponse();
+    }
+
+    if (!result.ok) {
+      return internalErrorResponse("Load failed");
+    }
+
+    const row = result.row;
 
     return NextResponse.json(
       {
-        chats: Array.isArray((row as { chats?: unknown })?.chats)
-          ? (row as { chats: unknown[] }).chats
-          : [],
-        memory: Array.isArray((row as { memory?: unknown })?.memory)
-          ? (row as { memory: unknown[] }).memory
-          : [],
+        chats: Array.isArray(row?.chats) ? row.chats : [],
+        memory: Array.isArray(row?.memory) ? row.memory : [],
       },
       {
         headers: NO_STORE_HEADERS,
       }
     );
-  } catch {
+  } catch (error) {
+    logSafeError("OpenLura personal state GET failed", error);
+
     return NextResponse.json(
       { error: "Load failed" },
       {
@@ -180,14 +332,13 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const userId = await resolveAuthenticatedUserId(req);
+    const identity = await resolveAuthenticatedIdentity(req);
 
-    if (!userId) {
+    if (!identity) {
       return unauthorizedResponse();
     }
 
-    const contentLengthHeader = req.headers.get("content-length");
-    const contentLength = contentLengthHeader ? Number(contentLengthHeader) : null;
+    const contentLength = getContentLength(req);
 
     if (
       contentLength !== null &&
@@ -211,30 +362,39 @@ export async function POST(req: Request) {
       return badRequestResponse("Invalid personal state payload");
     }
 
-    const { personalStateTableUrl, supabaseServiceRoleKey } = getSupabaseConfig();
+    const { personalStateTableUrl, supabaseAnonKey } = getSupabaseConfig();
 
     const payload = {
-      user_id: userId,
+      user_id: identity.userId,
       chats: body.chats,
       memory: body.memory,
       updated_at: new Date().toISOString(),
     };
 
-    const res = await fetch(personalStateTableUrl, {
+    const res = await fetch(`${personalStateTableUrl}?on_conflict=user_id`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        apikey: supabaseServiceRoleKey,
-        Authorization: `Bearer ${supabaseServiceRoleKey}`,
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${identity.accessToken}`,
         Prefer: "resolution=merge-duplicates,return=representation",
       },
       body: JSON.stringify(payload),
       cache: "no-store",
     });
 
+    if (res.status === 401 || res.status === 403) {
+      return unauthorizedResponse();
+    }
+
     if (!res.ok) {
       const errorText = await res.text();
-      return internalErrorResponse(errorText || "Save failed");
+
+      logSafeError("OpenLura personal state save failed", new Error(errorText), {
+        status: res.status,
+      });
+
+      return internalErrorResponse("Save failed");
     }
 
     return NextResponse.json(
@@ -245,7 +405,9 @@ export async function POST(req: Request) {
         headers: NO_STORE_HEADERS,
       }
     );
-  } catch {
+  } catch (error) {
+    logSafeError("OpenLura personal state save failed", error);
+
     return NextResponse.json(
       { error: "Save failed" },
       {

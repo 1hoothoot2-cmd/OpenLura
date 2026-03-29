@@ -21,6 +21,10 @@ const NO_STORE_HEADERS = {
 };
 
 const MAX_TEXT_LENGTH = 5000;
+const MAX_REQUEST_BYTES = 16 * 1024;
+const FEEDBACK_RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const FEEDBACK_RATE_LIMIT_MAX_REQUESTS = 12;
+const feedbackRateLimitStore = new Map<string, { count: number; resetAt: number }>();
 
 type FeedbackAction = "unlock_analytics" | "update_workflow_status" | null;
 type FeedbackType = string | null;
@@ -37,6 +41,115 @@ type FeedbackRequestBody = {
   environment: string | null;
 };
 
+type RateLimitResult = {
+  allowed: boolean;
+  remaining: number;
+  resetAt: number;
+};
+
+function toSafeErrorMeta(error: unknown) {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+    };
+  }
+
+  return {
+    message: "Unknown error",
+  };
+}
+
+function logSafeError(label: string, error: unknown, extra?: Record<string, unknown>) {
+  console.error(label, {
+    ...extra,
+    ...toSafeErrorMeta(error),
+  });
+}
+
+function getRequestIp(req: Request) {
+  const forwardedFor = req.headers.get("x-forwarded-for");
+
+  if (forwardedFor) {
+    const firstIp = forwardedFor.split(",")[0]?.trim();
+
+    if (firstIp) {
+      return firstIp;
+    }
+  }
+
+  const realIp = req.headers.get("x-real-ip")?.trim();
+
+  if (realIp) {
+    return realIp;
+  }
+
+  return "unknown";
+}
+
+function getRateLimitHeaders(rateLimit: RateLimitResult) {
+  const retryAfterSeconds = Math.max(
+    1,
+    Math.ceil((rateLimit.resetAt - Date.now()) / 1000)
+  );
+
+  return {
+    "X-OpenLura-RateLimit-Limit": String(FEEDBACK_RATE_LIMIT_MAX_REQUESTS),
+    "X-OpenLura-RateLimit-Remaining": String(Math.max(0, rateLimit.remaining)),
+    "X-OpenLura-RateLimit-Reset": String(rateLimit.resetAt),
+    "Retry-After": String(retryAfterSeconds),
+  };
+}
+
+function buildHeadersWithRateLimit(rateLimit?: RateLimitResult) {
+  if (!rateLimit) {
+    return NO_STORE_HEADERS;
+  }
+
+  return {
+    ...NO_STORE_HEADERS,
+    ...getRateLimitHeaders(rateLimit),
+  };
+}
+
+function checkFeedbackRateLimit(req: Request) {
+  const ip = getRequestIp(req);
+  const now = Date.now();
+  const existing = feedbackRateLimitStore.get(ip);
+
+  if (!existing || existing.resetAt <= now) {
+    const resetAt = now + FEEDBACK_RATE_LIMIT_WINDOW_MS;
+
+    feedbackRateLimitStore.set(ip, {
+      count: 1,
+      resetAt,
+    });
+
+    return {
+      allowed: true,
+      remaining: FEEDBACK_RATE_LIMIT_MAX_REQUESTS - 1,
+      resetAt,
+    };
+  }
+
+  if (existing.count >= FEEDBACK_RATE_LIMIT_MAX_REQUESTS) {
+    return {
+      allowed: false,
+      remaining: 0,
+      resetAt: existing.resetAt,
+    };
+  }
+
+  existing.count += 1;
+  feedbackRateLimitStore.set(ip, existing);
+
+  return {
+    allowed: true,
+    remaining: Math.max(0, FEEDBACK_RATE_LIMIT_MAX_REQUESTS - existing.count),
+    resetAt: existing.resetAt,
+  };
+}
+
 function getSupabaseConfig() {
   if (!supabaseUrl || !supabaseServiceRoleKey) {
     throw new Error(
@@ -50,22 +163,32 @@ function getSupabaseConfig() {
   };
 }
 
-function badRequest(message: string) {
+function badRequest(message: string, rateLimit?: RateLimitResult) {
   return NextResponse.json(
     { success: false, error: message },
     {
       status: 400,
-      headers: NO_STORE_HEADERS,
+      headers: buildHeadersWithRateLimit(rateLimit),
     }
   );
 }
 
-function unauthorized(message = "Unauthorized") {
+function unauthorized(message = "Unauthorized", rateLimit?: RateLimitResult) {
   return NextResponse.json(
     { success: false, error: message },
     {
       status: 401,
-      headers: NO_STORE_HEADERS,
+      headers: buildHeadersWithRateLimit(rateLimit),
+    }
+  );
+}
+
+function payloadTooLarge(rateLimit?: RateLimitResult) {
+  return NextResponse.json(
+    { success: false, error: "Request too large" },
+    {
+      status: 413,
+      headers: buildHeadersWithRateLimit(rateLimit),
     }
   );
 }
@@ -125,6 +248,16 @@ function isFeedbackReadAuthorized(req: Request) {
   return isValidAnalyticsSession(getAnalyticsSessionCookie(req));
 }
 
+function getContentLength(req: Request) {
+  const raw = req.headers.get("content-length");
+
+  if (!raw || !/^\d+$/.test(raw)) {
+    return null;
+  }
+
+  return Number(raw);
+}
+
 async function resolveFeedbackIdentity(req: Request) {
   const identity = await resolveOpenLuraRequestIdentity(req);
 
@@ -161,7 +294,11 @@ async function saveFeedbackEntry(input: {
   return Array.isArray(data) ? data : [];
 }
 
-function inferIdeaSource(type: string | null, message: string | null, source: string | null) {
+function inferIdeaSource(
+  type: string | null,
+  message: string | null,
+  source: string | null
+) {
   if (type !== "idea") {
     return source;
   }
@@ -208,7 +345,25 @@ function inferIdeaSource(type: string | null, message: string | null, source: st
 }
 
 export async function POST(req: Request) {
+  const rateLimit = checkFeedbackRateLimit(req);
+
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { success: false, error: "Too many requests" },
+      {
+        status: 429,
+        headers: buildHeadersWithRateLimit(rateLimit),
+      }
+    );
+  }
+
   try {
+    const contentLength = getContentLength(req);
+
+    if (contentLength !== null && contentLength > MAX_REQUEST_BYTES) {
+      return payloadTooLarge(rateLimit);
+    }
+
     const { feedbackTableUrl, supabaseServiceRoleKey } = getSupabaseConfig();
 
     let rawBody: unknown;
@@ -216,13 +371,13 @@ export async function POST(req: Request) {
     try {
       rawBody = await req.json();
     } catch {
-      return badRequest("Invalid request body");
+      return badRequest("Invalid request body", rateLimit);
     }
 
     const data = parseFeedbackRequestBody(rawBody);
 
     if (!data) {
-      return badRequest("Invalid request body");
+      return badRequest("Invalid request body", rateLimit);
     }
 
     if (data.action === "unlock_analytics") {
@@ -231,7 +386,7 @@ export async function POST(req: Request) {
           { success: false, error: "Analytics auth not configured" },
           {
             status: 500,
-            headers: NO_STORE_HEADERS,
+            headers: buildHeadersWithRateLimit(rateLimit),
           }
         );
       }
@@ -241,7 +396,7 @@ export async function POST(req: Request) {
           { success: false, error: "Verkeerd wachtwoord" },
           {
             status: 401,
-            headers: NO_STORE_HEADERS,
+            headers: buildHeadersWithRateLimit(rateLimit),
           }
         );
       }
@@ -249,9 +404,13 @@ export async function POST(req: Request) {
       const response = NextResponse.json(
         {
           success: true,
+          runtime: {
+            sessionType: ANALYTICS_SESSION_TYPE,
+            authenticated: true,
+          },
         },
         {
-          headers: NO_STORE_HEADERS,
+          headers: buildHeadersWithRateLimit(rateLimit),
         }
       );
 
@@ -265,8 +424,17 @@ export async function POST(req: Request) {
     }
 
     const identity = await resolveFeedbackIdentity(req);
+    const wantsPersonalEnvironment = data.environment === "personal";
     const isPersonalEnvironment =
-      identity.isAuthenticatedPersonalUser && data.environment === "personal";
+      identity.isAuthenticatedPersonalUser && wantsPersonalEnvironment;
+
+    if (wantsPersonalEnvironment && !identity.isAuthenticatedPersonalUser) {
+      return unauthorized("Personal feedback requires authentication", rateLimit);
+    }
+
+    if (data.action === "update_workflow_status" && !isFeedbackReadAuthorized(req)) {
+      return unauthorized("Analytics authorization required", rateLimit);
+    }
 
     const entry = {
       chatId: data.chatId,
@@ -298,11 +466,16 @@ export async function POST(req: Request) {
           item: saved[0] ?? entry,
         },
         {
-          headers: NO_STORE_HEADERS,
+          headers: buildHeadersWithRateLimit(rateLimit),
         }
       );
     } catch (error) {
-      console.error("Feedback POST failed:", error);
+      logSafeError("Feedback POST save failed", error, {
+        action: data.action || "feedback",
+        environment: entry.environment,
+        userScope: entry.userScope,
+        hasUserId: !!entry.user_id,
+      });
 
       return NextResponse.json(
         {
@@ -314,12 +487,12 @@ export async function POST(req: Request) {
         },
         {
           status: 500,
-          headers: NO_STORE_HEADERS,
+          headers: buildHeadersWithRateLimit(rateLimit),
         }
       );
     }
   } catch (error) {
-    console.error("Feedback POST failed:", error);
+    logSafeError("Feedback POST failed", error);
 
     return NextResponse.json(
       {
@@ -328,7 +501,7 @@ export async function POST(req: Request) {
       },
       {
         status: 500,
-        headers: NO_STORE_HEADERS,
+        headers: buildHeadersWithRateLimit(rateLimit),
       }
     );
   }
@@ -341,22 +514,25 @@ export async function GET(req: Request) {
     }
 
     const { feedbackTableUrl, supabaseServiceRoleKey } = getSupabaseConfig();
+    const query =
+      "select=chatId,msgIndex,type,message,userMessage,source,userScope,user_id,environment,timestamp" +
+      "&order=timestamp.desc";
 
-    const res = await fetch(
-      `${feedbackTableUrl}?select=*&order=timestamp.desc`,
-      {
-        method: "GET",
-        headers: {
-          apikey: supabaseServiceRoleKey,
-          Authorization: `Bearer ${supabaseServiceRoleKey}`,
-        } as HeadersInit,
-        cache: "no-store",
-      }
-    );
+    const res = await fetch(`${feedbackTableUrl}?${query}`, {
+      method: "GET",
+      headers: {
+        apikey: supabaseServiceRoleKey,
+        Authorization: `Bearer ${supabaseServiceRoleKey}`,
+      } as HeadersInit,
+      cache: "no-store",
+    });
 
     if (!res.ok) {
       const errorText = await res.text();
-      console.error("Supabase GET failed:", res.status, errorText);
+
+      logSafeError("Supabase feedback GET failed", new Error(errorText), {
+        status: res.status,
+      });
 
       return NextResponse.json(
         {
@@ -380,7 +556,7 @@ export async function GET(req: Request) {
       },
     });
   } catch (error) {
-    console.error("Feedback GET failed:", error);
+    logSafeError("Feedback GET failed", error);
 
     return NextResponse.json(
       {
@@ -402,6 +578,10 @@ export async function DELETE(req: Request) {
     const response = NextResponse.json(
       {
         success: true,
+        runtime: {
+          sessionType: ANALYTICS_SESSION_TYPE,
+          clearedSession: hadSession,
+        },
       },
       {
         headers: NO_STORE_HEADERS,
@@ -416,7 +596,7 @@ export async function DELETE(req: Request) {
 
     return response;
   } catch (error) {
-    console.error("Feedback DELETE failed:", error);
+    logSafeError("Feedback DELETE failed", error);
 
     return NextResponse.json(
       {
