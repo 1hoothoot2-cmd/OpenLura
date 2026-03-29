@@ -8,7 +8,27 @@ type ResolvedOpenLuraIdentity = {
   accessToken: string | null;
   authUser: { id?: string | null } | null;
   userId: string | null;
+  isAuthenticated: boolean;
 };
+
+type RequireOpenLuraIdentityResult =
+  | {
+      ok: true;
+      identity: {
+        accessToken: string;
+        authUser: { id: string };
+        userId: string;
+        isAuthenticated: true;
+      };
+    }
+  | {
+      ok: false;
+      reason: "unauthenticated" | "misconfigured";
+    };
+
+function hasSupabaseAuthConfig() {
+  return !!(supabaseUrl && supabaseAnonKey);
+}
 
 const MAX_TOKEN_LENGTH = 5000;
 
@@ -107,18 +127,19 @@ export function getBearerTokenFromRequest(req: Request) {
 }
 
 export async function fetchSupabaseAuthUser(accessToken?: string | null) {
-  if (!supabaseUrl || !supabaseAnonKey || !accessToken) {
+  if (!hasSupabaseAuthConfig() || !accessToken || !supabaseUrl || !supabaseAnonKey) {
     return null;
   }
 
   try {
+    const headers = new Headers();
+    headers.set("apikey", supabaseAnonKey);
+    headers.set("Authorization", `Bearer ${accessToken}`);
+    headers.set("Accept", "application/json");
+
     const res = await fetch(`${supabaseUrl}/auth/v1/user`, {
       method: "GET",
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${accessToken}`,
-        Accept: "application/json",
-      },
+      headers,
       cache: "no-store",
     });
 
@@ -143,7 +164,10 @@ export async function fetchSupabaseAuthUser(accessToken?: string | null) {
 
     return { id: userId };
   } catch (error) {
-    logSafeError("OpenLura auth user fetch failed", error);
+    logSafeError("OpenLura auth user fetch failed", error, {
+      hasAccessToken: !!accessToken,
+      hasSupabaseAuthConfig: hasSupabaseAuthConfig(),
+    });
     return null;
   }
 }
@@ -158,6 +182,7 @@ export async function resolveOpenLuraRequestIdentity(
       accessToken: null,
       authUser: null,
       userId: null,
+      isAuthenticated: false,
     };
   }
 
@@ -168,6 +193,7 @@ export async function resolveOpenLuraRequestIdentity(
       accessToken: null,
       authUser: null,
       userId: null,
+      isAuthenticated: false,
     };
   }
 
@@ -175,10 +201,52 @@ export async function resolveOpenLuraRequestIdentity(
     accessToken,
     authUser,
     userId: authUser.id,
+    isAuthenticated: true,
+  };
+}
+
+export async function requireOpenLuraIdentity(
+  req: Request
+): Promise<RequireOpenLuraIdentityResult> {
+  if (!hasSupabaseAuthConfig()) {
+    logSafeError(
+      "OpenLura identity resolution misconfigured",
+      new Error("Missing Supabase auth config")
+    );
+
+    return {
+      ok: false,
+      reason: "misconfigured",
+    };
+  }
+
+  const identity = await resolveOpenLuraRequestIdentity(req);
+
+  if (
+    !identity.isAuthenticated ||
+    !identity.accessToken ||
+    !identity.authUser ||
+    !identity.authUser.id ||
+    !identity.userId
+  ) {
+    return {
+      ok: false,
+      reason: "unauthenticated",
+    };
+  }
+
+  return {
+    ok: true,
+    identity: {
+      accessToken: identity.accessToken,
+      authUser: { id: identity.authUser.id },
+      userId: identity.userId,
+      isAuthenticated: true,
+    },
   };
 }
 
 export async function resolveOpenLuraUserId(req: Request) {
   const identity = await resolveOpenLuraRequestIdentity(req);
-  return identity.userId;
+  return identity.isAuthenticated ? identity.userId : null;
 }

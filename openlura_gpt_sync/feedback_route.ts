@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const analyticsAdminPassword = process.env.ANALYTICS_ADMIN_PASSWORD;
+const analyticsAdminPassword = process.env.ANALYTICS_ADMIN_PASSWORD?.trim() || null;
 const ANALYTICS_SESSION_TYPE = "analytics_admin";
 
 const NO_STORE_HEADERS = {
@@ -159,7 +159,7 @@ function getSupabaseConfig() {
 
   return {
     feedbackTableUrl: `${supabaseUrl}/rest/v1/openlura_feedback`,
-    supabaseServiceRoleKey,
+    supabaseServiceRoleKey: supabaseServiceRoleKey as string,
   };
 }
 
@@ -259,11 +259,11 @@ function getContentLength(req: Request) {
 }
 
 async function resolveFeedbackIdentity(req: Request) {
-  const identity = await resolveOpenLuraRequestIdentity(req);
+  const softIdentity = await resolveOpenLuraRequestIdentity(req);
 
   return {
-    userId: identity.userId,
-    isAuthenticatedPersonalUser: !!identity.userId,
+    userId: softIdentity.userId,
+    isAuthenticatedPersonalUser: softIdentity.isAuthenticated && !!softIdentity.userId,
   };
 }
 
@@ -273,14 +273,15 @@ async function saveFeedbackEntry(input: {
   entry: Record<string, unknown>;
   errorLabel: string;
 }) {
+  const headers = new Headers();
+  headers.set("Content-Type", "application/json");
+  headers.set("apikey", input.supabaseServiceRoleKey);
+  headers.set("Authorization", `Bearer ${input.supabaseServiceRoleKey}`);
+  headers.set("Prefer", "return=representation");
+
   const res = await fetch(input.feedbackTableUrl, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      apikey: input.supabaseServiceRoleKey,
-      Authorization: `Bearer ${input.supabaseServiceRoleKey}`,
-      Prefer: "return=representation",
-    } as HeadersInit,
+    headers,
     body: JSON.stringify(input.entry),
     cache: "no-store",
   });
@@ -391,7 +392,9 @@ export async function POST(req: Request) {
         );
       }
 
-      if ((data.password || "") !== analyticsAdminPassword) {
+      const submittedPassword = (data.password || "").trim();
+
+      if (submittedPassword !== analyticsAdminPassword) {
         return NextResponse.json(
           { success: false, error: "Verkeerd wachtwoord" },
           {
@@ -444,7 +447,7 @@ export async function POST(req: Request) {
       userMessage: data.userMessage,
       source: inferIdeaSource(data.type, data.message, data.source),
       userScope: isPersonalEnvironment ? "personal" : "guest",
-      user_id: identity.userId,
+      user_id: isPersonalEnvironment ? identity.userId : null,
       environment: isPersonalEnvironment ? "personal" : "default",
       timestamp: new Date().toISOString(),
     };
@@ -506,7 +509,6 @@ export async function POST(req: Request) {
     );
   }
 }
-
 export async function GET(req: Request) {
   try {
     if (!isFeedbackReadAuthorized(req)) {
@@ -518,12 +520,13 @@ export async function GET(req: Request) {
       "select=chatId,msgIndex,type,message,userMessage,source,userScope,user_id,environment,timestamp" +
       "&order=timestamp.desc";
 
+    const headers = new Headers();
+    headers.set("apikey", String(supabaseServiceRoleKey));
+    headers.set("Authorization", `Bearer ${String(supabaseServiceRoleKey)}`);
+
     const res = await fetch(`${feedbackTableUrl}?${query}`, {
       method: "GET",
-      headers: {
-        apikey: supabaseServiceRoleKey,
-        Authorization: `Bearer ${supabaseServiceRoleKey}`,
-      } as HeadersInit,
+      headers,
       cache: "no-store",
     });
 

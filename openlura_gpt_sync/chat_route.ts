@@ -1,5 +1,8 @@
 import OpenAI from "openai";
-import { resolveOpenLuraRequestIdentity } from "@/lib/auth/requestIdentity";
+import {
+  requireOpenLuraIdentity,
+  resolveOpenLuraRequestIdentity,
+} from "@/lib/auth/requestIdentity";
 
 let globalFeedbackSnapshot: any[] = [];
 
@@ -692,10 +695,13 @@ type OpenLuraFeedbackRow = {
   userMessage?: string | null;
   source?: string | null;
   learningType?: string | null;
+  learningLayer?: "global" | "personal" | "user";
   userScope?: "admin" | "guest" | "personal" | "user" | null;
   user_id?: string | null;
+  environment?: "default" | "personal" | string | null;
   timestamp?: string | number | null;
   weight?: number;
+  _personalRuntime?: boolean;
 };
 
 type OpenLuraUsageStats = {
@@ -777,18 +783,33 @@ type OpenLuraPersonalOverrideProfile = {
   memoryDirectives: string[];
 };
 
-type OpenLuraResolvedRuntimeInstructionProfile = {
-  tone: string;
-  brevity: string;
-  structure: string;
-  clarity: string;
-  depth: string;
-  priorityOrder: string;
-  hardRules: string[];
-  softRules: string[];
-  avoidPatterns: string[];
-  memoryDirectives: string[];
-};
+async function resolveVerifiedPersonalRuntimeIdentity(req: Request) {
+  const softIdentity = await resolveOpenLuraRequestIdentity(req);
+
+  if (!softIdentity.isAuthenticated || !softIdentity.userId || !softIdentity.accessToken) {
+    return {
+      isAuthenticated: false,
+      userId: null,
+      accessToken: null,
+    };
+  }
+
+  const hardIdentity = await requireOpenLuraIdentity(req);
+
+  if (!hardIdentity.ok) {
+    return {
+      isAuthenticated: false,
+      userId: null,
+      accessToken: null,
+    };
+  }
+
+  return {
+    isAuthenticated: true,
+    userId: hardIdentity.identity.userId,
+    accessToken: hardIdentity.identity.accessToken,
+  };
+}
 
 function normalizePersonalMemoryValue(value: any): string {
   if (typeof value === "string") {
@@ -1221,16 +1242,17 @@ async function persistSupabasePersonalMemory(input: {
   };
 
   try {
+    const headers = new Headers();
+    headers.set("Content-Type", "application/json");
+    headers.set("apikey", supabaseAnonKey);
+    headers.set("Authorization", `Bearer ${input.accessToken}`);
+    headers.set("Prefer", "resolution=merge-duplicates,return=minimal");
+
     const upsertRes = await fetch(
       `${supabaseUrl}/rest/v1/${personalStateTable}?on_conflict=user_id`,
       {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          apikey: supabaseAnonKey,
-          Authorization: `Bearer ${input.accessToken}`,
-          Prefer: "resolution=merge-duplicates,return=minimal",
-        },
+        headers,
         body: JSON.stringify(payload),
         cache: "no-store",
       }
@@ -1273,13 +1295,14 @@ async function fetchSupabasePersonalState(
     `&limit=1`;
 
   try {
+    const headers = new Headers();
+    headers.set("apikey", supabaseAnonKey);
+    headers.set("Authorization", `Bearer ${accessToken}`);
+    headers.set("Accept", "application/json");
+
     const res = await fetch(`${supabaseUrl}/rest/v1/${personalStateTable}?${query}`, {
       method: "GET",
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${accessToken}`,
-        Accept: "application/json",
-      },
+      headers,
       cache: "no-store",
     });
 
@@ -1454,6 +1477,19 @@ function buildPersonalOverrideProfile(input: {
   } satisfies OpenLuraPersonalOverrideProfile;
 }
 
+type OpenLuraResolvedRuntimeInstructionProfile = {
+  tone: string;
+  brevity: string;
+  structure: string;
+  clarity: string;
+  depth: string;
+  priorityOrder: string;
+  hardRules: string[];
+  softRules: string[];
+  avoidPatterns: string[];
+  memoryDirectives: string[];
+};
+
 function buildResolvedRuntimeInstructionProfile(input: {
   isPersonalEnvironment: boolean;
   baseProfile: {
@@ -1531,14 +1567,13 @@ async function resolvePersonalRuntimeContext(input: {
   req: Request;
   memory?: string;
 }) {
-  const identity = await resolveOpenLuraRequestIdentity(input.req);
-  const authUser = identity.authUser;
-  const personalUserId = authUser?.id || null;
-  const accessToken = identity.accessToken || null;
+  const identity = await resolveVerifiedPersonalRuntimeIdentity(input.req);
 
-  const hasAuthenticatedPersonalUser = !!personalUserId && !!accessToken;
+  const personalUserId = identity.userId;
+  const accessToken = identity.accessToken;
+  const hasAuthenticatedPersonalUser = identity.isAuthenticated;
 
-  const personalState = hasAuthenticatedPersonalUser
+  const personalState = hasAuthenticatedPersonalUser && personalUserId && accessToken
     ? await fetchSupabasePersonalState(personalUserId, accessToken)
     : ({
         userId: null,
@@ -1549,11 +1584,13 @@ async function resolvePersonalRuntimeContext(input: {
         raw: null,
       } satisfies OpenLuraPersonalState);
 
-  const personalFeedbackRows: OpenLuraFeedbackRow[] = hasAuthenticatedPersonalUser
-    ? await getPersonalFeedbackRows(personalUserId, accessToken)
-    : [];
+  const personalFeedbackRows: OpenLuraFeedbackRow[] =
+    hasAuthenticatedPersonalUser && personalUserId && accessToken
+      ? await getPersonalFeedbackRows(personalUserId, accessToken)
+      : [];
 
-  const isPersonalEnvironment = hasAuthenticatedPersonalUser;
+  const isPersonalEnvironment =
+    hasAuthenticatedPersonalUser && !!personalUserId && !!accessToken;
 
   const resolvedPersonalMemory = isPersonalEnvironment
     ? personalState.memory || ""
@@ -1605,13 +1642,14 @@ safeQuery = safeQuery
   : enforcedFilter;
 
   try {
+    const headers = new Headers();
+    headers.set("apikey", supabaseServiceRoleKey);
+    headers.set("Authorization", `Bearer ${supabaseServiceRoleKey}`);
+    headers.set("Accept", "application/json");
+
     const res = await fetch(`${supabaseUrl}/rest/v1/openlura_feedback?${safeQuery}`, {
       method: "GET",
-      headers: {
-        apikey: supabaseServiceRoleKey,
-        Authorization: `Bearer ${supabaseServiceRoleKey}`,
-        Accept: "application/json",
-      },
+      headers,
       cache: "no-store",
     });
 
@@ -1661,13 +1699,14 @@ async function fetchSupabasePersonalFeedbackRows(input: {
     `&limit=${limit}`;
 
   try {
+    const headers = new Headers();
+    headers.set("apikey", supabaseAnonKey);
+    headers.set("Authorization", `Bearer ${input.accessToken}`);
+    headers.set("Accept", "application/json");
+
     const res = await fetch(`${supabaseUrl}/rest/v1/openlura_feedback?${query}`, {
       method: "GET",
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${input.accessToken}`,
-        Accept: "application/json",
-      },
+      headers,
       cache: "no-store",
     });
 
@@ -1836,14 +1875,15 @@ async function storeAutoDebugSignals(input: {
   }
 
   try {
+    const headers = new Headers();
+    headers.set("Content-Type", "application/json");
+    headers.set("apikey", supabaseServiceRoleKey);
+    headers.set("Authorization", `Bearer ${supabaseServiceRoleKey}`);
+    headers.set("Prefer", "return=minimal");
+
     const res = await fetch(`${supabaseUrl}/rest/v1/openlura_feedback`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: supabaseServiceRoleKey,
-        Authorization: `Bearer ${supabaseServiceRoleKey}`,
-        Prefer: "return=minimal",
-      },
+      headers,
       body: JSON.stringify(rows),
       cache: "no-store",
     });
@@ -1880,14 +1920,15 @@ async function storeAutoDebugSignals(input: {
       timestamp: row.timestamp,
     }));
 
+    const fallbackHeaders = new Headers();
+    fallbackHeaders.set("Content-Type", "application/json");
+    fallbackHeaders.set("apikey", supabaseServiceRoleKey);
+    fallbackHeaders.set("Authorization", `Bearer ${supabaseServiceRoleKey}`);
+    fallbackHeaders.set("Prefer", "return=minimal");
+
     const fallbackRes = await fetch(`${supabaseUrl}/rest/v1/openlura_feedback`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: supabaseServiceRoleKey,
-        Authorization: `Bearer ${supabaseServiceRoleKey}`,
-        Prefer: "return=minimal",
-      },
+      headers: fallbackHeaders,
       body: JSON.stringify(fallbackRows),
       cache: "no-store",
     });
