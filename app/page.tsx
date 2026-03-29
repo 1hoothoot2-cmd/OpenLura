@@ -79,6 +79,12 @@ const [usage, setUsage] = useState<{
   const [initialStateReady, setInitialStateReady] = useState(false);
   const [openChatMenuId, setOpenChatMenuId] = useState<number | null>(null);
 
+  const closeMobileSidebar = () => {
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      setMobileMenu(false);
+    }
+  };
+
   const greetings = [
     "👋 Hey! Waar kan ik je mee helpen?",
     "👋 Nieuwe chat gestart! Stel gerust je vraag 😊",
@@ -120,14 +126,16 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
 
   setActiveChatId(chatId);
   setOpenChatMenuId(null);
+  closeMobileSidebar();
 };
 
-  const createNewChat = (
+    const createNewChat = (
     preset?: Partial<{
       title: string;
       messages: { role: string; content: string; image?: string | null }[];
     }>
   ) => {
+    closeMobileSidebar();
     isBootstrappingChatRef.current = false;
 
     const baseTitle =
@@ -303,6 +311,46 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
   }, [chatStorageKey, memoryStorageKey, isPersonalRoute]);
 
   useEffect(() => {
+    if (typeof document === "undefined") return;
+
+    const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
+    if (!isMobile) return;
+
+    const body = document.body;
+    const previousOverflow = body.style.overflow;
+    const previousTouchAction = body.style.touchAction;
+
+    if (mobileMenu) {
+      body.style.overflow = "hidden";
+      body.style.touchAction = "none";
+    } else {
+      body.style.overflow = "";
+      body.style.touchAction = "";
+    }
+
+    return () => {
+      body.style.overflow = previousOverflow;
+      body.style.touchAction = previousTouchAction;
+    };
+  }, [mobileMenu]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (typeof window === "undefined") return;
+
+      if (window.innerWidth >= 768) {
+        setMobileMenu(true);
+      }
+    };
+
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
+
+  useEffect(() => {
     latestChatsRef.current = chats;
   }, [chats]);
 
@@ -425,10 +473,24 @@ const hasMeaningfulPersonalState =
   const el = messagesRef.current;
   if (!el) return;
 
+  const visibleChats = chats.filter(
+    (chat: any) => !chat.archived && !chat.deleted
+  );
+
+  const resolvedActiveChat =
+    visibleChats.find((chat: any) => chat.id === activeChatId) ??
+    visibleChats[0] ??
+    null;
+
+  const lastMessage =
+    resolvedActiveChat?.messages?.[
+      (resolvedActiveChat?.messages?.length || 1) - 1
+    ] || null;
+
   requestAnimationFrame(() => {
     el.scrollTo({
       top: el.scrollHeight,
-      behavior: "smooth",
+      behavior: lastMessage?.isStreaming ? "auto" : "smooth",
     });
   });
 }, [activeChatId, chats, loading]);
@@ -897,6 +959,7 @@ const restoreArchivedChat = (chatId: number) => {
   pendingActiveChatIdRef.current = chatId;
   forcedActiveChatIdRef.current = chatId;
   setActiveChatId(chatId);
+  closeMobileSidebar();
 
   updateChatMeta(chatId, {
     archived: false,
@@ -943,6 +1006,7 @@ const restoreDeletedChat = (chatId: number) => {
   pendingActiveChatIdRef.current = chatId;
   forcedActiveChatIdRef.current = chatId;
   setActiveChatId(chatId);
+  closeMobileSidebar();
 
   updateChatMeta(chatId, {
     deleted: false,
@@ -1321,6 +1385,8 @@ const restoreDeletedChat = (chatId: number) => {
 
   const sendMessage = async () => {
     if (!input.trim() && !image) return;
+
+    closeMobileSidebar();
 
     try {
 
@@ -2119,7 +2185,10 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
     <main className="fixed inset-0 flex bg-[#050510] text-white overflow-hidden">
       <button
   onClick={() => setMobileMenu(!mobileMenu)}
-  className="fixed left-4 top-[max(env(safe-area-inset-top),16px)] z-[70] flex h-11 w-11 items-center justify-center rounded-full border border-white/8 bg-white/[0.055] text-white/82 shadow-[0_12px_32px_rgba(0,0,0,0.24)] backdrop-blur-2xl ol-interactive hover:border-white/12 hover:bg-white/[0.085] hover:text-white active:scale-95 md:hidden"
+  aria-label={mobileMenu ? "Close menu" : "Open menu"}
+  className={`fixed left-4 top-[max(env(safe-area-inset-top),16px)] z-[70] flex h-11 w-11 items-center justify-center rounded-full border border-white/8 bg-white/[0.055] text-white/82 shadow-[0_12px_32px_rgba(0,0,0,0.24)] backdrop-blur-2xl ol-interactive transition-[opacity,transform,background-color,border-color] duration-200 hover:border-white/12 hover:bg-white/[0.085] hover:text-white active:scale-95 md:hidden ${
+    mobileMenu ? "pointer-events-none scale-95 opacity-0" : "opacity-100"
+  }`}
 >
   ☰
 </button>
@@ -2152,7 +2221,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 {mobileMenu && (
   <div
     onClick={() => setMobileMenu(false)}
-    className="fixed inset-0 z-30 bg-[#020308]/72 backdrop-blur-[2px] touch-none md:hidden"
+    className="fixed inset-0 z-30 bg-[#020308]/72 backdrop-blur-[3px] touch-none md:hidden"
   />
 )}
                   {showClearDeletedConfirm && (
@@ -2284,7 +2353,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 
           <div
   ref={messagesRef}
-  className={`${messageShellClass} flex-1 min-h-0 overflow-x-hidden overflow-y-auto pb-[176px] md:pb-6 ${
+  className={`${messageShellClass} flex-1 min-h-0 overflow-x-hidden overflow-y-auto pb-[188px] md:pb-6 ${
     activeChat?.messages?.length ? "space-y-4 p-4 pt-20 md:px-6 md:pt-6" : "flex items-center justify-center p-4 pt-20 md:px-6 md:pt-6"
   }`}
 >
@@ -2525,7 +2594,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
   className={`${
     activeChat?.messages?.length === 0
       ? "mx-auto mt-6 w-full max-w-2xl px-3 md:px-4"
-      : "fixed bottom-0 left-1/2 z-[90] w-full max-w-2xl -translate-x-1/2 bg-[#050510]/94 px-3 pt-3 pb-[calc(env(safe-area-inset-bottom)+12px)] md:static md:z-auto md:mt-auto md:w-full md:max-w-none md:border-0 md:bg-transparent md:p-0"
+      : "fixed bottom-0 left-1/2 z-[90] w-full max-w-2xl -translate-x-1/2 bg-[#050510]/94 px-3 pt-3 pb-[calc(env(safe-area-inset-bottom)+14px)] md:static md:z-auto md:mt-auto md:w-full md:max-w-none md:border-0 md:bg-transparent md:p-0"
   } flex w-full min-w-0 max-w-full overflow-x-hidden items-end gap-2 rounded-[28px] border border-white/8 bg-white/[0.035] shadow-[0_14px_30px_rgba(0,0,0,0.16)] backdrop-blur-2xl md:rounded-b-[32px] md:rounded-t-[28px] md:border-x-0 md:border-b-0 md:border-t md:px-4 md:py-4 md:shadow-none`}
 >
 
@@ -2570,7 +2639,10 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
       setMobileMenu(false);
 
       requestAnimationFrame(() => {
-        window.scrollTo({ top: 0, behavior: "smooth" });
+        inputRef.current?.scrollIntoView({
+          block: "nearest",
+          behavior: "smooth",
+        });
       });
     }
   }}
@@ -2620,6 +2692,16 @@ enterKeyHint="send"
 
         </div>
       </div>
+
+      {isPersonalRoute && (
+        <button
+          type="button"
+          onClick={handlePersonalLogout}
+          className="fixed right-4 top-[max(env(safe-area-inset-top),16px)] z-[60] hidden rounded-full border border-white/8 bg-white/[0.05] px-3.5 py-2 text-sm text-white/78 shadow-[0_12px_28px_rgba(0,0,0,0.18)] backdrop-blur-2xl ol-interactive transition-[transform,background-color,border-color,color,opacity] duration-200 hover:border-white/12 hover:bg-white/[0.08] hover:text-white active:scale-95 md:inline-flex"
+        >
+          Log out
+        </button>
+      )}
 
       {showLoginBox && !isPersonalRoute && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
