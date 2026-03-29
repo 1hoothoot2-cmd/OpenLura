@@ -499,6 +499,12 @@ if (data.action === "update_workflow_status" && !isFeedbackReadAuthorized(req)) 
   return unauthorized("Analytics authorization required", rateLimit);
 }
 
+if (data.action === "update_workflow_status") {
+  if (!data.workflowKey || !data.workflowStatus) {
+    return badRequest("Missing workflowKey or workflowStatus", rateLimit);
+  }
+}
+
 if (!data.type) {
   return badRequest("Missing feedback type", rateLimit);
 }
@@ -511,10 +517,7 @@ if (
 
 const timestamp = new Date().toISOString();
 const userScope = isPersonalEnvironment ? "personal" : "guest";
-
-// 🔒 ALWAYS enforce user_id (critical for Phase 4 consistency)
-const user_id = identity.userId || null;
-
+const user_id = isPersonalEnvironment ? identity.userId || null : null;
 const environment = isPersonalEnvironment ? "personal" : "default";
 
 const baseEntry = {
@@ -544,7 +547,7 @@ const workflowKey =
 const entry = {
   ...baseEntry,
   workflowKey,
-  workflowStatus: data.workflowStatus || null,
+  workflowStatus: data.action === "update_workflow_status" ? data.workflowStatus || null : null,
 };
 
     try {
@@ -612,8 +615,8 @@ export async function GET(req: Request) {
 
     const { feedbackTableUrl, supabaseServiceRoleKey } = getSupabaseConfig();
     const query =
-  "select=chatId,msgIndex,type,message,userMessage,source,userScope,user_id,environment,timestamp,workflowKey,workflowStatus,learningType" +
-  "&order=timestamp.desc";
+      "select=chatId,msgIndex,type,message,userMessage,source,userScope,user_id,environment,timestamp,workflowKey,workflowStatus,learningType" +
+      "&order=timestamp.desc.nullslast";
 
     const headers = new Headers();
     headers.set("apikey", String(supabaseServiceRoleKey));
@@ -646,7 +649,7 @@ export async function GET(req: Request) {
 
     const data = await res.json();
 
-    return NextResponse.json(data, {
+    return NextResponse.json(Array.isArray(data) ? data : [], {
       headers: {
         "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
         Pragma: "no-cache",

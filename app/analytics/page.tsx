@@ -585,9 +585,25 @@ useEffect(() => {
   if (!isUnlocked) return;
 
   const load = async () => {
-  const localFeedback = JSON.parse(
+  const defaultLocalFeedback = JSON.parse(
     localStorage.getItem("openlura_feedback") || "[]"
   );
+  const personalLocalFeedback = JSON.parse(
+    localStorage.getItem("openlura_personal_feedback") || "[]"
+  );
+
+  const localFeedback = [
+    ...defaultLocalFeedback.map((item: any) => ({
+      ...item,
+      environment: item.environment || "default",
+      userScope: item.userScope || "guest",
+    })),
+    ...personalLocalFeedback.map((item: any) => ({
+      ...item,
+      environment: item.environment || "personal",
+      userScope: item.userScope || "personal",
+    })),
+  ];
 
     const normalizedLocal = localFeedback.map((item: any) => {
     const isImprovementItem =
@@ -635,12 +651,27 @@ useEffect(() => {
             : "idea_adjustment")
         : item.source;
 
+    const resolvedEnvironment = item.environment || "default";
+    const resolvedUserScope =
+      item.userScope ||
+      (resolvedEnvironment === "personal" ? "personal" : "guest");
+
     return {
       ...item,
       _localOnly: true,
       type: normalizedType,
       source: normalizedSource,
-      userScope: "guest",
+      environment: resolvedEnvironment,
+      userScope: resolvedUserScope,
+      learningType:
+        item.learningType ||
+        (normalizedType === "down" || normalizedType === "improve"
+          ? inferLearningType({
+              ...item,
+              type: normalizedType,
+              source: normalizedSource,
+            })
+          : null),
       workflowKey:
         item.workflowKey ||
         [
@@ -648,8 +679,8 @@ useEffect(() => {
           item.msgIndex ?? "",
           normalizedType || "",
           normalizedSource || "",
-          item.environment || "default",
-          "guest",
+          resolvedEnvironment,
+          resolvedUserScope,
           item.userMessage || "",
           item.message || "",
           item.timestamp || "",
@@ -661,6 +692,8 @@ useEffect(() => {
 
   try {
     const res = await fetch("/api/feedback", {
+      method: "GET",
+      headers: getOpenLuraRequestHeaders(false),
       cache: "no-store",
     });
 
@@ -1003,7 +1036,16 @@ return () => {
             <div className="flex items-center justify-between mb-6">
   <h1 className="text-2xl">📊 OpenLura Analytics</h1>
     <button
-    onClick={() => {
+    onClick={async () => {
+      try {
+        await fetch("/api/feedback", {
+          method: "DELETE",
+          headers: getOpenLuraRequestHeaders(false),
+        });
+      } catch (error) {
+        console.error("Analytics logout failed:", error);
+      }
+
       localStorage.removeItem("openlura_auto_learning_insights");
       if (typeof window !== "undefined") {
         sessionStorage.removeItem(ANALYTICS_UNLOCK_STORAGE_KEY);
@@ -1030,7 +1072,8 @@ return () => {
   <div className="p-4 bg-white/10 rounded-2xl">
     <p className="text-xs opacity-60">Lokale items</p>
     <p className="text-xl">
-      {JSON.parse(localStorage.getItem("openlura_feedback") || "[]").length}
+      {(JSON.parse(localStorage.getItem("openlura_feedback") || "[]").length) +
+        (JSON.parse(localStorage.getItem("openlura_personal_feedback") || "[]").length)}
     </p>
   </div>
 
