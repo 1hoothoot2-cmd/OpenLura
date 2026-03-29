@@ -1,7 +1,8 @@
 import { getCookieValue } from "@/lib/auth/adminSession";
 
 const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseAnonKey =
+  process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 type ResolvedOpenLuraIdentity = {
   accessToken: string | null;
@@ -9,16 +10,68 @@ type ResolvedOpenLuraIdentity = {
   userId: string | null;
 };
 
+const MAX_TOKEN_LENGTH = 5000;
+
+function toSafeErrorMeta(error: unknown) {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+    };
+  }
+
+  return {
+    message: "Unknown error",
+  };
+}
+
+function logSafeError(label: string, error: unknown, extra?: Record<string, unknown>) {
+  console.error(label, {
+    ...extra,
+    ...toSafeErrorMeta(error),
+  });
+}
+
 function normalizeToken(value: string | null | undefined) {
   if (!value) return null;
 
   const normalized = value.trim();
 
   if (!normalized) return null;
-  if (normalized.length > 5000) return null;
+  if (normalized.length > MAX_TOKEN_LENGTH) return null;
   if (/\s/.test(normalized)) return null;
 
   return normalized;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function getPackedCookieToken(value: string) {
+  try {
+    const decoded = decodeURIComponent(value);
+    const parsed: unknown = JSON.parse(decoded);
+
+    if (typeof parsed === "string") {
+      return normalizeToken(parsed);
+    }
+
+    if (Array.isArray(parsed) && typeof parsed[0] === "string") {
+      return normalizeToken(parsed[0]);
+    }
+
+    if (
+      isPlainObject(parsed) &&
+      typeof parsed.access_token === "string"
+    ) {
+      return normalizeToken(parsed.access_token);
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
 }
 
 export function getBearerTokenFromRequest(req: Request) {
@@ -50,30 +103,11 @@ export function getBearerTokenFromRequest(req: Request) {
     return null;
   }
 
-  try {
-    const decoded = decodeURIComponent(packedCookie);
-    const parsed = JSON.parse(decoded);
-
-    if (typeof parsed === "string") {
-      return normalizeToken(parsed);
-    }
-
-    if (Array.isArray(parsed) && typeof parsed[0] === "string") {
-      return normalizeToken(parsed[0]);
-    }
-
-    if (parsed && typeof parsed === "object" && typeof parsed.access_token === "string") {
-      return normalizeToken(parsed.access_token);
-    }
-  } catch {
-    return null;
-  }
-
-  return null;
+  return getPackedCookieToken(packedCookie);
 }
 
 export async function fetchSupabaseAuthUser(accessToken?: string | null) {
-  if (!supabaseUrl || !supabaseServiceRoleKey || !accessToken) {
+  if (!supabaseUrl || !supabaseAnonKey || !accessToken) {
     return null;
   }
 
@@ -81,7 +115,7 @@ export async function fetchSupabaseAuthUser(accessToken?: string | null) {
     const res = await fetch(`${supabaseUrl}/auth/v1/user`, {
       method: "GET",
       headers: {
-        apikey: supabaseServiceRoleKey,
+        apikey: supabaseAnonKey,
         Authorization: `Bearer ${accessToken}`,
         Accept: "application/json",
       },
@@ -94,12 +128,12 @@ export async function fetchSupabaseAuthUser(accessToken?: string | null) {
 
     const data: unknown = await res.json();
 
-    if (!data || typeof data !== "object") {
+    if (!isPlainObject(data)) {
       return null;
     }
 
     const userId =
-      "id" in data && typeof data.id === "string" && data.id.trim()
+      typeof data.id === "string" && data.id.trim()
         ? data.id.trim()
         : null;
 
@@ -108,8 +142,8 @@ export async function fetchSupabaseAuthUser(accessToken?: string | null) {
     }
 
     return { id: userId };
-  } catch {
-    console.error("Auth user fetch failed");
+  } catch (error) {
+    logSafeError("OpenLura auth user fetch failed", error);
     return null;
   }
 }
@@ -129,10 +163,18 @@ export async function resolveOpenLuraRequestIdentity(
 
   const authUser = await fetchSupabaseAuthUser(accessToken);
 
+  if (!authUser?.id) {
+    return {
+      accessToken: null,
+      authUser: null,
+      userId: null,
+    };
+  }
+
   return {
-    accessToken: authUser?.id ? accessToken : null,
+    accessToken,
     authUser,
-    userId: authUser?.id || null,
+    userId: authUser.id,
   };
 }
 
