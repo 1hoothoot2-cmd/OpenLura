@@ -53,8 +53,8 @@ export default function Sidebar({
   return (
     <div
       key={chat.id}
-      className={`group relative isolate overflow-visible rounded-[20px] border ol-interactive transition-[transform,background-color,border-color,box-shadow,opacity] duration-200 ${
-        openChatMenuId === chat.id ? "z-[120]" : "z-0"
+      className={`group relative overflow-visible rounded-[20px] border ol-interactive transition-[transform,background-color,border-color,box-shadow,opacity] duration-200 ${
+        openChatMenuId === chat.id ? "z-[220]" : "z-0"
       } ${
         isActive
           ? "border-[#60a5fa]/26 bg-[linear-gradient(180deg,rgba(59,130,246,0.20),rgba(59,130,246,0.10))] shadow-[inset_0_0_0_1px_rgba(191,219,254,0.10),0_14px_32px_rgba(15,23,42,0.26)]"
@@ -113,10 +113,11 @@ export default function Sidebar({
         ⋯
       </button>
 
-      {openChatMenuId === chat.id && (
+           {openChatMenuId === chat.id && (
         <div
           onClick={(e) => e.stopPropagation()}
-          className="absolute right-2 top-12 z-[130] min-w-[176px] overflow-hidden rounded-2xl border border-white/10 bg-[#161b2a]/96 shadow-[0_20px_44px_rgba(0,0,0,0.40),0_2px_10px_rgba(0,0,0,0.18)] ring-1 ring-black/20 backdrop-blur-xl animate-[fadeInUp_0.18s_ease-out]"
+          onMouseDown={(e) => e.stopPropagation()}
+          className="absolute right-2 top-12 z-[230] min-w-[176px] overflow-hidden rounded-2xl border border-white/10 bg-[#161b2a]/96 shadow-[0_20px_44px_rgba(0,0,0,0.40),0_2px_10px_rgba(0,0,0,0.18)] ring-1 ring-black/20 backdrop-blur-xl animate-[fadeInUp_0.18s_ease-out]"
         >
           <button
             type="button"
@@ -185,7 +186,7 @@ export default function Sidebar({
           className="mb-3 rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2.5 text-sm text-white/88 outline-none placeholder:text-white/28 ol-surface transition-[border-color,background-color,box-shadow] duration-200 focus:border-[#60a5fa]/28 focus:bg-white/[0.06] focus:shadow-[inset_0_0_0_1px_rgba(96,165,250,0.08)]"
         />
 
-        <div className="mt-2 flex-1 space-y-5 overflow-y-auto pr-1 pb-[max(env(safe-area-inset-bottom),12px)]">
+        <div className="mt-2 flex-1 space-y-5 overflow-x-visible overflow-y-auto pr-1 pb-[max(env(safe-area-inset-bottom),12px)]">
           {searchedPinnedChats.length > 0 && (
             <div>
               <div className="mb-2.5 flex items-center justify-between px-1">

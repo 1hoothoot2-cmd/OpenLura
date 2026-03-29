@@ -1855,7 +1855,6 @@ updated[index].messages[
     }
 
     setStreamController(null);
-    setLoadingStage("idle");
 
     // ✅ MEMORY SAVE
     if (rawInputToSend.length < 60 && !isRefinementInstruction(rawInputToSend)) {
@@ -2091,8 +2090,8 @@ console.log("FEEDBACK CLICKED", { chatId, msgIndex, type });
     className="fixed inset-0 z-30 bg-[#020308]/72 backdrop-blur-[3px] touch-none md:hidden"
   />
 )}
-                  {showClearDeletedConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+                     {showClearDeletedConfirm && (
+        <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
           <div className="w-full max-w-[340px] rounded-[28px] border border-white/8 bg-[#0a0f1d]/95 p-6 shadow-[0_22px_60px_rgba(0,0,0,0.30)] backdrop-blur-2xl">
             <h2 className="mb-2 text-lg font-semibold text-white/95">Are you sure?</h2>
             <p className="mb-5 text-sm leading-6 text-white/60">
@@ -2101,6 +2100,7 @@ console.log("FEEDBACK CLICKED", { chatId, msgIndex, type });
 
             <div className="flex gap-2">
               <button
+                type="button"
                 onClick={() => setShowClearDeletedConfirm(false)}
                 className="flex-1 rounded-[20px] border border-white/8 bg-white/[0.04] p-3 text-white/88 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.99]"
               >
@@ -2108,6 +2108,7 @@ console.log("FEEDBACK CLICKED", { chatId, msgIndex, type });
               </button>
 
               <button
+                type="button"
                 onClick={confirmClearDeletedChats}
                 className="flex-1 rounded-[20px] border border-red-400/18 bg-red-500/80 p-3 text-white shadow-[0_10px_22px_rgba(239,68,68,0.24)] ol-interactive transition-[transform,background-color,box-shadow] duration-200 hover:bg-red-500 hover:shadow-[0_12px_26px_rgba(239,68,68,0.28)] active:scale-[0.99]"
               >
