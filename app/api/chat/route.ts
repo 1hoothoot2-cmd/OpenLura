@@ -1768,8 +1768,6 @@ function getUserScopeFromRequest(input: {
 
 async function storeAutoDebugSignals(input: {
   userMessage?: string;
-  aiText?: string;
-  userScope?: "admin" | "guest" | "personal";
   signals: {
     type: string;
     confidence: "low" | "medium" | "high";
@@ -1827,9 +1825,13 @@ async function storeAutoDebugSignals(input: {
       source: `${signal.source}__route_${signal.routeType}__variant_${signal.variant}`,
       user_id: null,
       timestamp: new Date().toISOString(),
-    }));
+    } satisfies Record<string, unknown>));
 
-  if (rows.length === 0) {
+  if (
+    rows.length === 0 ||
+    !supabaseUrl ||
+    !supabaseServiceRoleKey
+  ) {
     return;
   }
 
@@ -1846,12 +1848,56 @@ async function storeAutoDebugSignals(input: {
       cache: "no-store",
     });
 
-    if (!res.ok) {
-      const errorText = await res.text();
+    if (res.ok) {
+      return;
+    }
 
+    const errorText = await res.text();
+
+    const isSchemaMismatch =
+      res.status === 400 &&
+      (
+        errorText.includes("PGRST204") ||
+        errorText.includes("42703") ||
+        errorText.toLowerCase().includes("column") ||
+        errorText.toLowerCase().includes("could not find the")
+      );
+
+    if (!isSchemaMismatch) {
       console.error("Auto debug signal save failed:", {
         status: res.status,
         ...toSafeErrorMeta(new Error(errorText)),
+      });
+      return;
+    }
+
+    const fallbackRows = rows.map((row) => ({
+      type: row.type,
+      message: row.message,
+      userMessage: row.userMessage,
+      source: row.source,
+      user_id: null,
+      timestamp: row.timestamp,
+    }));
+
+    const fallbackRes = await fetch(`${supabaseUrl}/rest/v1/openlura_feedback`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: supabaseServiceRoleKey,
+        Authorization: `Bearer ${supabaseServiceRoleKey}`,
+        Prefer: "return=minimal",
+      },
+      body: JSON.stringify(fallbackRows),
+      cache: "no-store",
+    });
+
+    if (!fallbackRes.ok) {
+      const fallbackErrorText = await fallbackRes.text();
+
+      console.error("Auto debug signal fallback save failed:", {
+        status: fallbackRes.status,
+        ...toSafeErrorMeta(new Error(fallbackErrorText)),
       });
     }
   } catch (error) {
@@ -2422,8 +2468,6 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
     bestResponsePreference: contentLearningState.bestResponsePreference,
     hasMixedResponseFeedback: contentLearningState.hasMixedResponseFeedback,
   });
-
-  const globalFeedbackSnapshotSnapshot = getGlobalFeedbackSnapshot(globalLearningFeedback);
 
     const completedFeedback = normalizedServerFeedback.filter(
     (f: any) =>
@@ -3566,12 +3610,12 @@ ${aiText}`,
     routeType: resolvedRouteType,
   });
 
-      await storeAutoDebugSignals({
-    userMessage: message,
-    aiText,
-    userScope,
-    signals: autoDebugSignals,
-  });
+  if (autoDebugSignals.length > 0) {
+    await storeAutoDebugSignals({
+      userMessage: message,
+      signals: autoDebugSignals,
+    });
+  }
 
   if (canUseCache && aiText) {
     responseCache.set(cacheKey, {
