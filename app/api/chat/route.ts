@@ -1,10 +1,18 @@
+function isPersonalEnvironmentRequest(req: Request) {
+  return req.headers.get("x-openlura-personal-env") === "true";
+}
 import OpenAI from "openai";
 import {
   requireOpenLuraIdentity,
   resolveOpenLuraRequestIdentity,
 } from "@/lib/auth/requestIdentity";
 
-let globalFeedbackSnapshot: any[] = [];
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseAnonKey =
+  process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const personalStateTable =
+  process.env.OPENLURA_PERSONAL_STATE_TABLE || "openlura_personal_state";
 
 function getGlobalFeedbackSnapshot(input: OpenLuraFeedbackRow[]) {
   return Array.isArray(input) ? [...input] : [];
@@ -220,6 +228,8 @@ function buildCacheKey(input: {
   message: string;
   personalMemory?: string;
   learningScope?: string;
+  isPersonalEnvironment?: boolean;
+  personalUserId?: string | null;
 }) {
   const memoryFingerprint = (input.personalMemory || "")
     .trim()
@@ -230,6 +240,11 @@ function buildCacheKey(input: {
     message: input.message.trim().toLowerCase(),
     personalMemoryFingerprint: memoryFingerprint,
     learningScope: (input.learningScope || "global").trim().toLowerCase(),
+    isPersonalEnvironment: input.isPersonalEnvironment === true,
+    personalUserId:
+      input.isPersonalEnvironment === true
+        ? String(input.personalUserId || "").trim()
+        : "",
   });
 }
 
@@ -682,13 +697,6 @@ function classifyOpenLuraRoute(input: {
   };
 }
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseAnonKey =
-  process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const personalStateTable =
-  process.env.OPENLURA_PERSONAL_STATE_TABLE || "openlura_personal_state";
-
 type OpenLuraFeedbackRow = {
   type?: string | null;
   message?: string | null;
@@ -757,6 +765,7 @@ type OpenLuraPersonalState = {
 };
 
 type OpenLuraPersonalRuntimeContext = {
+  personalEnvRequested: boolean;
   isPersonalEnvironment: boolean;
   personalUserId: string | null;
   personalState: OpenLuraPersonalState;
@@ -1567,30 +1576,38 @@ async function resolvePersonalRuntimeContext(input: {
   req: Request;
   memory?: string;
 }) {
-  const identity = await resolveVerifiedPersonalRuntimeIdentity(input.req);
+  const personalEnvRequested = isPersonalEnvironmentRequest(input.req);
+  const identity = personalEnvRequested
+    ? await resolveVerifiedPersonalRuntimeIdentity(input.req)
+    : {
+        isAuthenticated: false,
+        userId: null,
+        accessToken: null,
+      };
 
   const personalUserId = identity.userId;
   const accessToken = identity.accessToken;
   const hasAuthenticatedPersonalUser = identity.isAuthenticated;
 
-  const personalState = hasAuthenticatedPersonalUser && personalUserId && accessToken
-    ? await fetchSupabasePersonalState(personalUserId, accessToken)
-    : ({
-        userId: null,
-        memory: "",
-        feedback: [],
-        styleProfile: null,
-        usageStats: null,
-        raw: null,
-      } satisfies OpenLuraPersonalState);
+  const personalState =
+    personalEnvRequested && hasAuthenticatedPersonalUser && personalUserId && accessToken
+      ? await fetchSupabasePersonalState(personalUserId, accessToken)
+      : ({
+          userId: null,
+          memory: "",
+          feedback: [],
+          styleProfile: null,
+          usageStats: null,
+          raw: null,
+        } satisfies OpenLuraPersonalState);
 
   const personalFeedbackRows: OpenLuraFeedbackRow[] =
-    hasAuthenticatedPersonalUser && personalUserId && accessToken
+    personalEnvRequested && hasAuthenticatedPersonalUser && personalUserId && accessToken
       ? await getPersonalFeedbackRows(personalUserId, accessToken)
       : [];
 
   const isPersonalEnvironment =
-    hasAuthenticatedPersonalUser && !!personalUserId && !!accessToken;
+    personalEnvRequested && hasAuthenticatedPersonalUser && !!personalUserId && !!accessToken;
 
   const resolvedPersonalMemory = isPersonalEnvironment
     ? personalState.memory || ""
@@ -1599,6 +1616,7 @@ async function resolvePersonalRuntimeContext(input: {
   const learningScope = isPersonalEnvironment ? "personal" : "global";
 
   return {
+    personalEnvRequested,
     isPersonalEnvironment,
     personalUserId,
     personalState,
@@ -1693,7 +1711,7 @@ async function fetchSupabasePersonalFeedbackRows(input: {
   const limit = Math.min(Math.max(input.limit || 60, 1), 100);
 
   const query =
-    `select=type,message,userMessage,source,timestamp,user_id` +
+    `select=type,message,userMessage,source,learningType,userScope,environment,weight,timestamp,user_id` +
     `&user_id=eq.${encodeURIComponent(input.userId)}` +
     `&order=timestamp.desc` +
     `&limit=${limit}`;
@@ -1963,6 +1981,29 @@ function inferFeedbackLearningType(item: {
 
   return isStyleSignal ? "style" : "content";
 }
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function toSafeErrorMeta(error: unknown) {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+    };
+  }
+
+  return {
+    message: "Unknown error",
+  };
+}
+
+function logSafeError(label: string, error: unknown, extra?: Record<string, unknown>) {
+  console.error(label, {
+    ...extra,
+    ...toSafeErrorMeta(error),
+  });
+}
 type ChatRequestBody = {
   message: string;
   image: string | null;
@@ -1983,9 +2024,31 @@ const MAX_MEMORY_LENGTH = 12000;
 const MAX_IMAGE_URL_LENGTH = 20000;
 const MAX_RECENT_MESSAGES = 12;
 const MAX_RECENT_MESSAGE_LENGTH = 4000;
+async function readJsonBodyWithinLimit(req: Request, maxBytes: number) {
+  const rawText = await req.text();
+  const rawBytes = Buffer.byteLength(rawText, "utf8");
 
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+  if (rawBytes > maxBytes) {
+    return {
+      ok: false as const,
+      reason: "too_large" as const,
+      body: null,
+    };
+  }
+
+  try {
+    return {
+      ok: true as const,
+      reason: null,
+      body: JSON.parse(rawText) as unknown,
+    };
+  } catch {
+    return {
+      ok: false as const,
+      reason: "invalid_json" as const,
+      body: null,
+    };
+  }
 }
 
 function normalizeOptionalString(value: unknown, maxLength: number) {
@@ -2061,25 +2124,6 @@ function buildNoStoreTextHeaders(extra?: Record<string, string>) {
   };
 }
 
-function toSafeErrorMeta(error: unknown) {
-  if (error instanceof Error) {
-    return {
-      name: error.name,
-      message: error.message,
-    };
-  }
-
-  return {
-    message: "Unknown error",
-  };
-}
-function logSafeError(label: string, error: unknown, extra?: Record<string, unknown>) {
-  console.error(label, {
-    ...extra,
-    ...toSafeErrorMeta(error),
-  });
-}
-
 export async function POST(req: Request) {
   const rateLimit = checkRateLimit(req);
 
@@ -2099,7 +2143,6 @@ export async function POST(req: Request) {
     });
   }
 
-  let rawBody: unknown;
   const contentLengthHeader = req.headers.get("content-length");
   const contentLength = contentLengthHeader ? Number(contentLengthHeader) : null;
 
@@ -2114,16 +2157,21 @@ export async function POST(req: Request) {
     });
   }
 
-  try {
-    rawBody = await req.json();
-  } catch {
-    return new Response("Invalid request body", {
-      status: 400,
-      headers: buildNoStoreTextHeaders(),
-    });
+  const parsedBody = await readJsonBodyWithinLimit(req, MAX_REQUEST_BYTES);
+
+  if (!parsedBody.ok) {
+    return new Response(
+      parsedBody.reason === "too_large"
+        ? "Request body too large"
+        : "Invalid request body",
+      {
+        status: parsedBody.reason === "too_large" ? 413 : 400,
+        headers: buildNoStoreTextHeaders(),
+      }
+    );
   }
 
-  const body = parseChatRequestBody(rawBody);
+  const body = parseChatRequestBody(parsedBody.body);
 
   if (!body) {
     return new Response("Invalid request body", {
@@ -2151,6 +2199,7 @@ export async function POST(req: Request) {
   const hasAdminSession = false;
 
   const {
+    personalEnvRequested,
     isPersonalEnvironment,
     personalUserId,
     personalState,
@@ -2162,6 +2211,13 @@ export async function POST(req: Request) {
     req,
     memory,
   });
+
+  if (personalEnvRequested && !isPersonalEnvironment) {
+    return new Response("Unauthorized", {
+      status: 401,
+      headers: buildNoStoreTextHeaders(),
+    });
+  }
 
   if (isPersonalEnvironment && !personalUserId) {
     return new Response("Unauthorized", {
@@ -2204,11 +2260,19 @@ export async function POST(req: Request) {
     message: item.message,
     userMessage: item.userMessage,
     source: item.source || "personal_feedback_runtime",
-    learningType: inferFeedbackLearningType(item),
-    userScope: "personal",
+    learningType:
+      item.learningType === "style" || item.learningType === "content"
+        ? item.learningType
+        : inferFeedbackLearningType(item),
+    userScope: normalizeFeedbackUserScope(item.userScope) || "personal",
     user_id: item.user_id ?? personalUserId ?? null,
-    weight: 1.5,
+    environment: item.environment ?? "personal",
+    weight:
+      typeof item.weight === "number" && Number.isFinite(item.weight)
+        ? item.weight
+        : 1.5,
     timestamp: item.timestamp,
+    _personalRuntime: true,
   })
 );
 
@@ -2260,7 +2324,8 @@ export async function POST(req: Request) {
       )
   );
 
-    globalFeedbackSnapshot = getGlobalFeedbackSnapshot(globalLearningFeedback);
+    const currentGlobalFeedbackSnapshot =
+      getGlobalFeedbackSnapshot(globalLearningFeedback);
 
  const normalizedPersonalStateFeedback: OpenLuraFeedbackRow[] = (
   Array.isArray(personalState.feedback) ? personalState.feedback : []
@@ -2945,12 +3010,14 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
 
         if (shouldUseFastTextRoute) {
       const cacheKey = isRefinementInstruction(message || "")
-        ? ""
-        : buildCacheKey({
-            message: message || "",
-            personalMemory: runtimePersonalMemory,
-            learningScope,
-          });
+          ? ""
+          : buildCacheKey({
+              message: message || "",
+              personalMemory: runtimePersonalMemory,
+              learningScope,
+              isPersonalEnvironment,
+              personalUserId,
+            });
 
       const cached = cacheKey ? responseCache.get(cacheKey) : null;
 
@@ -3042,6 +3109,8 @@ Fast-path rules:
               message: message || "",
               personalMemory: runtimePersonalMemory,
               learningScope,
+              isPersonalEnvironment,
+              personalUserId,
             });
 
             if (cacheKey && fullText.trim()) {
@@ -3140,14 +3209,15 @@ Do not use web search for this path.`,
       !!normalizedMessageForRouting &&
       normalizedMessageForRouting.length <= 120;
 
-    const cacheKey = canUseCache
-      ? JSON.stringify({
-          message: normalizedMessageForRouting,
-          memory: runtimePersonalMemory,
-          learningScope,
-          variant: shouldForceFastCompactOutput ? "fast" : responseVariant,
-        })
-      : "";
+      const cacheKey = canUseCache
+    ? buildCacheKey({
+        message: normalizedMessageForRouting,
+        personalMemory: runtimePersonalMemory,
+        learningScope: `${learningScope}:${shouldForceFastCompactOutput ? "fast" : responseVariant}`,
+        isPersonalEnvironment,
+        personalUserId,
+      })
+    : "";
 
     if (canUseCache) {
       const cached = responseCache.get(cacheKey);
@@ -3284,10 +3354,10 @@ RUNTIME OVERRIDE PROFILE:
 ${runtimeOverrideInstructionBlock}
 
 GLOBAL LEARNING:
-Total sessions: ${globalFeedbackSnapshot.length}
+Total sessions: ${currentGlobalFeedbackSnapshot.length}
 
 Common failed patterns (avoid these types of responses):
-${globalFeedbackSnapshot
+${currentGlobalFeedbackSnapshot
   .filter(
     (f: any) => f.type === "down" || f.source === "idea_feedback_learning"
   )
