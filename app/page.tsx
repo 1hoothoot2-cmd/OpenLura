@@ -2099,20 +2099,20 @@ console.log("FEEDBACK CLICKED", { chatId, msgIndex, type });
             </p>
 
             <div className="flex gap-2">
-              <button
-                onClick={() => setShowClearDeletedConfirm(false)}
-                className="flex-1 rounded-[20px] border border-white/8 bg-white/[0.04] p-3 text-white/88 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.99]"
-              >
-                Cancel
-              </button>
+  <button
+    onClick={() => setShowClearDeletedConfirm(false)}
+    className="flex-1 rounded-[20px] border border-white/8 bg-white/[0.04] p-3 text-white/88 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.99]"
+  >
+    Cancel
+  </button>
 
-              <button
-                onClick={confirmClearDeletedChats}
-                className="flex-1 rounded-[20px] border border-red-400/18 bg-red-500/80 p-3 text-white shadow-[0_10px_22px_rgba(239,68,68,0.24)] ol-interactive transition-[transform,background-color,box-shadow] duration-200 hover:bg-red-500 hover:shadow-[0_12px_26px_rgba(239,68,68,0.28)] active:scale-[0.99]"
-              >
-                Delete
-              </button>
-            </div>
+  <button
+    onClick={confirmClearDeletedChats}
+    className="flex-1 rounded-[20px] border border-red-400/18 bg-red-500/80 p-3 text-white shadow-[0_10px_22px_rgba(239,68,68,0.24)] ol-interactive transition-[transform,background-color,box-shadow] duration-200 hover:bg-red-500 hover:shadow-[0_12px_26px_rgba(239,68,68,0.28)] active:scale-[0.99]"
+  >
+    Delete
+  </button>
+</div>
           </div>
         </div>
       )}
