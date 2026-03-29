@@ -20,6 +20,68 @@ const NO_STORE_HEADERS = {
   "Cache-Control": "no-store",
 };
 
+const AUTH_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
+const AUTH_RATE_LIMIT_MAX_ATTEMPTS = 8;
+const authRateLimitStore = new Map<string, { count: number; resetAt: number }>();
+
+function getRequestIp(req: Request) {
+  const forwardedFor = req.headers.get("x-forwarded-for");
+
+  if (forwardedFor) {
+    const firstIp = forwardedFor.split(",")[0]?.trim();
+
+    if (firstIp) {
+      return firstIp;
+    }
+  }
+
+  const realIp = req.headers.get("x-real-ip")?.trim();
+
+  if (realIp) {
+    return realIp;
+  }
+
+  return "unknown";
+}
+
+function checkAuthRateLimit(req: Request) {
+  const ip = getRequestIp(req);
+  const now = Date.now();
+  const existing = authRateLimitStore.get(ip);
+
+  if (!existing || existing.resetAt <= now) {
+    const resetAt = now + AUTH_RATE_LIMIT_WINDOW_MS;
+
+    authRateLimitStore.set(ip, {
+      count: 1,
+      resetAt,
+    });
+
+    return {
+      allowed: true,
+      remaining: AUTH_RATE_LIMIT_MAX_ATTEMPTS - 1,
+      resetAt,
+    };
+  }
+
+  if (existing.count >= AUTH_RATE_LIMIT_MAX_ATTEMPTS) {
+    return {
+      allowed: false,
+      remaining: 0,
+      resetAt: existing.resetAt,
+    };
+  }
+
+  existing.count += 1;
+  authRateLimitStore.set(ip, existing);
+
+  return {
+    allowed: true,
+    remaining: Math.max(0, AUTH_RATE_LIMIT_MAX_ATTEMPTS - existing.count),
+    resetAt: existing.resetAt,
+  };
+}
+
 function toSafeErrorMeta(error: unknown) {
   if (error instanceof Error) {
     return {
@@ -34,6 +96,28 @@ function toSafeErrorMeta(error: unknown) {
 }
 
 export async function POST(req: Request) {
+  const rateLimit = checkAuthRateLimit(req);
+
+  if (!rateLimit.allowed) {
+    const retryAfterSeconds = Math.max(
+      1,
+      Math.ceil((rateLimit.resetAt - Date.now()) / 1000)
+    );
+
+    return NextResponse.json(
+      { success: false, error: "Too many login attempts" },
+      {
+        status: 429,
+        headers: {
+          ...NO_STORE_HEADERS,
+          "Retry-After": String(retryAfterSeconds),
+          "X-OpenLura-RateLimit-Limit": String(AUTH_RATE_LIMIT_MAX_ATTEMPTS),
+          "X-OpenLura-RateLimit-Remaining": "0",
+        },
+      }
+    );
+  }
+
   try {
     let body: unknown;
 
@@ -69,7 +153,11 @@ export async function POST(req: Request) {
         { success: false, error: "Invalid credentials" },
         {
           status: 401,
-          headers: NO_STORE_HEADERS,
+          headers: {
+            ...NO_STORE_HEADERS,
+            "X-OpenLura-RateLimit-Limit": String(AUTH_RATE_LIMIT_MAX_ATTEMPTS),
+            "X-OpenLura-RateLimit-Remaining": String(rateLimit.remaining),
+          },
         }
       );
     }
@@ -86,7 +174,11 @@ export async function POST(req: Request) {
         { success: false, error: "Admin auth not configured" },
         {
           status: 500,
-          headers: NO_STORE_HEADERS,
+          headers: {
+  ...NO_STORE_HEADERS,
+  "X-OpenLura-RateLimit-Limit": String(AUTH_RATE_LIMIT_MAX_ATTEMPTS),
+  "X-OpenLura-RateLimit-Remaining": String(rateLimit.remaining),
+},
         }
       );
     }
@@ -96,7 +188,11 @@ export async function POST(req: Request) {
         { success: false, error: "Invalid credentials" },
         {
           status: 401,
-          headers: NO_STORE_HEADERS,
+          headers: {
+            ...NO_STORE_HEADERS,
+            "X-OpenLura-RateLimit-Limit": String(AUTH_RATE_LIMIT_MAX_ATTEMPTS),
+            "X-OpenLura-RateLimit-Remaining": String(rateLimit.remaining),
+          },
         }
       );
     }
@@ -108,7 +204,11 @@ export async function POST(req: Request) {
         { success: false, error: "Invalid credentials" },
         {
           status: 401,
-          headers: NO_STORE_HEADERS,
+          headers: {
+            ...NO_STORE_HEADERS,
+            "X-OpenLura-RateLimit-Limit": String(AUTH_RATE_LIMIT_MAX_ATTEMPTS),
+            "X-OpenLura-RateLimit-Remaining": String(rateLimit.remaining),
+          },
         }
       );
     }
@@ -119,7 +219,11 @@ export async function POST(req: Request) {
         username: adminUsername,
       },
       {
-        headers: NO_STORE_HEADERS,
+        headers: {
+          ...NO_STORE_HEADERS,
+          "X-OpenLura-RateLimit-Limit": String(AUTH_RATE_LIMIT_MAX_ATTEMPTS),
+          "X-OpenLura-RateLimit-Remaining": String(rateLimit.remaining),
+        },
       }
     );
 
