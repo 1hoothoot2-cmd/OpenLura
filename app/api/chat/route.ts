@@ -1207,11 +1207,7 @@ async function fetchSupabasePersonalState(userId: string | null = null) {
   }
 
   const tryQueries = resolvedUserId
-    ? [
-        `select=*&user_id=eq.${encodeURIComponent(resolvedUserId)}&limit=1`,
-        `select=*&id=eq.${encodeURIComponent(resolvedUserId)}&limit=1`,
-        "select=*&key=eq.primary&limit=1",
-      ]
+    ? [`select=*&user_id=eq.${encodeURIComponent(resolvedUserId)}&limit=1`]
     : [];
 
   for (const query of tryQueries) {
@@ -1474,18 +1470,16 @@ async function resolvePersonalRuntimeContext(input: {
   req: Request;
   personalMemory?: string;
   memory?: string;
+  hasAdminSession?: boolean;
 }) {
   const identity = await resolveOpenLuraRequestIdentity(input.req);
   const authUser = identity.authUser;
-  const explicitPersonalEnvHeader =
-    input.req.headers.get("x-openlura-personal-env") === "true";
-  const hasAdminSession = isValidAdminSession(
-    getCookieValue(input.req, ADMIN_COOKIE_NAME)
-  );
+  const personalUserId = authUser?.id || null;
+  const hasAdminSession =
+    typeof input.hasAdminSession === "boolean"
+      ? input.hasAdminSession
+      : isValidAdminSession(getCookieValue(input.req, ADMIN_COOKIE_NAME));
 
-  const personalUserId =
-    authUser?.id ||
-    (explicitPersonalEnvHeader && hasAdminSession ? "primary" : null);
   const hasAuthenticatedPersonalUser = !!personalUserId;
 
   const personalState = hasAuthenticatedPersonalUser
@@ -1509,11 +1503,7 @@ async function resolvePersonalRuntimeContext(input: {
     ? input.personalMemory || personalState.memory || input.memory || ""
     : input.memory || "";
 
-  const learningScope = isPersonalEnvironment
-    ? `personal:${personalUserId}`
-    : explicitPersonalEnvHeader && hasAdminSession
-    ? "global_admin_personal_ui"
-    : "global";
+  const learningScope = isPersonalEnvironment ? "personal" : "global";
 
   return {
     isPersonalEnvironment,
@@ -1610,14 +1600,18 @@ function buildAutoDebugSignature(input: {
 function getUserScopeFromRequest(input: {
   req: Request;
   isPersonalEnvironment?: boolean;
+  hasAdminSession?: boolean;
 }) {
   if (input.isPersonalEnvironment) {
     return "personal";
   }
 
-  return isValidAdminSession(getCookieValue(input.req, ADMIN_COOKIE_NAME))
-    ? "admin"
-    : "guest";
+  const hasAdminSession =
+    typeof input.hasAdminSession === "boolean"
+      ? input.hasAdminSession
+      : isValidAdminSession(getCookieValue(input.req, ADMIN_COOKIE_NAME));
+
+  return hasAdminSession ? "admin" : "guest";
 }
 
 async function storeAutoDebugSignals(input: {
@@ -1761,6 +1755,20 @@ const openai = new OpenAI({
 });
 
 export async function POST(req: Request) {
+  let body: any;
+
+  try {
+    body = await req.json();
+  } catch {
+    return new Response("Invalid request body", {
+      status: 400,
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-store",
+      },
+    });
+  }
+
   const {
     message,
     image,
@@ -1769,7 +1777,11 @@ export async function POST(req: Request) {
     location,
     feedback,
     recentMessages,
-  } = await req.json();
+  } = body;
+
+  const hasAdminSession = isValidAdminSession(
+    getCookieValue(req, ADMIN_COOKIE_NAME)
+  );
 
   const {
     isPersonalEnvironment,
@@ -1782,11 +1794,13 @@ export async function POST(req: Request) {
     req,
     personalMemory,
     memory,
+    hasAdminSession,
   });
 
   const userScope = getUserScopeFromRequest({
     req,
     isPersonalEnvironment,
+    hasAdminSession,
   });
 
   const serverFeedback = await getRecentServerFeedback();

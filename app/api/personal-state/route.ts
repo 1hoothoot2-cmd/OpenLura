@@ -1,9 +1,4 @@
 import { NextResponse } from "next/server";
-import {
-  ADMIN_COOKIE_NAME,
-  getCookieValue,
-  isValidAdminSession,
-} from "@/lib/auth/adminSession";
 import { resolveOpenLuraRequestIdentity } from "@/lib/auth/requestIdentity";
 
 export const dynamic = "force-dynamic";
@@ -13,26 +8,17 @@ const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const personalStateTable =
   process.env.OPENLURA_PERSONAL_STATE_TABLE || "openlura_personal_state";
 
-async function resolvePersonalStateIdentity(req: Request) {
-  const identity = await resolveOpenLuraRequestIdentity(req);
+const NO_STORE_HEADERS = {
+  "Cache-Control": "no-store",
+};
 
-  const adminSession = isValidAdminSession(
-    getCookieValue(req, ADMIN_COOKIE_NAME)
-  );
+const MAX_ITEMS_PER_COLLECTION = 500;
+const MAX_REQUEST_BYTES = 1024 * 1024;
 
-  const authUserId = identity.authUser?.id ?? null;
-  const isLegacyAdmin = !authUserId && adminSession;
-  const userId = authUserId ?? (isLegacyAdmin ? "primary" : null);
-  const storageKey = authUserId ?? (isLegacyAdmin ? "primary" : null);
-
-  return {
-    userId,
-    storageKey,
-    isAdmin: adminSession,
-    isLegacyAdmin,
-    isAuthenticatedPersonal: !!authUserId,
-  };
-}
+type PersonalStateBody = {
+  chats: unknown[];
+  memory: unknown[];
+};
 
 function getSupabaseConfig() {
   if (!supabaseUrl || !supabaseServiceRoleKey) {
@@ -45,21 +31,85 @@ function getSupabaseConfig() {
   };
 }
 
+function unauthorizedResponse() {
+  return NextResponse.json(
+    { error: "Unauthorized" },
+    {
+      status: 401,
+      headers: NO_STORE_HEADERS,
+    }
+  );
+}
+
+function badRequestResponse(message: string) {
+  return NextResponse.json(
+    { success: false, error: message },
+    {
+      status: 400,
+      headers: NO_STORE_HEADERS,
+    }
+  );
+}
+
+function internalErrorResponse(message: string) {
+  return NextResponse.json(
+    { success: false, error: message },
+    {
+      status: 500,
+      headers: NO_STORE_HEADERS,
+    }
+  );
+}
+
+function isPlainObject(value: unknown) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function validatePersonalStateBody(body: unknown): PersonalStateBody | null {
+  if (!isPlainObject(body)) {
+    return null;
+  }
+
+  const candidate = body as {
+    chats?: unknown;
+    memory?: unknown;
+  };
+
+  const chats = Array.isArray(candidate.chats) ? candidate.chats : null;
+  const memory = Array.isArray(candidate.memory) ? candidate.memory : null;
+
+  if (!chats || !memory) {
+    return null;
+  }
+
+  if (
+    chats.length > MAX_ITEMS_PER_COLLECTION ||
+    memory.length > MAX_ITEMS_PER_COLLECTION
+  ) {
+    return null;
+  }
+
+  return {
+    chats,
+    memory,
+  };
+}
+
+async function resolveAuthenticatedUserId(req: Request) {
+  const identity = await resolveOpenLuraRequestIdentity(req);
+  return identity.userId;
+}
+
 async function fetchPersonalStateRow(input: {
   personalStateTableUrl: string;
   supabaseServiceRoleKey: string;
-  storageKey?: string | null;
-  userId?: string | null;
+  userId: string;
 }) {
-  const newestRowOrder = "&order=updated_at.desc.nullslast&limit=1";
-
-  const query = input.userId
-    ? `select=chats,memory,user_id,key,updated_at&user_id=eq.${encodeURIComponent(input.userId)}${newestRowOrder}`
-    : input.storageKey
-    ? `select=chats,memory,user_id,key,updated_at&key=eq.${encodeURIComponent(input.storageKey)}${newestRowOrder}`
-    : null;
-
-  if (!query) return null;
+  const query =
+    `select=chats,memory,updated_at` +
+    `&user_id=eq.${encodeURIComponent(input.userId)}` +
+    `&order=updated_at.desc.nullslast` +
+    `&limit=1`;
 
   try {
     const res = await fetch(`${input.personalStateTableUrl}?${query}`, {
@@ -75,88 +125,102 @@ async function fetchPersonalStateRow(input: {
       return null;
     }
 
-    const rows = await res.json();
-    return Array.isArray(rows) ? rows[0] ?? null : null;
+    const rows: unknown = await res.json();
+
+    if (!Array.isArray(rows)) {
+      return null;
+    }
+
+    return rows[0] ?? null;
   } catch (error) {
-    console.error("Personal state row fetch failed:", error);
+    console.error("Personal state row fetch failed");
     return null;
   }
 }
 
 export async function GET(req: Request) {
   try {
+    const userId = await resolveAuthenticatedUserId(req);
+
+    if (!userId) {
+      return unauthorizedResponse();
+    }
+
     const { personalStateTableUrl, supabaseServiceRoleKey } = getSupabaseConfig();
-   const {
-  userId,
-  storageKey,
-  isAdmin,
-  isLegacyAdmin,
-  isAuthenticatedPersonal,
-} = await resolvePersonalStateIdentity(req);
 
-if (!storageKey && !isAdmin) {
-  throw new Error("Unauthorized");
-}
-
-const row = await fetchPersonalStateRow({
-  personalStateTableUrl,
-  supabaseServiceRoleKey,
-  storageKey,
-  userId: isAuthenticatedPersonal ? userId : null,
-});
+    const row = await fetchPersonalStateRow({
+      personalStateTableUrl,
+      supabaseServiceRoleKey,
+      userId,
+    });
 
     return NextResponse.json(
       {
-        chats: Array.isArray(row?.chats) ? row.chats : [],
-        memory: Array.isArray(row?.memory) ? row.memory : [],
-        runtime: {
-          userId: userId || null,
-          mode: isLegacyAdmin ? "legacy_admin" : "personal",
-          storageKey: row?.key || storageKey || null,
-          updatedAt: row?.updated_at || null,
-        },
+        chats: Array.isArray((row as { chats?: unknown })?.chats)
+          ? (row as { chats: unknown[] }).chats
+          : [],
+        memory: Array.isArray((row as { memory?: unknown })?.memory)
+          ? (row as { memory: unknown[] }).memory
+          : [],
       },
       {
-        headers: {
-          "Cache-Control": "no-store",
-        },
+        headers: NO_STORE_HEADERS,
       }
     );
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-
+  } catch {
     return NextResponse.json(
-      { error: message === "Unauthorized" ? "Unauthorized" : "Load failed" },
-      { status: message === "Unauthorized" ? 401 : 500 }
+      { error: "Load failed" },
+      {
+        status: 500,
+        headers: NO_STORE_HEADERS,
+      }
     );
   }
 }
 
 export async function POST(req: Request) {
   try {
-    const { personalStateTableUrl, supabaseServiceRoleKey } = getSupabaseConfig();
-    const body = await req.json();
-    const {
-      userId,
-      storageKey,
-      isAdmin,
-      isLegacyAdmin,
-      isAuthenticatedPersonal,
-    } = await resolvePersonalStateIdentity(req);
+    const userId = await resolveAuthenticatedUserId(req);
 
-    if (!storageKey && !isAdmin) {
-      throw new Error("Unauthorized");
+    if (!userId) {
+      return unauthorizedResponse();
     }
 
+    const contentLengthHeader = req.headers.get("content-length");
+    const contentLength = contentLengthHeader ? Number(contentLengthHeader) : null;
+
+    if (
+      contentLength !== null &&
+      Number.isFinite(contentLength) &&
+      contentLength > MAX_REQUEST_BYTES
+    ) {
+      return badRequestResponse("Request body too large");
+    }
+
+    let rawBody: unknown;
+
+    try {
+      rawBody = await req.json();
+    } catch {
+      return badRequestResponse("Invalid request body");
+    }
+
+    const body = validatePersonalStateBody(rawBody);
+
+    if (!body) {
+      return badRequestResponse("Invalid personal state payload");
+    }
+
+    const { personalStateTableUrl, supabaseServiceRoleKey } = getSupabaseConfig();
+
     const payload = {
-      key: isAuthenticatedPersonal ? null : storageKey,
-      user_id: isAuthenticatedPersonal ? userId : storageKey,
-      chats: Array.isArray(body?.chats) ? body.chats : [],
-      memory: Array.isArray(body?.memory) ? body.memory : [],
+      user_id: userId,
+      chats: body.chats,
+      memory: body.memory,
       updated_at: new Date().toISOString(),
     };
 
-    let res = await fetch(personalStateTableUrl, {
+    const res = await fetch(personalStateTableUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -170,69 +234,24 @@ export async function POST(req: Request) {
 
     if (!res.ok) {
       const errorText = await res.text();
-      const isSchemaMismatch =
-        res.status === 400 &&
-        (
-          errorText.includes("PGRST204") ||
-          errorText.includes("42703") ||
-          errorText.toLowerCase().includes("user_id") ||
-          errorText.toLowerCase().includes("column") ||
-          errorText.toLowerCase().includes("could not find the")
-        );
-
-      if (isSchemaMismatch) {
-        const { user_id, ...fallbackPayload } = payload;
-
-        res = await fetch(personalStateTableUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            apikey: supabaseServiceRoleKey,
-            Authorization: `Bearer ${supabaseServiceRoleKey}`,
-            Prefer: "resolution=merge-duplicates,return=representation",
-          },
-          body: JSON.stringify(fallbackPayload),
-          cache: "no-store",
-        });
-      } else {
-        return NextResponse.json(
-          { success: false, error: errorText || "Save failed" },
-          { status: 500 }
-        );
-      }
-    }
-
-    if (!res.ok) {
-      const errorText = await res.text();
-
-      return NextResponse.json(
-        { success: false, error: errorText || "Save failed" },
-        { status: 500 }
-      );
+      return internalErrorResponse(errorText || "Save failed");
     }
 
     return NextResponse.json(
       {
         success: true,
-        runtime: {
-          userId: userId || null,
-          mode: userId ? "personal" : "legacy_admin",
-          storageKey: payload.user_id || payload.key || null,
-          updatedAt: payload.updated_at,
-        },
       },
       {
-        headers: {
-          "Cache-Control": "no-store",
-        },
+        headers: NO_STORE_HEADERS,
       }
     );
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-
+  } catch {
     return NextResponse.json(
-      { error: message === "Unauthorized" ? "Unauthorized" : "Save failed" },
-      { status: message === "Unauthorized" ? 401 : 500 }
+      { error: "Save failed" },
+      {
+        status: 500,
+        headers: NO_STORE_HEADERS,
+      }
     );
   }
 }
