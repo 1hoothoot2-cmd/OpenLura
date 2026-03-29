@@ -1588,9 +1588,21 @@ async function fetchSupabaseGlobalFeedbackRows(
     return [];
   }
 
-  const safeQuery = normalizedQuery.includes("user_id=is.null")
-    ? normalizedQuery
-    : `${normalizedQuery}&user_id=is.null`;
+  // 🔒 FORCE user_id isolation (no injection possible)
+const enforcedFilter = "user_id=is.null";
+
+let safeQuery = normalizedQuery;
+
+// remove any existing user_id filters (hard strip)
+safeQuery = safeQuery.replace(/user_id=[^&]*/gi, "");
+
+// clean double &&
+safeQuery = safeQuery.replace(/&&+/g, "&").replace(/^&|&$/g, "");
+
+// append enforced filter
+safeQuery = safeQuery
+  ? `${safeQuery}&${enforcedFilter}`
+  : enforcedFilter;
 
   try {
     const res = await fetch(`${supabaseUrl}/rest/v1/openlura_feedback?${safeQuery}`, {
