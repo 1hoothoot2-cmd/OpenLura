@@ -54,6 +54,8 @@ export default function Sidebar({
     <div
       key={chat.id}
       className={`group relative isolate overflow-visible rounded-[20px] border ol-interactive transition-[transform,background-color,border-color,box-shadow,opacity] duration-200 ${
+        openChatMenuId === chat.id ? "z-[120]" : "z-0"
+      } ${
         isActive
           ? "border-[#60a5fa]/26 bg-[linear-gradient(180deg,rgba(59,130,246,0.20),rgba(59,130,246,0.10))] shadow-[inset_0_0_0_1px_rgba(191,219,254,0.10),0_14px_32px_rgba(15,23,42,0.26)]"
           : isPinned
@@ -112,7 +114,10 @@ export default function Sidebar({
       </button>
 
       {openChatMenuId === chat.id && (
-        <div className="absolute right-2 top-12 z-[80] min-w-[176px] overflow-hidden rounded-2xl border border-white/10 bg-[#161b2a]/96 shadow-[0_20px_44px_rgba(0,0,0,0.40),0_2px_10px_rgba(0,0,0,0.18)] ring-1 ring-black/20 backdrop-blur-xl animate-[fadeInUp_0.18s_ease-out]">
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className="absolute right-2 top-12 z-[130] min-w-[176px] overflow-hidden rounded-2xl border border-white/10 bg-[#161b2a]/96 shadow-[0_20px_44px_rgba(0,0,0,0.40),0_2px_10px_rgba(0,0,0,0.18)] ring-1 ring-black/20 backdrop-blur-xl animate-[fadeInUp_0.18s_ease-out]"
+        >
           <button
             type="button"
             onClick={() => {
@@ -191,7 +196,7 @@ export default function Sidebar({
                 {searchedPinnedChats.length}
               </span>
             </div>
-              <div className="space-y-2">
+              <div className="space-y-2 overflow-visible">
                 {searchedPinnedChats.map((chat) => renderChatRow(chat, true))}
               </div>
             </div>
@@ -206,7 +211,7 @@ export default function Sidebar({
                 {regularChats.length}
               </span>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 overflow-visible">
               {regularChats.length > 0 ? (
                 regularChats.map((chat) => renderChatRow(chat, false))
               ) : (
