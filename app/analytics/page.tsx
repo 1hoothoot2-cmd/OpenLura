@@ -41,7 +41,9 @@ const resolvedUserId = getOrCreateOpenLuraUserId();
         const [analyticsPassword, setAnalyticsPassword] = useState("");
     const [isUnlocked, setIsUnlocked] = useState(false);
     const [authError, setAuthError] = useState("");
-                const [authLoading, setAuthLoading] = useState(true);
+    const [authLoading, setAuthLoading] = useState(true);
+
+    const ANALYTICS_UNLOCK_STORAGE_KEY = "openlura_analytics_unlocked";
     const [itemStatus, setItemStatus] = useState<{ [key: string]: string }>({});
     const [workflowFilter, setWorkflowFilter] = useState("all");
     const [learningTypeFilter, setLearningTypeFilter] = useState("all");
@@ -53,6 +55,15 @@ const resolvedUserId = getOrCreateOpenLuraUserId();
     const saved = localStorage.getItem("openlura_analytics_status");
     if (saved) {
       setItemStatus(JSON.parse(saved));
+    }
+
+    if (typeof window !== "undefined") {
+      const rememberedUnlock =
+        sessionStorage.getItem(ANALYTICS_UNLOCK_STORAGE_KEY) === "true";
+
+      if (rememberedUnlock) {
+        setIsUnlocked(true);
+      }
     }
   }, []);
 
@@ -668,7 +679,10 @@ useEffect(() => {
           : "guest",
     }));
 
-  const combined = [...normalServerFeedback, ...normalizedLocal];
+  const combined =
+    normalServerFeedback.length > 0
+      ? [...normalServerFeedback]
+      : [...normalizedLocal];
 
   const deduped = combined.filter((item: any, index: number, arr: any[]) => {
     const itemType = item.type || "down";
@@ -736,6 +750,10 @@ return () => {
       if (!res.ok) {
         setAuthError("Verkeerd wachtwoord");
         return;
+      }
+
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem(ANALYTICS_UNLOCK_STORAGE_KEY, "true");
       }
 
       setIsUnlocked(true);
@@ -876,36 +894,45 @@ return () => {
   if (!isUnlocked) {
     return (
       <main className="min-h-screen bg-[#050510] text-white p-6 flex items-center justify-center">
-        <div className="w-full max-w-sm bg-white/10 rounded-2xl p-6">
+        <div
+          className="w-full max-w-sm bg-white/10 rounded-2xl p-6"
+          data-lpignore="false"
+        >
           <h1 className="text-2xl mb-2">🔐 Analytics Admin</h1>
           <p className="text-sm opacity-60 mb-4">
             Voer het wachtwoord in om analytics te openen
           </p>
 
-          <input
-            type="password"
-            value={analyticsPassword}
-            onChange={(e) => {
-              setAnalyticsPassword(e.target.value);
-              if (authError) setAuthError("");
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleUnlock();
             }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleUnlock();
-            }}
-            className="w-full p-3 rounded-xl bg-white/10 mb-3 outline-none"
-            placeholder="Wachtwoord"
-          />
-
-          {authError && (
-            <p className="text-red-400 text-sm mb-3">{authError}</p>
-          )}
-
-          <button
-            onClick={handleUnlock}
-            className="w-full p-3 bg-purple-500 rounded-xl"
           >
-            Ontgrendelen
-          </button>
+            <input
+              type="password"
+              name="analytics_password"
+              autoComplete="current-password"
+              value={analyticsPassword}
+              onChange={(e) => {
+                setAnalyticsPassword(e.target.value);
+                if (authError) setAuthError("");
+              }}
+              className="w-full p-3 rounded-xl bg-white/10 mb-3 outline-none"
+              placeholder="Wachtwoord"
+            />
+
+            {authError && (
+              <p className="text-red-400 text-sm mb-3">{authError}</p>
+            )}
+
+            <button
+              type="submit"
+              className="w-full p-3 bg-purple-500 rounded-xl"
+            >
+              Ontgrendelen
+            </button>
+          </form>
         </div>
       </main>
     );
@@ -919,6 +946,9 @@ return () => {
     <button
     onClick={() => {
       localStorage.removeItem("openlura_auto_learning_insights");
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem(ANALYTICS_UNLOCK_STORAGE_KEY);
+      }
       setIsUnlocked(false);
       setFeedback([]);
     }}
@@ -940,7 +970,9 @@ return () => {
 
   <div className="p-4 bg-white/10 rounded-2xl">
     <p className="text-xs opacity-60">Lokale items</p>
-    <p className="text-xl">{feedback.filter((f) => f._localOnly).length}</p>
+    <p className="text-xl">
+      {JSON.parse(localStorage.getItem("openlura_feedback") || "[]").length}
+    </p>
   </div>
 
   <div className="p-4 bg-white/10 rounded-2xl">
