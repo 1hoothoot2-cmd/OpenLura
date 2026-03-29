@@ -17,9 +17,9 @@ export default function Home() {
   const [activeChatId, setActiveChatId] = useState<number | null>(null);
   const [input, setInput] = useState("");
   const [search, setSearch] = useState("");
-    const [loading, setLoading] = useState(false);
-    const [streamController, setStreamController] = useState<AbortController | null>(null);
-  const [loadingStage, setLoadingStage] = useState<"idle" | "analyzing" | "typing">("idle");
+  const [loading, setLoading] = useState(false);
+  const [streamController, setStreamController] = useState<AbortController | null>(null);
+  
 
     // ✅ MEMORY ARRAY (weighted)
   const [memory, setMemory] = useState<{ text: string; weight: number }[]>([]);
@@ -27,14 +27,13 @@ export default function Home() {
   const [image, setImage] = useState<string | null>(null);
   const [mobileMenu, setMobileMenu] = useState(false);
 
-      const [showFeedbackBox, setShowFeedbackBox] = useState(false);
+  const [showFeedbackBox, setShowFeedbackBox] = useState(false);
   const [showClearDeletedConfirm, setShowClearDeletedConfirm] = useState(false);
   const [deleteTargetChatId, setDeleteTargetChatId] = useState<number | null>(null);
-    const [feedbackText, setFeedbackText] = useState("");
+  const [feedbackText, setFeedbackText] = useState("");
   const [feedbackCategory, setFeedbackCategory] = useState("adjustment");
   const [feedbackUI, setFeedbackUI] = useState<{ [key: string]: string }>({});
   const [feedbackGiven, setFeedbackGiven] = useState<{ [key: string]: boolean }>({});
-  const [improvedFeedbackGiven, setImprovedFeedbackGiven] = useState<{ [key: string]: boolean }>({});
   const [awaitingImprovement, setAwaitingImprovement] = useState<{
     [key: number]: {
       targetMsgIndex: number;
@@ -66,27 +65,23 @@ const [usage, setUsage] = useState<{
   const fileRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
-  const chatMenuRef = useRef<HTMLDivElement>(null);
+  
   const preferredActiveChatIdRef = useRef<number | null>(null);
   const pendingActiveChatIdRef = useRef<number | null>(null);
   const forcedActiveChatIdRef = useRef<number | null>(null);
   const isBootstrappingChatRef = useRef(false);
   const personalSyncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const hasLoadedInitialStateRef = useRef(false);
   const hasManualChatSelectionRef = useRef(false);
   const latestChatsRef = useRef<any[]>([]);
   const latestActiveChatIdRef = useRef<number | null>(null);
   const [initialStateReady, setInitialStateReady] = useState(false);
   const [openChatMenuId, setOpenChatMenuId] = useState<number | null>(null);
 
-  const greetings = [
-    "👋 Hey! Waar kan ik je mee helpen?",
-    "👋 Nieuwe chat gestart! Stel gerust je vraag 😊",
-    "👋 Ik ben er! Waar wil je hulp bij?",
-  ];
-
-  const getGreeting = () =>
-    greetings[Math.floor(Math.random() * greetings.length)];
+  const closeMobileSidebar = () => {
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      setMobileMenu(false);
+    }
+  };
 
 const buildFallbackChat = (overrides?: Partial<any>) => ({
   id: Date.now() + Math.floor(Math.random() * 1000),
@@ -120,14 +115,16 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
 
   setActiveChatId(chatId);
   setOpenChatMenuId(null);
+  closeMobileSidebar();
 };
 
-  const createNewChat = (
+    const createNewChat = (
     preset?: Partial<{
       title: string;
       messages: { role: string; content: string; image?: string | null }[];
     }>
   ) => {
+    closeMobileSidebar();
     isBootstrappingChatRef.current = false;
 
     const baseTitle =
@@ -297,10 +294,49 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
     };
 
     loadState().finally(() => {
-      hasLoadedInitialStateRef.current = true;
       setInitialStateReady(true);
     });
   }, [chatStorageKey, memoryStorageKey, isPersonalRoute]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+
+    const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
+    if (!isMobile) return;
+
+    const body = document.body;
+    const previousOverflow = body.style.overflow;
+    const previousTouchAction = body.style.touchAction;
+
+    if (mobileMenu) {
+      body.style.overflow = "hidden";
+      body.style.touchAction = "none";
+    } else {
+      body.style.overflow = "";
+      body.style.touchAction = "";
+    }
+
+    return () => {
+      body.style.overflow = previousOverflow;
+      body.style.touchAction = previousTouchAction;
+    };
+  }, [mobileMenu]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (typeof window === "undefined") return;
+
+      if (window.innerWidth >= 768) {
+        setMobileMenu(true);
+      }
+    };
+
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
 
   useEffect(() => {
     latestChatsRef.current = chats;
@@ -402,22 +438,6 @@ const hasMeaningfulPersonalState =
   }, []);
 
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (!chatMenuRef.current) return;
-
-      if (!chatMenuRef.current.contains(e.target as Node)) {
-        setOpenChatMenuId(null);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, []);
-
-  useEffect(() => {
     setOpenChatMenuId(null);
   }, [activeChatId]);
 
@@ -425,10 +445,24 @@ const hasMeaningfulPersonalState =
   const el = messagesRef.current;
   if (!el) return;
 
+  const visibleChats = chats.filter(
+    (chat: any) => !chat.archived && !chat.deleted
+  );
+
+  const resolvedActiveChat =
+    visibleChats.find((chat: any) => chat.id === activeChatId) ??
+    visibleChats[0] ??
+    null;
+
+  const lastMessage =
+    resolvedActiveChat?.messages?.[
+      (resolvedActiveChat?.messages?.length || 1) - 1
+    ] || null;
+
   requestAnimationFrame(() => {
     el.scrollTo({
       top: el.scrollHeight,
-      behavior: "smooth",
+      behavior: lastMessage?.isStreaming ? "auto" : "smooth",
     });
   });
 }, [activeChatId, chats, loading]);
@@ -602,18 +636,14 @@ const messageShellClass =
   "w-full min-w-0 max-w-full overflow-hidden";
 const messageBubbleClass =
   "min-w-0 max-w-full overflow-hidden break-words [overflow-wrap:anywhere] break-all";
-const composerShellClass =
-  "w-full min-w-0 max-w-full shrink-0 overflow-x-hidden";
-const composerInnerClass =
-  "mx-auto w-full max-w-4xl min-w-0 px-3 pb-[max(env(safe-area-inset-bottom),12px)] pt-3 md:px-4";
 const composerInputClass =
   "w-full min-w-0 max-w-full resize-none overflow-x-hidden break-words [overflow-wrap:anywhere]";
 
-  const getOrCreateOpenLuraUserId = () => {
+const getOrCreateOpenLuraUserId = () => {
   if (typeof window === "undefined") return "";
 
-  const storageKey = "openlura_user_id";
-  const existing = localStorage.getItem(storageKey);
+const storageKey = "openlura_user_id";
+const existing = localStorage.getItem(storageKey);
 
   if (existing?.trim()) {
     return existing.trim();
@@ -897,6 +927,7 @@ const restoreArchivedChat = (chatId: number) => {
   pendingActiveChatIdRef.current = chatId;
   forcedActiveChatIdRef.current = chatId;
   setActiveChatId(chatId);
+  closeMobileSidebar();
 
   updateChatMeta(chatId, {
     archived: false,
@@ -943,6 +974,7 @@ const restoreDeletedChat = (chatId: number) => {
   pendingActiveChatIdRef.current = chatId;
   forcedActiveChatIdRef.current = chatId;
   setActiveChatId(chatId);
+  closeMobileSidebar();
 
   updateChatMeta(chatId, {
     deleted: false,
@@ -1062,19 +1094,6 @@ const restoreDeletedChat = (chatId: number) => {
       : "Je huidige gebruikslimiet is bereikt. Controleer je plan of verhoog je limiet.";
   };
 
-  const getStoredFeedback = () => {
-    try {
-      return JSON.parse(
-        localStorage.getItem(
-          isPersonalRoute ? "openlura_personal_feedback" : "openlura_feedback"
-        ) || "[]"
-      );
-    } catch (error) {
-      console.error("OpenLura feedback parse failed:", error);
-      return [];
-    }
-  };
-
   const updateMemoryWeight = (text: string, delta: number) => {
     if (!text?.trim() || text.trim().length >= 120) return;
 
@@ -1107,61 +1126,12 @@ const restoreDeletedChat = (chatId: number) => {
 
   const isPersonalEnvironment = isPersonalRoute;
 
-  const getPersonalEnvironmentInsights = () => {
-    if (!activeChatId) {
-      return {
-        memoryCount: 0,
-        improvementCount: 0,
-        negativeCount: 0,
-        positiveCount: 0,
-        styleSignals: [] as string[],
-        contentSignals: [] as string[],
-      };
-    }
-
-    const rawFeedback = getStoredFeedback();
-    const personalFeedback = rawFeedback.filter(
-      (f: any) =>
-        f.chatId === activeChatId ||
-        f.environment === "personal" ||
-        f.source === "personal_environment"
-    );
-
-    const combinedText = personalFeedback
-      .map((f: any) => `${f.userMessage || ""} ${f.message || ""}`.toLowerCase())
-      .join(" ");
-
-    const styleSignals = [
-      (combinedText.includes("korter") || combinedText.includes("te lang")) && "korter antwoorden",
-      (combinedText.includes("duidelijker") || combinedText.includes("onduidelijk")) && "duidelijkere uitleg",
-      (combinedText.includes("structuur") || combinedText.includes("structure")) && "betere structuur",
-      (combinedText.includes("te vaag") || combinedText.includes("vaag")) && "concreter antwoorden",
-      (combinedText.includes("meer context") || combinedText.includes("more context")) && "meer context geven",
-    ].filter(Boolean) as string[];
-
-    const contentSignals = [
-      memory.some((m) => m.weight > 0.6) && "persoonlijke memory actief",
-      personalFeedback.some((f: any) => f.type === "up") && "positieve antwoordpatronen aanwezig",
-      personalFeedback.some((f: any) => f.type === "improve") && "verbeterfeedback aanwezig",
-    ].filter(Boolean) as string[];
-
-    return {
-      memoryCount: memory.filter((m) => m.weight > 0.6).length,
-      improvementCount: personalFeedback.filter((f: any) => f.type === "improve").length,
-      negativeCount: personalFeedback.filter((f: any) => f.type === "down").length,
-      positiveCount: personalFeedback.filter((f: any) => f.type === "up").length,
-      styleSignals: styleSignals.slice(0, 4),
-      contentSignals: contentSignals.slice(0, 3),
-    };
-  };
-
             const stopStreaming = () => {
     if (streamController) {
       streamController.abort();
       setStreamController(null);
     }
     setLoading(false);
-    setLoadingStage("idle");
   };
 
   const handlePersonalLogin = async () => {
@@ -1322,6 +1292,8 @@ const restoreDeletedChat = (chatId: number) => {
   const sendMessage = async () => {
     if (!input.trim() && !image) return;
 
+    closeMobileSidebar();
+
     try {
 
     const currentChatId = activeChatId!;
@@ -1335,7 +1307,6 @@ const restoreDeletedChat = (chatId: number) => {
 
       if (index === -1) {
         setLoading(false);
-        setLoadingStage("idle");
         return;
       }
 
@@ -1492,7 +1463,6 @@ Geef alleen direct het betere antwoord.`,
         setChats([...updated]);
         setStreamController(null);
         setLoading(false);
-        setLoadingStage("idle");
         return;
       }
 
@@ -1514,7 +1484,6 @@ Geef alleen direct het betere antwoord.`,
         setChats([...updated]);
         setStreamController(null);
         setLoading(false);
-        setLoadingStage("idle");
         return;
       }
 
@@ -1526,7 +1495,6 @@ Geef alleen direct het betere antwoord.`,
         setChats([...updated]);
         setStreamController(null);
         setLoading(false);
-        setLoadingStage("idle");
         return;
       }
 
@@ -1595,8 +1563,6 @@ Geef alleen direct het betere antwoord.`,
 
             setStreamController(null);
       setLoading(false);
-      setLoadingStage("idle");
-
       return;
     }
         if (!input && !image) return;
@@ -1677,7 +1643,6 @@ BELANGRIJK:
     setInput("");
     setImage(null);
     setLoading(true);
-setLoadingStage(imageToSend ? "analyzing" : "typing");
 
 // instant visual feedback (feels faster)
 updated[index].messages.push({
@@ -1689,9 +1654,6 @@ updated[index].messages.push({
 setChats([...updated]);
 
     if (imageToSend) {
-            setTimeout(() => {
-        setLoadingStage((current) => (current === "analyzing" ? "typing" : current));
-      }, 700);
     }
 
     await new Promise<void>((resolve) => {
@@ -1791,7 +1753,6 @@ setChats([...updated]);
       setChats([...updated]);
       setStreamController(null);
       setLoading(false);
-      setLoadingStage("idle");
       return;
     }
 
@@ -1808,7 +1769,6 @@ setChats([...updated]);
       setChats([...updated]);
       setStreamController(null);
       setLoading(false);
-      setLoadingStage("idle");
       return;
     }
 
@@ -1895,7 +1855,6 @@ updated[index].messages[
     }
 
     setStreamController(null);
-    setLoadingStage("idle");
 
     // ✅ MEMORY SAVE
     if (rawInputToSend.length < 60 && !isRefinementInstruction(rawInputToSend)) {
@@ -1932,7 +1891,6 @@ updated[index].messages[
     } finally {
       setStreamController(null);
       setLoading(false);
-      setLoadingStage("idle");
     }
   };
   const handleFeedback = async (chatId: number, msgIndex: number, type: string) => {
@@ -2043,32 +2001,6 @@ console.log("FEEDBACK CLICKED", { chatId, msgIndex, type });
   }
 };
 
-const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) => {
-  const keyId = chatId + "-" + msgIndex;
-
-  setImprovedFeedbackGiven(prev => ({
-    ...prev,
-    [keyId]: true
-  }));
-
-  if (type === "down") {
-  const updatedChats = [...chats];
-  const chatIndex = updatedChats.findIndex(c => c.id === chatId);
-
-  const original = updatedChats[chatIndex].messages[msgIndex].content;
-
-  updatedChats[chatIndex].messages[msgIndex] = {
-  ...updatedChats[chatIndex].messages[msgIndex],
-  content:
-    original +
-    "\n\n---\n\n🤖 OpenLura is still learning.\nYour feedback has been saved and will improve future answers.",
-  isLearningNote: true,
-};
-
-  setChats([...updatedChats]);
-}
-};
-
     const handleIdeaSubmit = () => {
   if (!feedbackText.trim()) return;
 
@@ -2119,7 +2051,10 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
     <main className="fixed inset-0 flex bg-[#050510] text-white overflow-hidden">
       <button
   onClick={() => setMobileMenu(!mobileMenu)}
-  className="fixed left-4 top-[max(env(safe-area-inset-top),16px)] z-[70] flex h-11 w-11 items-center justify-center rounded-full border border-white/8 bg-white/[0.055] text-white/82 shadow-[0_12px_32px_rgba(0,0,0,0.24)] backdrop-blur-2xl ol-interactive hover:border-white/12 hover:bg-white/[0.085] hover:text-white active:scale-95 md:hidden"
+  aria-label={mobileMenu ? "Close menu" : "Open menu"}
+  className={`fixed left-4 top-[max(env(safe-area-inset-top),16px)] z-[70] flex h-11 w-11 items-center justify-center rounded-full border border-white/8 bg-white/[0.055] text-white/82 shadow-[0_12px_32px_rgba(0,0,0,0.24)] backdrop-blur-2xl ol-interactive transition-[opacity,transform,background-color,border-color] duration-200 hover:border-white/12 hover:bg-white/[0.085] hover:text-white active:scale-95 md:hidden ${
+    mobileMenu ? "pointer-events-none scale-95 opacity-0" : "opacity-100"
+  }`}
 >
   ☰
 </button>
@@ -2152,12 +2087,12 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 {mobileMenu && (
   <div
     onClick={() => setMobileMenu(false)}
-    className="fixed inset-0 z-30 bg-[#020308]/72 backdrop-blur-[2px] touch-none md:hidden"
+    className="fixed inset-0 z-30 bg-[#020308]/72 backdrop-blur-[3px] touch-none md:hidden"
   />
 )}
-                  {showClearDeletedConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-[340px] rounded-[28px] border border-white/8 bg-[#0a0f1d]/95 p-6 shadow-[0_20px_56px_rgba(0,0,0,0.28)] backdrop-blur-2xl">
+                     {showClearDeletedConfirm && (
+        <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-[340px] rounded-[28px] border border-white/8 bg-[#0a0f1d]/95 p-6 shadow-[0_22px_60px_rgba(0,0,0,0.30)] backdrop-blur-2xl">
             <h2 className="mb-2 text-lg font-semibold text-white/95">Are you sure?</h2>
             <p className="mb-5 text-sm leading-6 text-white/60">
               All deleted chats will be permanently removed.
@@ -2165,15 +2100,17 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 
             <div className="flex gap-2">
               <button
+                type="button"
                 onClick={() => setShowClearDeletedConfirm(false)}
-                className="flex-1 rounded-[20px] border border-white/8 bg-white/[0.04] p-3 text-white/88 ol-interactive hover:border-white/12 hover:bg-white/[0.06] hover:text-white active:scale-[0.99]"
+                className="flex-1 rounded-[20px] border border-white/8 bg-white/[0.04] p-3 text-white/88 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.99]"
               >
                 Cancel
               </button>
 
               <button
+                type="button"
                 onClick={confirmClearDeletedChats}
-                className="flex-1 rounded-[20px] border border-red-400/18 bg-red-500/80 p-3 text-white shadow-[0_8px_18px_rgba(239,68,68,0.22)] ol-interactive hover:bg-red-500 active:scale-[0.99]"
+                className="flex-1 rounded-[20px] border border-red-400/18 bg-red-500/80 p-3 text-white shadow-[0_10px_22px_rgba(239,68,68,0.24)] ol-interactive transition-[transform,background-color,box-shadow] duration-200 hover:bg-red-500 hover:shadow-[0_12px_26px_rgba(239,68,68,0.28)] active:scale-[0.99]"
               >
                 Delete
               </button>
@@ -2183,8 +2120,8 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
       )}
 
       {deleteTargetChatId !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-[340px] rounded-[28px] border border-white/8 bg-[#0a0f1d]/95 p-6 shadow-[0_20px_56px_rgba(0,0,0,0.28)] backdrop-blur-2xl">
+        <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-[340px] rounded-[28px] border border-white/8 bg-[#0a0f1d]/95 p-6 shadow-[0_22px_60px_rgba(0,0,0,0.30)] backdrop-blur-2xl">
             <h2 className="mb-2 text-lg font-semibold text-white/95">Are you sure?</h2>
             <p className="mb-5 text-sm leading-6 text-white/60">
               This chat will be moved to Deleted chats.
@@ -2193,14 +2130,14 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
             <div className="flex gap-2">
               <button
                 onClick={() => setDeleteTargetChatId(null)}
-                className="flex-1 rounded-[20px] border border-white/8 bg-white/[0.04] p-3 text-white/88 ol-interactive hover:border-white/12 hover:bg-white/[0.06] hover:text-white active:scale-[0.99]"
+                className="flex-1 rounded-[20px] border border-white/8 bg-white/[0.04] p-3 text-white/88 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.99]"
               >
                 Cancel
               </button>
 
               <button
                 onClick={confirmDeleteChat}
-                className="flex-1 rounded-[20px] border border-red-400/18 bg-red-500/80 p-3 text-white shadow-[0_8px_18px_rgba(239,68,68,0.22)] ol-interactive hover:bg-red-500 active:scale-[0.99]"
+                className="flex-1 rounded-[20px] border border-red-400/18 bg-red-500/80 p-3 text-white shadow-[0_10px_22px_rgba(239,68,68,0.24)] ol-interactive transition-[transform,background-color,box-shadow] duration-200 hover:bg-red-500 hover:shadow-[0_12px_26px_rgba(239,68,68,0.28)] active:scale-[0.99]"
               >
                 Delete
               </button>
@@ -2210,8 +2147,8 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
       )}
 
       {showFeedbackBox && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-[360px] rounded-[28px] border border-white/8 bg-[#0a0f1d]/95 p-6 shadow-[0_20px_56px_rgba(0,0,0,0.28)] backdrop-blur-2xl">
+        <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-[360px] rounded-[28px] border border-white/8 bg-[#0a0f1d]/95 p-6 shadow-[0_22px_60px_rgba(0,0,0,0.30)] backdrop-blur-2xl">
             <h2 className="mb-4 text-lg font-semibold text-white/95">Feedback / Idea</h2>
 
             <select
@@ -2238,7 +2175,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                   setFeedbackText("");
                   setFeedbackCategory("adjustment");
                 }}
-                className="flex-1 rounded-[20px] border border-white/8 bg-white/[0.04] p-3 text-white/88 ol-interactive hover:border-white/12 hover:bg-white/[0.06] hover:text-white active:scale-[0.99]"
+                className="flex-1 rounded-[20px] border border-white/8 bg-white/[0.04] p-3 text-white/88 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.99]"
               >
                 Cancel
               </button>
@@ -2246,9 +2183,9 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
               <button
                 onClick={handleIdeaSubmit}
                 disabled={!feedbackText.trim()}
-                className={`flex-1 rounded-[20px] p-3 ol-interactive ${
+                className={`flex-1 rounded-[20px] p-3 ol-interactive transition-[transform,filter,box-shadow,background-color,color] duration-200 ${
                   feedbackText.trim()
-                    ? "bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] text-white shadow-[0_10px_22px_rgba(59,130,246,0.24)] hover:brightness-110"
+                    ? "bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] text-white shadow-[0_12px_24px_rgba(59,130,246,0.26)] hover:brightness-110 hover:shadow-[0_14px_28px_rgba(59,130,246,0.30)] active:scale-[0.99]"
                     : "bg-white/10 text-white/30"
                 }`}
               >
@@ -2260,10 +2197,10 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
       )}
 
       <div className="flex-1 min-w-0 flex items-stretch justify-center pt-0 md:h-screen md:p-4 xl:justify-start">
-        <div className="flex h-full w-full min-w-0 max-w-2xl flex-col border border-white/8 bg-white/[0.04] shadow-[0_20px_56px_rgba(0,0,0,0.20)] backdrop-blur-2xl md:min-h-0 md:rounded-[28px] xl:ml-6 xl:max-w-[920px]">
+        <div className="flex h-full w-full min-w-0 max-w-2xl flex-col border border-white/8 bg-white/[0.042] shadow-[0_20px_56px_rgba(0,0,0,0.20)] backdrop-blur-2xl md:min-h-0 md:rounded-[28px] xl:ml-6 xl:max-w-[920px]">
 
           {usage && usage.percentage >= 0.8 && !upgradeNotice.visible && (
-            <div className="mx-4 mt-4 rounded-[24px] border border-yellow-300/12 bg-yellow-500/[0.065] px-4 py-3 text-sm text-yellow-100 shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-xl">
+            <div className="mx-4 mt-4 rounded-[24px] border border-yellow-300/12 bg-yellow-500/[0.065] px-4 py-3 text-sm text-yellow-100 shadow-[0_10px_22px_rgba(0,0,0,0.10)] backdrop-blur-xl">
               <div className="font-medium">
                 Near usage limit
               </div>
@@ -2274,7 +2211,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
           )}
 
           {upgradeNotice.visible && (
-            <div className="mx-4 mt-4 rounded-[24px] border border-amber-300/12 bg-amber-500/[0.065] px-4 py-3 text-sm text-amber-100 shadow-[0_8px_18px_rgba(0,0,0,0.08)] backdrop-blur-xl">
+            <div className="mx-4 mt-4 rounded-[24px] border border-amber-300/12 bg-amber-500/[0.065] px-4 py-3 text-sm text-amber-100 shadow-[0_10px_22px_rgba(0,0,0,0.10)] backdrop-blur-xl">
               <div className="font-medium">
                 Limit reached {upgradeNotice.tier ? `(${upgradeNotice.tier})` : ""}
               </div>
@@ -2284,17 +2221,17 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 
           <div
   ref={messagesRef}
-  className={`${messageShellClass} flex-1 min-h-0 overflow-x-hidden overflow-y-auto pb-[176px] md:pb-6 ${
+  className={`${messageShellClass} flex-1 min-h-0 overflow-x-hidden overflow-y-auto pb-[188px] md:pb-6 ${
     activeChat?.messages?.length ? "space-y-4 p-4 pt-20 md:px-6 md:pt-6" : "flex items-center justify-center p-4 pt-20 md:px-6 md:pt-6"
   }`}
 >
                         {activeChat?.messages?.length === 0 ? (
               <div className="flex h-full w-full max-w-2xl -mt-20 flex-col items-center justify-center px-4 md:px-6 text-center">
-                <div className="rounded-[28px] border border-white/8 bg-white/[0.03] px-8 py-8 shadow-[0_14px_32px_rgba(0,0,0,0.14)] backdrop-blur-xl md:px-10 md:py-10">
+                <div className="rounded-[28px] border border-white/8 bg-white/[0.032] px-8 py-8 shadow-[0_16px_36px_rgba(0,0,0,0.16)] backdrop-blur-xl md:px-10 md:py-10">
                   <h1 className="mb-3 bg-gradient-to-r from-white via-white to-white/70 bg-clip-text text-2xl font-semibold tracking-tight text-transparent md:text-4xl">
                     What do you want to work on today?
                   </h1>
-                  <p className="mx-auto max-w-md text-sm leading-6 text-white/42">
+                  <p className="mx-auto max-w-md text-sm leading-6 text-white/44">
                     Ask a question, upload an image, or continue an earlier chat.
                   </p>
                 </div>
@@ -2318,8 +2255,8 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                                                 <div
                           className={`${messageBubbleClass} min-w-0 max-w-[78%] overflow-hidden whitespace-pre-line rounded-[24px] px-4 py-3.5 transition-[box-shadow,transform,background-color,border-color] duration-200 ${
                             msg.role === "user"
-                              ? "ml-auto bg-gradient-to-r from-[#1d4ed8] to-[#2563eb] text-white shadow-[0_10px_20px_rgba(37,99,235,0.18)]"
-                              : "border border-white/8 bg-white/[0.04] text-white/90 backdrop-blur-xl shadow-[0_8px_18px_rgba(0,0,0,0.10)]"
+                              ? "ml-auto bg-gradient-to-r from-[#1d4ed8] to-[#2563eb] text-white shadow-[0_12px_24px_rgba(37,99,235,0.20)]"
+                              : "border border-white/8 bg-white/[0.042] text-white/90 backdrop-blur-xl shadow-[0_10px_22px_rgba(0,0,0,0.10)]"
                           }`}
                         >
                           {msg.image && (
@@ -2335,7 +2272,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
     className={`${msg.image ? "mt-3 " : ""}${messageBubbleClass} min-w-0 max-w-full overflow-hidden`}
   >
     {msg.isStreaming && msg.content === "…" ? (
-      <span className="inline-flex items-center gap-2 text-white/55">
+      <span className="inline-flex items-center gap-2 text-white/56">
         <span className="flex items-center gap-1">
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white/55" />
           <span
@@ -2406,7 +2343,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                                       onClick={() => handleFeedback(activeChatId!, i, "up")}
                                       aria-label="Good answer"
                                       title="Good answer"
-                                      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-white/66 ol-interactive hover:border-[#3b82f6]/28 hover:bg-[#3b82f6]/8 hover:text-white active:scale-95"
+                                      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-white/66 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/28 hover:bg-[#3b82f6]/8 hover:text-white hover:shadow-[0_8px_18px_rgba(59,130,246,0.12)] active:scale-95"
                                     >
                                       <svg
                                         viewBox="0 0 24 24"
@@ -2428,7 +2365,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                                       onClick={() => handleFeedback(activeChatId!, i, "down")}
                                       aria-label="Needs improvement"
                                       title="Needs improvement"
-                                      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-white/66 ol-interactive hover:border-[#3b82f6]/28 hover:bg-[#3b82f6]/8 hover:text-white active:scale-95"
+                                      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-white/66 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/28 hover:bg-[#3b82f6]/8 hover:text-white hover:shadow-[0_8px_18px_rgba(59,130,246,0.12)] active:scale-95"
                                     >
                                       <svg
                                         viewBox="0 0 24 24"
@@ -2448,7 +2385,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                                 )}
 
                                 {feedbackUI[activeChatId + "-" + i] && (
-                                  <span className="rounded-full border border-[#3b82f6]/20 bg-[#3b82f6]/8 px-3 py-2 text-xs text-white/68">
+                                  <span className="rounded-full border border-[#3b82f6]/20 bg-[#3b82f6]/8 px-3 py-2 text-xs text-white/70 shadow-[inset_0_0_0_1px_rgba(191,219,254,0.03)]">
                                     {feedbackUI[activeChatId + "-" + i]}
                                   </span>
                                 )}
@@ -2481,7 +2418,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                     href={source.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block w-full min-w-0 max-w-full overflow-hidden rounded-[20px] border border-white/8 bg-white/[0.03] p-3.5 shadow-[0_8px_14px_rgba(0,0,0,0.06)] ol-interactive hover:border-white/12 hover:bg-white/[0.045] hover:-translate-y-[1px]"
+                    className="block w-full min-w-0 max-w-full overflow-hidden rounded-[20px] border border-white/8 bg-white/[0.03] p-3.5 shadow-[0_10px_18px_rgba(0,0,0,0.07)] ol-interactive transition-[transform,background-color,border-color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.045] hover:-translate-y-[1px] hover:shadow-[0_12px_24px_rgba(0,0,0,0.10)]"
                     title={source.title || source.url}
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -2500,7 +2437,7 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
                         </p>
                       </div>
 
-                      <span className="shrink-0 rounded-full border border-white/8 bg-white/[0.04] px-2 py-1 text-[11px] text-white/42">
+                      <span className="shrink-0 rounded-full border border-white/8 bg-white/[0.04] px-2 py-1 text-[11px] text-white/44">
                         Visit
                       </span>
                     </div>
@@ -2525,14 +2462,14 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
   className={`${
     activeChat?.messages?.length === 0
       ? "mx-auto mt-6 w-full max-w-2xl px-3 md:px-4"
-      : "fixed bottom-0 left-1/2 z-[90] w-full max-w-2xl -translate-x-1/2 bg-[#050510]/94 px-3 pt-3 pb-[calc(env(safe-area-inset-bottom)+12px)] md:static md:z-auto md:mt-auto md:w-full md:max-w-none md:border-0 md:bg-transparent md:p-0"
-  } flex w-full min-w-0 max-w-full overflow-x-hidden items-end gap-2 rounded-[28px] border border-white/8 bg-white/[0.035] shadow-[0_14px_30px_rgba(0,0,0,0.16)] backdrop-blur-2xl md:rounded-b-[32px] md:rounded-t-[28px] md:border-x-0 md:border-b-0 md:border-t md:px-4 md:py-4 md:shadow-none`}
+      : "fixed bottom-0 left-1/2 z-[90] w-full max-w-2xl -translate-x-1/2 bg-[#050510]/95 px-3 pt-3 pb-[calc(env(safe-area-inset-bottom)+14px)] md:static md:z-auto md:mt-auto md:w-full md:max-w-none md:border-0 md:bg-transparent md:p-0"
+  } flex w-full min-w-0 max-w-full overflow-x-hidden items-end gap-2 rounded-[28px] border border-white/8 bg-white/[0.038] shadow-[0_16px_34px_rgba(0,0,0,0.18)] backdrop-blur-2xl md:rounded-b-[32px] md:rounded-t-[28px] md:border-x-0 md:border-b-0 md:border-t md:px-4 md:py-4 md:shadow-none`}
 >
 
                         <button
               type="button"
               onClick={() => fileRef.current?.click()}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/8 bg-white/[0.035] text-lg text-white/74 ol-interactive hover:border-white/12 hover:bg-white/[0.06] hover:text-white active:scale-95"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/8 bg-white/[0.035] text-lg text-white/74 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_10px_22px_rgba(0,0,0,0.10)] active:scale-95"
             >
               +
             </button>
@@ -2550,12 +2487,12 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
               <div className="relative shrink-0">
                 <img
                   src={image}
-                  className="h-16 w-16 rounded-2xl border border-white/8 object-cover shadow-[0_8px_18px_rgba(0,0,0,0.16)]"
+                  className="h-16 w-16 rounded-2xl border border-white/8 object-cover shadow-[0_10px_22px_rgba(0,0,0,0.18)]"
                 />
                 <button
                   type="button"
                   onClick={() => setImage(null)}
-                  className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full border border-white/8 bg-black/72 text-xs text-white/82 ol-interactive hover:bg-black/84"
+                  className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full border border-white/8 bg-black/72 text-xs text-white/82 ol-interactive transition-[transform,background-color,border-color,color] duration-200 hover:bg-black/84 hover:text-white active:scale-95"
                 >
                   ×
                 </button>
@@ -2570,7 +2507,10 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
       setMobileMenu(false);
 
       requestAnimationFrame(() => {
-        window.scrollTo({ top: 0, behavior: "smooth" });
+        inputRef.current?.scrollIntoView({
+          block: "nearest",
+          behavior: "smooth",
+        });
       });
     }
   }}
@@ -2606,12 +2546,12 @@ enterKeyHint="send"
   type="button"
   disabled={!loading && !input.trim() && !image}
   onClick={loading ? stopStreaming : sendMessage}
-  className={`flex h-12 w-12 shrink-0 touch-manipulation items-center justify-center rounded-full text-xl ol-interactive active:scale-95 ${
+  className={`flex h-12 w-12 shrink-0 touch-manipulation items-center justify-center rounded-full text-xl ol-interactive transition-[transform,filter,background-color,color,box-shadow] duration-200 active:scale-95 ${
     loading
-      ? "bg-red-500 text-white shadow-[0_8px_20px_rgba(239,68,68,0.28)]"
+      ? "bg-red-500 text-white shadow-[0_10px_24px_rgba(239,68,68,0.30)]"
       : !input.trim() && !image
       ? "bg-white/[0.07] text-white/24 shadow-none"
-      : "bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] text-white shadow-[0_10px_22px_rgba(59,130,246,0.24)] hover:brightness-110"
+      : "bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] text-white shadow-[0_12px_24px_rgba(59,130,246,0.26)] hover:brightness-110"
   }`}
 >
   {loading ? "■" : "↑"}
@@ -2621,9 +2561,19 @@ enterKeyHint="send"
         </div>
       </div>
 
+      {isPersonalRoute && (
+        <button
+          type="button"
+          onClick={handlePersonalLogout}
+          className="fixed right-4 top-[max(env(safe-area-inset-top),16px)] z-[60] hidden rounded-full border border-white/8 bg-white/[0.05] px-3.5 py-2 text-sm text-white/78 shadow-[0_12px_28px_rgba(0,0,0,0.18)] backdrop-blur-2xl ol-interactive transition-[transform,background-color,border-color,color,opacity,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.08] hover:text-white hover:shadow-[0_14px_30px_rgba(0,0,0,0.20)] active:scale-95 md:inline-flex"
+        >
+          Log out
+        </button>
+      )}
+
       {showLoginBox && !isPersonalRoute && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-[28px] border border-white/8 bg-[#0b1020]/95 p-6 shadow-[0_20px_56px_rgba(0,0,0,0.30)] backdrop-blur-2xl">
+        <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-[28px] border border-white/8 bg-[#0b1020]/95 p-6 shadow-[0_22px_60px_rgba(0,0,0,0.32)] backdrop-blur-2xl">
             <div className="mb-5 rounded-[24px] border border-white/8 bg-white/[0.03] px-4 py-4">
               <p className="text-[11px] uppercase tracking-[0.16em] text-white/38">
                 Secure access
@@ -2641,7 +2591,7 @@ enterKeyHint="send"
                 value={loginUsername}
                 onChange={(e) => setLoginUsername(e.target.value)}
                 placeholder="Username"
-                className="w-full rounded-[22px] border border-white/8 bg-white/[0.04] px-4 py-3 text-white/95 outline-none placeholder:text-white/30 ol-surface focus:border-white/14 focus:bg-white/[0.06]"
+                className="w-full rounded-[22px] border border-white/8 bg-white/[0.04] px-4 py-3 text-white/95 outline-none placeholder:text-white/30 ol-surface transition-[border-color,background-color,box-shadow] duration-200 focus:border-white/14 focus:bg-white/[0.06] focus:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)]"
               />
 
               <input
@@ -2649,7 +2599,7 @@ enterKeyHint="send"
                 value={loginPassword}
                 onChange={(e) => setLoginPassword(e.target.value)}
                 placeholder="Password"
-                className="w-full rounded-[22px] border border-white/8 bg-white/[0.04] px-4 py-3 text-white/95 outline-none placeholder:text-white/30 ol-surface focus:border-white/14 focus:bg-white/[0.06]"
+                className="w-full rounded-[22px] border border-white/8 bg-white/[0.04] px-4 py-3 text-white/95 outline-none placeholder:text-white/30 ol-surface transition-[border-color,background-color,box-shadow] duration-200 focus:border-white/14 focus:bg-white/[0.06] focus:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)]"
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !loginLoading) {
                     handlePersonalLogin();
@@ -2672,7 +2622,7 @@ enterKeyHint="send"
                   setLoginUsername("");
                   setLoginPassword("");
                 }}
-                className="flex-1 rounded-[22px] border border-white/8 bg-white/[0.04] p-3 text-white/90 backdrop-blur-xl ol-interactive hover:border-white/12 hover:bg-white/[0.06]"
+                className="flex-1 rounded-[22px] border border-white/8 bg-white/[0.04] p-3 text-white/90 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.99]"
               >
                 Cancel
               </button>
@@ -2680,7 +2630,7 @@ enterKeyHint="send"
               <button
                 onClick={handlePersonalLogin}
                 disabled={loginLoading}
-                className="flex-1 rounded-[22px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] p-3 text-white shadow-[0_12px_28px_rgba(59,130,246,0.24)] ol-interactive hover:brightness-110 disabled:opacity-60"
+                className="flex-1 rounded-[22px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] p-3 text-white shadow-[0_12px_28px_rgba(59,130,246,0.24)] ol-interactive transition-[transform,filter,box-shadow,opacity] duration-200 hover:brightness-110 hover:shadow-[0_14px_32px_rgba(59,130,246,0.28)] active:scale-[0.99] disabled:opacity-60"
               >
               {loginLoading ? "Signing in..." : "Log in"}
               </button>

@@ -11,14 +11,15 @@ export const dynamic = "force-dynamic";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const analyticsAdminPassword =
-  process.env.ANALYTICS_ADMIN_PASSWORD || "@Bodi2023!@#";
-const analyticsSessionSecret =
-  process.env.ANALYTICS_SESSION_SECRET ||
-  process.env.SUPABASE_SERVICE_ROLE_KEY ||
-  "openlura-analytics-session-secret";
+const analyticsAdminPassword = process.env.ANALYTICS_ADMIN_PASSWORD;
 const ANALYTICS_COOKIE_NAME = "openlura_analytics_session";
 const ANALYTICS_SESSION_MAX_AGE = 60 * 60 * 3;
+const ANALYTICS_SESSION_TYPE = "analytics_admin";
+const ANALYTICS_SIGNATURE_HEX_LENGTH = 64;
+
+const NO_STORE_HEADERS = {
+  "Cache-Control": "no-store",
+};
 
 async function resolveFeedbackUserId(req: Request) {
   const identity = await resolveOpenLuraRequestIdentity(req);
@@ -35,8 +36,21 @@ async function resolveFeedbackUserId(req: Request) {
   );
 }
 
+function getAnalyticsSessionSecret() {
+  const secret =
+    process.env.ANALYTICS_SESSION_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!secret) {
+    throw new Error(
+      "Missing ANALYTICS_SESSION_SECRET or SUPABASE_SERVICE_ROLE_KEY"
+    );
+  }
+
+  return secret;
+}
+
 function signAnalyticsSession(expiresAt: string) {
-  return createHmac("sha256", analyticsSessionSecret)
+  return createHmac("sha256", getAnalyticsSessionSecret())
     .update(expiresAt)
     .digest("hex");
 }
@@ -47,29 +61,76 @@ function getUserScopeFromRequest(req: Request) {
     : "guest";
 }
 
-function createAnalyticsSessionValue() {
-  const expiresAt = String(Date.now() + ANALYTICS_SESSION_MAX_AGE * 1000);
+function parseAnalyticsSessionValue(value?: string | null) {
+  if (!value) return null;
+
+  const separatorIndex = value.indexOf(".");
+  if (separatorIndex <= 0) return null;
+
+  const expiresAt = value.slice(0, separatorIndex);
+  const signature = value.slice(separatorIndex + 1);
+
+  if (!expiresAt || !signature) return null;
+
+  return {
+    expiresAt,
+    signature,
+  };
+}
+
+function createAnalyticsSessionValue(now = Date.now()) {
+  const expiresAt = String(now + ANALYTICS_SESSION_MAX_AGE * 1000);
   const signature = signAnalyticsSession(expiresAt);
   return `${expiresAt}.${signature}`;
-  
 }
+
 function isValidAnalyticsSession(value?: string | null) {
-  if (!value) return false;
+  const parsed = parseAnalyticsSessionValue(value);
 
-  const [expiresAt, signature] = value.split(".");
-  if (!expiresAt || !signature) return false;
-  if (Number(expiresAt) <= Date.now()) return false;
+  if (!parsed) return false;
 
-  const expected = signAnalyticsSession(expiresAt);
+  const expiresAtNumber = Number(parsed.expiresAt);
+
+  if (!Number.isFinite(expiresAtNumber)) return false;
+  if (expiresAtNumber <= Date.now()) return false;
+  if (parsed.signature.length !== ANALYTICS_SIGNATURE_HEX_LENGTH) return false;
+
+  const expected = signAnalyticsSession(parsed.expiresAt);
+
+  if (expected.length !== parsed.signature.length) return false;
 
   try {
-    return timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+    return timingSafeEqual(
+      Buffer.from(parsed.signature, "utf8"),
+      Buffer.from(expected, "utf8")
+    );
   } catch {
     return false;
   }
 }
 function getAnalyticsSessionCookie(req: Request) {
   return getCookieValue(req, ANALYTICS_COOKIE_NAME);
+}
+
+function getAnalyticsSessionCookieOptions() {
+  return {
+    httpOnly: true,
+    sameSite: "lax" as const,
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: ANALYTICS_SESSION_MAX_AGE,
+  };
+}
+
+function getClearedAnalyticsSessionCookieOptions() {
+  return {
+    httpOnly: true,
+    sameSite: "lax" as const,
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    expires: new Date(0),
+    maxAge: 0,
+  };
 }
 
 function getSupabaseConfig() {
@@ -158,79 +219,93 @@ export async function POST(req: Request) {
     const isPersonalEnvironment = isExplicitPersonalEnvironment;
 
     if (data?.action === "unlock_analytics") {
+      if (!analyticsAdminPassword) {
+        return NextResponse.json(
+          { success: false, error: "Analytics auth not configured" },
+          {
+            status: 500,
+            headers: NO_STORE_HEADERS,
+          }
+        );
+      }
+
       if (String(data.password ?? "") !== analyticsAdminPassword) {
         return NextResponse.json(
           { success: false, error: "Verkeerd wachtwoord" },
-          { status: 401 }
+          {
+            status: 401,
+            headers: NO_STORE_HEADERS,
+          }
         );
       }
 
       const response = NextResponse.json(
-        { success: true },
         {
-          headers: {
-            "Cache-Control": "no-store",
+          success: true,
+          runtime: {
+            sessionType: ANALYTICS_SESSION_TYPE,
           },
+        },
+        {
+          headers: NO_STORE_HEADERS,
         }
       );
 
-      response.cookies.set(ANALYTICS_COOKIE_NAME, createAnalyticsSessionValue(), {
-        httpOnly: true,
-        sameSite: "lax",
-        secure: process.env.NODE_ENV === "production",
-        path: "/",
-        maxAge: ANALYTICS_SESSION_MAX_AGE,
-      });
+      response.cookies.set(
+        ANALYTICS_COOKIE_NAME,
+        createAnalyticsSessionValue(),
+        getAnalyticsSessionCookieOptions()
+      );
 
       return response;
     }
 
-        if (data?.action === "update_workflow_status") {
-          const entry = {
-            chatId: data.chatId ?? null,
-            msgIndex: data.msgIndex ?? null,
-            type: data.type ?? null,
-            message: data.message ?? null,
-            userMessage: data.userMessage ?? null,
-            source: data.source ?? null,
-            userScope: isPersonalEnvironment ? "personal" : userScope,
-            user_id: resolvedUserId,
-            environment: isPersonalEnvironment ? "personal" : "default",
-            timestamp: new Date().toISOString(),
-          };
+    if (data?.action === "update_workflow_status") {
+      const entry = {
+        chatId: data.chatId ?? null,
+        msgIndex: data.msgIndex ?? null,
+        type: data.type ?? null,
+        message: data.message ?? null,
+        userMessage: data.userMessage ?? null,
+        source: data.source ?? null,
+        userScope: isPersonalEnvironment ? "personal" : userScope,
+        user_id: resolvedUserId,
+        environment: isPersonalEnvironment ? "personal" : "default",
+        timestamp: new Date().toISOString(),
+      };
 
-          try {
-            const saved = await saveFeedbackEntry({
-              feedbackTableUrl,
-              supabaseServiceRoleKey,
-              entry,
-              errorLabel: "Workflow status opslaan mislukt:",
-            });
+      try {
+        const saved = await saveFeedbackEntry({
+          feedbackTableUrl,
+          supabaseServiceRoleKey,
+          entry,
+          errorLabel: "Workflow status opslaan mislukt:",
+        });
 
-            return NextResponse.json(
-              { success: true, item: saved?.[0] ?? entry },
-              {
-                headers: {
-                  "Cache-Control": "no-store",
-                },
-              }
-            );
-          } catch (error) {
-            console.error("Supabase workflow POST failed:", error);
-
-            return NextResponse.json(
-              {
-                success: false,
-                error: "Workflow status opslaan mislukt",
-                details: String(error),
-              },
-              { status: 500 }
-            );
+        return NextResponse.json(
+          { success: true, item: saved?.[0] ?? entry },
+          {
+            headers: NO_STORE_HEADERS,
           }
-        }
+        );
+      } catch (error) {
+        console.error("Supabase workflow POST failed:", error);
+
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Workflow status opslaan mislukt",
+            details: String(error),
+          },
+          {
+            status: 500,
+            headers: NO_STORE_HEADERS,
+          }
+        );
+      }
+    }
 
     const rawMessage = String(data.message ?? "").toLowerCase();
-
     let inferredIdeaSource = data.source ?? null;
 
     if (data.type === "idea") {
@@ -268,6 +343,7 @@ export async function POST(req: Request) {
         inferredIdeaSource = "idea_adjustment";
       }
     }
+
     const entry = {
       chatId: data.chatId ?? null,
       msgIndex: data.msgIndex ?? null,
@@ -299,11 +375,14 @@ export async function POST(req: Request) {
           error: "Feedback opslaan mislukt",
           details: String(error),
         },
-        { status: 500 }
+        {
+          status: 500,
+          headers: NO_STORE_HEADERS,
+        }
       );
     }
 
-   return NextResponse.json(
+    return NextResponse.json(
       {
         success: true,
         item: saved?.[0] ?? entry,
@@ -313,20 +392,22 @@ export async function POST(req: Request) {
         },
       },
       {
-        headers: {
-          "Cache-Control": "no-store",
-        },
+        headers: NO_STORE_HEADERS,
       }
     );
   } catch (error) {
     console.error("Feedback POST failed:", error);
+
     return NextResponse.json(
       {
         success: false,
         error: "Feedback opslaan mislukt",
         details: String(error),
       },
-      { status: 500 }
+      {
+        status: 500,
+        headers: NO_STORE_HEADERS,
+      }
     );
   }
 }
@@ -404,7 +485,7 @@ export async function DELETE(req: Request) {
         success: true,
         runtime: {
           clearedSession: hadSession,
-          sessionType: "analytics_admin",
+          sessionType: ANALYTICS_SESSION_TYPE,
         },
       },
       {
@@ -414,13 +495,11 @@ export async function DELETE(req: Request) {
       }
     );
 
-    response.cookies.set(ANALYTICS_COOKIE_NAME, "", {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      path: "/",
-      expires: new Date(0),
-    });
+    response.cookies.set(
+      ANALYTICS_COOKIE_NAME,
+      "",
+      getClearedAnalyticsSessionCookieOptions()
+    );
 
     return response;
   } catch (error) {
