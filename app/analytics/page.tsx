@@ -193,66 +193,9 @@ const resolvedUserId = getOrCreateOpenLuraUserId();
     checkAnalyticsAccess();
   }, []);
 
-        const filteredFeedback = feedback.filter((f: any) => {
-        const currentStatus = itemStatus[getItemKey(f)] || getAutoStatus(f);
-
-    if (workflowFilter !== "all" && currentStatus !== workflowFilter) {
-      return false;
-    }
-
-    const resolvedLearningType = inferLearningType(f);
-    const supportsLearningTypeFilter =
-      f.type === "down" ||
-      f.type === "improve" ||
-      f.type === "auto_debug" ||
-      f.source === "idea_feedback_learning";
-
-    if (
-      learningTypeFilter !== "all" &&
-      supportsLearningTypeFilter &&
-      resolvedLearningType !== learningTypeFilter
-    ) {
-      return false;
-    }
-
-    if (
-      activeTab === "auto_debug" &&
-      autoDebugConfidenceFilter !== "all" &&
-      getAutoDebugConfidence(f) !== autoDebugConfidenceFilter
-    ) {
-      return false;
-    }
-
-    if (
-      activeTab === "auto_debug" &&
-      autoDebugRouteFilter !== "all" &&
-      getAutoDebugRouteType(f) !== autoDebugRouteFilter
-    ) {
-      return false;
-    }
-
-    if (
-      activeTab === "auto_debug" &&
-      autoDebugSignalFilter !== "all" &&
-      getAutoDebugSignalType(f) !== autoDebugSignalFilter
-    ) {
-      return false;
-    }
-
-    if (activeTab === "all") return true;
-    if (activeTab === "positive") return f.type === "up";
-    if (activeTab === "negative") return f.type === "down";
-    if (activeTab === "improvement") return f.type === "improve";
-    if (activeTab === "auto_debug") return f.type === "auto_debug";
-    if (activeTab === "ideas") {
-      if (f.type !== "idea") return false;
-      if (ideaFilter === "all") return true;
-      if (ideaFilter === "bug") return f.source === "idea_bug";
-      if (ideaFilter === "adjustment") return f.source === "idea_adjustment";
-      if (ideaFilter === "learning") return f.source === "idea_feedback_learning";
-    }
-    return true;
-  });
+  const filteredFeedback = feedback.filter((f: AnalyticsFeedbackItem) =>
+  matchesCurrentAnalyticsFilters(f)
+);
 
           const negativeFeedback = feedback.filter((f: any) => f.type === "down");
   const positiveFeedback = feedback.filter((f: any) => f.type === "up");
@@ -740,18 +683,42 @@ useEffect(() => {
 
  const normalServerFeedback = data
   .filter((item: AnalyticsFeedbackItem) => item.type !== "workflow_status")
-  .map((item: AnalyticsFeedbackItem) => ({
-    ...item,
-    userScope:
+  .map((item: AnalyticsFeedbackItem) => {
+    const resolvedEnvironment = item.environment || "default";
+    const resolvedUserScope =
       item.userScope === "admin" ||
       item.userScope === "guest" ||
       item.userScope === "personal" ||
       item.userScope === "user"
         ? item.userScope
-        : item.environment === "personal"
+        : resolvedEnvironment === "personal"
         ? "personal"
-        : "guest",
-  }));
+        : "guest";
+
+    return {
+      ...item,
+      environment: resolvedEnvironment,
+      userScope: resolvedUserScope,
+      learningType:
+        item.learningType ||
+        (item.type === "down" || item.type === "improve" || item.type === "auto_debug"
+          ? inferLearningType(item)
+          : null),
+      workflowKey:
+        item.workflowKey ||
+        [
+          item.chatId || "",
+          item.msgIndex ?? "",
+          item.type || "",
+          item.source || "",
+          resolvedEnvironment,
+          resolvedUserScope,
+          item.userMessage || "",
+          item.message || "",
+          item.timestamp || "",
+        ].join("::"),
+    };
+  });
 
 const combined = [...normalServerFeedback, ...normalizedLocal];
 
@@ -848,6 +815,73 @@ return () => {
     if (f.type === "up") return "klaar";
     return "nieuw";
   }
+
+  const matchesCurrentAnalyticsFilters = (
+  f: AnalyticsFeedbackItem,
+  statusOverride?: string
+) => {
+  const currentStatus =
+    statusOverride || itemStatus[getItemKey(f)] || getAutoStatus(f);
+
+  if (workflowFilter !== "all" && currentStatus !== workflowFilter) {
+    return false;
+  }
+
+  const resolvedLearningType = inferLearningType(f);
+  const supportsLearningTypeFilter =
+    f.type === "down" ||
+    f.type === "improve" ||
+    f.type === "auto_debug" ||
+    f.source === "idea_feedback_learning";
+
+  if (
+    learningTypeFilter !== "all" &&
+    supportsLearningTypeFilter &&
+    resolvedLearningType !== learningTypeFilter
+  ) {
+    return false;
+  }
+
+  if (
+    activeTab === "auto_debug" &&
+    autoDebugConfidenceFilter !== "all" &&
+    getAutoDebugConfidence(f) !== autoDebugConfidenceFilter
+  ) {
+    return false;
+  }
+
+  if (
+    activeTab === "auto_debug" &&
+    autoDebugRouteFilter !== "all" &&
+    getAutoDebugRouteType(f) !== autoDebugRouteFilter
+  ) {
+    return false;
+  }
+
+  if (
+    activeTab === "auto_debug" &&
+    autoDebugSignalFilter !== "all" &&
+    getAutoDebugSignalType(f) !== autoDebugSignalFilter
+  ) {
+    return false;
+  }
+
+  if (activeTab === "all") return true;
+  if (activeTab === "positive") return f.type === "up";
+  if (activeTab === "negative") return f.type === "down";
+  if (activeTab === "improvement") return f.type === "improve";
+  if (activeTab === "auto_debug") return f.type === "auto_debug";
+
+  if (activeTab === "ideas") {
+    if (f.type !== "idea") return false;
+    if (ideaFilter === "all") return true;
+    if (ideaFilter === "bug") return f.source === "idea_bug";
+    if (ideaFilter === "adjustment") return f.source === "idea_adjustment";
+    if (ideaFilter === "learning") return f.source === "idea_feedback_learning";
+  }
+
+  return true;
+};
 
   const pushAutoLearningInsight = async (key: string, message: string) => {
     const storageKey = "openlura_auto_learning_insights";
@@ -1063,7 +1097,7 @@ return () => {
   Environment: {typeof window !== "undefined" ? window.location.origin : ""}
 </p>
 
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+  <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
   <div className="p-4 bg-white/10 rounded-2xl">
     <p className="text-xs opacity-60">Server items</p>
     <p className="text-xl">{feedback.filter((f) => !f._localOnly).length}</p>
@@ -1093,7 +1127,7 @@ return () => {
   </div>
 </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6">
+  <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6">
 
   <button
     onClick={() => setActiveTab("all")}
@@ -1252,76 +1286,25 @@ return () => {
     onClick={() => setWorkflowFilter("nieuw")}
     className={`px-4 py-2 rounded-xl ${workflowFilter === "nieuw" ? "bg-blue-400 text-black" : "bg-white/10 text-white"}`}
   >
-    Nieuw ({feedback.filter((f: any) => {
-      const status = itemStatus[getItemKey(f)] || getAutoStatus(f);
-      const resolvedLearningType = inferLearningType(f);
-      const supportsLearningTypeFilter =
-        f.type === "down" || f.type === "improve" || f.source === "idea_feedback_learning";
-      if (status !== "nieuw") return false;
-      if (learningTypeFilter !== "all" && supportsLearningTypeFilter && resolvedLearningType !== learningTypeFilter) return false;
-      if (activeTab === "all") return true;
-      if (activeTab === "positive") return f.type === "up";
-      if (activeTab === "negative") return f.type === "down";
-      if (activeTab === "improvement") return f.type === "improve";
-      if (activeTab === "ideas") {
-        if (f.type !== "idea") return false;
-        if (ideaFilter === "all") return true;
-        if (ideaFilter === "bug") return f.source === "idea_bug";
-        if (ideaFilter === "adjustment") return f.source === "idea_adjustment";
-        if (ideaFilter === "learning") return f.source === "idea_feedback_learning";
-      }
-      return true;
-    }).length})
+    Nieuw ({feedback.filter((f: AnalyticsFeedbackItem) =>
+  matchesCurrentAnalyticsFilters(f, "nieuw")
+).length})
   </button>
   <button
     onClick={() => setWorkflowFilter("bezig")}
     className={`px-4 py-2 rounded-xl ${workflowFilter === "bezig" ? "bg-yellow-400 text-black" : "bg-white/10 text-white"}`}
   >
-    In behandeling ({feedback.filter((f: any) => {
-      const status = itemStatus[getItemKey(f)] || getAutoStatus(f);
-      const resolvedLearningType = inferLearningType(f);
-      const supportsLearningTypeFilter =
-        f.type === "down" || f.type === "improve" || f.source === "idea_feedback_learning";
-      if (status !== "bezig") return false;
-      if (learningTypeFilter !== "all" && supportsLearningTypeFilter && resolvedLearningType !== learningTypeFilter) return false;
-      if (activeTab === "all") return true;
-      if (activeTab === "positive") return f.type === "up";
-      if (activeTab === "negative") return f.type === "down";
-      if (activeTab === "improvement") return f.type === "improve";
-      if (activeTab === "ideas") {
-        if (f.type !== "idea") return false;
-        if (ideaFilter === "all") return true;
-        if (ideaFilter === "bug") return f.source === "idea_bug";
-        if (ideaFilter === "adjustment") return f.source === "idea_adjustment";
-        if (ideaFilter === "learning") return f.source === "idea_feedback_learning";
-      }
-      return true;
-    }).length})
+    In behandeling ({feedback.filter((f: AnalyticsFeedbackItem) =>
+  matchesCurrentAnalyticsFilters(f, "bezig")
+).length})
   </button>
   <button
     onClick={() => setWorkflowFilter("klaar")}
     className={`px-4 py-2 rounded-xl ${workflowFilter === "klaar" ? "bg-green-400 text-black" : "bg-white/10 text-white"}`}
   >
-    Klaar ({feedback.filter((f: any) => {
-      const status = itemStatus[getItemKey(f)] || getAutoStatus(f);
-      const resolvedLearningType = inferLearningType(f);
-      const supportsLearningTypeFilter =
-        f.type === "down" || f.type === "improve" || f.source === "idea_feedback_learning";
-      if (status !== "klaar") return false;
-      if (learningTypeFilter !== "all" && supportsLearningTypeFilter && resolvedLearningType !== learningTypeFilter) return false;
-      if (activeTab === "all") return true;
-      if (activeTab === "positive") return f.type === "up";
-      if (activeTab === "negative") return f.type === "down";
-      if (activeTab === "improvement") return f.type === "improve";
-      if (activeTab === "ideas") {
-        if (f.type !== "idea") return false;
-        if (ideaFilter === "all") return true;
-        if (ideaFilter === "bug") return f.source === "idea_bug";
-        if (ideaFilter === "adjustment") return f.source === "idea_adjustment";
-        if (ideaFilter === "learning") return f.source === "idea_feedback_learning";
-      }
-      return true;
-    }).length})
+    Klaar ({feedback.filter((f: AnalyticsFeedbackItem) =>
+  matchesCurrentAnalyticsFilters(f, "klaar")
+).length})
   </button>
 </div>
 

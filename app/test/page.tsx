@@ -90,10 +90,6 @@ const [usage, setUsage] = useState<{
     }
   };
 
-  const personalEnvironmentHeader: Record<string, string> = isPersonalRoute
-    ? { "x-openlura-personal-env": "true" }
-    : {};
-
 const buildFallbackChat = (overrides?: Partial<any>) => ({
   id: Date.now() + Math.floor(Math.random() * 1000),
   title: isPersonalRoute ? "Persoonlijke omgeving" : "New Chat",
@@ -189,10 +185,7 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
           try {
             const res = await fetch("/api/personal-state", {
               method: "GET",
-              headers: {
-                ...getOpenLuraRequestHeaders(false),
-                ...personalEnvironmentHeader,
-              },
+              headers: getOpenLuraRequestHeaders(false),
               cache: "no-store",
               credentials: "same-origin",
             });
@@ -439,10 +432,7 @@ const hasMeaningfulPersonalState =
       try {
         await fetch("/api/personal-state", {
           method: "POST",
-          headers: {
-            ...getOpenLuraRequestHeaders(true),
-            ...personalEnvironmentHeader,
-          },
+          headers: getOpenLuraRequestHeaders(false),
           credentials: "same-origin",
           body: JSON.stringify({
             chats: safeChats,
@@ -563,10 +553,7 @@ const hasMeaningfulPersonalState =
       try {
         const res = await fetch("/api/personal-state", {
           method: "GET",
-          headers: {
-            ...getOpenLuraRequestHeaders(false),
-            ...personalEnvironmentHeader,
-          },
+          headers: getOpenLuraRequestHeaders(false),
           cache: "no-store",
           credentials: "same-origin",
         });
@@ -686,7 +673,7 @@ const hasMeaningfulPersonalState =
       window.removeEventListener("focus", handleWindowFocus);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [isPersonalRoute, personalEnvironmentHeader]);
+  }, [isPersonalRoute]);
 
   useEffect(() => {
     const handlePaste = async (e: ClipboardEvent) => {
@@ -739,10 +726,35 @@ const messageBubbleClass =
 const composerInputClass =
   "w-full min-w-0 max-w-full resize-none overflow-x-hidden break-words [overflow-wrap:anywhere]";
 
+const getOrCreateOpenLuraUserId = () => {
+  if (typeof window === "undefined") return "";
+
+  const storageKey = "openlura_user_id";
+  const existing = localStorage.getItem(storageKey);
+
+  if (existing?.trim()) {
+    return existing.trim();
+  }
+
+  const newId =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `openlura_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+
+  localStorage.setItem(storageKey, newId);
+  return newId;
+};
+
 const getOpenLuraRequestHeaders = (includeJson = true) => {
   const headers: Record<string, string> = includeJson
     ? { "Content-Type": "application/json" }
     : {};
+
+  const resolvedUserId = getOrCreateOpenLuraUserId();
+
+  if (resolvedUserId) {
+    headers["x-openlura-user-id"] = resolvedUserId;
+  }
 
   if (isPersonalRoute) {
     headers["x-openlura-personal-env"] = "true";
@@ -1244,10 +1256,7 @@ const restoreDeletedChat = (chatId: number) => {
     try {
       const res = await fetch("/api/auth", {
         method: "POST",
-        headers: {
-          ...getOpenLuraRequestHeaders(true),
-          ...personalEnvironmentHeader,
-        },
+        headers: getOpenLuraRequestHeaders(false),
         credentials: "same-origin",
         body: JSON.stringify({
           username: loginUsername,
@@ -1267,10 +1276,7 @@ const restoreDeletedChat = (chatId: number) => {
       for (let attempt = 0; attempt < 4; attempt += 1) {
         const verifyRes = await fetch("/api/personal-state", {
           method: "GET",
-          headers: {
-            ...getOpenLuraRequestHeaders(false),
-            ...personalEnvironmentHeader,
-          },
+          headers: getOpenLuraRequestHeaders(true),
           credentials: "same-origin",
           cache: "no-store",
         });
@@ -1303,10 +1309,7 @@ const restoreDeletedChat = (chatId: number) => {
     try {
       await fetch("/api/auth", {
         method: "DELETE",
-        headers: {
-          ...getOpenLuraRequestHeaders(false),
-          ...personalEnvironmentHeader,
-        },
+        headers: getOpenLuraRequestHeaders(false),
         credentials: "same-origin",
       });
     } catch (error) {
