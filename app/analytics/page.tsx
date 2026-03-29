@@ -11,6 +11,7 @@ export default function AnalyticsPage() {
     source?: string | null;
     environment?: string | null;
     userScope?: string | null;
+    user_id?: string | null;
     workflowKey?: string | null;
     workflowStatus?: string | null;
     timestamp?: string | null;
@@ -65,6 +66,11 @@ const resolvedUserId = getOrCreateOpenLuraUserId();
     const [autoDebugConfidenceFilter, setAutoDebugConfidenceFilter] = useState("all");
     const [autoDebugRouteFilter, setAutoDebugRouteFilter] = useState("all");
     const [autoDebugSignalFilter, setAutoDebugSignalFilter] = useState("all");
+    const [localFeedbackStats, setLocalFeedbackStats] = useState({
+      defaultCount: 0,
+      personalCount: 0,
+      total: 0,
+    });
 
   useEffect(() => {
     const saved = localStorage.getItem("openlura_analytics_status");
@@ -142,7 +148,15 @@ const resolvedUserId = getOrCreateOpenLuraUserId();
       return f.userScope;
     }
 
+    if (f.userScope === "user") {
+      return f.environment === "personal" || f.user_id ? "personal" : "guest";
+    }
+
     if (f.environment === "personal") {
+      return "personal";
+    }
+
+    if (f.user_id) {
       return "personal";
     }
 
@@ -193,9 +207,76 @@ const resolvedUserId = getOrCreateOpenLuraUserId();
     checkAnalyticsAccess();
   }, []);
 
+  function matchesCurrentAnalyticsFilters(
+    f: AnalyticsFeedbackItem,
+    statusOverride?: string
+  ) {
+    const currentStatus =
+      statusOverride || itemStatus[getItemKey(f)] || getAutoStatus(f);
+
+    if (workflowFilter !== "all" && currentStatus !== workflowFilter) {
+      return false;
+    }
+
+    const resolvedLearningType = inferLearningType(f);
+    const supportsLearningTypeFilter =
+      f.type === "down" ||
+      f.type === "improve" ||
+      f.type === "auto_debug" ||
+      f.source === "idea_feedback_learning";
+
+    if (
+      learningTypeFilter !== "all" &&
+      supportsLearningTypeFilter &&
+      resolvedLearningType !== learningTypeFilter
+    ) {
+      return false;
+    }
+
+    if (
+      activeTab === "auto_debug" &&
+      autoDebugConfidenceFilter !== "all" &&
+      getAutoDebugConfidence(f) !== autoDebugConfidenceFilter
+    ) {
+      return false;
+    }
+
+    if (
+      activeTab === "auto_debug" &&
+      autoDebugRouteFilter !== "all" &&
+      getAutoDebugRouteType(f) !== autoDebugRouteFilter
+    ) {
+      return false;
+    }
+
+    if (
+      activeTab === "auto_debug" &&
+      autoDebugSignalFilter !== "all" &&
+      getAutoDebugSignalType(f) !== autoDebugSignalFilter
+    ) {
+      return false;
+    }
+
+    if (activeTab === "all") return true;
+    if (activeTab === "positive") return f.type === "up";
+    if (activeTab === "negative") return f.type === "down";
+    if (activeTab === "improvement") return f.type === "improve";
+    if (activeTab === "auto_debug") return f.type === "auto_debug";
+
+    if (activeTab === "ideas") {
+      if (f.type !== "idea") return false;
+      if (ideaFilter === "all") return true;
+      if (ideaFilter === "bug") return f.source === "idea_bug";
+      if (ideaFilter === "adjustment") return f.source === "idea_adjustment";
+      if (ideaFilter === "learning") return f.source === "idea_feedback_learning";
+    }
+
+    return true;
+  }
+
   const filteredFeedback = feedback.filter((f: AnalyticsFeedbackItem) =>
-  matchesCurrentAnalyticsFilters(f)
-);
+    matchesCurrentAnalyticsFilters(f)
+  );
 
           const negativeFeedback = feedback.filter((f: any) => f.type === "down");
   const positiveFeedback = feedback.filter((f: any) => f.type === "up");
@@ -535,6 +616,12 @@ useEffect(() => {
     localStorage.getItem("openlura_personal_feedback") || "[]"
   );
 
+  setLocalFeedbackStats({
+    defaultCount: defaultLocalFeedback.length,
+    personalCount: personalLocalFeedback.length,
+    total: defaultLocalFeedback.length + personalLocalFeedback.length,
+  });
+
   const localFeedback = [
     ...defaultLocalFeedback.map((item: any) => ({
       ...item,
@@ -606,6 +693,7 @@ useEffect(() => {
       source: normalizedSource,
       environment: resolvedEnvironment,
       userScope: resolvedUserScope,
+      user_id: item.user_id || (resolvedEnvironment === "personal" ? "local_personal" : null),
       learningType:
         item.learningType ||
         (normalizedType === "down" || normalizedType === "improve"
@@ -624,14 +712,15 @@ useEffect(() => {
           normalizedSource || "",
           resolvedEnvironment,
           resolvedUserScope,
+          item.user_id || "",
           item.userMessage || "",
           item.message || "",
-          item.timestamp || "",
         ].join("::"),
     };
   });
 
     let data: AnalyticsFeedbackItem[] = [];
+    let serverFetchSucceeded = false;
 
   try {
     const res = await fetch("/api/feedback", {
@@ -651,6 +740,7 @@ useEffect(() => {
     }
 
     data = await res.json();
+    serverFetchSucceeded = true;
   } catch (error) {
     console.warn("Analytics server tijdelijk niet bereikbaar");
   }
@@ -699,6 +789,7 @@ useEffect(() => {
       ...item,
       environment: resolvedEnvironment,
       userScope: resolvedUserScope,
+      user_id: item.user_id || null,
       learningType:
         item.learningType ||
         (item.type === "down" || item.type === "improve" || item.type === "auto_debug"
@@ -713,16 +804,16 @@ useEffect(() => {
           item.source || "",
           resolvedEnvironment,
           resolvedUserScope,
+          item.user_id || "",
           item.userMessage || "",
           item.message || "",
-          item.timestamp || "",
         ].join("::"),
     };
   });
 
-const combined = [...normalServerFeedback, ...normalizedLocal];
+const truthSource = serverFetchSucceeded ? normalServerFeedback : normalizedLocal;
 
-  const deduped = combined.filter(
+  const deduped = truthSource.filter(
     (item: AnalyticsFeedbackItem, index: number, arr: AnalyticsFeedbackItem[]) => {
       const itemKey = getItemKey(item);
 
@@ -805,9 +896,9 @@ return () => {
       f.source || "",
       f.environment || "",
       f.userScope || "",
+      f.user_id || "",
       f.userMessage || "",
       f.message || "",
-      f.timestamp || "",
     ].join("::");
   }
 
@@ -816,78 +907,18 @@ return () => {
     return "nieuw";
   }
 
-  const matchesCurrentAnalyticsFilters = (
-  f: AnalyticsFeedbackItem,
-  statusOverride?: string
-) => {
-  const currentStatus =
-    statusOverride || itemStatus[getItemKey(f)] || getAutoStatus(f);
-
-  if (workflowFilter !== "all" && currentStatus !== workflowFilter) {
-    return false;
-  }
-
-  const resolvedLearningType = inferLearningType(f);
-  const supportsLearningTypeFilter =
-    f.type === "down" ||
-    f.type === "improve" ||
-    f.type === "auto_debug" ||
-    f.source === "idea_feedback_learning";
-
-  if (
-    learningTypeFilter !== "all" &&
-    supportsLearningTypeFilter &&
-    resolvedLearningType !== learningTypeFilter
-  ) {
-    return false;
-  }
-
-  if (
-    activeTab === "auto_debug" &&
-    autoDebugConfidenceFilter !== "all" &&
-    getAutoDebugConfidence(f) !== autoDebugConfidenceFilter
-  ) {
-    return false;
-  }
-
-  if (
-    activeTab === "auto_debug" &&
-    autoDebugRouteFilter !== "all" &&
-    getAutoDebugRouteType(f) !== autoDebugRouteFilter
-  ) {
-    return false;
-  }
-
-  if (
-    activeTab === "auto_debug" &&
-    autoDebugSignalFilter !== "all" &&
-    getAutoDebugSignalType(f) !== autoDebugSignalFilter
-  ) {
-    return false;
-  }
-
-  if (activeTab === "all") return true;
-  if (activeTab === "positive") return f.type === "up";
-  if (activeTab === "negative") return f.type === "down";
-  if (activeTab === "improvement") return f.type === "improve";
-  if (activeTab === "auto_debug") return f.type === "auto_debug";
-
-  if (activeTab === "ideas") {
-    if (f.type !== "idea") return false;
-    if (ideaFilter === "all") return true;
-    if (ideaFilter === "bug") return f.source === "idea_bug";
-    if (ideaFilter === "adjustment") return f.source === "idea_adjustment";
-    if (ideaFilter === "learning") return f.source === "idea_feedback_learning";
-  }
-
-  return true;
-};
-
   const pushAutoLearningInsight = async (key: string, message: string) => {
     const storageKey = "openlura_auto_learning_insights";
     const existing = JSON.parse(localStorage.getItem(storageKey) || "[]");
+    const alreadyStoredInFeedback = feedback.some(
+      (item: AnalyticsFeedbackItem) =>
+        item.type === "idea" &&
+        item.source === "idea_feedback_learning" &&
+        item.userMessage === "Auto learning insight" &&
+        (item.message || "").trim() === message.trim()
+    );
 
-    if (existing.includes(key)) return;
+    if (existing.includes(key) || alreadyStoredInFeedback) return;
 
     try {
       const res = await fetch("/api/feedback", {
@@ -966,6 +997,8 @@ return () => {
   };
 
         const updateItemStatus = async (key: string, status: string) => {
+    const previousStatus = itemStatus[key];
+
     setItemStatus((prev) => {
       const next = { ...prev, [key]: status };
       localStorage.setItem("openlura_analytics_status", JSON.stringify(next));
@@ -1003,6 +1036,19 @@ return () => {
         throw new Error("Workflow status sync failed");
       }
     } catch (error) {
+      setItemStatus((prev) => {
+        const next = { ...prev };
+
+        if (previousStatus) {
+          next[key] = previousStatus;
+        } else {
+          delete next[key];
+        }
+
+        localStorage.setItem("openlura_analytics_status", JSON.stringify(next));
+        return next;
+      });
+
       console.error("Workflow status sync failed:", error);
     }
   };
@@ -1105,10 +1151,7 @@ return () => {
 
   <div className="p-4 bg-white/10 rounded-2xl">
     <p className="text-xs opacity-60">Lokale items</p>
-    <p className="text-xl">
-      {(JSON.parse(localStorage.getItem("openlura_feedback") || "[]").length) +
-        (JSON.parse(localStorage.getItem("openlura_personal_feedback") || "[]").length)}
-    </p>
+    <p className="text-xl">{localFeedbackStats.total}</p>
   </div>
 
   <div className="p-4 bg-white/10 rounded-2xl">
@@ -1405,14 +1448,14 @@ return () => {
         Casual mismatch
       </button>
       <button
-        onClick={() => setAutoDebugSignalFilter("search_miss")}
-        className={`px-3 py-2 rounded-xl text-sm ${autoDebugSignalFilter === "search_miss" ? "bg-cyan-400 text-black" : "bg-white/10 text-white"}`}
+        onClick={() => setAutoDebugSignalFilter("possible_search_miss")}
+        className={`px-3 py-2 rounded-xl text-sm ${autoDebugSignalFilter === "possible_search_miss" ? "bg-cyan-400 text-black" : "bg-white/10 text-white"}`}
       >
         Search miss
       </button>
       <button
-        onClick={() => setAutoDebugSignalFilter("image_context_miss")}
-        className={`px-3 py-2 rounded-xl text-sm ${autoDebugSignalFilter === "image_context_miss" ? "bg-pink-400 text-black" : "bg-white/10 text-white"}`}
+        onClick={() => setAutoDebugSignalFilter("possible_image_context_miss")}
+        className={`px-3 py-2 rounded-xl text-sm ${autoDebugSignalFilter === "possible_image_context_miss" ? "bg-pink-400 text-black" : "bg-white/10 text-white"}`}
       >
         Image miss
       </button>
@@ -1423,8 +1466,8 @@ return () => {
         Weak sources
       </button>
       <button
-        onClick={() => setAutoDebugSignalFilter("verbose_image_route")}
-        className={`px-3 py-2 rounded-xl text-sm ${autoDebugSignalFilter === "verbose_image_route" ? "bg-red-400 text-black" : "bg-white/10 text-white"}`}
+        onClick={() => setAutoDebugSignalFilter("too_verbose_for_image_route")}
+        className={`px-3 py-2 rounded-xl text-sm ${autoDebugSignalFilter === "too_verbose_for_image_route" ? "bg-red-400 text-black" : "bg-white/10 text-white"}`}
       >
         Verbose image
       </button>
