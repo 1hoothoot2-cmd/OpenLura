@@ -162,7 +162,7 @@ function getSupabaseConfig() {
 
   return {
     feedbackTableUrl: `${supabaseUrl}/rest/v1/openlura_feedback`,
-    supabaseServiceRoleKey,
+    supabaseServiceRoleKey: supabaseServiceRoleKey as string,
   };
 }
 
@@ -433,29 +433,37 @@ export async function POST(req: Request) {
         }
       );
 
-      response.cookies.set(
-        ANALYTICS_COOKIE_NAME,
-        createAnalyticsSessionValue(),
-        getAnalyticsSessionCookieOptions()
-      );
+      try {
+        response.cookies.set(
+          ANALYTICS_COOKIE_NAME,
+          createAnalyticsSessionValue(),
+          getAnalyticsSessionCookieOptions()
+        );
 
-      return response;
+        return response;
+      } catch (error) {
+        logSafeError("Analytics unlock session creation failed", error, {
+          hasAnalyticsAdminPassword: !!analyticsAdminPassword,
+        });
+
+        return NextResponse.json(
+          { success: false, error: "Analytics session config error" },
+          {
+            status: 500,
+            headers: buildHeadersWithRateLimit(rateLimit),
+          }
+        );
+      }
     }
 
     const identity = await resolveFeedbackIdentity(req);
     const wantsPersonalEnvironment = data.environment === "personal";
+    const isPersonalEnvironment =
+      identity.isAuthenticatedPersonalUser && wantsPersonalEnvironment;
 
-    let personalIdentity: Awaited<ReturnType<typeof requirePersonalFeedbackIdentity>> = null;
-
-    if (wantsPersonalEnvironment) {
-      personalIdentity = await requirePersonalFeedbackIdentity(req);
-
-      if (!personalIdentity) {
-        return unauthorized("Personal feedback requires authentication", rateLimit);
-      }
+    if (wantsPersonalEnvironment && !identity.isAuthenticatedPersonalUser) {
+      return unauthorized("Personal feedback requires authentication", rateLimit);
     }
-
-    const isPersonalEnvironment = !!personalIdentity;
 
     if (data.action === "update_workflow_status" && !isFeedbackReadAuthorized(req)) {
       return unauthorized("Analytics authorization required", rateLimit);
@@ -469,7 +477,7 @@ export async function POST(req: Request) {
       userMessage: data.userMessage,
       source: inferIdeaSource(data.type, data.message, data.source),
       userScope: isPersonalEnvironment ? "personal" : "guest",
-      user_id: isPersonalEnvironment ? personalIdentity!.userId : null,
+      user_id: identity.userId,
       environment: isPersonalEnvironment ? "personal" : "default",
       timestamp: new Date().toISOString(),
     };
@@ -531,7 +539,6 @@ export async function POST(req: Request) {
     );
   }
 }
-
 export async function GET(req: Request) {
   try {
     if (!isFeedbackReadAuthorized(req)) {
@@ -544,8 +551,8 @@ export async function GET(req: Request) {
       "&order=timestamp.desc";
 
     const headers = new Headers();
-    headers.set("apikey", supabaseServiceRoleKey);
-    headers.set("Authorization", `Bearer ${supabaseServiceRoleKey}`);
+    headers.set("apikey", String(supabaseServiceRoleKey));
+    headers.set("Authorization", `Bearer ${String(supabaseServiceRoleKey)}`);
 
     const res = await fetch(`${feedbackTableUrl}?${query}`, {
       method: "GET",
