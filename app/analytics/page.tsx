@@ -160,6 +160,10 @@ const resolvedUserId = getOrCreateOpenLuraUserId();
 });
 
         setIsUnlocked(res.ok);
+
+        if (res.ok && typeof window !== "undefined") {
+  sessionStorage.setItem(ANALYTICS_UNLOCK_STORAGE_KEY, "true");
+}
       } catch {
         setIsUnlocked(false);
       } finally {
@@ -669,20 +673,22 @@ useEffect(() => {
     return next;
   });
 
-  const normalServerFeedback = data
-    .filter((item: any) => item.type !== "workflow_status")
-    .map((item: any) => ({
-      ...item,
-      userScope:
-        item.userScope === "admin" || item.userScope === "guest"
-          ? item.userScope
-          : "guest",
-    }));
+ const normalServerFeedback = data
+  .filter((item: any) => item.type !== "workflow_status")
+  .map((item: any) => ({
+    ...item,
+    userScope:
+      item.userScope === "admin" ||
+      item.userScope === "guest" ||
+      item.userScope === "personal" ||
+      item.userScope === "user"
+        ? item.userScope
+        : item.environment === "personal"
+        ? "personal"
+        : "guest",
+  }));
 
-  const combined =
-    normalServerFeedback.length > 0
-      ? [...normalServerFeedback]
-      : [...normalizedLocal];
+const combined = [...normalServerFeedback, ...normalizedLocal];
 
   const deduped = combined.filter((item: any, index: number, arr: any[]) => {
     const itemType = item.type || "down";
