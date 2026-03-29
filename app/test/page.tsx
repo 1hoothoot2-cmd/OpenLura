@@ -549,6 +549,8 @@ const hasMeaningfulPersonalState =
         if (res.status === 401) {
           console.warn("OpenLura personal verify unauthorized");
           setPersonalStateLoaded(true);
+          setChats([]);
+          setMemory([]);
           return;
         }
 
@@ -1229,6 +1231,7 @@ const restoreDeletedChat = (chatId: number) => {
       const res = await fetch("/api/auth", {
         method: "POST",
         headers: getOpenLuraRequestHeaders(true),
+        credentials: "same-origin",
         body: JSON.stringify({
           username: loginUsername,
           password: loginPassword,
@@ -1242,14 +1245,26 @@ const restoreDeletedChat = (chatId: number) => {
         return;
       }
 
-      const verifyRes = await fetch("/api/personal-state", {
-        method: "GET",
-        headers: getOpenLuraRequestHeaders(false),
-        cache: "no-store",
-      });
+      let verified = false;
 
-      if (!verifyRes.ok) {
-        setLoginError("Persoonlijke omgeving kon nog niet worden geladen");
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        const verifyRes = await fetch("/api/personal-state", {
+          method: "GET",
+          headers: getOpenLuraRequestHeaders(false),
+          credentials: "same-origin",
+          cache: "no-store",
+        });
+
+        if (verifyRes.ok) {
+          verified = true;
+          break;
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+
+      if (!verified) {
+        setLoginError("Persoonlijke sessie is nog niet actief. Probeer opnieuw.");
         return;
       }
 
@@ -1269,6 +1284,7 @@ const restoreDeletedChat = (chatId: number) => {
       await fetch("/api/auth", {
         method: "DELETE",
         headers: getOpenLuraRequestHeaders(false),
+        credentials: "same-origin",
       });
     } catch (error) {
       console.error("OpenLura logout failed:", error);
