@@ -13,6 +13,9 @@ export const dynamic = "force-dynamic";
 
 const adminUsername = process.env.ADMIN_USERNAME;
 const adminPasswordHash = process.env.ADMIN_PASSWORD_HASH;
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseAnonKey =
+  process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 const NO_STORE_HEADERS = {
   "Cache-Control": "no-store",
@@ -147,6 +150,96 @@ function getContentLength(req: Request) {
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
+async function fetchSupabasePasswordSession(input: {
+  username: string;
+  password: string;
+}) {
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return null;
+  }
+
+  try {
+    const headers = new Headers();
+    headers.set("Content-Type", "application/json");
+    headers.set("apikey", supabaseAnonKey);
+    headers.set("Accept", "application/json");
+
+    const res = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        email: input.username,
+        password: input.password,
+      }),
+      cache: "no-store",
+    });
+
+    if (!res.ok) {
+      return null;
+    }
+
+    const data: unknown = await res.json();
+
+    if (!data || typeof data !== "object" || Array.isArray(data)) {
+      return null;
+    }
+
+    const session = data as {
+      access_token?: unknown;
+      refresh_token?: unknown;
+      user?: { id?: unknown } | null;
+    };
+
+    if (
+      typeof session.access_token !== "string" ||
+      !session.access_token.trim()
+    ) {
+      return null;
+    }
+
+    return {
+      accessToken: session.access_token.trim(),
+      refreshToken:
+        typeof session.refresh_token === "string" && session.refresh_token.trim()
+          ? session.refresh_token.trim()
+          : null,
+      userId:
+        typeof session.user?.id === "string" && session.user.id.trim()
+          ? session.user.id.trim()
+          : null,
+    };
+  } catch (error) {
+    logSafeError("Supabase password session fetch failed", error, {
+      hasSupabaseUrl: !!supabaseUrl,
+      hasSupabaseAnonKey: !!supabaseAnonKey,
+    });
+    return null;
+  }
+}
+
+function getSupabaseAuthCookieOptions() {
+  const isProduction = process.env.NODE_ENV === "production";
+
+  return {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: "lax" as const,
+    path: "/",
+    maxAge: 60 * 60 * 24 * 7,
+  };
+}
+
+function getClearedSupabaseAuthCookieOptions() {
+  const isProduction = process.env.NODE_ENV === "production";
+
+  return {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: "lax" as const,
+    path: "/",
+    maxAge: 0,
+  };
+}
 
 function parseAuthBody(body: unknown) {
   if (!isPlainObject(body)) {
@@ -270,12 +363,42 @@ export async function POST(req: Request) {
       );
     }
 
+    const supabaseSession = await fetchSupabasePasswordSession({
+      username: parsedBody.username,
+      password: parsedBody.password,
+    });
+
+    if (!supabaseSession?.accessToken || !supabaseSession.userId) {
+      logSafeError(
+        "OpenLura personal auth missing matching Supabase identity",
+        new Error("No Supabase password session for authenticated admin user"),
+        {
+          username: parsedBody.username,
+          hasSupabaseUrl: !!supabaseUrl,
+          hasSupabaseAnonKey: !!supabaseAnonKey,
+        }
+      );
+
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "Persoonlijke omgeving vereist een gekoppelde Supabase gebruiker met hetzelfde e-mailadres en wachtwoord.",
+        },
+        {
+          status: 401,
+          headers: buildHeaders(rateLimit),
+        }
+      );
+    }
+
     const response = NextResponse.json(
       {
         success: true,
         runtime: {
           authenticated: true,
-          sessionType: "admin",
+          sessionType: "personal_admin",
+          userId: supabaseSession.userId,
         },
       },
       {
@@ -288,6 +411,26 @@ export async function POST(req: Request) {
       createAdminSessionValue(),
       getAdminSessionCookieOptions()
     );
+
+    response.cookies.set(
+      "sb-access-token",
+      supabaseSession.accessToken,
+      getSupabaseAuthCookieOptions()
+    );
+
+    response.cookies.set(
+      "supabase-access-token",
+      supabaseSession.accessToken,
+      getSupabaseAuthCookieOptions()
+    );
+
+    if (supabaseSession.refreshToken) {
+      response.cookies.set(
+        "sb-refresh-token",
+        supabaseSession.refreshToken,
+        getSupabaseAuthCookieOptions()
+      );
+    }
 
     return response;
   } catch (error) {
@@ -370,6 +513,36 @@ export async function DELETE(_req: Request) {
       ADMIN_COOKIE_NAME,
       "",
       getClearedAdminSessionCookieOptions()
+    );
+
+    response.cookies.set(
+      "sb-access-token",
+      "",
+      getClearedSupabaseAuthCookieOptions()
+    );
+
+    response.cookies.set(
+      "supabase-access-token",
+      "",
+      getClearedSupabaseAuthCookieOptions()
+    );
+
+    response.cookies.set(
+      "sb-refresh-token",
+      "",
+      getClearedSupabaseAuthCookieOptions()
+    );
+
+    response.cookies.set(
+      "supabase-auth-token",
+      "",
+      getClearedSupabaseAuthCookieOptions()
+    );
+
+    response.cookies.set(
+      "sb-auth-token",
+      "",
+      getClearedSupabaseAuthCookieOptions()
     );
 
     return response;
