@@ -15,7 +15,8 @@ function normalizeToken(value: string | null | undefined) {
   const normalized = value.trim();
 
   if (!normalized) return null;
-  if (normalized.length > 10000) return null;
+  if (normalized.length > 5000) return null;
+  if (/\s/.test(normalized)) return null;
 
   return normalized;
 }
@@ -82,6 +83,7 @@ export async function fetchSupabaseAuthUser(accessToken?: string | null) {
       headers: {
         apikey: supabaseServiceRoleKey,
         Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json",
       },
       cache: "no-store",
     });
@@ -106,7 +108,7 @@ export async function fetchSupabaseAuthUser(accessToken?: string | null) {
     }
 
     return { id: userId };
-  } catch (error) {
+  } catch {
     console.error("Auth user fetch failed");
     return null;
   }
@@ -116,10 +118,19 @@ export async function resolveOpenLuraRequestIdentity(
   req: Request
 ): Promise<ResolvedOpenLuraIdentity> {
   const accessToken = getBearerTokenFromRequest(req);
+
+  if (!accessToken) {
+    return {
+      accessToken: null,
+      authUser: null,
+      userId: null,
+    };
+  }
+
   const authUser = await fetchSupabaseAuthUser(accessToken);
 
   return {
-    accessToken,
+    accessToken: authUser?.id ? accessToken : null,
     authUser,
     userId: authUser?.id || null,
   };

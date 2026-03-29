@@ -20,6 +20,19 @@ const NO_STORE_HEADERS = {
   "Cache-Control": "no-store",
 };
 
+function toSafeErrorMeta(error: unknown) {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+    };
+  }
+
+  return {
+    message: "Unknown error",
+  };
+}
+
 export async function POST(req: Request) {
   try {
     let body: unknown;
@@ -36,16 +49,36 @@ export async function POST(req: Request) {
       );
     }
 
-    const username = String((body as { username?: unknown })?.username ?? "").trim();
-    const password = String((body as { password?: unknown })?.password ?? "");
+    const parsedBody = body as {
+      username?: unknown;
+      password?: unknown;
+    };
+
+    const username =
+      typeof parsedBody.username === "string" ? parsedBody.username.trim() : "";
+    const password =
+      typeof parsedBody.password === "string" ? parsedBody.password : "";
+
+          if (
+      !username ||
+      !password ||
+      username.length > 200 ||
+      password.length > 1000
+    ) {
+      return NextResponse.json(
+        { success: false, error: "Invalid credentials" },
+        {
+          status: 401,
+          headers: NO_STORE_HEADERS,
+        }
+      );
+    }
 
     if (!adminUsername || !adminPasswordHash) {
       console.error("OpenLura admin auth missing env:", {
         hasAdminUsername: !!adminUsername,
         hasAdminPasswordHash: !!adminPasswordHash,
-        hasAdminSessionSecret:
-          !!process.env.ADMIN_SESSION_SECRET ||
-          !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+        hasAdminSessionSecret: !!process.env.ADMIN_SESSION_SECRET,
         nodeEnv: process.env.NODE_ENV,
       });
 
@@ -84,10 +117,6 @@ export async function POST(req: Request) {
       {
         success: true,
         username: adminUsername,
-        runtime: {
-          sessionType: SESSION_TYPE,
-          authenticated: true,
-        },
       },
       {
         headers: NO_STORE_HEADERS,
@@ -102,7 +131,7 @@ export async function POST(req: Request) {
 
     return response;
   } catch (error) {
-    console.error("Admin login failed:", error);
+    console.error("Admin login failed:", toSafeErrorMeta(error));
 
     return NextResponse.json(
       { success: false, error: "Login failed" },
@@ -131,9 +160,6 @@ export async function GET(req: Request) {
     {
       authenticated: true,
       username: adminUsername || "admin",
-      runtime: {
-        sessionType: SESSION_TYPE,
-      },
     },
     {
       headers: NO_STORE_HEADERS,
@@ -147,10 +173,6 @@ export async function DELETE(req: Request) {
   const response = NextResponse.json(
     {
       success: true,
-      runtime: {
-        clearedSession: hadSession,
-        sessionType: SESSION_TYPE,
-      },
     },
     {
       headers: NO_STORE_HEADERS,

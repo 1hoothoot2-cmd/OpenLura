@@ -1207,11 +1207,7 @@ async function fetchSupabasePersonalState(userId: string | null = null) {
   }
 
   const tryQueries = resolvedUserId
-    ? [
-        `select=*&user_id=eq.${encodeURIComponent(resolvedUserId)}&limit=1`,
-        `select=*&id=eq.${encodeURIComponent(resolvedUserId)}&limit=1`,
-        "select=*&key=eq.primary&limit=1",
-      ]
+    ? [`select=*&user_id=eq.${encodeURIComponent(resolvedUserId)}&limit=1`]
     : [];
 
   for (const query of tryQueries) {
@@ -1472,20 +1468,12 @@ ${profile.softRules.map((rule) => `- ${rule.replace(/^- /, "")}`).join("\n") || 
 
 async function resolvePersonalRuntimeContext(input: {
   req: Request;
-  personalMemory?: string;
   memory?: string;
 }) {
   const identity = await resolveOpenLuraRequestIdentity(input.req);
   const authUser = identity.authUser;
-  const explicitPersonalEnvHeader =
-    input.req.headers.get("x-openlura-personal-env") === "true";
-  const hasAdminSession = isValidAdminSession(
-    getCookieValue(input.req, ADMIN_COOKIE_NAME)
-  );
+  const personalUserId = authUser?.id || null;
 
-  const personalUserId =
-    authUser?.id ||
-    (explicitPersonalEnvHeader && hasAdminSession ? "primary" : null);
   const hasAuthenticatedPersonalUser = !!personalUserId;
 
   const personalState = hasAuthenticatedPersonalUser
@@ -1506,14 +1494,10 @@ async function resolvePersonalRuntimeContext(input: {
   const isPersonalEnvironment = hasAuthenticatedPersonalUser;
 
   const resolvedPersonalMemory = isPersonalEnvironment
-    ? input.personalMemory || personalState.memory || input.memory || ""
-    : input.memory || "";
+    ? personalState.memory || ""
+    : String(input.memory || "").trim();
 
-  const learningScope = isPersonalEnvironment
-    ? `personal:${personalUserId}`
-    : explicitPersonalEnvHeader && hasAdminSession
-    ? "global_admin_personal_ui"
-    : "global";
+  const learningScope = isPersonalEnvironment ? "personal" : "global";
 
   return {
     isPersonalEnvironment,
@@ -1610,14 +1594,18 @@ function buildAutoDebugSignature(input: {
 function getUserScopeFromRequest(input: {
   req: Request;
   isPersonalEnvironment?: boolean;
+  hasAdminSession?: boolean;
 }) {
   if (input.isPersonalEnvironment) {
     return "personal";
   }
 
-  return isValidAdminSession(getCookieValue(input.req, ADMIN_COOKIE_NAME))
-    ? "admin"
-    : "guest";
+  const hasAdminSession =
+    typeof input.hasAdminSession === "boolean"
+      ? input.hasAdminSession
+      : isValidAdminSession(getCookieValue(input.req, ADMIN_COOKIE_NAME));
+
+  return hasAdminSession ? "admin" : "guest";
 }
 
 async function storeAutoDebugSignals(input: {
@@ -1697,41 +1685,7 @@ async function storeAutoDebugSignals(input: {
     });
 
     if (!res.ok) {
-      const errorText = await res.text();
-
-      const isSchemaMismatch =
-        res.status === 400 &&
-        (
-          errorText.includes("PGRST204") ||
-          errorText.includes("42703") ||
-          errorText.toLowerCase().includes("column") ||
-          errorText.toLowerCase().includes("could not find the")
-        );
-
-      if (isSchemaMismatch) {
-        const fallbackRows = rows.map((row: any) => {
-          const { user_id, learningType, userScope, environment, ...rest } = row;
-          return rest;
-        });
-
-        res = await fetch(`${supabaseUrl}/rest/v1/openlura_feedback`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            apikey: supabaseServiceRoleKey,
-            Authorization: `Bearer ${supabaseServiceRoleKey}`,
-            Prefer: "return=minimal",
-          },
-          body: JSON.stringify(fallbackRows),
-          cache: "no-store",
-        });
-      } else {
-        console.error("Auto debug signal save failed:", res.status, errorText);
-      }
-    }
-
-    if (!res.ok) {
-      console.error("Auto debug signal fallback save failed:", res.status, await res.text());
+      console.error("Auto debug signal save failed:", res.status, await res.text());
     }
   } catch (error) {
     console.error("Auto debug signal save error:", error);
@@ -1755,21 +1709,151 @@ function inferFeedbackLearningType(item: {
 
   return isStyleSignal ? "style" : "content";
 }
+type ChatRequestBody = {
+  message: string;
+  image: string | null;
+  memory: string;
+  location: unknown;
+  feedback: {
+    likes?: number;
+    dislikes?: number;
+    issues?: unknown;
+    recentIssues?: unknown;
+  } | null;
+  recentMessages: { role: "user" | "ai"; content: string }[];
+};
+
+const MAX_REQUEST_BYTES = 1024 * 1024;
+const MAX_MESSAGE_LENGTH = 12000;
+const MAX_MEMORY_LENGTH = 12000;
+const MAX_IMAGE_URL_LENGTH = 20000;
+const MAX_RECENT_MESSAGES = 12;
+const MAX_RECENT_MESSAGE_LENGTH = 4000;
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function normalizeOptionalString(value: unknown, maxLength: number) {
+  if (typeof value !== "string") return "";
+  return value.trim().slice(0, maxLength);
+}
+
+function normalizeOptionalNullableString(value: unknown, maxLength: number) {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().slice(0, maxLength);
+  return normalized || null;
+}
+
+function normalizeRecentMessages(
+  value: unknown
+): { role: "user" | "ai"; content: string }[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .filter((item) => isPlainObject(item))
+    .map((item) => {
+      const role = item.role === "user" || item.role === "ai" ? item.role : null;
+      const content = normalizeOptionalString(item.content, MAX_RECENT_MESSAGE_LENGTH);
+
+      if (!role || !content) {
+        return null;
+      }
+
+      return { role, content };
+    })
+    .filter(Boolean)
+    .slice(-MAX_RECENT_MESSAGES) as { role: "user" | "ai"; content: string }[];
+}
+
+function parseChatRequestBody(body: unknown): ChatRequestBody | null {
+  if (!isPlainObject(body)) {
+    return null;
+  }
+
+  return {
+    message: normalizeOptionalString(body.message, MAX_MESSAGE_LENGTH),
+    image: normalizeOptionalNullableString(body.image, MAX_IMAGE_URL_LENGTH),
+    memory: normalizeOptionalString(body.memory, MAX_MEMORY_LENGTH),
+    location: body.location ?? null,
+    feedback: isPlainObject(body.feedback)
+      ? {
+          likes:
+            typeof body.feedback.likes === "number" && Number.isFinite(body.feedback.likes)
+              ? body.feedback.likes
+              : 0,
+          dislikes:
+            typeof body.feedback.dislikes === "number" &&
+            Number.isFinite(body.feedback.dislikes)
+              ? body.feedback.dislikes
+              : 0,
+          issues: body.feedback.issues,
+          recentIssues: body.feedback.recentIssues,
+        }
+      : null,
+    recentMessages: normalizeRecentMessages(body.recentMessages),
+  };
+}
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
 export async function POST(req: Request) {
+  let rawBody: unknown;
+  const contentLengthHeader = req.headers.get("content-length");
+  const contentLength = contentLengthHeader ? Number(contentLengthHeader) : null;
+
+  if (
+    contentLength !== null &&
+    Number.isFinite(contentLength) &&
+    contentLength > MAX_REQUEST_BYTES
+  ) {
+    return new Response("Request body too large", {
+      status: 413,
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-store",
+      },
+    });
+  }
+
+  try {
+    rawBody = await req.json();
+  } catch {
+    return new Response("Invalid request body", {
+      status: 400,
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-store",
+      },
+    });
+  }
+
+  const body = parseChatRequestBody(rawBody);
+
+  if (!body) {
+    return new Response("Invalid request body", {
+      status: 400,
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-store",
+      },
+    });
+  }
+
   const {
     message,
     image,
     memory,
-    personalMemory,
     location,
     feedback,
     recentMessages,
-  } = await req.json();
+  } = body;
+
+  const hasAdminSession = isValidAdminSession(
+    getCookieValue(req, ADMIN_COOKIE_NAME)
+  );
 
   const {
     isPersonalEnvironment,
@@ -1780,13 +1864,23 @@ export async function POST(req: Request) {
     learningScope,
   } = await resolvePersonalRuntimeContext({
     req,
-    personalMemory,
     memory,
   });
+
+  if (isPersonalEnvironment && !personalUserId) {
+    return new Response("Unauthorized", {
+      status: 401,
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-store",
+      },
+    });
+  }
 
   const userScope = getUserScopeFromRequest({
     req,
     isPersonalEnvironment,
+    hasAdminSession,
   });
 
   const serverFeedback = await getRecentServerFeedback();
@@ -1829,11 +1923,19 @@ export async function POST(req: Request) {
         },
         {
           type: "down",
-          message: (feedback.issues || []).join(" | "),
-          userMessage: (feedback.recentIssues || []).join(" | "),
+          message: Array.isArray(feedback.issues)
+            ? feedback.issues.map((item) => String(item)).join(" | ")
+            : "",
+          userMessage: Array.isArray(feedback.recentIssues)
+            ? feedback.recentIssues.map((item) => String(item)).join(" | ")
+            : "",
           learningType: inferFeedbackLearningType({
-            message: (feedback.issues || []).join(" | "),
-            userMessage: (feedback.recentIssues || []).join(" | "),
+            message: Array.isArray(feedback.issues)
+              ? feedback.issues.map((item) => String(item)).join(" | ")
+              : "",
+            userMessage: Array.isArray(feedback.recentIssues)
+              ? feedback.recentIssues.map((item) => String(item)).join(" | ")
+              : "",
           }),
           timestamp: Date.now(),
           weight: feedback.dislikes || 0,
@@ -1902,7 +2004,7 @@ export async function POST(req: Request) {
 
   const runtimePersonalMemory = rebalancePersonalMemoryFromFeedback({
     personalMemory: resolvedPersonalMemory,
-    feedbackRows: [...personalLayer, ...userLayer],
+    feedbackRows: personalLayer,
   });
 
   const shouldPersistRuntimeMemory =
@@ -2449,7 +2551,6 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
           "Content-Type": "text/plain; charset=utf-8",
           "X-OpenLura-Variant": responseVariant,
           "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
-          "X-OpenLura-Learning-Scope": learningScope,
           ...buildUsageHeaders(usageLimitSnapshot),
           "Retry-After": "86400",
         },
@@ -2557,7 +2658,6 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
             "X-OpenLura-Variant": responseVariant,
             "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
             "X-OpenLura-Speed": "fast_text",
-            "X-OpenLura-Learning-Scope": learningScope,
             ...buildUsageHeaders(usageLimitSnapshot),
           },
         });
@@ -2666,7 +2766,6 @@ Fast-path rules:
             "X-OpenLura-Variant": responseVariant,
             "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
             "X-OpenLura-Speed": "fast_text",
-            "X-OpenLura-Learning-Scope": learningScope,
             ...buildUsageHeaders(usageLimitSnapshot),
           },
         }
@@ -2728,7 +2827,6 @@ Do not use web search for this path.`,
             "X-OpenLura-Variant": responseVariant,
             "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
             "X-OpenLura-Speed": "fast_text",
-            "X-OpenLura-Learning-Scope": learningScope,
             ...buildUsageHeaders(usageLimitSnapshot),
           },
         }
@@ -2761,7 +2859,6 @@ Do not use web search for this path.`,
             "X-OpenLura-Variant": responseVariant,
             "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
             "X-OpenLura-Speed": "default",
-            "X-OpenLura-Learning-Scope": learningScope,
             ...buildUsageHeaders(usageLimitSnapshot),
           },
         });
@@ -3304,7 +3401,6 @@ ${aiText}`,
         "Content-Type": "text/plain; charset=utf-8",
         "X-OpenLura-Variant": responseVariant,
         "X-OpenLura-Sources": encodeURIComponent(JSON.stringify(sources)),
-        "X-OpenLura-Learning-Scope": learningScope,
         ...buildUsageHeaders(usageLimitSnapshot),
       },
     }

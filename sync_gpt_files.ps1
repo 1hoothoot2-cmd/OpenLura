@@ -8,6 +8,8 @@ if (!(Test-Path $syncRoot)) {
 $filesToSync = @(
     # CORE APP
     @{ Source = "app\page.tsx"; Destination = "app_page.tsx" },
+    @{ Source = "app\layout.tsx"; Destination = "layout.tsx" },
+    @{ Source = "app\globals.css"; Destination = "globals.css" },
 
     # ROUTES
     @{ Source = "app\api\chat\route.ts"; Destination = "chat_route.ts" },
@@ -25,6 +27,7 @@ $filesToSync = @(
 
     # AUTH
     @{ Source = "lib\auth\adminSession.ts"; Destination = "lib_auth_adminSession.ts" },
+    @{ Source = "lib\auth\analyticsSession.ts"; Destination = "lib_auth_analyticsSession.ts" },
     @{ Source = "lib\auth\requestIdentity.ts"; Destination = "lib_auth_requestIdentity.ts" },
 
     # COMPONENTS

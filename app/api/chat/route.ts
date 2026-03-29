@@ -1,17 +1,70 @@
 import OpenAI from "openai";
-import {
-  ADMIN_COOKIE_NAME,
-  getCookieValue,
-  isValidAdminSession,
-} from "@/lib/auth/adminSession";
 import { resolveOpenLuraRequestIdentity } from "@/lib/auth/requestIdentity";
 
-let globalFeedback: any[] = [];
+let globalFeedbackSnapshot: any[] = [];
+
+function getGlobalFeedbackSnapshot(input: OpenLuraFeedbackRow[]) {
+  return Array.isArray(input) ? [...input] : [];
+}
+
 const responseCache = new Map<
   string,
   { text: string; sources: { title: string; url: string }[]; timestamp: number }
 >();
 const RESPONSE_CACHE_TTL_MS = 1000 * 60 * 10;
+
+const RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const RATE_LIMIT_MAX_REQUESTS = 20;
+const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
+
+function getRequestIp(req: Request) {
+  const forwardedFor = req.headers.get("x-forwarded-for");
+  if (forwardedFor) {
+    const firstIp = forwardedFor.split(",")[0]?.trim();
+    if (firstIp) return firstIp;
+  }
+
+  const realIp = req.headers.get("x-real-ip")?.trim();
+  if (realIp) return realIp;
+
+  return "unknown";
+}
+
+function checkRateLimit(req: Request) {
+  const ip = getRequestIp(req);
+  const now = Date.now();
+  const existing = rateLimitStore.get(ip);
+
+  if (!existing || existing.resetAt <= now) {
+    rateLimitStore.set(ip, {
+      count: 1,
+      resetAt: now + RATE_LIMIT_WINDOW_MS,
+    });
+
+    return {
+      allowed: true,
+      remaining: RATE_LIMIT_MAX_REQUESTS - 1,
+      resetAt: now + RATE_LIMIT_WINDOW_MS,
+    };
+  }
+
+  if (existing.count >= RATE_LIMIT_MAX_REQUESTS) {
+    return {
+      allowed: false,
+      remaining: 0,
+      resetAt: existing.resetAt,
+    };
+  }
+
+  existing.count += 1;
+  rateLimitStore.set(ip, existing);
+
+  return {
+    allowed: true,
+    remaining: Math.max(0, RATE_LIMIT_MAX_REQUESTS - existing.count),
+    resetAt: existing.resetAt,
+  };
+}
 
 function detectCasualStyleMismatch(input: {
   userMessage: string;
@@ -165,9 +218,14 @@ function buildCacheKey(input: {
   personalMemory?: string;
   learningScope?: string;
 }) {
+  const memoryFingerprint = (input.personalMemory || "")
+    .trim()
+    .toLowerCase()
+    .slice(0, 200);
+
   return JSON.stringify({
     message: input.message.trim().toLowerCase(),
-    personalMemory: (input.personalMemory || "").trim().toLowerCase(),
+    personalMemoryFingerprint: memoryFingerprint,
     learningScope: (input.learningScope || "global").trim().toLowerCase(),
   });
 }
@@ -664,13 +722,29 @@ type OpenLuraPersonalStateStyleProfile = {
   updatedAt?: string;
 };
 
+type OpenLuraPersonalStateRow = {
+  key?: unknown;
+  chats?: unknown;
+  memory?: unknown;
+  feedback?: unknown;
+  learning_feedback?: unknown;
+  personal_feedback?: unknown;
+  personalMemory?: unknown;
+  profile_memory?: unknown;
+  state?: {
+    memory?: unknown;
+  } | null;
+  style_profile?: unknown;
+  usage_stats?: unknown;
+};
+
 type OpenLuraPersonalState = {
   userId: string | null;
   memory: string;
   feedback: OpenLuraFeedbackRow[];
   styleProfile: OpenLuraPersonalStateStyleProfile | null;
   usageStats: OpenLuraUsageStats | null;
-  raw: any;
+  raw: OpenLuraPersonalStateRow | null;
 };
 
 type OpenLuraPersonalRuntimeContext = {
@@ -1115,7 +1189,12 @@ async function persistSupabasePersonalMemory(input: {
   usageStats?: OpenLuraUsageStats | null;
   existingState?: any;
 }) {
-  if (!supabaseUrl || !supabaseServiceRoleKey || !input.userId) {
+  if (!input.userId) {
+    return false;
+  }
+
+  if (!supabaseUrl || !supabaseServiceRoleKey) {
+    console.error("OpenLura personal memory persist skipped: missing Supabase config");
     return false;
   }
 
@@ -1154,34 +1233,12 @@ async function persistSupabasePersonalMemory(input: {
       cache: "no-store",
     });
 
-    if (upsertRes.ok) {
-      return true;
-    }
-
-    const errorText = await upsertRes.text();
-
-    const patchRes = await fetch(
-      `${supabaseUrl}/rest/v1/${personalStateTable}?user_id=eq.${encodeURIComponent(input.userId)}`,
-      {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          apikey: supabaseServiceRoleKey,
-          Authorization: `Bearer ${supabaseServiceRoleKey}`,
-          Prefer: "return=minimal",
-        },
-        body: JSON.stringify({
-          memory: memoryItems,
-          style_profile: input.styleProfile || existingState.style_profile || null,
-          usage_stats: input.usageStats || existingState.usage_stats || null,
-          updated_at: new Date().toISOString(),
-        }),
-        cache: "no-store",
-      }
-    );
-
-    if (!patchRes.ok) {
-      console.error("OpenLura personal memory persist failed:", patchRes.status, await patchRes.text());
+    if (!upsertRes.ok) {
+      console.error(
+        "OpenLura personal memory persist failed:",
+        upsertRes.status,
+        await upsertRes.text()
+      );
       return false;
     }
 
@@ -1226,8 +1283,11 @@ async function fetchSupabasePersonalState(userId: string | null = null) {
 
       if (!res.ok) continue;
 
-      const rows = await res.json();
-      const row = Array.isArray(rows) ? rows[0] : null;
+      const rows: unknown = await res.json();
+      const row =
+        Array.isArray(rows) && rows.length > 0 && typeof rows[0] === "object" && rows[0] !== null
+          ? (rows[0] as OpenLuraPersonalStateRow)
+          : null;
 
       if (!row) continue;
 
@@ -1277,7 +1337,7 @@ async function fetchSupabasePersonalState(userId: string | null = null) {
 }
 
 function mergeLearningFeedbackLayers(input: {
-  globalFeedback: OpenLuraFeedbackRow[];
+  globalFeedbackSnapshot: OpenLuraFeedbackRow[];
   personalFeedback: OpenLuraFeedbackRow[];
   userFeedback?: OpenLuraFeedbackRow[];
 }) {
@@ -1310,7 +1370,7 @@ function mergeLearningFeedbackLayers(input: {
     }));
 
   return [
-    ...normalizeLayerRows(input.globalFeedback, "global"),
+    ...normalizeLayerRows(input.globalFeedbackSnapshot, "global"),
     ...normalizeLayerRows(input.personalFeedback, "personal"),
     ...normalizeLayerRows(input.userFeedback || [], "user"),
   ];
@@ -1509,7 +1569,10 @@ async function resolvePersonalRuntimeContext(input: {
   } satisfies OpenLuraPersonalRuntimeContext;
 }
 
-async function fetchSupabaseFeedbackRows(query: string, errorLabel: string) {
+async function fetchSupabaseFeedbackRows(
+  query: string,
+  errorLabel: string
+): Promise<OpenLuraFeedbackRow[]> {
   if (!supabaseUrl || !supabaseServiceRoleKey) return [];
 
   try {
@@ -1541,7 +1604,8 @@ async function fetchSupabaseFeedbackRows(query: string, errorLabel: string) {
       return [];
     }
 
-    return await res.json();
+    const rows: unknown = await res.json();
+    return Array.isArray(rows) ? (rows as OpenLuraFeedbackRow[]) : [];
   } catch (error) {
     console.error(errorLabel, error);
     return [];
@@ -1591,21 +1655,26 @@ function buildAutoDebugSignature(input: {
   });
 }
 
+function normalizeFeedbackUserScope(
+  value: unknown
+): "admin" | "guest" | "personal" | "user" | null {
+  return value === "admin" ||
+    value === "guest" ||
+    value === "personal" ||
+    value === "user"
+    ? value
+    : null;
+}
+
 function getUserScopeFromRequest(input: {
-  req: Request;
   isPersonalEnvironment?: boolean;
   hasAdminSession?: boolean;
-}) {
+}): "admin" | "guest" | "personal" {
   if (input.isPersonalEnvironment) {
     return "personal";
   }
 
-  const hasAdminSession =
-    typeof input.hasAdminSession === "boolean"
-      ? input.hasAdminSession
-      : isValidAdminSession(getCookieValue(input.req, ADMIN_COOKIE_NAME));
-
-  return hasAdminSession ? "admin" : "guest";
+  return input.hasAdminSession ? "admin" : "guest";
 }
 
 async function storeAutoDebugSignals(input: {
@@ -1632,15 +1701,19 @@ async function storeAutoDebugSignals(input: {
   );
 
   const recentSignatures = new Set(
-    recentRows.map((item: any) =>
+    recentRows.map((item) =>
       buildAutoDebugSignature({
-        userMessage: item.userMessage,
+        userMessage: item.userMessage || "",
         signalSource: String(item.source || "").split("__route_")[0],
         learningType: inferFeedbackLearningType(item),
         confidence:
-          String(item.message || "")
+          (String(item.message || "")
             .toLowerCase()
-            .match(/^\[(high|medium|low)\]/)?.[1] as "low" | "medium" | "high" || "low",
+            .match(/^\[(high|medium|low)\]/)?.[1] as
+            | "low"
+            | "medium"
+            | "high"
+            | undefined) || "low",
       })
     )
   );
@@ -1672,7 +1745,7 @@ async function storeAutoDebugSignals(input: {
   }
 
   try {
-    let res = await fetch(`${supabaseUrl}/rest/v1/openlura_feedback`, {
+    const res = await fetch(`${supabaseUrl}/rest/v1/openlura_feedback`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1723,6 +1796,7 @@ type ChatRequestBody = {
   recentMessages: { role: "user" | "ai"; content: string }[];
 };
 
+const MAX_REQUEST_BYTES = 1024 * 1024;
 const MAX_MESSAGE_LENGTH = 12000;
 const MAX_MEMORY_LENGTH = 12000;
 const MAX_IMAGE_URL_LENGTH = 20000;
@@ -1798,18 +1872,54 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+function buildNoStoreTextHeaders(extra?: Record<string, string>) {
+  return {
+    "Cache-Control": "no-store",
+    "Content-Type": "text/plain; charset=utf-8",
+    ...(extra ?? {}),
+  };
+}
+
 export async function POST(req: Request) {
+  const rateLimit = checkRateLimit(req);
+
+  if (!rateLimit.allowed) {
+    const retryAfterSeconds = Math.max(
+      1,
+      Math.ceil((rateLimit.resetAt - Date.now()) / 1000)
+    );
+
+    return new Response("Too many requests", {
+      status: 429,
+      headers: buildNoStoreTextHeaders({
+        "Retry-After": String(retryAfterSeconds),
+        "X-OpenLura-RateLimit-Limit": String(RATE_LIMIT_MAX_REQUESTS),
+        "X-OpenLura-RateLimit-Remaining": "0",
+      }),
+    });
+  }
+
   let rawBody: unknown;
+  const contentLengthHeader = req.headers.get("content-length");
+  const contentLength = contentLengthHeader ? Number(contentLengthHeader) : null;
+
+  if (
+    contentLength !== null &&
+    Number.isFinite(contentLength) &&
+    contentLength > MAX_REQUEST_BYTES
+  ) {
+    return new Response("Request body too large", {
+      status: 413,
+      headers: buildNoStoreTextHeaders(),
+    });
+  }
 
   try {
     rawBody = await req.json();
   } catch {
     return new Response("Invalid request body", {
       status: 400,
-      headers: {
-        "Content-Type": "text/plain; charset=utf-8",
-        "Cache-Control": "no-store",
-      },
+      headers: buildNoStoreTextHeaders(),
     });
   }
 
@@ -1818,10 +1928,7 @@ export async function POST(req: Request) {
   if (!body) {
     return new Response("Invalid request body", {
       status: 400,
-      headers: {
-        "Content-Type": "text/plain; charset=utf-8",
-        "Cache-Control": "no-store",
-      },
+      headers: buildNoStoreTextHeaders(),
     });
   }
 
@@ -1834,9 +1941,14 @@ export async function POST(req: Request) {
     recentMessages,
   } = body;
 
-  const hasAdminSession = isValidAdminSession(
-    getCookieValue(req, ADMIN_COOKIE_NAME)
-  );
+  if (!message && !image) {
+    return new Response("Empty request", {
+      status: 400,
+      headers: buildNoStoreTextHeaders(),
+    });
+  }
+
+  const hasAdminSession = false;
 
   const {
     isPersonalEnvironment,
@@ -1853,36 +1965,40 @@ export async function POST(req: Request) {
   if (isPersonalEnvironment && !personalUserId) {
     return new Response("Unauthorized", {
       status: 401,
-      headers: {
-        "Content-Type": "text/plain; charset=utf-8",
-        "Cache-Control": "no-store",
-      },
+      headers: buildNoStoreTextHeaders(),
+    });
+  }
+
+  if (!personalUserId && learningScope === "personal") {
+    return new Response("Unauthorized", {
+      status: 401,
+      headers: buildNoStoreTextHeaders(),
     });
   }
 
   const userScope = getUserScopeFromRequest({
-    req,
     isPersonalEnvironment,
     hasAdminSession,
   });
 
   const serverFeedback = await getRecentServerFeedback();
 
-    const normalizedServerFeedback = serverFeedback
-    .filter((item: any) => !item.user_id)
-    .map((item: any) => ({
-      type: item.type,
-      message: item.message,
-      userMessage: item.userMessage,
-      source: item.source,
-      learningType: inferFeedbackLearningType(item),
-      userScope: item.userScope || "guest",
-      user_id: item.user_id ?? null,
-      weight: item.userScope === "admin" ? 1.35 : 1,
-      timestamp: item.timestamp,
-    }));
+    const normalizedServerFeedback: OpenLuraFeedbackRow[] = serverFeedback
+  .filter((item: any) => !item.user_id)
+  .map((item: any) => ({
+    type: item.type,
+    message: item.message,
+    userMessage: item.userMessage,
+    source: item.source,
+    learningType: inferFeedbackLearningType(item),
+    userScope: normalizeFeedbackUserScope(item.userScope) || "guest",
+    user_id: item.user_id ?? null,
+    weight: item.userScope === "admin" ? 1.35 : 1,
+    timestamp: item.timestamp,
+  }));
 
-  const normalizedPersonalFeedbackRows = personalFeedbackRows.map((item: any) => ({
+  const normalizedPersonalFeedbackRows: OpenLuraFeedbackRow[] = personalFeedbackRows.map(
+  (item: any) => ({
     type: item.type,
     message: item.message,
     userMessage: item.userMessage,
@@ -1892,7 +2008,8 @@ export async function POST(req: Request) {
     user_id: item.user_id ?? personalUserId ?? null,
     weight: 1.5,
     timestamp: item.timestamp,
-  }));
+  })
+);
 
     const clientFeedback = feedback
     ? [
@@ -1942,23 +2059,22 @@ export async function POST(req: Request) {
       )
   );
 
-  const normalizedPersonalStateFeedback = (Array.isArray(personalState.feedback)
-    ? personalState.feedback
-    : []
-  ).map((item: any) => ({
-    type: item.type,
-    message: item.message,
-    userMessage: item.userMessage,
-    source: item.source || "personal_state_runtime",
-    learningType: inferFeedbackLearningType(item),
-    userScope: "personal",
-    user_id: item.user_id ?? personalUserId ?? null,
-    weight:
-      typeof item.weight === "number" && Number.isFinite(item.weight)
-        ? item.weight
-        : 1.25,
-    timestamp: item.timestamp,
-  }));
+ const normalizedPersonalStateFeedback: OpenLuraFeedbackRow[] = (
+  Array.isArray(personalState.feedback) ? personalState.feedback : []
+).map((item: any) => ({
+  type: item.type,
+  message: item.message,
+  userMessage: item.userMessage,
+  source: item.source || "personal_state_runtime",
+  learningType: inferFeedbackLearningType(item),
+  userScope: "personal",
+  user_id: item.user_id ?? personalUserId ?? null,
+  weight:
+    typeof item.weight === "number" && Number.isFinite(item.weight)
+      ? item.weight
+      : 1.25,
+  timestamp: item.timestamp,
+}));
 
   const userRuntimeFeedback = clientFeedback.map((item: any) => ({
     ...item,
@@ -1977,13 +2093,13 @@ export async function POST(req: Request) {
   ];
 
   const effectiveFeedback = mergeLearningFeedbackLayers({
-    globalFeedback: globalLearningFeedback,
+    globalFeedbackSnapshot: globalLearningFeedback,
     personalFeedback: isPersonalEnvironment ? personalLearningFeedback : [],
-    userFeedback: userRuntimeFeedback,
+    userFeedback: [],
   });
 
   const personalLayer = isPersonalEnvironment ? personalLearningFeedback : [];
-  const userLayer = userRuntimeFeedback;
+  const userLayer: OpenLuraFeedbackRow[] = [];
 
   const runtimePersonalMemory = rebalancePersonalMemoryFromFeedback({
     personalMemory: resolvedPersonalMemory,
@@ -2191,7 +2307,7 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
     hasMixedResponseFeedback: contentLearningState.hasMixedResponseFeedback,
   });
 
-  globalFeedback = globalLearningFeedback;
+  const globalFeedbackSnapshotSnapshot = getGlobalFeedbackSnapshot(globalLearningFeedback);
 
     const completedFeedback = normalizedServerFeedback.filter(
     (f: any) =>
@@ -2336,7 +2452,7 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
 
   const feedbackSignals = getFeedbackSignals(effectiveFeedback);
   const personalFeedbackSignals = getFeedbackSignals(personalEffectiveFeedback);
-  const globalFeedbackSignals = getFeedbackSignals(globalEffectiveFeedback);
+  const globalFeedbackSnapshotSignals = getFeedbackSignals(globalEffectiveFeedback);
 
   const styleLearningSignals = buildStyleLearningSignals({
     shorter: feedbackSignals.shorter,
@@ -2530,13 +2646,14 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
 
       return new Response(limitMessage, {
         status: 429,
-        headers: {
-          "Content-Type": "text/plain; charset=utf-8",
+        headers: buildNoStoreTextHeaders({
           "X-OpenLura-Variant": responseVariant,
           "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
           ...buildUsageHeaders(usageLimitSnapshot),
+            "X-OpenLura-RateLimit-Limit": String(RATE_LIMIT_MAX_REQUESTS),
+            "X-OpenLura-RateLimit-Remaining": String(rateLimit.remaining),
           "Retry-After": "86400",
-        },
+        }),
       });
     }
 
@@ -2636,13 +2753,12 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
 
       if (cached && Date.now() - cached.timestamp < RESPONSE_CACHE_TTL_MS) {
         return new Response(cached.text, {
-          headers: {
-            "Content-Type": "text/plain; charset=utf-8",
+          headers: buildNoStoreTextHeaders({
             "X-OpenLura-Variant": responseVariant,
             "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
             "X-OpenLura-Speed": "fast_text",
             ...buildUsageHeaders(usageLimitSnapshot),
-          },
+          }),
         });
       }
 
@@ -2744,13 +2860,12 @@ Fast-path rules:
           },
         }),
         {
-          headers: {
-            "Content-Type": "text/plain; charset=utf-8",
+          headers: buildNoStoreTextHeaders({
             "X-OpenLura-Variant": responseVariant,
             "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
             "X-OpenLura-Speed": "fast_text",
             ...buildUsageHeaders(usageLimitSnapshot),
-          },
+          }),
         }
       );
     }
@@ -2805,13 +2920,12 @@ Do not use web search for this path.`,
           },
         }),
         {
-          headers: {
-            "Content-Type": "text/plain; charset=utf-8",
+          headers: buildNoStoreTextHeaders({
             "X-OpenLura-Variant": responseVariant,
             "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
             "X-OpenLura-Speed": "fast_text",
             ...buildUsageHeaders(usageLimitSnapshot),
-          },
+          }),
         }
       );
     }
@@ -2837,13 +2951,12 @@ Do not use web search for this path.`,
 
       if (cached && Date.now() - cached.timestamp < RESPONSE_CACHE_TTL_MS) {
         return new Response(cached.text, {
-          headers: {
-            "Content-Type": "text/plain; charset=utf-8",
+          headers: buildNoStoreTextHeaders({
             "X-OpenLura-Variant": responseVariant,
             "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
             "X-OpenLura-Speed": "default",
             ...buildUsageHeaders(usageLimitSnapshot),
-          },
+          }),
         });
       }
     }
@@ -2951,12 +3064,12 @@ PERSONAL STYLE SIGNALS:
 - casual/natural chat tone: ${personalFeedbackSignals.casual}
 
 GLOBAL STYLE SIGNALS:
-- shorter answers: ${globalFeedbackSignals.shorter}
-- clearer explanations: ${globalFeedbackSignals.clearer}
-- better structure: ${globalFeedbackSignals.structure}
-- less vague: ${globalFeedbackSignals.vague}
-- more context: ${globalFeedbackSignals.context}
-- casual/natural chat tone: ${globalFeedbackSignals.casual}
+- shorter answers: ${globalFeedbackSnapshotSignals.shorter}
+- clearer explanations: ${globalFeedbackSnapshotSignals.clearer}
+- better structure: ${globalFeedbackSnapshotSignals.structure}
+- less vague: ${globalFeedbackSnapshotSignals.vague}
+- more context: ${globalFeedbackSnapshotSignals.context}
+- casual/natural chat tone: ${globalFeedbackSnapshotSignals.casual}
 
 PRIORITY RULE:
 - current user request > personal feedback signals > global consensus > defaults
@@ -2968,10 +3081,10 @@ RUNTIME OVERRIDE PROFILE:
 ${runtimeOverrideInstructionBlock}
 
 GLOBAL LEARNING:
-Total sessions: ${globalFeedback.length}
+Total sessions: ${globalFeedbackSnapshot.length}
 
 Common failed patterns (avoid these types of responses):
-${globalFeedback
+${globalFeedbackSnapshot
   .filter(
     (f: any) => f.type === "down" || f.source === "idea_feedback_learning"
   )
@@ -3380,12 +3493,11 @@ ${aiText}`,
       },
     }),
     {
-      headers: {
-        "Content-Type": "text/plain; charset=utf-8",
+      headers: buildNoStoreTextHeaders({
         "X-OpenLura-Variant": responseVariant,
         "X-OpenLura-Sources": encodeURIComponent(JSON.stringify(sources)),
         ...buildUsageHeaders(usageLimitSnapshot),
-      },
+      }),
     }
   );
 }
