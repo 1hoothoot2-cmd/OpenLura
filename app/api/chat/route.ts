@@ -1643,7 +1643,7 @@ async function fetchSupabasePersonalFeedbackRows(input: {
   const limit = Math.min(Math.max(input.limit || 60, 1), 100);
 
   const query =
-    `select=type,message,userMessage,source,userScope,timestamp,user_id,learningType,weight` +
+    `select=type,message,userMessage,source,timestamp,user_id` +
     `&user_id=eq.${encodeURIComponent(input.userId)}` +
     `&order=timestamp.desc` +
     `&limit=${limit}`;
@@ -1693,14 +1693,14 @@ async function fetchSupabasePersonalFeedbackRows(input: {
 
 async function getRecentServerFeedback() {
   const primary = await fetchSupabaseGlobalFeedbackRows(
-    "select=type,message,userMessage,source,userScope,timestamp,user_id&user_id=is.null&order=timestamp.desc&limit=30",
+    "select=type,message,userMessage,source,timestamp,user_id&user_id=is.null&order=timestamp.desc&limit=30",
     "OpenLura server feedback fetch failed:"
   );
 
   if (primary.length > 0) return primary;
 
   return fetchSupabaseGlobalFeedbackRows(
-    "select=type,message,userMessage,source,userScope,timestamp&user_id=is.null&order=timestamp.desc&limit=30",
+    "select=type,message,userMessage,source,timestamp&user_id=is.null&order=timestamp.desc&limit=30",
     "OpenLura server feedback fallback fetch failed:"
   );
 }
@@ -1813,7 +1813,6 @@ async function storeAutoDebugSignals(input: {
       message: `[${signal.confidence}] ${signal.message}`,
       userMessage: input.userMessage || null,
       source: `${signal.source}__route_${signal.routeType}__variant_${signal.variant}`,
-      userScope: "guest",
       user_id: null,
       timestamp: new Date().toISOString(),
     }));
@@ -2635,7 +2634,7 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
 
   try {
     const feedbackData = await fetchSupabaseGlobalFeedbackRows(
-  "select=message,type,user_id,userScope&user_id=is.null",
+  "select=message,type,user_id&user_id=is.null",
   "Global learning fetch failed:"
 );
 
@@ -2667,7 +2666,7 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
 
   try {
     const feedbackData = await fetchSupabaseGlobalFeedbackRows(
-  "select=type,source,user_id,userScope&user_id=is.null",
+  "select=type,source,user_id&user_id=is.null",
   "A/B feedback fetch failed:"
 );
 
