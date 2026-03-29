@@ -103,10 +103,10 @@ export default function Sidebar({
         isMenuOpen ? "z-[220]" : "z-0"
       } ${
         isActive
-          ? "border-[#60a5fa]/44 bg-[linear-gradient(180deg,rgba(59,130,246,0.26),rgba(37,99,235,0.14))] shadow-[inset_0_0_0_1px_rgba(219,234,254,0.14),0_18px_36px_rgba(15,23,42,0.28)]"
+          ? "border-[#60a5fa]/48 bg-[linear-gradient(180deg,rgba(59,130,246,0.28),rgba(37,99,235,0.14))] shadow-[inset_0_0_0_1px_rgba(219,234,254,0.14),0_18px_36px_rgba(15,23,42,0.28)]"
           : isPinned
-          ? "border-white/[0.09] bg-white/[0.045] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.02)] hover:-translate-y-[1px] hover:border-white/[0.13] hover:bg-white/[0.06] hover:shadow-[0_12px_24px_rgba(0,0,0,0.14)]"
-          : "border-transparent bg-transparent hover:-translate-y-[1px] hover:border-white/[0.075] hover:bg-white/[0.04] hover:shadow-[0_8px_18px_rgba(0,0,0,0.10)]"
+          ? "border-white/[0.09] bg-white/[0.05] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.02)] hover:-translate-y-[1px] hover:border-white/[0.14] hover:bg-white/[0.065] hover:shadow-[0_12px_24px_rgba(0,0,0,0.14)]"
+          : "border-transparent bg-transparent hover:-translate-y-[1px] hover:border-white/[0.08] hover:bg-white/[0.045] hover:shadow-[0_8px_18px_rgba(0,0,0,0.10)]"
       }`}
     >
       {isPinned && !isActive && (
@@ -116,7 +116,7 @@ export default function Sidebar({
       {isActive && (
         <>
           <div className="pointer-events-none absolute inset-y-[7px] left-0 w-[3px] rounded-full bg-gradient-to-b from-[#eff6ff] via-[#93c5fd] to-[#3b82f6]" />
-          <div className="pointer-events-none absolute inset-[1px] rounded-[20px] bg-[linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.01))]" />
+          <div className="pointer-events-none absolute inset-[1px] rounded-[20px] bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.012))]" />
         </>
       )}
 
@@ -150,7 +150,7 @@ export default function Sidebar({
                 isActive
                   ? "font-semibold tracking-[-0.01em] text-white"
                   : isPinned
-                  ? "font-medium text-white/90"
+                  ? "font-medium text-white/92"
                   : "font-normal text-white/72"
               }`}
             >
@@ -252,10 +252,10 @@ export default function Sidebar({
           className="mb-3 rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2.5 text-sm text-white/88 outline-none placeholder:text-white/28 ol-surface transition-[border-color,background-color,box-shadow] duration-200 focus:border-[#60a5fa]/28 focus:bg-white/[0.06] focus:shadow-[inset_0_0_0_1px_rgba(96,165,250,0.08)]"
         />
 
-        <div className="mt-2 flex-1 space-y-6 overflow-x-visible overflow-y-auto pr-1 pb-[max(env(safe-area-inset-bottom),14px)] pt-1">
+        <div className="mt-2 flex-1 space-y-6 overflow-x-visible overflow-y-auto pr-1 pb-[max(env(safe-area-inset-bottom),14px)] pt-1.5">
           {searchedPinnedChats.length > 0 && (
             <div>
-              <div className="mb-3 flex items-center justify-between px-1.5">
+              <div className="mb-3.5 flex items-center justify-between px-1.5">
                 <span className="text-[11px] uppercase tracking-[0.18em] text-white/36">
                   Pinned
                 </span>
@@ -263,7 +263,7 @@ export default function Sidebar({
                   {searchedPinnedChats.length}
                 </span>
               </div>
-              <div className="space-y-3 overflow-visible">
+              <div className="space-y-3.5 overflow-visible">
                 {searchedPinnedChats.map((chat) => renderChatRow(chat, true))}
               </div>
             </div>
@@ -278,7 +278,7 @@ export default function Sidebar({
                 {regularChats.length}
               </span>
             </div>
-            <div className="space-y-2.5 overflow-visible">
+            <div className="space-y-3 overflow-visible">
               {regularChats.length > 0 ? (
                 regularChats.map((chat) => renderChatRow(chat, false))
               ) : (
@@ -298,12 +298,12 @@ export default function Sidebar({
                 {archivedChats.length}
               </span>
             </div>
-            <div className="space-y-3">
+            <div className="space-y-3.5">
               {archivedChats.length > 0 ? (
                 archivedChats.map((chat) => (
                   <div
                     key={chat.id}
-                    className="group flex items-center justify-between rounded-2xl border border-white/8 bg-white/[0.02] px-3 py-2.5 text-sm ol-interactive transition-[background-color,border-color,box-shadow] duration-200 hover:border-white/10 hover:bg-white/[0.036] hover:shadow-[0_8px_16px_rgba(0,0,0,0.08)]"
+                    className="group flex items-center justify-between rounded-2xl border border-white/8 bg-white/[0.022] px-3 py-2.5 text-sm ol-interactive transition-[background-color,border-color,box-shadow] duration-200 hover:border-white/10 hover:bg-white/[0.04] hover:shadow-[0_8px_16px_rgba(0,0,0,0.08)]"
                   >
                     <span className="flex-1 text-left text-white/40 ol-interactive transition-colors duration-200 group-hover:text-white/54">
                       {chat.title || "Chat"}
@@ -359,7 +359,7 @@ export default function Sidebar({
                 deletedChats.map((chat) => (
                   <div
                     key={chat.id}
-                    className="group flex items-center justify-between rounded-2xl border border-red-400/10 bg-red-500/[0.032] px-3 py-2.5 text-sm ol-interactive transition-[background-color,border-color,box-shadow] duration-200 hover:border-red-400/16 hover:bg-red-500/[0.052] hover:shadow-[0_8px_16px_rgba(0,0,0,0.08)]"
+                    className="group flex items-center justify-between rounded-2xl border border-red-400/10 bg-red-500/[0.034] px-3 py-2.5 text-sm ol-interactive transition-[background-color,border-color,box-shadow] duration-200 hover:border-red-400/16 hover:bg-red-500/[0.056] hover:shadow-[0_8px_16px_rgba(0,0,0,0.08)]"
                   >
                     <span className="flex-1 text-white/32 line-through ol-interactive transition-colors duration-200 group-hover:text-white/42">
                       {chat.title || "Chat"}
@@ -387,7 +387,7 @@ export default function Sidebar({
           </div>
         </div>
 
-        <div className="mt-5 space-y-2.5 border-t border-white/8 pt-4 pb-[max(env(safe-area-inset-bottom),2px)]">
+        <div className="mt-5 space-y-2.5 border-t border-white/8 pt-4.5 pb-[max(env(safe-area-inset-bottom),2px)]">
           <button
             type="button"
             onClick={() => {
