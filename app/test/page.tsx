@@ -208,34 +208,43 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
       : [],
   }));
 
-  const hasServerState =
-    normalizedChats.length > 0 || serverMemory.length > 0;
+  const hasServerChats = normalizedChats.length > 0;
+  const hasServerMemory = serverMemory.length > 0;
+  const hasServerState = hasServerChats || hasServerMemory;
 
-  if (hasServerState && !hasManualChatSelectionRef.current) {
-    setChats(normalizedChats);
+  if (!hasManualChatSelectionRef.current) {
+    if (hasServerChats) {
+      setChats(normalizedChats);
 
-    const nextActiveChatId =
-      normalizedChats.find((chat: any) => !chat.archived && !chat.deleted)?.id ??
-      normalizedChats.find((chat: any) => !chat.deleted)?.id ??
-      null;
+      const nextActiveChatId =
+        normalizedChats.find((chat: any) => !chat.archived && !chat.deleted)?.id ??
+        normalizedChats.find((chat: any) => !chat.deleted)?.id ??
+        null;
 
-    preferredActiveChatIdRef.current = nextActiveChatId;
-    setActiveChatId(nextActiveChatId);
-  }
-
-  if (hasServerState) {
-    if (serverMemory.length > 0) {
-      if (typeof serverMemory[0] === "string") {
-        setMemory(serverMemory.map((m: string) => ({ text: m, weight: 0.5 })));
-      } else {
-        setMemory(serverMemory);
-      }
+      preferredActiveChatIdRef.current = nextActiveChatId;
+      pendingActiveChatIdRef.current = nextActiveChatId;
+      forcedActiveChatIdRef.current = nextActiveChatId;
+      setActiveChatId(nextActiveChatId);
     } else {
-      setMemory([]);
+      setChats([]);
+      preferredActiveChatIdRef.current = null;
+      pendingActiveChatIdRef.current = null;
+      forcedActiveChatIdRef.current = null;
+      setActiveChatId(null);
     }
   }
 
-  loadedFromServer = hasServerState;
+  if (hasServerMemory) {
+    if (typeof serverMemory[0] === "string") {
+      setMemory(serverMemory.map((m: string) => ({ text: m, weight: 0.5 })));
+    } else {
+      setMemory(serverMemory);
+    }
+  } else if (!hasManualChatSelectionRef.current) {
+    setMemory([]);
+  }
+
+  loadedFromServer = true;
 }
 
             setPersonalStateLoaded(true);
@@ -272,6 +281,8 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
       null;
 
     preferredActiveChatIdRef.current = nextActiveChatId;
+    pendingActiveChatIdRef.current = nextActiveChatId;
+    forcedActiveChatIdRef.current = nextActiveChatId;
     setActiveChatId(nextActiveChatId);
   }
 } else if (!saved && !isPersonalRoute && !hasManualChatSelectionRef.current) {
@@ -285,6 +296,8 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
           } else {
             setMemory(parsed);
           }
+        } else if (!loadedFromServer && isPersonalRoute) {
+          setMemory([]);
         }
       } catch (error) {
         console.error("OpenLura load failed:", error);
@@ -549,6 +562,10 @@ const hasMeaningfulPersonalState =
         if (res.status === 401) {
           console.warn("OpenLura personal verify unauthorized");
           setPersonalStateLoaded(true);
+          preferredActiveChatIdRef.current = null;
+          pendingActiveChatIdRef.current = null;
+          forcedActiveChatIdRef.current = null;
+          setActiveChatId(null);
           setChats([]);
           setMemory([]);
           return;
@@ -591,12 +608,13 @@ const hasMeaningfulPersonalState =
         );
 
         const shouldApplyChats =
+          forceApply ||
           (!hasLocalMeaningfulChats && latestChats.length === 0) ||
           (!hasLocalMeaningfulChats && normalizedChats.length > 0);
 
         const hasServerChats = normalizedChats.length > 0;
 
-        if (shouldApplyChats && (hasServerChats || !hasLocalMeaningfulChats)) {
+        if (shouldApplyChats) {
           setChats(normalizedChats);
 
           const currentStillExists =
@@ -606,13 +624,16 @@ const hasMeaningfulPersonalState =
                 chat.id === latestActiveChatId && !chat.archived && !chat.deleted
             );
 
-          const nextActiveChatId = currentStillExists
-            ? latestActiveChatId
-            : normalizedChats.find((chat: any) => !chat.archived && !chat.deleted)?.id ??
-              normalizedChats.find((chat: any) => !chat.deleted)?.id ??
-              null;
+          const nextActiveChatId =
+            hasServerChats
+              ? currentStillExists
+                ? latestActiveChatId
+                : normalizedChats.find((chat: any) => !chat.archived && !chat.deleted)?.id ??
+                  normalizedChats.find((chat: any) => !chat.deleted)?.id ??
+                  null
+              : null;
 
-          preferredActiveChatIdRef.current=nextActiveChatId;
+          preferredActiveChatIdRef.current = nextActiveChatId;
           pendingActiveChatIdRef.current = nextActiveChatId;
           forcedActiveChatIdRef.current = nextActiveChatId;
           setActiveChatId(nextActiveChatId);
@@ -798,6 +819,12 @@ const resizeComposerTextarea = () => {
     if (visibleChats.length === 0) {
   if (isPersonalRoute) {
     isBootstrappingChatRef.current = false;
+    preferredActiveChatIdRef.current = null;
+    pendingActiveChatIdRef.current = null;
+    forcedActiveChatIdRef.current = null;
+    if (activeChatId !== null) {
+      setActiveChatId(null);
+    }
     return;
   }
 
