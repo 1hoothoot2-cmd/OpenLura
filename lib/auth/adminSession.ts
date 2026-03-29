@@ -7,6 +7,9 @@ const ADMIN_SESSION_VERSION = "v1";
 const ADMIN_SESSION_SIGNATURE_HEX_LENGTH = 64;
 const ADMIN_SESSION_NONCE_HEX_LENGTH = 32;
 const MIN_ADMIN_SESSION_SECRET_LENGTH = 32;
+const MAX_COOKIE_HEADER_LENGTH = 16 * 1024;
+const MAX_COOKIE_VALUE_LENGTH = 2048;
+const MAX_FUTURE_SESSION_SKEW_MS = 5 * 60 * 1000;
 
 type ParsedAdminSession = {
   version: string;
@@ -43,6 +46,7 @@ function buildAdminSessionPayload(expiresAt: string, nonce: string) {
 
 function parseAdminSessionValue(value?: string | null): ParsedAdminSession | null {
   if (!value) return null;
+  if (value.length > MAX_COOKIE_VALUE_LENGTH) return null;
 
   const parts = value.split(".");
 
@@ -78,35 +82,53 @@ export function createAdminSessionValue(now = Date.now()) {
   return `${ADMIN_SESSION_VERSION}.${expiresAt}.${nonce}.${signature}`;
 }
 
-export function isValidAdminSession(value?: string | null) {
+export function getValidatedAdminSession(value?: string | null) {
   const parsed = parseAdminSessionValue(value);
 
-  if (!parsed) return false;
+  if (!parsed) return null;
 
   const expiresAtNumber = Number(parsed.expiresAt);
+  const maxAllowedExpiry =
+    Date.now() + ADMIN_SESSION_MAX_AGE * 1000 + MAX_FUTURE_SESSION_SKEW_MS;
 
-  if (!Number.isSafeInteger(expiresAtNumber)) return false;
-  if (expiresAtNumber <= Date.now()) return false;
+  if (!Number.isSafeInteger(expiresAtNumber)) return null;
+  if (expiresAtNumber <= Date.now()) return null;
+  if (expiresAtNumber > maxAllowedExpiry) return null;
 
   const expectedSignature = signAdminSession(parsed.expiresAt, parsed.nonce);
 
   if (!isLowercaseHex(expectedSignature, ADMIN_SESSION_SIGNATURE_HEX_LENGTH)) {
-    return false;
+    return null;
   }
 
   try {
-    return timingSafeEqual(
-      Buffer.from(parsed.signature, "hex"),
-      Buffer.from(expectedSignature, "hex")
+    const providedSignatureBuffer = Buffer.from(parsed.signature, "hex");
+    const expectedSignatureBuffer = Buffer.from(expectedSignature, "hex");
+
+    if (providedSignatureBuffer.length !== expectedSignatureBuffer.length) {
+      return null;
+    }
+
+    const isValid = timingSafeEqual(
+      providedSignatureBuffer,
+      expectedSignatureBuffer
     );
+
+    return isValid ? parsed : null;
   } catch {
-    return false;
+    return null;
   }
+}
+
+export function isValidAdminSession(value?: string | null) {
+  return !!getValidatedAdminSession(value);
 }
 
 export function getCookieValue(req: Request, name: string) {
   const cookieHeader = req.headers.get("cookie");
+
   if (!cookieHeader) return null;
+  if (cookieHeader.length > MAX_COOKIE_HEADER_LENGTH) return null;
 
   const cookiePrefix = `${name}=`;
 
@@ -117,10 +139,15 @@ export function getCookieValue(req: Request, name: string) {
 
     const value = part.slice(cookiePrefix.length);
 
+    if (!value || value.length > MAX_COOKIE_VALUE_LENGTH) {
+      return null;
+    }
+
     try {
-      return decodeURIComponent(value);
+      const decoded = decodeURIComponent(value);
+      return decoded.length <= MAX_COOKIE_VALUE_LENGTH ? decoded : null;
     } catch {
-      return value;
+      return value.length <= MAX_COOKIE_VALUE_LENGTH ? value : null;
     }
   }
 
