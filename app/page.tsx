@@ -2120,7 +2120,7 @@ console.log("FEEDBACK CLICKED", { chatId, msgIndex, type });
       )}
 
       {deleteTargetChatId !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
           <div className="w-full max-w-[340px] rounded-[28px] border border-white/8 bg-[#0a0f1d]/95 p-6 shadow-[0_22px_60px_rgba(0,0,0,0.30)] backdrop-blur-2xl">
             <h2 className="mb-2 text-lg font-semibold text-white/95">Are you sure?</h2>
             <p className="mb-5 text-sm leading-6 text-white/60">
@@ -2147,7 +2147,7 @@ console.log("FEEDBACK CLICKED", { chatId, msgIndex, type });
       )}
 
       {showFeedbackBox && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
           <div className="w-full max-w-[360px] rounded-[28px] border border-white/8 bg-[#0a0f1d]/95 p-6 shadow-[0_22px_60px_rgba(0,0,0,0.30)] backdrop-blur-2xl">
             <h2 className="mb-4 text-lg font-semibold text-white/95">Feedback / Idea</h2>
 
@@ -2572,7 +2572,7 @@ enterKeyHint="send"
       )}
 
       {showLoginBox && !isPersonalRoute && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-[28px] border border-white/8 bg-[#0b1020]/95 p-6 shadow-[0_22px_60px_rgba(0,0,0,0.32)] backdrop-blur-2xl">
             <div className="mb-5 rounded-[24px] border border-white/8 bg-white/[0.03] px-4 py-4">
               <p className="text-[11px] uppercase tracking-[0.16em] text-white/38">
