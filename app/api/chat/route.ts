@@ -680,6 +680,8 @@ function classifyOpenLuraRoute(input: {
 }
 
 const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseAnonKey =
+  process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const personalStateTable =
   process.env.OPENLURA_PERSONAL_STATE_TABLE || "openlura_personal_state";
@@ -691,6 +693,7 @@ type OpenLuraFeedbackRow = {
   source?: string | null;
   learningType?: string | null;
   userScope?: "admin" | "guest" | "personal" | "user" | null;
+  user_id?: string | null;
   timestamp?: string | number | null;
   weight?: number;
 };
@@ -754,6 +757,7 @@ type OpenLuraPersonalRuntimeContext = {
   personalFeedbackRows: OpenLuraFeedbackRow[];
   resolvedPersonalMemory: string;
   learningScope: string;
+  accessToken: string | null;
 };
 
 type OpenLuraPersonalOverrideProfile = {
@@ -1184,35 +1188,31 @@ function buildUsageHeaders(usageLimitSnapshot: {
 
 async function persistSupabasePersonalMemory(input: {
   userId: string;
+  accessToken: string;
   memory: string;
   styleProfile?: OpenLuraPersonalStateStyleProfile | null;
   usageStats?: OpenLuraUsageStats | null;
   existingState?: any;
 }) {
-  if (!input.userId) {
+  if (!input.userId || !input.accessToken) {
     return false;
   }
 
-  if (!supabaseUrl || !supabaseServiceRoleKey) {
+  if (!supabaseUrl || !supabaseAnonKey) {
     console.error("OpenLura personal memory persist skipped: missing Supabase config");
     return false;
   }
 
-  const existingState = input.existingState && typeof input.existingState === "object"
-    ? input.existingState
-    : {};
+  const existingState =
+    input.existingState && typeof input.existingState === "object"
+      ? input.existingState
+      : {};
 
   const existingChats = Array.isArray(existingState.chats) ? existingState.chats : [];
-  const existingKey =
-    typeof existingState.key === "string" && existingState.key.trim()
-      ? existingState.key.trim()
-      : input.userId;
-
   const memoryItems = extractWeightedPersonalMemoryItems(input.memory);
 
   const payload = {
     user_id: input.userId,
-    key: existingKey,
     chats: existingChats,
     memory: memoryItems,
     style_profile: input.styleProfile || existingState.style_profile || null,
@@ -1221,38 +1221,42 @@ async function persistSupabasePersonalMemory(input: {
   };
 
   try {
-    const upsertRes = await fetch(`${supabaseUrl}/rest/v1/${personalStateTable}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: supabaseServiceRoleKey,
-        Authorization: `Bearer ${supabaseServiceRoleKey}`,
-        Prefer: "resolution=merge-duplicates,return=minimal",
-      },
-      body: JSON.stringify(payload),
-      cache: "no-store",
-    });
+    const upsertRes = await fetch(
+      `${supabaseUrl}/rest/v1/${personalStateTable}?on_conflict=user_id`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: supabaseAnonKey,
+          Authorization: `Bearer ${input.accessToken}`,
+          Prefer: "resolution=merge-duplicates,return=minimal",
+        },
+        body: JSON.stringify(payload),
+        cache: "no-store",
+      }
+    );
 
     if (!upsertRes.ok) {
-      console.error(
-        "OpenLura personal memory persist failed:",
-        upsertRes.status,
-        await upsertRes.text()
-      );
+      console.error("OpenLura personal memory persist failed:", {
+        status: upsertRes.status,
+      });
       return false;
     }
 
     return true;
   } catch (error) {
-    console.error("OpenLura personal memory persist error:", error);
+    console.error("OpenLura personal memory persist error:", toSafeErrorMeta(error));
     return false;
   }
 }
 
-async function fetchSupabasePersonalState(userId: string | null = null) {
+async function fetchSupabasePersonalState(
+  userId: string | null = null,
+  accessToken: string | null = null
+) {
   const resolvedUserId = userId ?? null;
 
-  if (!supabaseUrl || !supabaseServiceRoleKey) {
+  if (!resolvedUserId || !accessToken || !supabaseUrl || !supabaseAnonKey) {
     return {
       userId: resolvedUserId,
       memory: "",
@@ -1263,77 +1267,74 @@ async function fetchSupabasePersonalState(userId: string | null = null) {
     } satisfies OpenLuraPersonalState;
   }
 
-  const tryQueries = resolvedUserId
-    ? [`select=*&user_id=eq.${encodeURIComponent(resolvedUserId)}&limit=1`]
-    : [];
+  const query =
+    `select=memory,style_profile,usage_stats,updated_at` +
+    `&user_id=eq.${encodeURIComponent(resolvedUserId)}` +
+    `&limit=1`;
 
-  for (const query of tryQueries) {
-    try {
-      const res = await fetch(
-        `${supabaseUrl}/rest/v1/${personalStateTable}?${query}`,
-        {
-          method: "GET",
-          headers: {
-            apikey: supabaseServiceRoleKey,
-            Authorization: `Bearer ${supabaseServiceRoleKey}`,
-          },
-          cache: "no-store",
-        }
-      );
+  try {
+    const res = await fetch(`${supabaseUrl}/rest/v1/${personalStateTable}?${query}`, {
+      method: "GET",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json",
+      },
+      cache: "no-store",
+    });
 
-      if (!res.ok) continue;
-
-      const rows: unknown = await res.json();
-      const row =
-        Array.isArray(rows) && rows.length > 0 && typeof rows[0] === "object" && rows[0] !== null
-          ? (rows[0] as OpenLuraPersonalStateRow)
-          : null;
-
-      if (!row) continue;
-
-      const nestedFeedback = Array.isArray(row.feedback)
-        ? row.feedback
-        : Array.isArray(row.learning_feedback)
-        ? row.learning_feedback
-        : Array.isArray(row.personal_feedback)
-        ? row.personal_feedback
-        : [];
-
-      const memoryText =
-        buildWeightedPersonalMemoryBlock(
-          row.personalMemory,
-          row.memory,
-          row.profile_memory,
-          row.state?.memory
-        ) || "";
+    if (!res.ok) {
+      console.error("OpenLura personal state fetch failed:", {
+        status: res.status,
+      });
 
       return {
         userId: resolvedUserId,
-        memory: memoryText,
-        feedback: nestedFeedback,
-        styleProfile:
-          row?.style_profile && typeof row.style_profile === "object"
-            ? row.style_profile
-            : null,
-        usageStats:
-          row?.usage_stats && typeof row.usage_stats === "object"
-            ? row.usage_stats
-            : null,
-        raw: row,
+        memory: "",
+        feedback: [],
+        styleProfile: null,
+        usageStats: null,
+        raw: null,
       } satisfies OpenLuraPersonalState;
-    } catch (error) {
-      console.error("OpenLura personal state fetch failed:", error);
     }
-  }
 
-  return {
-    userId: resolvedUserId,
-    memory: "",
-    feedback: [],
-    styleProfile: null,
-    usageStats: null,
-    raw: null,
-  } satisfies OpenLuraPersonalState;
+    const rows: unknown = await res.json();
+    const row =
+      Array.isArray(rows) && rows.length > 0 && typeof rows[0] === "object" && rows[0] !== null
+        ? (rows[0] as OpenLuraPersonalStateRow)
+        : null;
+
+    const memoryText =
+      row
+        ? buildWeightedPersonalMemoryBlock(row.memory) || ""
+        : "";
+
+    return {
+      userId: resolvedUserId,
+      memory: memoryText,
+      feedback: [],
+      styleProfile:
+        row?.style_profile && typeof row.style_profile === "object"
+          ? row.style_profile
+          : null,
+      usageStats:
+        row?.usage_stats && typeof row.usage_stats === "object"
+          ? row.usage_stats
+          : null,
+      raw: row,
+    } satisfies OpenLuraPersonalState;
+  } catch (error) {
+    console.error("OpenLura personal state fetch failed:", toSafeErrorMeta(error));
+
+    return {
+      userId: resolvedUserId,
+      memory: "",
+      feedback: [],
+      styleProfile: null,
+      usageStats: null,
+      raw: null,
+    } satisfies OpenLuraPersonalState;
+  }
 }
 
 function mergeLearningFeedbackLayers(input: {
@@ -1533,11 +1534,12 @@ async function resolvePersonalRuntimeContext(input: {
   const identity = await resolveOpenLuraRequestIdentity(input.req);
   const authUser = identity.authUser;
   const personalUserId = authUser?.id || null;
+  const accessToken = identity.accessToken || null;
 
-  const hasAuthenticatedPersonalUser = !!personalUserId;
+  const hasAuthenticatedPersonalUser = !!personalUserId && !!accessToken;
 
   const personalState = hasAuthenticatedPersonalUser
-    ? await fetchSupabasePersonalState(personalUserId)
+    ? await fetchSupabasePersonalState(personalUserId, accessToken)
     : ({
         userId: null,
         memory: "",
@@ -1547,8 +1549,8 @@ async function resolvePersonalRuntimeContext(input: {
         raw: null,
       } satisfies OpenLuraPersonalState);
 
-  const personalFeedbackRows = hasAuthenticatedPersonalUser
-    ? await getPersonalFeedbackRows(personalUserId)
+  const personalFeedbackRows: OpenLuraFeedbackRow[] = hasAuthenticatedPersonalUser
+    ? await getPersonalFeedbackRows(personalUserId, accessToken)
     : [];
 
   const isPersonalEnvironment = hasAuthenticatedPersonalUser;
@@ -1566,21 +1568,37 @@ async function resolvePersonalRuntimeContext(input: {
     personalFeedbackRows,
     resolvedPersonalMemory,
     learningScope,
+    accessToken,
   } satisfies OpenLuraPersonalRuntimeContext;
 }
 
-async function fetchSupabaseFeedbackRows(
+async function fetchSupabaseGlobalFeedbackRows(
   query: string,
   errorLabel: string
 ): Promise<OpenLuraFeedbackRow[]> {
   if (!supabaseUrl || !supabaseServiceRoleKey) return [];
 
+  const normalizedQuery = String(query || "");
+
+  if (
+    normalizedQuery.includes("user_id=eq.") ||
+    normalizedQuery.includes("user_id=not.is.null")
+  ) {
+    console.error(`${errorLabel} blocked unsafe global feedback query`);
+    return [];
+  }
+
+  const safeQuery = normalizedQuery.includes("user_id=is.null")
+    ? normalizedQuery
+    : `${normalizedQuery}&user_id=is.null`;
+
   try {
-    const res = await fetch(`${supabaseUrl}/rest/v1/openlura_feedback?${query}`, {
+    const res = await fetch(`${supabaseUrl}/rest/v1/openlura_feedback?${safeQuery}`, {
       method: "GET",
       headers: {
         apikey: supabaseServiceRoleKey,
         Authorization: `Bearer ${supabaseServiceRoleKey}`,
+        Accept: "application/json",
       },
       cache: "no-store",
     });
@@ -1598,7 +1616,9 @@ async function fetchSupabaseFeedbackRows(
         );
 
       if (!isSchemaMismatch) {
-        console.error(errorLabel, res.status, errorText);
+        logSafeError(errorLabel, new Error(errorText), {
+          status: res.status,
+        });
       }
 
       return [];
@@ -1607,38 +1627,95 @@ async function fetchSupabaseFeedbackRows(
     const rows: unknown = await res.json();
     return Array.isArray(rows) ? (rows as OpenLuraFeedbackRow[]) : [];
   } catch (error) {
-    console.error(errorLabel, error);
+    logSafeError(errorLabel, error);
+    return [];
+  }
+}
+
+async function fetchSupabasePersonalFeedbackRows(input: {
+  userId: string;
+  accessToken: string;
+  limit?: number;
+}): Promise<OpenLuraFeedbackRow[]> {
+  if (!input.userId || !input.accessToken) return [];
+  if (!supabaseUrl || !supabaseAnonKey) return [];
+
+  const limit = Math.min(Math.max(input.limit || 60, 1), 100);
+
+  const query =
+    `select=type,message,userMessage,source,userScope,timestamp,user_id,learningType,weight` +
+    `&user_id=eq.${encodeURIComponent(input.userId)}` +
+    `&order=timestamp.desc` +
+    `&limit=${limit}`;
+
+  try {
+    const res = await fetch(`${supabaseUrl}/rest/v1/openlura_feedback?${query}`, {
+      method: "GET",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${input.accessToken}`,
+        Accept: "application/json",
+      },
+      cache: "no-store",
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text();
+
+      const isSchemaMismatch =
+        res.status === 400 &&
+        (
+          errorText.includes("PGRST204") ||
+          errorText.includes("42703") ||
+          errorText.toLowerCase().includes("column") ||
+          errorText.toLowerCase().includes("could not find the")
+        );
+
+      if (!isSchemaMismatch) {
+        logSafeError("OpenLura personal feedback fetch failed:", new Error(errorText), {
+          status: res.status,
+          userId: input.userId,
+        });
+      }
+
+      return [];
+    }
+
+    const rows: unknown = await res.json();
+    return Array.isArray(rows) ? (rows as OpenLuraFeedbackRow[]) : [];
+  } catch (error) {
+    logSafeError("OpenLura personal feedback fetch failed:", error, {
+      userId: input.userId,
+    });
     return [];
   }
 }
 
 async function getRecentServerFeedback() {
-  const primary = await fetchSupabaseFeedbackRows(
-    "select=type,message,userMessage,source,userScope,timestamp,user_id&order=timestamp.desc&limit=30",
+  const primary = await fetchSupabaseGlobalFeedbackRows(
+    "select=type,message,userMessage,source,userScope,timestamp,user_id&user_id=is.null&order=timestamp.desc&limit=30",
     "OpenLura server feedback fetch failed:"
   );
 
   if (primary.length > 0) return primary;
 
-  return fetchSupabaseFeedbackRows(
-    "select=type,message,userMessage,source,userScope,timestamp&order=timestamp.desc&limit=30",
+  return fetchSupabaseGlobalFeedbackRows(
+    "select=type,message,userMessage,source,userScope,timestamp&user_id=is.null&order=timestamp.desc&limit=30",
     "OpenLura server feedback fallback fetch failed:"
   );
 }
 
-async function getPersonalFeedbackRows(userId?: string | null) {
-  if (!userId) return [];
+async function getPersonalFeedbackRows(
+  userId?: string | null,
+  accessToken?: string | null
+) {
+  if (!userId || !accessToken) return [];
 
-  const primary = await fetchSupabaseFeedbackRows(
-    `select=type,message,userMessage,source,userScope,timestamp,user_id&user_id=eq.${encodeURIComponent(
-      userId
-    )}&order=timestamp.desc&limit=60`,
-    "OpenLura personal feedback fetch failed:"
-  );
-
-  if (primary.length > 0) return primary;
-
-  return [];
+  return fetchSupabasePersonalFeedbackRows({
+    userId,
+    accessToken,
+    limit: 60,
+  });
 }
 
 function buildAutoDebugSignature(input: {
@@ -1695,8 +1772,8 @@ async function storeAutoDebugSignals(input: {
     return;
   }
 
-  const recentRows = await fetchSupabaseFeedbackRows(
-    "select=type,message,userMessage,source,timestamp&type=eq.auto_debug&order=timestamp.desc&limit=50",
+  const recentRows = await fetchSupabaseGlobalFeedbackRows( 
+    "select=type,message,userMessage,source,timestamp,user_id&type=eq.auto_debug&user_id=is.null&order=timestamp.desc&limit=50",
     "OpenLura recent auto debug fetch failed:"
   );
 
@@ -1736,7 +1813,8 @@ async function storeAutoDebugSignals(input: {
       message: `[${signal.confidence}] ${signal.message}`,
       userMessage: input.userMessage || null,
       source: `${signal.source}__route_${signal.routeType}__variant_${signal.variant}`,
-      userScope: input.userScope || "guest",
+      userScope: "guest",
+      user_id: null,
       timestamp: new Date().toISOString(),
     }));
 
@@ -1758,10 +1836,15 @@ async function storeAutoDebugSignals(input: {
     });
 
     if (!res.ok) {
-      console.error("Auto debug signal save failed:", res.status, await res.text());
+      const errorText = await res.text();
+
+      console.error("Auto debug signal save failed:", {
+        status: res.status,
+        ...toSafeErrorMeta(new Error(errorText)),
+      });
     }
   } catch (error) {
-    console.error("Auto debug signal save error:", error);
+    console.error("Auto debug signal save error:", toSafeErrorMeta(error));
   }
 }
 
@@ -1880,6 +1963,25 @@ function buildNoStoreTextHeaders(extra?: Record<string, string>) {
   };
 }
 
+function toSafeErrorMeta(error: unknown) {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+    };
+  }
+
+  return {
+    message: "Unknown error",
+  };
+}
+function logSafeError(label: string, error: unknown, extra?: Record<string, unknown>) {
+  console.error(label, {
+    ...extra,
+    ...toSafeErrorMeta(error),
+  });
+}
+
 export async function POST(req: Request) {
   const rateLimit = checkRateLimit(req);
 
@@ -1957,6 +2059,7 @@ export async function POST(req: Request) {
     personalFeedbackRows,
     resolvedPersonalMemory,
     learningScope,
+    accessToken,
   } = await resolvePersonalRuntimeContext({
     req,
     memory,
@@ -2059,6 +2162,8 @@ export async function POST(req: Request) {
       )
   );
 
+    globalFeedbackSnapshot = getGlobalFeedbackSnapshot(globalLearningFeedback);
+
  const normalizedPersonalStateFeedback: OpenLuraFeedbackRow[] = (
   Array.isArray(personalState.feedback) ? personalState.feedback : []
 ).map((item: any) => ({
@@ -2095,11 +2200,11 @@ export async function POST(req: Request) {
   const effectiveFeedback = mergeLearningFeedbackLayers({
     globalFeedbackSnapshot: globalLearningFeedback,
     personalFeedback: isPersonalEnvironment ? personalLearningFeedback : [],
-    userFeedback: [],
+    userFeedback: userRuntimeFeedback,
   });
 
   const personalLayer = isPersonalEnvironment ? personalLearningFeedback : [];
-  const userLayer: OpenLuraFeedbackRow[] = [];
+  const userLayer: OpenLuraFeedbackRow[] = userRuntimeFeedback;
 
   const runtimePersonalMemory = rebalancePersonalMemoryFromFeedback({
     personalMemory: resolvedPersonalMemory,
@@ -2529,10 +2634,10 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
   };
 
   try {
-    const feedbackData = await fetchSupabaseFeedbackRows(
-      "select=message,type,user_id,userScope",
-      "Global learning fetch failed:"
-    );
+    const feedbackData = await fetchSupabaseGlobalFeedbackRows(
+  "select=message,type,user_id,userScope&user_id=is.null",
+  "Global learning fetch failed:"
+);
 
       feedbackData
         .filter((f: any) => !f.user_id && f.userScope !== "personal")
@@ -2555,16 +2660,16 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
         }
       });
   } catch (e) {
-    console.warn("Global learning fetch failed:", e);
+    console.warn("Global learning fetch failed:", toSafeErrorMeta(e));
   }
 
     let responseVariant = "A";
 
   try {
-    const feedbackData = await fetchSupabaseFeedbackRows(
-      "select=type,source,user_id,userScope",
-      "A/B feedback fetch failed:"
-    );
+    const feedbackData = await fetchSupabaseGlobalFeedbackRows(
+  "select=type,source,user_id,userScope&user_id=is.null",
+  "A/B feedback fetch failed:"
+);
 
     const globalAbFeedback = feedbackData.filter(
       (f: any) => !f.user_id && f.userScope !== "personal"
@@ -2629,9 +2734,10 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
       userScope !== "admin";
 
     if (shouldBlockForUsageLimit) {
-      if (personalUserId) {
+      if (personalUserId && accessToken) {
         await persistSupabasePersonalMemory({
           userId: personalUserId,
+          accessToken,
           memory: runtimePersonalMemory,
           styleProfile: personalState.styleProfile,
           usageStats: updatedUsageStats,
@@ -2678,9 +2784,10 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
       personalMemory: runtimePersonalMemory,
     });
 
-    if ((shouldPersistRuntimeMemory || shouldPersistUsageStats) && personalUserId) {
+    if ((shouldPersistRuntimeMemory || shouldPersistUsageStats) && personalUserId && accessToken) {
       await persistSupabasePersonalMemory({
         userId: personalUserId,
+        accessToken,
         memory: runtimePersonalMemory,
         styleProfile: {
           preferredBrevity: personalOverrideProfile.preferredBrevity,
@@ -3393,7 +3500,7 @@ ${aiText}`,
         aiText = rewritten;
       }
     } catch (error) {
-      console.error("OpenLura casual rewrite failed:", error);
+      console.error("OpenLura casual rewrite failed:", toSafeErrorMeta(error));
     }
   }
 

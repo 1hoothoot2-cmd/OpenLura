@@ -1,17 +1,70 @@
 import OpenAI from "openai";
-import {
-  ADMIN_COOKIE_NAME,
-  getCookieValue,
-  isValidAdminSession,
-} from "@/lib/auth/adminSession";
 import { resolveOpenLuraRequestIdentity } from "@/lib/auth/requestIdentity";
 
-let globalFeedback: any[] = [];
+let globalFeedbackSnapshot: any[] = [];
+
+function getGlobalFeedbackSnapshot(input: OpenLuraFeedbackRow[]) {
+  return Array.isArray(input) ? [...input] : [];
+}
+
 const responseCache = new Map<
   string,
   { text: string; sources: { title: string; url: string }[]; timestamp: number }
 >();
 const RESPONSE_CACHE_TTL_MS = 1000 * 60 * 10;
+
+const RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const RATE_LIMIT_MAX_REQUESTS = 20;
+const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
+
+function getRequestIp(req: Request) {
+  const forwardedFor = req.headers.get("x-forwarded-for");
+  if (forwardedFor) {
+    const firstIp = forwardedFor.split(",")[0]?.trim();
+    if (firstIp) return firstIp;
+  }
+
+  const realIp = req.headers.get("x-real-ip")?.trim();
+  if (realIp) return realIp;
+
+  return "unknown";
+}
+
+function checkRateLimit(req: Request) {
+  const ip = getRequestIp(req);
+  const now = Date.now();
+  const existing = rateLimitStore.get(ip);
+
+  if (!existing || existing.resetAt <= now) {
+    rateLimitStore.set(ip, {
+      count: 1,
+      resetAt: now + RATE_LIMIT_WINDOW_MS,
+    });
+
+    return {
+      allowed: true,
+      remaining: RATE_LIMIT_MAX_REQUESTS - 1,
+      resetAt: now + RATE_LIMIT_WINDOW_MS,
+    };
+  }
+
+  if (existing.count >= RATE_LIMIT_MAX_REQUESTS) {
+    return {
+      allowed: false,
+      remaining: 0,
+      resetAt: existing.resetAt,
+    };
+  }
+
+  existing.count += 1;
+  rateLimitStore.set(ip, existing);
+
+  return {
+    allowed: true,
+    remaining: Math.max(0, RATE_LIMIT_MAX_REQUESTS - existing.count),
+    resetAt: existing.resetAt,
+  };
+}
 
 function detectCasualStyleMismatch(input: {
   userMessage: string;
@@ -165,9 +218,14 @@ function buildCacheKey(input: {
   personalMemory?: string;
   learningScope?: string;
 }) {
+  const memoryFingerprint = (input.personalMemory || "")
+    .trim()
+    .toLowerCase()
+    .slice(0, 200);
+
   return JSON.stringify({
     message: input.message.trim().toLowerCase(),
-    personalMemory: (input.personalMemory || "").trim().toLowerCase(),
+    personalMemoryFingerprint: memoryFingerprint,
     learningScope: (input.learningScope || "global").trim().toLowerCase(),
   });
 }
@@ -622,6 +680,8 @@ function classifyOpenLuraRoute(input: {
 }
 
 const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseAnonKey =
+  process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const personalStateTable =
   process.env.OPENLURA_PERSONAL_STATE_TABLE || "openlura_personal_state";
@@ -633,6 +693,7 @@ type OpenLuraFeedbackRow = {
   source?: string | null;
   learningType?: string | null;
   userScope?: "admin" | "guest" | "personal" | "user" | null;
+  user_id?: string | null;
   timestamp?: string | number | null;
   weight?: number;
 };
@@ -664,13 +725,29 @@ type OpenLuraPersonalStateStyleProfile = {
   updatedAt?: string;
 };
 
+type OpenLuraPersonalStateRow = {
+  key?: unknown;
+  chats?: unknown;
+  memory?: unknown;
+  feedback?: unknown;
+  learning_feedback?: unknown;
+  personal_feedback?: unknown;
+  personalMemory?: unknown;
+  profile_memory?: unknown;
+  state?: {
+    memory?: unknown;
+  } | null;
+  style_profile?: unknown;
+  usage_stats?: unknown;
+};
+
 type OpenLuraPersonalState = {
   userId: string | null;
   memory: string;
   feedback: OpenLuraFeedbackRow[];
   styleProfile: OpenLuraPersonalStateStyleProfile | null;
   usageStats: OpenLuraUsageStats | null;
-  raw: any;
+  raw: OpenLuraPersonalStateRow | null;
 };
 
 type OpenLuraPersonalRuntimeContext = {
@@ -680,6 +757,7 @@ type OpenLuraPersonalRuntimeContext = {
   personalFeedbackRows: OpenLuraFeedbackRow[];
   resolvedPersonalMemory: string;
   learningScope: string;
+  accessToken: string | null;
 };
 
 type OpenLuraPersonalOverrideProfile = {
@@ -1110,30 +1188,31 @@ function buildUsageHeaders(usageLimitSnapshot: {
 
 async function persistSupabasePersonalMemory(input: {
   userId: string;
+  accessToken: string;
   memory: string;
   styleProfile?: OpenLuraPersonalStateStyleProfile | null;
   usageStats?: OpenLuraUsageStats | null;
   existingState?: any;
 }) {
-  if (!supabaseUrl || !supabaseServiceRoleKey || !input.userId) {
+  if (!input.userId || !input.accessToken) {
     return false;
   }
 
-  const existingState = input.existingState && typeof input.existingState === "object"
-    ? input.existingState
-    : {};
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.error("OpenLura personal memory persist skipped: missing Supabase config");
+    return false;
+  }
+
+  const existingState =
+    input.existingState && typeof input.existingState === "object"
+      ? input.existingState
+      : {};
 
   const existingChats = Array.isArray(existingState.chats) ? existingState.chats : [];
-  const existingKey =
-    typeof existingState.key === "string" && existingState.key.trim()
-      ? existingState.key.trim()
-      : input.userId;
-
   const memoryItems = extractWeightedPersonalMemoryItems(input.memory);
 
   const payload = {
     user_id: input.userId,
-    key: existingKey,
     chats: existingChats,
     memory: memoryItems,
     style_profile: input.styleProfile || existingState.style_profile || null,
@@ -1142,60 +1221,42 @@ async function persistSupabasePersonalMemory(input: {
   };
 
   try {
-    const upsertRes = await fetch(`${supabaseUrl}/rest/v1/${personalStateTable}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: supabaseServiceRoleKey,
-        Authorization: `Bearer ${supabaseServiceRoleKey}`,
-        Prefer: "resolution=merge-duplicates,return=minimal",
-      },
-      body: JSON.stringify(payload),
-      cache: "no-store",
-    });
-
-    if (upsertRes.ok) {
-      return true;
-    }
-
-    const errorText = await upsertRes.text();
-
-    const patchRes = await fetch(
-      `${supabaseUrl}/rest/v1/${personalStateTable}?user_id=eq.${encodeURIComponent(input.userId)}`,
+    const upsertRes = await fetch(
+      `${supabaseUrl}/rest/v1/${personalStateTable}?on_conflict=user_id`,
       {
-        method: "PATCH",
+        method: "POST",
         headers: {
           "Content-Type": "application/json",
-          apikey: supabaseServiceRoleKey,
-          Authorization: `Bearer ${supabaseServiceRoleKey}`,
-          Prefer: "return=minimal",
+          apikey: supabaseAnonKey,
+          Authorization: `Bearer ${input.accessToken}`,
+          Prefer: "resolution=merge-duplicates,return=minimal",
         },
-        body: JSON.stringify({
-          memory: memoryItems,
-          style_profile: input.styleProfile || existingState.style_profile || null,
-          usage_stats: input.usageStats || existingState.usage_stats || null,
-          updated_at: new Date().toISOString(),
-        }),
+        body: JSON.stringify(payload),
         cache: "no-store",
       }
     );
 
-    if (!patchRes.ok) {
-      console.error("OpenLura personal memory persist failed:", patchRes.status, await patchRes.text());
+    if (!upsertRes.ok) {
+      console.error("OpenLura personal memory persist failed:", {
+        status: upsertRes.status,
+      });
       return false;
     }
 
     return true;
   } catch (error) {
-    console.error("OpenLura personal memory persist error:", error);
+    console.error("OpenLura personal memory persist error:", toSafeErrorMeta(error));
     return false;
   }
 }
 
-async function fetchSupabasePersonalState(userId: string | null = null) {
+async function fetchSupabasePersonalState(
+  userId: string | null = null,
+  accessToken: string | null = null
+) {
   const resolvedUserId = userId ?? null;
 
-  if (!supabaseUrl || !supabaseServiceRoleKey) {
+  if (!resolvedUserId || !accessToken || !supabaseUrl || !supabaseAnonKey) {
     return {
       userId: resolvedUserId,
       memory: "",
@@ -1206,78 +1267,78 @@ async function fetchSupabasePersonalState(userId: string | null = null) {
     } satisfies OpenLuraPersonalState;
   }
 
-  const tryQueries = resolvedUserId
-    ? [`select=*&user_id=eq.${encodeURIComponent(resolvedUserId)}&limit=1`]
-    : [];
+  const query =
+    `select=memory,style_profile,usage_stats,updated_at` +
+    `&user_id=eq.${encodeURIComponent(resolvedUserId)}` +
+    `&limit=1`;
 
-  for (const query of tryQueries) {
-    try {
-      const res = await fetch(
-        `${supabaseUrl}/rest/v1/${personalStateTable}?${query}`,
-        {
-          method: "GET",
-          headers: {
-            apikey: supabaseServiceRoleKey,
-            Authorization: `Bearer ${supabaseServiceRoleKey}`,
-          },
-          cache: "no-store",
-        }
-      );
+  try {
+    const res = await fetch(`${supabaseUrl}/rest/v1/${personalStateTable}?${query}`, {
+      method: "GET",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json",
+      },
+      cache: "no-store",
+    });
 
-      if (!res.ok) continue;
-
-      const rows = await res.json();
-      const row = Array.isArray(rows) ? rows[0] : null;
-
-      if (!row) continue;
-
-      const nestedFeedback = Array.isArray(row.feedback)
-        ? row.feedback
-        : Array.isArray(row.learning_feedback)
-        ? row.learning_feedback
-        : Array.isArray(row.personal_feedback)
-        ? row.personal_feedback
-        : [];
-
-      const memoryText =
-        buildWeightedPersonalMemoryBlock(
-          row.personalMemory,
-          row.memory,
-          row.profile_memory,
-          row.state?.memory
-        ) || "";
+    if (!res.ok) {
+      console.error("OpenLura personal state fetch failed:", {
+        status: res.status,
+      });
 
       return {
         userId: resolvedUserId,
-        memory: memoryText,
-        feedback: nestedFeedback,
-        styleProfile:
-          row?.style_profile && typeof row.style_profile === "object"
-            ? row.style_profile
-            : null,
-        usageStats:
-          row?.usage_stats && typeof row.usage_stats === "object"
-            ? row.usage_stats
-            : null,
-        raw: row,
+        memory: "",
+        feedback: [],
+        styleProfile: null,
+        usageStats: null,
+        raw: null,
       } satisfies OpenLuraPersonalState;
-    } catch (error) {
-      console.error("OpenLura personal state fetch failed:", error);
     }
-  }
 
-  return {
-    userId: resolvedUserId,
-    memory: "",
-    feedback: [],
-    styleProfile: null,
-    usageStats: null,
-    raw: null,
-  } satisfies OpenLuraPersonalState;
+    const rows: unknown = await res.json();
+    const row =
+      Array.isArray(rows) && rows.length > 0 && typeof rows[0] === "object" && rows[0] !== null
+        ? (rows[0] as OpenLuraPersonalStateRow)
+        : null;
+
+    const memoryText =
+      row
+        ? buildWeightedPersonalMemoryBlock(row.memory) || ""
+        : "";
+
+    return {
+      userId: resolvedUserId,
+      memory: memoryText,
+      feedback: [],
+      styleProfile:
+        row?.style_profile && typeof row.style_profile === "object"
+          ? row.style_profile
+          : null,
+      usageStats:
+        row?.usage_stats && typeof row.usage_stats === "object"
+          ? row.usage_stats
+          : null,
+      raw: row,
+    } satisfies OpenLuraPersonalState;
+  } catch (error) {
+    console.error("OpenLura personal state fetch failed:", toSafeErrorMeta(error));
+
+    return {
+      userId: resolvedUserId,
+      memory: "",
+      feedback: [],
+      styleProfile: null,
+      usageStats: null,
+      raw: null,
+    } satisfies OpenLuraPersonalState;
+  }
 }
 
 function mergeLearningFeedbackLayers(input: {
-  globalFeedback: OpenLuraFeedbackRow[];
+  globalFeedbackSnapshot: OpenLuraFeedbackRow[];
   personalFeedback: OpenLuraFeedbackRow[];
   userFeedback?: OpenLuraFeedbackRow[];
 }) {
@@ -1310,7 +1371,7 @@ function mergeLearningFeedbackLayers(input: {
     }));
 
   return [
-    ...normalizeLayerRows(input.globalFeedback, "global"),
+    ...normalizeLayerRows(input.globalFeedbackSnapshot, "global"),
     ...normalizeLayerRows(input.personalFeedback, "personal"),
     ...normalizeLayerRows(input.userFeedback || [], "user"),
   ];
@@ -1473,11 +1534,12 @@ async function resolvePersonalRuntimeContext(input: {
   const identity = await resolveOpenLuraRequestIdentity(input.req);
   const authUser = identity.authUser;
   const personalUserId = authUser?.id || null;
+  const accessToken = identity.accessToken || null;
 
-  const hasAuthenticatedPersonalUser = !!personalUserId;
+  const hasAuthenticatedPersonalUser = !!personalUserId && !!accessToken;
 
   const personalState = hasAuthenticatedPersonalUser
-    ? await fetchSupabasePersonalState(personalUserId)
+    ? await fetchSupabasePersonalState(personalUserId, accessToken)
     : ({
         userId: null,
         memory: "",
@@ -1487,9 +1549,7 @@ async function resolvePersonalRuntimeContext(input: {
         raw: null,
       } satisfies OpenLuraPersonalState);
 
-  const personalFeedbackRows = hasAuthenticatedPersonalUser
-    ? await getPersonalFeedbackRows(personalUserId)
-    : [];
+  const personalFeedbackRows: OpenLuraFeedbackRow[] = [];
 
   const isPersonalEnvironment = hasAuthenticatedPersonalUser;
 
@@ -1506,14 +1566,32 @@ async function resolvePersonalRuntimeContext(input: {
     personalFeedbackRows,
     resolvedPersonalMemory,
     learningScope,
+    accessToken,
   } satisfies OpenLuraPersonalRuntimeContext;
 }
 
-async function fetchSupabaseFeedbackRows(query: string, errorLabel: string) {
+async function fetchSupabaseFeedbackRows(
+  query: string,
+  errorLabel: string
+): Promise<OpenLuraFeedbackRow[]> {
   if (!supabaseUrl || !supabaseServiceRoleKey) return [];
 
+  const normalizedQuery = String(query || "");
+
+  if (
+    normalizedQuery.includes("user_id=eq.") ||
+    normalizedQuery.includes("user_id=not.is.null")
+  ) {
+    console.error(`${errorLabel} blocked unsafe personal feedback query`);
+    return [];
+  }
+
+  const safeQuery = normalizedQuery.includes("user_id=is.null")
+    ? normalizedQuery
+    : `${normalizedQuery}&user_id=is.null`;
+
   try {
-    const res = await fetch(`${supabaseUrl}/rest/v1/openlura_feedback?${query}`, {
+    const res = await fetch(`${supabaseUrl}/rest/v1/openlura_feedback?${safeQuery}`, {
       method: "GET",
       headers: {
         apikey: supabaseServiceRoleKey,
@@ -1535,29 +1613,32 @@ async function fetchSupabaseFeedbackRows(query: string, errorLabel: string) {
         );
 
       if (!isSchemaMismatch) {
-        console.error(errorLabel, res.status, errorText);
+        logSafeError(errorLabel, new Error(errorText), {
+          status: res.status,
+        });
       }
 
       return [];
     }
 
-    return await res.json();
+    const rows: unknown = await res.json();
+    return Array.isArray(rows) ? (rows as OpenLuraFeedbackRow[]) : [];
   } catch (error) {
-    console.error(errorLabel, error);
+    logSafeError(errorLabel, error);
     return [];
   }
 }
 
 async function getRecentServerFeedback() {
   const primary = await fetchSupabaseFeedbackRows(
-    "select=type,message,userMessage,source,userScope,timestamp,user_id&order=timestamp.desc&limit=30",
+    "select=type,message,userMessage,source,userScope,timestamp,user_id&user_id=is.null&order=timestamp.desc&limit=30",
     "OpenLura server feedback fetch failed:"
   );
 
   if (primary.length > 0) return primary;
 
   return fetchSupabaseFeedbackRows(
-    "select=type,message,userMessage,source,userScope,timestamp&order=timestamp.desc&limit=30",
+    "select=type,message,userMessage,source,userScope,timestamp&user_id=is.null&order=timestamp.desc&limit=30",
     "OpenLura server feedback fallback fetch failed:"
   );
 }
@@ -1591,21 +1672,26 @@ function buildAutoDebugSignature(input: {
   });
 }
 
+function normalizeFeedbackUserScope(
+  value: unknown
+): "admin" | "guest" | "personal" | "user" | null {
+  return value === "admin" ||
+    value === "guest" ||
+    value === "personal" ||
+    value === "user"
+    ? value
+    : null;
+}
+
 function getUserScopeFromRequest(input: {
-  req: Request;
   isPersonalEnvironment?: boolean;
   hasAdminSession?: boolean;
-}) {
+}): "admin" | "guest" | "personal" {
   if (input.isPersonalEnvironment) {
     return "personal";
   }
 
-  const hasAdminSession =
-    typeof input.hasAdminSession === "boolean"
-      ? input.hasAdminSession
-      : isValidAdminSession(getCookieValue(input.req, ADMIN_COOKIE_NAME));
-
-  return hasAdminSession ? "admin" : "guest";
+  return input.hasAdminSession ? "admin" : "guest";
 }
 
 async function storeAutoDebugSignals(input: {
@@ -1627,20 +1713,24 @@ async function storeAutoDebugSignals(input: {
   }
 
   const recentRows = await fetchSupabaseFeedbackRows(
-    "select=type,message,userMessage,source,timestamp&type=eq.auto_debug&order=timestamp.desc&limit=50",
+    "select=type,message,userMessage,source,timestamp,user_id&type=eq.auto_debug&user_id=is.null&order=timestamp.desc&limit=50",
     "OpenLura recent auto debug fetch failed:"
   );
 
   const recentSignatures = new Set(
-    recentRows.map((item: any) =>
+    recentRows.map((item) =>
       buildAutoDebugSignature({
-        userMessage: item.userMessage,
+        userMessage: item.userMessage || "",
         signalSource: String(item.source || "").split("__route_")[0],
         learningType: inferFeedbackLearningType(item),
         confidence:
-          String(item.message || "")
+          (String(item.message || "")
             .toLowerCase()
-            .match(/^\[(high|medium|low)\]/)?.[1] as "low" | "medium" | "high" || "low",
+            .match(/^\[(high|medium|low)\]/)?.[1] as
+            | "low"
+            | "medium"
+            | "high"
+            | undefined) || "low",
       })
     )
   );
@@ -1663,7 +1753,8 @@ async function storeAutoDebugSignals(input: {
       message: `[${signal.confidence}] ${signal.message}`,
       userMessage: input.userMessage || null,
       source: `${signal.source}__route_${signal.routeType}__variant_${signal.variant}`,
-      userScope: input.userScope || "guest",
+      userScope: "guest",
+      user_id: null,
       timestamp: new Date().toISOString(),
     }));
 
@@ -1672,7 +1763,7 @@ async function storeAutoDebugSignals(input: {
   }
 
   try {
-    let res = await fetch(`${supabaseUrl}/rest/v1/openlura_feedback`, {
+    const res = await fetch(`${supabaseUrl}/rest/v1/openlura_feedback`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1685,10 +1776,15 @@ async function storeAutoDebugSignals(input: {
     });
 
     if (!res.ok) {
-      console.error("Auto debug signal save failed:", res.status, await res.text());
+      const errorText = await res.text();
+
+      console.error("Auto debug signal save failed:", {
+        status: res.status,
+        ...toSafeErrorMeta(new Error(errorText)),
+      });
     }
   } catch (error) {
-    console.error("Auto debug signal save error:", error);
+    console.error("Auto debug signal save error:", toSafeErrorMeta(error));
   }
 }
 
@@ -1799,7 +1895,46 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+function buildNoStoreTextHeaders(extra?: Record<string, string>) {
+  return {
+    "Cache-Control": "no-store",
+    "Content-Type": "text/plain; charset=utf-8",
+    ...(extra ?? {}),
+  };
+}
+
+function toSafeErrorMeta(error: unknown) {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+    };
+  }
+
+  return {
+    message: "Unknown error",
+  };
+}
+
 export async function POST(req: Request) {
+  const rateLimit = checkRateLimit(req);
+
+  if (!rateLimit.allowed) {
+    const retryAfterSeconds = Math.max(
+      1,
+      Math.ceil((rateLimit.resetAt - Date.now()) / 1000)
+    );
+
+    return new Response("Too many requests", {
+      status: 429,
+      headers: buildNoStoreTextHeaders({
+        "Retry-After": String(retryAfterSeconds),
+        "X-OpenLura-RateLimit-Limit": String(RATE_LIMIT_MAX_REQUESTS),
+        "X-OpenLura-RateLimit-Remaining": "0",
+      }),
+    });
+  }
+
   let rawBody: unknown;
   const contentLengthHeader = req.headers.get("content-length");
   const contentLength = contentLengthHeader ? Number(contentLengthHeader) : null;
@@ -1811,10 +1946,7 @@ export async function POST(req: Request) {
   ) {
     return new Response("Request body too large", {
       status: 413,
-      headers: {
-        "Content-Type": "text/plain; charset=utf-8",
-        "Cache-Control": "no-store",
-      },
+      headers: buildNoStoreTextHeaders(),
     });
   }
 
@@ -1823,10 +1955,7 @@ export async function POST(req: Request) {
   } catch {
     return new Response("Invalid request body", {
       status: 400,
-      headers: {
-        "Content-Type": "text/plain; charset=utf-8",
-        "Cache-Control": "no-store",
-      },
+      headers: buildNoStoreTextHeaders(),
     });
   }
 
@@ -1835,10 +1964,7 @@ export async function POST(req: Request) {
   if (!body) {
     return new Response("Invalid request body", {
       status: 400,
-      headers: {
-        "Content-Type": "text/plain; charset=utf-8",
-        "Cache-Control": "no-store",
-      },
+      headers: buildNoStoreTextHeaders(),
     });
   }
 
@@ -1851,9 +1977,14 @@ export async function POST(req: Request) {
     recentMessages,
   } = body;
 
-  const hasAdminSession = isValidAdminSession(
-    getCookieValue(req, ADMIN_COOKIE_NAME)
-  );
+  if (!message && !image) {
+    return new Response("Empty request", {
+      status: 400,
+      headers: buildNoStoreTextHeaders(),
+    });
+  }
+
+  const hasAdminSession = false;
 
   const {
     isPersonalEnvironment,
@@ -1862,6 +1993,7 @@ export async function POST(req: Request) {
     personalFeedbackRows,
     resolvedPersonalMemory,
     learningScope,
+    accessToken,
   } = await resolvePersonalRuntimeContext({
     req,
     memory,
@@ -1870,36 +2002,40 @@ export async function POST(req: Request) {
   if (isPersonalEnvironment && !personalUserId) {
     return new Response("Unauthorized", {
       status: 401,
-      headers: {
-        "Content-Type": "text/plain; charset=utf-8",
-        "Cache-Control": "no-store",
-      },
+      headers: buildNoStoreTextHeaders(),
+    });
+  }
+
+  if (!personalUserId && learningScope === "personal") {
+    return new Response("Unauthorized", {
+      status: 401,
+      headers: buildNoStoreTextHeaders(),
     });
   }
 
   const userScope = getUserScopeFromRequest({
-    req,
     isPersonalEnvironment,
     hasAdminSession,
   });
 
   const serverFeedback = await getRecentServerFeedback();
 
-    const normalizedServerFeedback = serverFeedback
-    .filter((item: any) => !item.user_id)
-    .map((item: any) => ({
-      type: item.type,
-      message: item.message,
-      userMessage: item.userMessage,
-      source: item.source,
-      learningType: inferFeedbackLearningType(item),
-      userScope: item.userScope || "guest",
-      user_id: item.user_id ?? null,
-      weight: item.userScope === "admin" ? 1.35 : 1,
-      timestamp: item.timestamp,
-    }));
+    const normalizedServerFeedback: OpenLuraFeedbackRow[] = serverFeedback
+  .filter((item: any) => !item.user_id)
+  .map((item: any) => ({
+    type: item.type,
+    message: item.message,
+    userMessage: item.userMessage,
+    source: item.source,
+    learningType: inferFeedbackLearningType(item),
+    userScope: normalizeFeedbackUserScope(item.userScope) || "guest",
+    user_id: item.user_id ?? null,
+    weight: item.userScope === "admin" ? 1.35 : 1,
+    timestamp: item.timestamp,
+  }));
 
-  const normalizedPersonalFeedbackRows = personalFeedbackRows.map((item: any) => ({
+  const normalizedPersonalFeedbackRows: OpenLuraFeedbackRow[] = personalFeedbackRows.map(
+  (item: any) => ({
     type: item.type,
     message: item.message,
     userMessage: item.userMessage,
@@ -1909,7 +2045,8 @@ export async function POST(req: Request) {
     user_id: item.user_id ?? personalUserId ?? null,
     weight: 1.5,
     timestamp: item.timestamp,
-  }));
+  })
+);
 
     const clientFeedback = feedback
     ? [
@@ -1959,23 +2096,22 @@ export async function POST(req: Request) {
       )
   );
 
-  const normalizedPersonalStateFeedback = (Array.isArray(personalState.feedback)
-    ? personalState.feedback
-    : []
-  ).map((item: any) => ({
-    type: item.type,
-    message: item.message,
-    userMessage: item.userMessage,
-    source: item.source || "personal_state_runtime",
-    learningType: inferFeedbackLearningType(item),
-    userScope: "personal",
-    user_id: item.user_id ?? personalUserId ?? null,
-    weight:
-      typeof item.weight === "number" && Number.isFinite(item.weight)
-        ? item.weight
-        : 1.25,
-    timestamp: item.timestamp,
-  }));
+ const normalizedPersonalStateFeedback: OpenLuraFeedbackRow[] = (
+  Array.isArray(personalState.feedback) ? personalState.feedback : []
+).map((item: any) => ({
+  type: item.type,
+  message: item.message,
+  userMessage: item.userMessage,
+  source: item.source || "personal_state_runtime",
+  learningType: inferFeedbackLearningType(item),
+  userScope: "personal",
+  user_id: item.user_id ?? personalUserId ?? null,
+  weight:
+    typeof item.weight === "number" && Number.isFinite(item.weight)
+      ? item.weight
+      : 1.25,
+  timestamp: item.timestamp,
+}));
 
   const userRuntimeFeedback = clientFeedback.map((item: any) => ({
     ...item,
@@ -1994,17 +2130,17 @@ export async function POST(req: Request) {
   ];
 
   const effectiveFeedback = mergeLearningFeedbackLayers({
-    globalFeedback: globalLearningFeedback,
+    globalFeedbackSnapshot: globalLearningFeedback,
     personalFeedback: isPersonalEnvironment ? personalLearningFeedback : [],
-    userFeedback: userRuntimeFeedback,
+    userFeedback: [],
   });
 
   const personalLayer = isPersonalEnvironment ? personalLearningFeedback : [];
-  const userLayer = userRuntimeFeedback;
+  const userLayer: OpenLuraFeedbackRow[] = [];
 
   const runtimePersonalMemory = rebalancePersonalMemoryFromFeedback({
     personalMemory: resolvedPersonalMemory,
-    feedbackRows: personalLayer,
+    feedbackRows: [...personalLayer, ...userLayer],
   });
 
   const shouldPersistRuntimeMemory =
@@ -2208,7 +2344,7 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
     hasMixedResponseFeedback: contentLearningState.hasMixedResponseFeedback,
   });
 
-  globalFeedback = globalLearningFeedback;
+  const globalFeedbackSnapshotSnapshot = getGlobalFeedbackSnapshot(globalLearningFeedback);
 
     const completedFeedback = normalizedServerFeedback.filter(
     (f: any) =>
@@ -2353,7 +2489,7 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
 
   const feedbackSignals = getFeedbackSignals(effectiveFeedback);
   const personalFeedbackSignals = getFeedbackSignals(personalEffectiveFeedback);
-  const globalFeedbackSignals = getFeedbackSignals(globalEffectiveFeedback);
+  const globalFeedbackSnapshotSignals = getFeedbackSignals(globalEffectiveFeedback);
 
   const styleLearningSignals = buildStyleLearningSignals({
     shorter: feedbackSignals.shorter,
@@ -2431,7 +2567,7 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
 
   try {
     const feedbackData = await fetchSupabaseFeedbackRows(
-      "select=message,type,user_id,userScope",
+      "select=message,type,user_id,userScope&user_id=is.null",
       "Global learning fetch failed:"
     );
 
@@ -2456,14 +2592,14 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
         }
       });
   } catch (e) {
-    console.warn("Global learning fetch failed:", e);
+    console.warn("Global learning fetch failed:", toSafeErrorMeta(e));
   }
 
     let responseVariant = "A";
 
   try {
     const feedbackData = await fetchSupabaseFeedbackRows(
-      "select=type,source,user_id,userScope",
+      "select=type,source,user_id,userScope&user_id=is.null",
       "A/B feedback fetch failed:"
     );
 
@@ -2530,9 +2666,10 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
       userScope !== "admin";
 
     if (shouldBlockForUsageLimit) {
-      if (personalUserId) {
+      if (personalUserId && accessToken) {
         await persistSupabasePersonalMemory({
           userId: personalUserId,
+          accessToken,
           memory: runtimePersonalMemory,
           styleProfile: personalState.styleProfile,
           usageStats: updatedUsageStats,
@@ -2547,13 +2684,14 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
 
       return new Response(limitMessage, {
         status: 429,
-        headers: {
-          "Content-Type": "text/plain; charset=utf-8",
+        headers: buildNoStoreTextHeaders({
           "X-OpenLura-Variant": responseVariant,
           "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
           ...buildUsageHeaders(usageLimitSnapshot),
+            "X-OpenLura-RateLimit-Limit": String(RATE_LIMIT_MAX_REQUESTS),
+            "X-OpenLura-RateLimit-Remaining": String(rateLimit.remaining),
           "Retry-After": "86400",
-        },
+        }),
       });
     }
 
@@ -2578,9 +2716,10 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
       personalMemory: runtimePersonalMemory,
     });
 
-    if ((shouldPersistRuntimeMemory || shouldPersistUsageStats) && personalUserId) {
+    if ((shouldPersistRuntimeMemory || shouldPersistUsageStats) && personalUserId && accessToken) {
       await persistSupabasePersonalMemory({
         userId: personalUserId,
+        accessToken,
         memory: runtimePersonalMemory,
         styleProfile: {
           preferredBrevity: personalOverrideProfile.preferredBrevity,
@@ -2653,13 +2792,12 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
 
       if (cached && Date.now() - cached.timestamp < RESPONSE_CACHE_TTL_MS) {
         return new Response(cached.text, {
-          headers: {
-            "Content-Type": "text/plain; charset=utf-8",
+          headers: buildNoStoreTextHeaders({
             "X-OpenLura-Variant": responseVariant,
             "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
             "X-OpenLura-Speed": "fast_text",
             ...buildUsageHeaders(usageLimitSnapshot),
-          },
+          }),
         });
       }
 
@@ -2761,13 +2899,12 @@ Fast-path rules:
           },
         }),
         {
-          headers: {
-            "Content-Type": "text/plain; charset=utf-8",
+          headers: buildNoStoreTextHeaders({
             "X-OpenLura-Variant": responseVariant,
             "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
             "X-OpenLura-Speed": "fast_text",
             ...buildUsageHeaders(usageLimitSnapshot),
-          },
+          }),
         }
       );
     }
@@ -2822,13 +2959,12 @@ Do not use web search for this path.`,
           },
         }),
         {
-          headers: {
-            "Content-Type": "text/plain; charset=utf-8",
+          headers: buildNoStoreTextHeaders({
             "X-OpenLura-Variant": responseVariant,
             "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
             "X-OpenLura-Speed": "fast_text",
             ...buildUsageHeaders(usageLimitSnapshot),
-          },
+          }),
         }
       );
     }
@@ -2854,13 +2990,12 @@ Do not use web search for this path.`,
 
       if (cached && Date.now() - cached.timestamp < RESPONSE_CACHE_TTL_MS) {
         return new Response(cached.text, {
-          headers: {
-            "Content-Type": "text/plain; charset=utf-8",
+          headers: buildNoStoreTextHeaders({
             "X-OpenLura-Variant": responseVariant,
             "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
             "X-OpenLura-Speed": "default",
             ...buildUsageHeaders(usageLimitSnapshot),
-          },
+          }),
         });
       }
     }
@@ -2968,12 +3103,12 @@ PERSONAL STYLE SIGNALS:
 - casual/natural chat tone: ${personalFeedbackSignals.casual}
 
 GLOBAL STYLE SIGNALS:
-- shorter answers: ${globalFeedbackSignals.shorter}
-- clearer explanations: ${globalFeedbackSignals.clearer}
-- better structure: ${globalFeedbackSignals.structure}
-- less vague: ${globalFeedbackSignals.vague}
-- more context: ${globalFeedbackSignals.context}
-- casual/natural chat tone: ${globalFeedbackSignals.casual}
+- shorter answers: ${globalFeedbackSnapshotSignals.shorter}
+- clearer explanations: ${globalFeedbackSnapshotSignals.clearer}
+- better structure: ${globalFeedbackSnapshotSignals.structure}
+- less vague: ${globalFeedbackSnapshotSignals.vague}
+- more context: ${globalFeedbackSnapshotSignals.context}
+- casual/natural chat tone: ${globalFeedbackSnapshotSignals.casual}
 
 PRIORITY RULE:
 - current user request > personal feedback signals > global consensus > defaults
@@ -2985,10 +3120,10 @@ RUNTIME OVERRIDE PROFILE:
 ${runtimeOverrideInstructionBlock}
 
 GLOBAL LEARNING:
-Total sessions: ${globalFeedback.length}
+Total sessions: ${globalFeedbackSnapshot.length}
 
 Common failed patterns (avoid these types of responses):
-${globalFeedback
+${globalFeedbackSnapshot
   .filter(
     (f: any) => f.type === "down" || f.source === "idea_feedback_learning"
   )
@@ -3297,7 +3432,7 @@ ${aiText}`,
         aiText = rewritten;
       }
     } catch (error) {
-      console.error("OpenLura casual rewrite failed:", error);
+      console.error("OpenLura casual rewrite failed:", toSafeErrorMeta(error));
     }
   }
 
@@ -3397,12 +3532,11 @@ ${aiText}`,
       },
     }),
     {
-      headers: {
-        "Content-Type": "text/plain; charset=utf-8",
+      headers: buildNoStoreTextHeaders({
         "X-OpenLura-Variant": responseVariant,
         "X-OpenLura-Sources": encodeURIComponent(JSON.stringify(sources)),
         ...buildUsageHeaders(usageLimitSnapshot),
-      },
+      }),
     }
   );
 }

@@ -8,6 +8,8 @@ const ANALYTICS_SESSION_VERSION = "v1";
 const ANALYTICS_SIGNATURE_HEX_LENGTH = 64;
 const ANALYTICS_NONCE_HEX_LENGTH = 32;
 const MIN_ANALYTICS_SESSION_SECRET_LENGTH = 32;
+const MAX_ANALYTICS_COOKIE_VALUE_LENGTH = 2048;
+const MAX_FUTURE_SESSION_SKEW_MS = 5 * 60 * 1000;
 
 type ParsedAnalyticsSession = {
   version: string;
@@ -20,9 +22,7 @@ function getAnalyticsSessionSecret() {
   const secret = process.env.ANALYTICS_SESSION_SECRET;
 
   if (!secret) {
-    throw new Error(
-      "Missing ANALYTICS_SESSION_SECRET"
-    );
+    throw new Error("Missing ANALYTICS_SESSION_SECRET");
   }
 
   if (secret.length < MIN_ANALYTICS_SESSION_SECRET_LENGTH) {
@@ -42,8 +42,11 @@ function buildAnalyticsSessionPayload(expiresAt: string, nonce: string) {
   return `${ANALYTICS_SESSION_VERSION}:${expiresAt}:${nonce}`;
 }
 
-function parseAnalyticsSessionValue(value?: string | null): ParsedAnalyticsSession | null {
+function parseAnalyticsSessionValue(
+  value?: string | null
+): ParsedAnalyticsSession | null {
   if (!value) return null;
+  if (value.length > MAX_ANALYTICS_COOKIE_VALUE_LENGTH) return null;
 
   const parts = value.split(".");
 
@@ -79,30 +82,46 @@ export function createAnalyticsSessionValue(now = Date.now()) {
   return `${ANALYTICS_SESSION_VERSION}.${expiresAt}.${nonce}.${signature}`;
 }
 
-export function isValidAnalyticsSession(value?: string | null) {
+export function getValidatedAnalyticsSession(value?: string | null) {
   const parsed = parseAnalyticsSessionValue(value);
 
-  if (!parsed) return false;
+  if (!parsed) return null;
 
   const expiresAtNumber = Number(parsed.expiresAt);
+  const maxAllowedExpiry =
+    Date.now() + ANALYTICS_SESSION_MAX_AGE * 1000 + MAX_FUTURE_SESSION_SKEW_MS;
 
-  if (!Number.isSafeInteger(expiresAtNumber)) return false;
-  if (expiresAtNumber <= Date.now()) return false;
+  if (!Number.isSafeInteger(expiresAtNumber)) return null;
+  if (expiresAtNumber <= Date.now()) return null;
+  if (expiresAtNumber > maxAllowedExpiry) return null;
 
   const expectedSignature = signAnalyticsSession(parsed.expiresAt, parsed.nonce);
 
   if (!isLowercaseHex(expectedSignature, ANALYTICS_SIGNATURE_HEX_LENGTH)) {
-    return false;
+    return null;
   }
 
   try {
-    return timingSafeEqual(
-      Buffer.from(parsed.signature, "hex"),
-      Buffer.from(expectedSignature, "hex")
+    const providedSignatureBuffer = Buffer.from(parsed.signature, "hex");
+    const expectedSignatureBuffer = Buffer.from(expectedSignature, "hex");
+
+    if (providedSignatureBuffer.length !== expectedSignatureBuffer.length) {
+      return null;
+    }
+
+    const isValid = timingSafeEqual(
+      providedSignatureBuffer,
+      expectedSignatureBuffer
     );
+
+    return isValid ? parsed : null;
   } catch {
-    return false;
+    return null;
   }
+}
+
+export function isValidAnalyticsSession(value?: string | null) {
+  return !!getValidatedAnalyticsSession(value);
 }
 
 export function getAnalyticsSessionCookie(req: Request) {
