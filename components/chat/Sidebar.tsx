@@ -53,18 +53,18 @@ export default function Sidebar({
   return (
     <div
       key={chat.id}
-      className={`group relative overflow-visible rounded-[20px] border ol-interactive transition-[transform,background-color,border-color,box-shadow,opacity] duration-200 ${
+      className={`group relative overflow-visible rounded-[20px] border ol-interactive transition-[background-color,border-color,box-shadow,opacity] duration-200 ${
         openChatMenuId === chat.id ? "z-[220]" : "z-0"
       } ${
         isActive
-          ? "border-[#60a5fa]/26 bg-[linear-gradient(180deg,rgba(59,130,246,0.20),rgba(59,130,246,0.10))] shadow-[inset_0_0_0_1px_rgba(191,219,254,0.10),0_14px_32px_rgba(15,23,42,0.26)]"
+          ? "border-[#60a5fa]/34 bg-[linear-gradient(180deg,rgba(59,130,246,0.24),rgba(37,99,235,0.12))] shadow-[inset_0_0_0_1px_rgba(191,219,254,0.12),0_16px_36px_rgba(15,23,42,0.30)]"
           : isPinned
-          ? "border-white/[0.08] bg-white/[0.036] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.02)] hover:-translate-y-[1px] hover:border-white/[0.12] hover:bg-white/[0.056] hover:shadow-[0_12px_28px_rgba(0,0,0,0.16)]"
-          : "border-transparent bg-transparent hover:-translate-y-[1px] hover:border-white/[0.08] hover:bg-white/[0.042] hover:shadow-[0_10px_22px_rgba(0,0,0,0.11)]"
+          ? "border-white/[0.09] bg-white/[0.042] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.025)] hover:border-white/[0.13] hover:bg-white/[0.06] hover:shadow-[0_12px_26px_rgba(0,0,0,0.15)]"
+          : "border-transparent bg-transparent hover:border-white/[0.08] hover:bg-white/[0.045] hover:shadow-[0_10px_20px_rgba(0,0,0,0.10)]"
       }`}
     >
       {isPinned && !isActive && (
-        <div className="pointer-events-none absolute inset-y-2 left-0 w-[3px] rounded-full bg-gradient-to-b from-[#93c5fd] via-[#3b82f6] to-[#1d4ed8] opacity-72" />
+        <div className="pointer-events-none absolute inset-y-2 left-0 w-[3px] rounded-full bg-gradient-to-b from-[#bfdbfe] via-[#60a5fa] to-[#2563eb] opacity-80" />
       )}
 
       <button
@@ -73,22 +73,22 @@ export default function Sidebar({
           activateChat(chat.id);
           setMobileMenu(false);
         }}
-        className={`w-full truncate rounded-[20px] py-3 pl-3.5 pr-12 text-left text-sm ol-interactive transition-[color,transform] duration-200 focus-visible:outline-none ${
+        className={`w-full truncate rounded-[20px] py-3 pl-3.5 pr-12 text-left text-sm ol-interactive transition-colors duration-200 focus-visible:outline-none ${
           isActive
             ? "text-white"
             : isPinned
-            ? "text-white/88 group-hover:text-white"
-            : "text-white/72 group-hover:text-white/90"
+            ? "text-white/90 group-hover:text-white"
+            : "text-white/70 group-hover:text-white/88"
         }`}
       >
         <span className="flex items-center gap-2.5">
           <span
             className={`h-1.5 w-1.5 rounded-full transition-colors duration-200 ${
               isActive
-                ? "bg-[#bfdbfe]"
+                ? "bg-[#dbeafe]"
                 : isPinned
-                ? "bg-[#60a5fa]/85 group-hover:bg-[#93c5fd]"
-                : "bg-white/18 group-hover:bg-white/30"
+                ? "bg-[#60a5fa] group-hover:bg-[#93c5fd]"
+                : "bg-white/16 group-hover:bg-white/28"
             }`}
           />
           <span className={`truncate transition-colors duration-200 ${isActive ? "text-white" : ""}`}>
@@ -106,8 +106,8 @@ export default function Sidebar({
         }}
         className={`absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-xl border ol-interactive transition-[transform,opacity,background-color,border-color,color,box-shadow] duration-200 focus-visible:outline-none active:scale-95 ${
           openChatMenuId === chat.id
-            ? "border-white/10 bg-white/[0.08] text-white opacity-100 shadow-[0_8px_18px_rgba(0,0,0,0.18)]"
-            : "border-transparent bg-transparent text-white/42 opacity-100 md:opacity-0 md:scale-95 group-hover:opacity-100 group-hover:scale-100 group-focus-within:opacity-100 group-focus-within:scale-100 hover:border-white/[0.08] hover:bg-white/[0.06] hover:text-white/90"
+            ? "border-white/12 bg-white/[0.09] text-white opacity-100 shadow-[0_8px_18px_rgba(0,0,0,0.18)]"
+            : "border-transparent bg-transparent text-white/40 opacity-100 md:opacity-0 md:scale-95 group-hover:opacity-100 group-hover:scale-100 group-focus-within:opacity-100 group-focus-within:scale-100 hover:border-white/[0.08] hover:bg-white/[0.06] hover:text-white/88"
         }`}
       >
         ⋯
@@ -197,7 +197,7 @@ export default function Sidebar({
                 {searchedPinnedChats.length}
               </span>
             </div>
-              <div className="space-y-2 overflow-visible">
+              <div className="space-y-2.5 overflow-visible">
                 {searchedPinnedChats.map((chat) => renderChatRow(chat, true))}
               </div>
             </div>
@@ -212,7 +212,7 @@ export default function Sidebar({
                 {regularChats.length}
               </span>
             </div>
-            <div className="space-y-2 overflow-visible">
+            <div className="space-y-2.5 overflow-visible">
               {regularChats.length > 0 ? (
                 regularChats.map((chat) => renderChatRow(chat, false))
               ) : (
@@ -232,12 +232,12 @@ export default function Sidebar({
                 {archivedChats.length}
               </span>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               {archivedChats.length > 0 ? (
                 archivedChats.map((chat) => (
                   <div
                     key={chat.id}
-                    className="group flex items-center justify-between rounded-2xl border border-white/8 bg-white/[0.02] px-3 py-2.5 text-sm ol-interactive transition-[transform,background-color,border-color,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-white/10 hover:bg-white/[0.036] hover:shadow-[0_8px_16px_rgba(0,0,0,0.08)]"
+                    className="group flex items-center justify-between rounded-2xl border border-white/8 bg-white/[0.02] px-3 py-2.5 text-sm ol-interactive transition-[background-color,border-color,box-shadow] duration-200 hover:border-white/10 hover:bg-white/[0.036] hover:shadow-[0_8px_16px_rgba(0,0,0,0.08)]"
                   >
                     <span className="flex-1 text-left text-white/40 ol-interactive transition-colors duration-200 group-hover:text-white/54">
                       {chat.title || "Chat"}
@@ -284,12 +284,12 @@ export default function Sidebar({
               </div>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               {deletedChats.length > 0 ? (
                 deletedChats.map((chat) => (
                   <div
                     key={chat.id}
-                    className="group flex items-center justify-between rounded-2xl border border-red-400/10 bg-red-500/[0.032] px-3 py-2.5 text-sm ol-interactive transition-[transform,background-color,border-color,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-red-400/16 hover:bg-red-500/[0.052] hover:shadow-[0_8px_16px_rgba(0,0,0,0.08)]"
+                    className="group flex items-center justify-between rounded-2xl border border-red-400/10 bg-red-500/[0.032] px-3 py-2.5 text-sm ol-interactive transition-[background-color,border-color,box-shadow] duration-200 hover:border-red-400/16 hover:bg-red-500/[0.052] hover:shadow-[0_8px_16px_rgba(0,0,0,0.08)]"
                   >
                     <span className="flex-1 text-white/32 line-through ol-interactive transition-colors duration-200 group-hover:text-white/42">
                       {chat.title || "Chat"}
@@ -320,7 +320,7 @@ export default function Sidebar({
           <button
             type="button"
             onClick={() => setShowFeedbackBox(true)}
-            className="w-full rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2.5 text-left text-sm text-white/82 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-white/12 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.985]"
+            className="w-full rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2.5 text-left text-sm text-white/82 ol-interactive transition-[background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.985]"
           >
             Feedback / Idea
           </button>
@@ -329,7 +329,7 @@ export default function Sidebar({
             <button
               type="button"
               onClick={() => setShowLoginBox(true)}
-              className="w-full rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2.5 text-left text-sm text-white/82 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-white/12 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.985]"
+              className="w-full rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2.5 text-left text-sm text-white/82 ol-interactive transition-[background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.985]"
             >
               Log in
             </button>
