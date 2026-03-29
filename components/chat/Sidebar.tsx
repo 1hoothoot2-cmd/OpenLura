@@ -232,27 +232,47 @@ export default function Sidebar({
         mobileMenu ? "translate-x-0" : "-translate-x-full"
       }`}
     >
-      <div className="flex h-full flex-col">
-        <button
-          type="button"
-          onClick={() => {
-            createNewChat();
-            setOpenChatMenuId(null);
-            setMobileMenu(false);
-          }}
-          className="mb-3 rounded-2xl border border-[#60a5fa]/18 bg-gradient-to-r from-[#1d4ed8] via-[#2563eb] to-[#3b82f6] px-3.5 py-2.5 text-sm font-medium text-white shadow-[0_12px_30px_rgba(59,130,246,0.26)] ol-interactive transition-[transform,filter,box-shadow,opacity] duration-200 hover:brightness-110 hover:shadow-[0_16px_36px_rgba(59,130,246,0.32)] active:scale-[0.985]"
-        >
-          + New Chat
-        </button>
+            <div className="flex h-full flex-col">
+        <div className="sticky top-0 z-20 -mx-3 mb-2 border-b border-white/8 bg-[linear-gradient(180deg,rgba(10,15,29,0.98),rgba(10,15,29,0.92))] px-3 pb-3 pt-[max(env(safe-area-inset-top),12px)] backdrop-blur-2xl md:mx-0 md:border-b-0 md:bg-transparent md:px-0 md:pb-0 md:pt-0">
+          <div className="mb-3 flex items-center justify-between md:hidden">
+            <div className="px-1 text-[11px] font-medium uppercase tracking-[0.18em] text-white/34">
+              OpenLura
+            </div>
 
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search chats..."
-          className="mb-3 rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2.5 text-sm text-white/88 outline-none placeholder:text-white/28 ol-surface transition-[border-color,background-color,box-shadow] duration-200 focus:border-[#60a5fa]/28 focus:bg-white/[0.06] focus:shadow-[inset_0_0_0_1px_rgba(96,165,250,0.08)]"
-        />
+            <button
+              type="button"
+              aria-label="Close sidebar"
+              onClick={() => {
+                setOpenChatMenuId(null);
+                setMobileMenu(false);
+              }}
+              className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/8 bg-white/[0.04] text-white/72 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-95"
+            >
+              ×
+            </button>
+          </div>
 
-        <div className="mt-2 flex-1 space-y-6 overflow-x-visible overflow-y-auto pr-1 pb-[max(env(safe-area-inset-bottom),14px)] pt-1.5">
+          <button
+            type="button"
+            onClick={() => {
+              createNewChat();
+              setOpenChatMenuId(null);
+              setMobileMenu(false);
+            }}
+            className="mb-3 w-full rounded-2xl border border-[#60a5fa]/18 bg-gradient-to-r from-[#1d4ed8] via-[#2563eb] to-[#3b82f6] px-3.5 py-2.5 text-sm font-medium text-white shadow-[0_12px_30px_rgba(59,130,246,0.26)] ol-interactive transition-[transform,filter,box-shadow,opacity] duration-200 hover:brightness-110 hover:shadow-[0_16px_36px_rgba(59,130,246,0.32)] active:scale-[0.985]"
+          >
+            + New Chat
+          </button>
+
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search chats..."
+            className="rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2.5 text-sm text-white/88 outline-none placeholder:text-white/28 ol-surface transition-[border-color,background-color,box-shadow] duration-200 focus:border-[#60a5fa]/28 focus:bg-white/[0.06] focus:shadow-[inset_0_0_0_1px_rgba(96,165,250,0.08)]"
+          />
+        </div>
+
+        <div className="mt-1 flex-1 space-y-6 overflow-x-visible overflow-y-auto pr-1 pb-[max(env(safe-area-inset-bottom),14px)] pt-1">
           {searchedPinnedChats.length > 0 && (
             <div>
               <div className="mb-3.5 flex items-center justify-between px-1.5">
