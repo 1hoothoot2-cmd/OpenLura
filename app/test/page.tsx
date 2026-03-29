@@ -77,6 +77,13 @@ const [usage, setUsage] = useState<{
   const [initialStateReady, setInitialStateReady] = useState(false);
   const [openChatMenuId, setOpenChatMenuId] = useState<number | null>(null);
 
+  const hasBlockingOverlay =
+    mobileMenu ||
+    showFeedbackBox ||
+    showClearDeletedConfirm ||
+    deleteTargetChatId !== null ||
+    showLoginBox;
+
   const closeMobileSidebar = () => {
     if (typeof window !== "undefined" && window.innerWidth < 768) {
       setMobileMenu(false);
@@ -180,6 +187,7 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
               method: "GET",
               headers: getOpenLuraRequestHeaders(false),
               cache: "no-store",
+              credentials: "same-origin",
             });
 
             if (res.ok) {
@@ -301,16 +309,14 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
   useEffect(() => {
     if (typeof document === "undefined") return;
 
-    const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
-    if (!isMobile) return;
-
     const body = document.body;
+    const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
     const previousOverflow = body.style.overflow;
     const previousTouchAction = body.style.touchAction;
 
-    if (mobileMenu) {
+    if (hasBlockingOverlay) {
       body.style.overflow = "hidden";
-      body.style.touchAction = "none";
+      body.style.touchAction = isMobile ? "none" : "";
     } else {
       body.style.overflow = "";
       body.style.touchAction = "";
@@ -320,7 +326,7 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
       body.style.overflow = previousOverflow;
       body.style.touchAction = previousTouchAction;
     };
-  }, [mobileMenu]);
+  }, [hasBlockingOverlay]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -328,6 +334,9 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
 
       if (window.innerWidth >= 768) {
         setMobileMenu(true);
+      } else {
+        setMobileMenu(false);
+        setOpenChatMenuId(null);
       }
     };
 
@@ -412,6 +421,7 @@ const hasMeaningfulPersonalState =
         await fetch("/api/personal-state", {
           method: "POST",
           headers: getOpenLuraRequestHeaders(true),
+          credentials: "same-origin",
           body: JSON.stringify({
             chats: safeChats,
             memory,
@@ -440,6 +450,59 @@ const hasMeaningfulPersonalState =
   useEffect(() => {
     setOpenChatMenuId(null);
   }, [activeChatId]);
+
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+
+      if (showLoginBox) {
+        setShowLoginBox(false);
+        setLoginError("");
+        setLoginUsername("");
+        setLoginPassword("");
+        return;
+      }
+
+      if (showFeedbackBox) {
+        setShowFeedbackBox(false);
+        setFeedbackText("");
+        setFeedbackCategory("adjustment");
+        return;
+      }
+
+      if (showClearDeletedConfirm) {
+        setShowClearDeletedConfirm(false);
+        return;
+      }
+
+      if (deleteTargetChatId !== null) {
+        setDeleteTargetChatId(null);
+        return;
+      }
+
+      if (openChatMenuId !== null) {
+        setOpenChatMenuId(null);
+        return;
+      }
+
+      if (mobileMenu && typeof window !== "undefined" && window.innerWidth < 768) {
+        setMobileMenu(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+
+    return () => {
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [
+    mobileMenu,
+    openChatMenuId,
+    showLoginBox,
+    showFeedbackBox,
+    showClearDeletedConfirm,
+    deleteTargetChatId
+  ]);
 
   useEffect(() => {
   const el = messagesRef.current;
@@ -480,10 +543,12 @@ const hasMeaningfulPersonalState =
           method: "GET",
           headers: getOpenLuraRequestHeaders(false),
           cache: "no-store",
+          credentials: "same-origin",
         });
 
         if (res.status === 401) {
-          window.location.href = "/";
+          console.warn("OpenLura personal verify unauthorized");
+          setPersonalStateLoaded(true);
           return;
         }
 
@@ -1131,6 +1196,28 @@ const restoreDeletedChat = (chatId: number) => {
       streamController.abort();
       setStreamController(null);
     }
+
+    setChats((prev) =>
+      prev.map((chat: any) => {
+        if (chat.id !== activeChatId) return chat;
+
+        const nextMessages = [...(chat.messages || [])];
+        const lastIndex = nextMessages.length - 1;
+
+        if (lastIndex >= 0 && nextMessages[lastIndex]?.isStreaming) {
+          nextMessages[lastIndex] = {
+            ...nextMessages[lastIndex],
+            isStreaming: false,
+          };
+        }
+
+        return {
+          ...chat,
+          messages: nextMessages,
+        };
+      })
+    );
+
     setLoading(false);
   };
 
@@ -1152,6 +1239,17 @@ const restoreDeletedChat = (chatId: number) => {
 
       if (!res.ok || !data?.success) {
         setLoginError(data?.error || "Inloggen mislukt");
+        return;
+      }
+
+      const verifyRes = await fetch("/api/personal-state", {
+        method: "GET",
+        headers: getOpenLuraRequestHeaders(false),
+        cache: "no-store",
+      });
+
+      if (!verifyRes.ok) {
+        setLoginError("Persoonlijke omgeving kon nog niet worden geladen");
         return;
       }
 
@@ -2120,7 +2218,7 @@ console.log("FEEDBACK CLICKED", { chatId, msgIndex, type });
       )}
 
       {deleteTargetChatId !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
           <div className="w-full max-w-[340px] rounded-[28px] border border-white/8 bg-[#0a0f1d]/95 p-6 shadow-[0_22px_60px_rgba(0,0,0,0.30)] backdrop-blur-2xl">
             <h2 className="mb-2 text-lg font-semibold text-white/95">Are you sure?</h2>
             <p className="mb-5 text-sm leading-6 text-white/60">
@@ -2129,6 +2227,7 @@ console.log("FEEDBACK CLICKED", { chatId, msgIndex, type });
 
             <div className="flex gap-2">
               <button
+                type="button"
                 onClick={() => setDeleteTargetChatId(null)}
                 className="flex-1 rounded-[20px] border border-white/8 bg-white/[0.04] p-3 text-white/88 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.99]"
               >
@@ -2136,6 +2235,7 @@ console.log("FEEDBACK CLICKED", { chatId, msgIndex, type });
               </button>
 
               <button
+                type="button"
                 onClick={confirmDeleteChat}
                 className="flex-1 rounded-[20px] border border-red-400/18 bg-red-500/80 p-3 text-white shadow-[0_10px_22px_rgba(239,68,68,0.24)] ol-interactive transition-[transform,background-color,box-shadow] duration-200 hover:bg-red-500 hover:shadow-[0_12px_26px_rgba(239,68,68,0.28)] active:scale-[0.99]"
               >
@@ -2147,7 +2247,7 @@ console.log("FEEDBACK CLICKED", { chatId, msgIndex, type });
       )}
 
       {showFeedbackBox && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
           <div className="w-full max-w-[360px] rounded-[28px] border border-white/8 bg-[#0a0f1d]/95 p-6 shadow-[0_22px_60px_rgba(0,0,0,0.30)] backdrop-blur-2xl">
             <h2 className="mb-4 text-lg font-semibold text-white/95">Feedback / Idea</h2>
 
@@ -2572,7 +2672,7 @@ enterKeyHint="send"
       )}
 
       {showLoginBox && !isPersonalRoute && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-[28px] border border-white/8 bg-[#0b1020]/95 p-6 shadow-[0_22px_60px_rgba(0,0,0,0.32)] backdrop-blur-2xl">
             <div className="mb-5 rounded-[24px] border border-white/8 bg-white/[0.03] px-4 py-4">
               <p className="text-[11px] uppercase tracking-[0.16em] text-white/38">
