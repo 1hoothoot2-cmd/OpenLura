@@ -1,4 +1,11 @@
-import { createHmac, timingSafeEqual } from "crypto";
+import {
+  ANALYTICS_COOKIE_NAME,
+  createAnalyticsSessionValue,
+  getAnalyticsSessionCookie,
+  getAnalyticsSessionCookieOptions,
+  getClearedAnalyticsSessionCookieOptions,
+  isValidAnalyticsSession,
+} from "@/lib/auth/analyticsSession";
 import { NextResponse } from "next/server";
 import {
   ADMIN_COOKIE_NAME,
@@ -12,10 +19,7 @@ export const dynamic = "force-dynamic";
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const analyticsAdminPassword = process.env.ANALYTICS_ADMIN_PASSWORD;
-const ANALYTICS_COOKIE_NAME = "openlura_analytics_session";
-const ANALYTICS_SESSION_MAX_AGE = 60 * 60 * 3;
 const ANALYTICS_SESSION_TYPE = "analytics_admin";
-const ANALYTICS_SIGNATURE_HEX_LENGTH = 64;
 
 const NO_STORE_HEADERS = {
   "Cache-Control": "no-store",
@@ -36,101 +40,10 @@ async function resolveFeedbackUserId(req: Request) {
   );
 }
 
-function getAnalyticsSessionSecret() {
-  const secret =
-    process.env.ANALYTICS_SESSION_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!secret) {
-    throw new Error(
-      "Missing ANALYTICS_SESSION_SECRET or SUPABASE_SERVICE_ROLE_KEY"
-    );
-  }
-
-  return secret;
-}
-
-function signAnalyticsSession(expiresAt: string) {
-  return createHmac("sha256", getAnalyticsSessionSecret())
-    .update(expiresAt)
-    .digest("hex");
-}
-
 function getUserScopeFromRequest(req: Request) {
   return isValidAdminSession(getCookieValue(req, ADMIN_COOKIE_NAME))
     ? "admin"
     : "guest";
-}
-
-function parseAnalyticsSessionValue(value?: string | null) {
-  if (!value) return null;
-
-  const separatorIndex = value.indexOf(".");
-  if (separatorIndex <= 0) return null;
-
-  const expiresAt = value.slice(0, separatorIndex);
-  const signature = value.slice(separatorIndex + 1);
-
-  if (!expiresAt || !signature) return null;
-
-  return {
-    expiresAt,
-    signature,
-  };
-}
-
-function createAnalyticsSessionValue(now = Date.now()) {
-  const expiresAt = String(now + ANALYTICS_SESSION_MAX_AGE * 1000);
-  const signature = signAnalyticsSession(expiresAt);
-  return `${expiresAt}.${signature}`;
-}
-
-function isValidAnalyticsSession(value?: string | null) {
-  const parsed = parseAnalyticsSessionValue(value);
-
-  if (!parsed) return false;
-
-  const expiresAtNumber = Number(parsed.expiresAt);
-
-  if (!Number.isFinite(expiresAtNumber)) return false;
-  if (expiresAtNumber <= Date.now()) return false;
-  if (parsed.signature.length !== ANALYTICS_SIGNATURE_HEX_LENGTH) return false;
-
-  const expected = signAnalyticsSession(parsed.expiresAt);
-
-  if (expected.length !== parsed.signature.length) return false;
-
-  try {
-    return timingSafeEqual(
-      Buffer.from(parsed.signature, "utf8"),
-      Buffer.from(expected, "utf8")
-    );
-  } catch {
-    return false;
-  }
-}
-function getAnalyticsSessionCookie(req: Request) {
-  return getCookieValue(req, ANALYTICS_COOKIE_NAME);
-}
-
-function getAnalyticsSessionCookieOptions() {
-  return {
-    httpOnly: true,
-    sameSite: "lax" as const,
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: ANALYTICS_SESSION_MAX_AGE,
-  };
-}
-
-function getClearedAnalyticsSessionCookieOptions() {
-  return {
-    httpOnly: true,
-    sameSite: "lax" as const,
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    expires: new Date(0),
-    maxAge: 0,
-  };
 }
 
 function getSupabaseConfig() {
@@ -422,7 +335,10 @@ export async function GET(req: Request) {
           success: false,
           error: "Unauthorized",
         },
-        { status: 401 }
+        {
+          status: 401,
+          headers: NO_STORE_HEADERS,
+        }
       );
     }
 
@@ -451,7 +367,10 @@ export async function GET(req: Request) {
           supabaseStatus: res.status,
           supabaseError: errorText,
         },
-        { status: 500 }
+        {
+          status: 500,
+          headers: NO_STORE_HEADERS,
+        }
       );
     }
 
@@ -466,16 +385,21 @@ export async function GET(req: Request) {
     });
   } catch (error) {
     console.error("Feedback GET failed:", error);
+
     return NextResponse.json(
       {
         success: false,
         error: "Feedback ophalen mislukt",
         details: String(error),
       },
-      { status: 500 }
+      {
+        status: 500,
+        headers: NO_STORE_HEADERS,
+      }
     );
   }
 }
+
 export async function DELETE(req: Request) {
   try {
     const hadSession = isValidAnalyticsSession(getAnalyticsSessionCookie(req));
@@ -489,9 +413,7 @@ export async function DELETE(req: Request) {
         },
       },
       {
-        headers: {
-          "Cache-Control": "no-store",
-        },
+        headers: NO_STORE_HEADERS,
       }
     );
 
@@ -504,13 +426,17 @@ export async function DELETE(req: Request) {
     return response;
   } catch (error) {
     console.error("Feedback DELETE failed:", error);
+
     return NextResponse.json(
       {
         success: false,
         error: "Analytics logout mislukt",
         details: String(error),
       },
-      { status: 500 }
+      {
+        status: 500,
+        headers: NO_STORE_HEADERS,
+      }
     );
   }
 }
