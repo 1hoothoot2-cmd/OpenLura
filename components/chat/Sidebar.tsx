@@ -93,129 +93,137 @@ export default function Sidebar({
   }, [activeChatId, setOpenChatMenuId]);
 
   const renderChatRow = (chat: any, isPinned: boolean) => {
-    const isActive = activeChatId === chat.id;
+  const isActive = activeChatId === chat.id;
+  const isMenuOpen = openChatMenuId === chat.id;
 
-    return (
-      <div
-        key={chat.id}
-        className={`group relative overflow-visible rounded-[22px] border transition-[background-color,border-color,box-shadow,opacity] duration-200 ${
-          openChatMenuId === chat.id ? "z-[220]" : "z-0"
-        } ${
+  return (
+    <div
+      key={chat.id}
+      className={`group relative overflow-visible rounded-[22px] border transition-[transform,background-color,border-color,box-shadow,opacity] duration-200 ${
+        isMenuOpen ? "z-[220]" : "z-0"
+      } ${
+        isActive
+          ? "border-[#60a5fa]/44 bg-[linear-gradient(180deg,rgba(59,130,246,0.26),rgba(37,99,235,0.14))] shadow-[inset_0_0_0_1px_rgba(219,234,254,0.14),0_18px_36px_rgba(15,23,42,0.28)]"
+          : isPinned
+          ? "border-white/[0.09] bg-white/[0.045] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.02)] hover:-translate-y-[1px] hover:border-white/[0.13] hover:bg-white/[0.06] hover:shadow-[0_12px_24px_rgba(0,0,0,0.14)]"
+          : "border-transparent bg-transparent hover:-translate-y-[1px] hover:border-white/[0.075] hover:bg-white/[0.04] hover:shadow-[0_8px_18px_rgba(0,0,0,0.10)]"
+      }`}
+    >
+      {isPinned && !isActive && (
+        <div className="pointer-events-none absolute inset-y-2.5 left-0 w-[3px] rounded-full bg-gradient-to-b from-[#dbeafe] via-[#60a5fa] to-[#2563eb] opacity-80" />
+      )}
+
+      {isActive && (
+        <>
+          <div className="pointer-events-none absolute inset-y-[7px] left-0 w-[3px] rounded-full bg-gradient-to-b from-[#eff6ff] via-[#93c5fd] to-[#3b82f6]" />
+          <div className="pointer-events-none absolute inset-[1px] rounded-[20px] bg-[linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.01))]" />
+        </>
+      )}
+
+      <button
+        type="button"
+        onClick={() => {
+          activateChat(chat.id);
+          setMobileMenu(false);
+        }}
+        className={`relative w-full rounded-[22px] py-3.5 pl-4 pr-12 text-left text-sm transition-colors duration-200 focus-visible:outline-none ${
           isActive
-            ? "border-[#60a5fa]/40 bg-[linear-gradient(180deg,rgba(59,130,246,0.24),rgba(37,99,235,0.14))] shadow-[inset_0_0_0_1px_rgba(219,234,254,0.12),0_18px_34px_rgba(15,23,42,0.24)]"
+            ? "text-white"
             : isPinned
-            ? "border-white/[0.09] bg-white/[0.045] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.02)] hover:border-white/[0.13] hover:bg-white/[0.06] hover:shadow-[0_12px_24px_rgba(0,0,0,0.14)]"
-            : "border-transparent bg-transparent hover:border-white/[0.075] hover:bg-white/[0.04] hover:shadow-[0_8px_18px_rgba(0,0,0,0.10)]"
+            ? "text-white/90 group-hover:text-white"
+            : "text-white/70 group-hover:text-white/88"
         }`}
       >
-        {isPinned && !isActive && (
-          <div className="pointer-events-none absolute inset-y-2.5 left-0 w-[3px] rounded-full bg-gradient-to-b from-[#dbeafe] via-[#60a5fa] to-[#2563eb] opacity-80" />
-        )}
-
-        {isActive && (
-          <div className="pointer-events-none absolute inset-y-[7px] left-0 w-[3px] rounded-full bg-gradient-to-b from-[#dbeafe] via-[#93c5fd] to-[#3b82f6]" />
-        )}
-
-        <button
-          type="button"
-          onClick={() => {
-            activateChat(chat.id);
-            setMobileMenu(false);
-          }}
-          className={`w-full rounded-[22px] py-3.5 pl-4 pr-12 text-left text-sm transition-colors duration-200 focus-visible:outline-none ${
-            isActive
-              ? "text-white"
-              : isPinned
-              ? "text-white/90 group-hover:text-white"
-              : "text-white/70 group-hover:text-white/88"
-          }`}
-        >
-          <span className="flex items-center gap-2.5">
+        <span className="flex items-center gap-2.5">
+          <span
+            className={`mt-[1px] h-1.5 w-1.5 shrink-0 rounded-full transition-colors duration-200 ${
+              isActive
+                ? "bg-[#eff6ff]"
+                : isPinned
+                ? "bg-[#60a5fa] group-hover:bg-[#93c5fd]"
+                : "bg-white/16 group-hover:bg-white/28"
+            }`}
+          />
+          <span className="min-w-0 flex-1 truncate">
             <span
-              className={`mt-[1px] h-1.5 w-1.5 shrink-0 rounded-full transition-colors duration-200 ${
+              className={`block truncate transition-[color,opacity,font-weight] duration-200 ${
                 isActive
-                  ? "bg-[#eff6ff]"
+                  ? "font-semibold tracking-[-0.01em] text-white"
                   : isPinned
-                  ? "bg-[#60a5fa] group-hover:bg-[#93c5fd]"
-                  : "bg-white/16 group-hover:bg-white/28"
+                  ? "font-medium text-white/90"
+                  : "font-normal text-white/72"
               }`}
-            />
-            <span className="min-w-0 flex-1 truncate">
-              <span
-                className={`block truncate transition-colors duration-200 ${
-                  isActive ? "font-medium text-white" : ""
-                }`}
-              >
-                {chat.title || "New Chat"}
-              </span>
+            >
+              {chat.title || "New Chat"}
             </span>
           </span>
-        </button>
+        </span>
+      </button>
 
-        <button
-          type="button"
-          aria-label="Chat opties"
-          aria-expanded={openChatMenuId === chat.id}
-          onClick={(e) => {
-            e.stopPropagation();
-            setOpenChatMenuId(openChatMenuId === chat.id ? null : chat.id);
-          }}
-          className={`absolute right-2.5 top-2.5 flex h-8 w-8 items-center justify-center rounded-xl border transition-[transform,opacity,background-color,border-color,color,box-shadow] duration-200 focus-visible:outline-none active:scale-95 ${
-            openChatMenuId === chat.id
-              ? "border-white/12 bg-white/[0.09] text-white opacity-100 shadow-[0_8px_18px_rgba(0,0,0,0.18)]"
-              : "border-transparent bg-transparent text-white/40 opacity-100 md:opacity-0 md:scale-95 group-hover:opacity-100 group-hover:scale-100 group-focus-within:opacity-100 group-focus-within:scale-100 hover:border-white/[0.08] hover:bg-white/[0.06] hover:text-white/88"
-          }`}
+      <button
+        type="button"
+        aria-label="Chat opties"
+        aria-expanded={isMenuOpen}
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpenChatMenuId(isMenuOpen ? null : chat.id);
+        }}
+        className={`absolute right-2.5 top-2.5 flex h-8 w-8 items-center justify-center rounded-xl border transition-[transform,opacity,background-color,border-color,color,box-shadow] duration-200 focus-visible:outline-none active:scale-95 ${
+          isMenuOpen
+            ? "border-white/12 bg-white/[0.09] text-white opacity-100 shadow-[0_8px_18px_rgba(0,0,0,0.18)]"
+            : "border-transparent bg-transparent text-white/40 opacity-100 md:opacity-0 md:scale-95 group-hover:opacity-100 group-hover:scale-100 group-focus-within:opacity-100 group-focus-within:scale-100 hover:border-white/[0.08] hover:bg-white/[0.06] hover:text-white/88"
+        }`}
+      >
+        ⋯
+      </button>
+
+      {isMenuOpen && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          className="absolute right-2.5 top-[46px] z-[230] min-w-[182px] overflow-hidden rounded-2xl border border-white/10 bg-[#161b2a]/96 shadow-[0_20px_44px_rgba(0,0,0,0.40),0_2px_10px_rgba(0,0,0,0.18)] ring-1 ring-black/20 backdrop-blur-xl animate-[fadeInUp_0.18s_ease-out]"
         >
-          ⋯
-        </button>
-
-        {openChatMenuId === chat.id && (
-          <div
-            onClick={(e) => e.stopPropagation()}
-            onMouseDown={(e) => e.stopPropagation()}
-            className="absolute right-2.5 top-[46px] z-[230] min-w-[182px] overflow-hidden rounded-2xl border border-white/10 bg-[#161b2a]/96 shadow-[0_20px_44px_rgba(0,0,0,0.40),0_2px_10px_rgba(0,0,0,0.18)] ring-1 ring-black/20 backdrop-blur-xl animate-[fadeInUp_0.18s_ease-out]"
+          <button
+            type="button"
+            onClick={() => {
+              togglePinnedChat(chat.id);
+              setOpenChatMenuId(null);
+            }}
+            className="w-full px-3.5 py-2.5 text-left text-sm text-white/88 transition-[background-color,color] duration-150 hover:bg-white/[0.06] hover:text-white"
           >
-            <button
-              type="button"
-              onClick={() => {
-                togglePinnedChat(chat.id);
-                setOpenChatMenuId(null);
-              }}
-              className="w-full px-3.5 py-2.5 text-left text-sm text-white/88 transition-[background-color,color] duration-150 hover:bg-white/[0.06] hover:text-white"
-            >
-              {isPinned ? "Unpin" : "Pin"}
-            </button>
+            {isPinned ? "Unpin" : "Pin"}
+          </button>
 
-            <div className="mx-2 border-t border-white/8" />
+          <div className="mx-2 border-t border-white/8" />
 
-            <button
-              type="button"
-              onClick={() => {
-                archiveChat(chat.id);
-                setOpenChatMenuId(null);
-              }}
-              className="w-full px-3.5 py-2.5 text-left text-sm text-white/88 transition-[background-color,color] duration-150 hover:bg-white/[0.06] hover:text-white"
-            >
-              Archive
-            </button>
+          <button
+            type="button"
+            onClick={() => {
+              archiveChat(chat.id);
+              setOpenChatMenuId(null);
+            }}
+            className="w-full px-3.5 py-2.5 text-left text-sm text-white/88 transition-[background-color,color] duration-150 hover:bg-white/[0.06] hover:text-white"
+          >
+            Archive
+          </button>
 
-            <div className="mx-2 border-t border-white/8" />
+          <div className="mx-2 border-t border-white/8" />
 
-            <button
-              type="button"
-              onClick={() => {
-                deleteChat(chat.id);
-                setOpenChatMenuId(null);
-              }}
-              className="w-full px-3.5 py-2.5 text-left text-sm text-red-300 transition-[background-color,color] duration-150 hover:bg-white/[0.06] hover:text-red-200"
-            >
-              Delete
-            </button>
-          </div>
-        )}
-      </div>
-    );
-  };
+          <button
+            type="button"
+            onClick={() => {
+              deleteChat(chat.id);
+              setOpenChatMenuId(null);
+            }}
+            className="w-full px-3.5 py-2.5 text-left text-sm text-red-300 transition-[background-color,color] duration-150 hover:bg-white/[0.06] hover:text-red-200"
+          >
+            Delete
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
 
   return (
     <div
@@ -244,10 +252,10 @@ export default function Sidebar({
           className="mb-3 rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2.5 text-sm text-white/88 outline-none placeholder:text-white/28 ol-surface transition-[border-color,background-color,box-shadow] duration-200 focus:border-[#60a5fa]/28 focus:bg-white/[0.06] focus:shadow-[inset_0_0_0_1px_rgba(96,165,250,0.08)]"
         />
 
-        <div className="mt-2 flex-1 space-y-6 overflow-x-visible overflow-y-auto pr-1 pb-[max(env(safe-area-inset-bottom),14px)]">
+        <div className="mt-2 flex-1 space-y-6 overflow-x-visible overflow-y-auto pr-1 pb-[max(env(safe-area-inset-bottom),14px)] pt-1">
           {searchedPinnedChats.length > 0 && (
             <div>
-              <div className="mb-2.5 flex items-center justify-between px-1.5">
+              <div className="mb-3 flex items-center justify-between px-1.5">
                 <span className="text-[11px] uppercase tracking-[0.18em] text-white/36">
                   Pinned
                 </span>
@@ -255,7 +263,7 @@ export default function Sidebar({
                   {searchedPinnedChats.length}
                 </span>
               </div>
-              <div className="space-y-2.5 overflow-visible">
+              <div className="space-y-3 overflow-visible">
                 {searchedPinnedChats.map((chat) => renderChatRow(chat, true))}
               </div>
             </div>
@@ -290,7 +298,7 @@ export default function Sidebar({
                 {archivedChats.length}
               </span>
             </div>
-            <div className="space-y-2.5">
+            <div className="space-y-3">
               {archivedChats.length > 0 ? (
                 archivedChats.map((chat) => (
                   <div
@@ -379,7 +387,7 @@ export default function Sidebar({
           </div>
         </div>
 
-        <div className="mt-4 space-y-2 border-t border-white/8 pt-3.5 pb-[max(env(safe-area-inset-bottom),2px)]">
+        <div className="mt-5 space-y-2.5 border-t border-white/8 pt-4 pb-[max(env(safe-area-inset-bottom),2px)]">
           <button
             type="button"
             onClick={() => {
