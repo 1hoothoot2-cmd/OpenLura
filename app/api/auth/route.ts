@@ -383,7 +383,7 @@ export async function POST(req: Request) {
         {
           success: false,
           error:
-            "Je login is herkend, maar je persoonlijke omgeving is nog niet gekoppeld.",
+            "Persoonlijke omgeving wordt momenteel voorbereid. Inloggen en persoonlijke accounts worden later geactiveerd."
         },
         {
           status: 401,
