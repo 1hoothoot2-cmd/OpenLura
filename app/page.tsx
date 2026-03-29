@@ -17,9 +17,9 @@ export default function Home() {
   const [activeChatId, setActiveChatId] = useState<number | null>(null);
   const [input, setInput] = useState("");
   const [search, setSearch] = useState("");
-    const [loading, setLoading] = useState(false);
-    const [streamController, setStreamController] = useState<AbortController | null>(null);
-  const [loadingStage, setLoadingStage] = useState<"idle" | "analyzing" | "typing">("idle");
+  const [loading, setLoading] = useState(false);
+  const [streamController, setStreamController] = useState<AbortController | null>(null);
+  
 
     // ✅ MEMORY ARRAY (weighted)
   const [memory, setMemory] = useState<{ text: string; weight: number }[]>([]);
@@ -27,14 +27,13 @@ export default function Home() {
   const [image, setImage] = useState<string | null>(null);
   const [mobileMenu, setMobileMenu] = useState(false);
 
-      const [showFeedbackBox, setShowFeedbackBox] = useState(false);
+  const [showFeedbackBox, setShowFeedbackBox] = useState(false);
   const [showClearDeletedConfirm, setShowClearDeletedConfirm] = useState(false);
   const [deleteTargetChatId, setDeleteTargetChatId] = useState<number | null>(null);
-    const [feedbackText, setFeedbackText] = useState("");
+  const [feedbackText, setFeedbackText] = useState("");
   const [feedbackCategory, setFeedbackCategory] = useState("adjustment");
   const [feedbackUI, setFeedbackUI] = useState<{ [key: string]: string }>({});
   const [feedbackGiven, setFeedbackGiven] = useState<{ [key: string]: boolean }>({});
-  const [improvedFeedbackGiven, setImprovedFeedbackGiven] = useState<{ [key: string]: boolean }>({});
   const [awaitingImprovement, setAwaitingImprovement] = useState<{
     [key: number]: {
       targetMsgIndex: number;
@@ -66,13 +65,12 @@ const [usage, setUsage] = useState<{
   const fileRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
-  const chatMenuRef = useRef<HTMLDivElement>(null);
+  
   const preferredActiveChatIdRef = useRef<number | null>(null);
   const pendingActiveChatIdRef = useRef<number | null>(null);
   const forcedActiveChatIdRef = useRef<number | null>(null);
   const isBootstrappingChatRef = useRef(false);
   const personalSyncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const hasLoadedInitialStateRef = useRef(false);
   const hasManualChatSelectionRef = useRef(false);
   const latestChatsRef = useRef<any[]>([]);
   const latestActiveChatIdRef = useRef<number | null>(null);
@@ -84,15 +82,6 @@ const [usage, setUsage] = useState<{
       setMobileMenu(false);
     }
   };
-
-  const greetings = [
-    "👋 Hey! Waar kan ik je mee helpen?",
-    "👋 Nieuwe chat gestart! Stel gerust je vraag 😊",
-    "👋 Ik ben er! Waar wil je hulp bij?",
-  ];
-
-  const getGreeting = () =>
-    greetings[Math.floor(Math.random() * greetings.length)];
 
 const buildFallbackChat = (overrides?: Partial<any>) => ({
   id: Date.now() + Math.floor(Math.random() * 1000),
@@ -305,7 +294,6 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
     };
 
     loadState().finally(() => {
-      hasLoadedInitialStateRef.current = true;
       setInitialStateReady(true);
     });
   }, [chatStorageKey, memoryStorageKey, isPersonalRoute]);
@@ -446,22 +434,6 @@ const hasMeaningfulPersonalState =
       if (personalSyncTimeoutRef.current) {
         clearTimeout(personalSyncTimeoutRef.current);
       }
-    };
-  }, []);
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (!chatMenuRef.current) return;
-
-      if (!chatMenuRef.current.contains(e.target as Node)) {
-        setOpenChatMenuId(null);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
 
@@ -664,18 +636,14 @@ const messageShellClass =
   "w-full min-w-0 max-w-full overflow-hidden";
 const messageBubbleClass =
   "min-w-0 max-w-full overflow-hidden break-words [overflow-wrap:anywhere] break-all";
-const composerShellClass =
-  "w-full min-w-0 max-w-full shrink-0 overflow-x-hidden";
-const composerInnerClass =
-  "mx-auto w-full max-w-4xl min-w-0 px-3 pb-[max(env(safe-area-inset-bottom),12px)] pt-3 md:px-4";
 const composerInputClass =
   "w-full min-w-0 max-w-full resize-none overflow-x-hidden break-words [overflow-wrap:anywhere]";
 
-  const getOrCreateOpenLuraUserId = () => {
+const getOrCreateOpenLuraUserId = () => {
   if (typeof window === "undefined") return "";
 
-  const storageKey = "openlura_user_id";
-  const existing = localStorage.getItem(storageKey);
+const storageKey = "openlura_user_id";
+const existing = localStorage.getItem(storageKey);
 
   if (existing?.trim()) {
     return existing.trim();
@@ -1126,19 +1094,6 @@ const restoreDeletedChat = (chatId: number) => {
       : "Je huidige gebruikslimiet is bereikt. Controleer je plan of verhoog je limiet.";
   };
 
-  const getStoredFeedback = () => {
-    try {
-      return JSON.parse(
-        localStorage.getItem(
-          isPersonalRoute ? "openlura_personal_feedback" : "openlura_feedback"
-        ) || "[]"
-      );
-    } catch (error) {
-      console.error("OpenLura feedback parse failed:", error);
-      return [];
-    }
-  };
-
   const updateMemoryWeight = (text: string, delta: number) => {
     if (!text?.trim() || text.trim().length >= 120) return;
 
@@ -1171,61 +1126,12 @@ const restoreDeletedChat = (chatId: number) => {
 
   const isPersonalEnvironment = isPersonalRoute;
 
-  const getPersonalEnvironmentInsights = () => {
-    if (!activeChatId) {
-      return {
-        memoryCount: 0,
-        improvementCount: 0,
-        negativeCount: 0,
-        positiveCount: 0,
-        styleSignals: [] as string[],
-        contentSignals: [] as string[],
-      };
-    }
-
-    const rawFeedback = getStoredFeedback();
-    const personalFeedback = rawFeedback.filter(
-      (f: any) =>
-        f.chatId === activeChatId ||
-        f.environment === "personal" ||
-        f.source === "personal_environment"
-    );
-
-    const combinedText = personalFeedback
-      .map((f: any) => `${f.userMessage || ""} ${f.message || ""}`.toLowerCase())
-      .join(" ");
-
-    const styleSignals = [
-      (combinedText.includes("korter") || combinedText.includes("te lang")) && "korter antwoorden",
-      (combinedText.includes("duidelijker") || combinedText.includes("onduidelijk")) && "duidelijkere uitleg",
-      (combinedText.includes("structuur") || combinedText.includes("structure")) && "betere structuur",
-      (combinedText.includes("te vaag") || combinedText.includes("vaag")) && "concreter antwoorden",
-      (combinedText.includes("meer context") || combinedText.includes("more context")) && "meer context geven",
-    ].filter(Boolean) as string[];
-
-    const contentSignals = [
-      memory.some((m) => m.weight > 0.6) && "persoonlijke memory actief",
-      personalFeedback.some((f: any) => f.type === "up") && "positieve antwoordpatronen aanwezig",
-      personalFeedback.some((f: any) => f.type === "improve") && "verbeterfeedback aanwezig",
-    ].filter(Boolean) as string[];
-
-    return {
-      memoryCount: memory.filter((m) => m.weight > 0.6).length,
-      improvementCount: personalFeedback.filter((f: any) => f.type === "improve").length,
-      negativeCount: personalFeedback.filter((f: any) => f.type === "down").length,
-      positiveCount: personalFeedback.filter((f: any) => f.type === "up").length,
-      styleSignals: styleSignals.slice(0, 4),
-      contentSignals: contentSignals.slice(0, 3),
-    };
-  };
-
             const stopStreaming = () => {
     if (streamController) {
       streamController.abort();
       setStreamController(null);
     }
     setLoading(false);
-    setLoadingStage("idle");
   };
 
   const handlePersonalLogin = async () => {
@@ -1401,7 +1307,6 @@ const restoreDeletedChat = (chatId: number) => {
 
       if (index === -1) {
         setLoading(false);
-        setLoadingStage("idle");
         return;
       }
 
@@ -1558,7 +1463,6 @@ Geef alleen direct het betere antwoord.`,
         setChats([...updated]);
         setStreamController(null);
         setLoading(false);
-        setLoadingStage("idle");
         return;
       }
 
@@ -1580,7 +1484,6 @@ Geef alleen direct het betere antwoord.`,
         setChats([...updated]);
         setStreamController(null);
         setLoading(false);
-        setLoadingStage("idle");
         return;
       }
 
@@ -1592,7 +1495,6 @@ Geef alleen direct het betere antwoord.`,
         setChats([...updated]);
         setStreamController(null);
         setLoading(false);
-        setLoadingStage("idle");
         return;
       }
 
@@ -1661,8 +1563,6 @@ Geef alleen direct het betere antwoord.`,
 
             setStreamController(null);
       setLoading(false);
-      setLoadingStage("idle");
-
       return;
     }
         if (!input && !image) return;
@@ -1743,7 +1643,6 @@ BELANGRIJK:
     setInput("");
     setImage(null);
     setLoading(true);
-setLoadingStage(imageToSend ? "analyzing" : "typing");
 
 // instant visual feedback (feels faster)
 updated[index].messages.push({
@@ -1755,9 +1654,6 @@ updated[index].messages.push({
 setChats([...updated]);
 
     if (imageToSend) {
-            setTimeout(() => {
-        setLoadingStage((current) => (current === "analyzing" ? "typing" : current));
-      }, 700);
     }
 
     await new Promise<void>((resolve) => {
@@ -1857,7 +1753,6 @@ setChats([...updated]);
       setChats([...updated]);
       setStreamController(null);
       setLoading(false);
-      setLoadingStage("idle");
       return;
     }
 
@@ -1874,7 +1769,6 @@ setChats([...updated]);
       setChats([...updated]);
       setStreamController(null);
       setLoading(false);
-      setLoadingStage("idle");
       return;
     }
 
@@ -1961,7 +1855,6 @@ updated[index].messages[
     }
 
     setStreamController(null);
-    setLoadingStage("idle");
 
     // ✅ MEMORY SAVE
     if (rawInputToSend.length < 60 && !isRefinementInstruction(rawInputToSend)) {
@@ -1998,7 +1891,6 @@ updated[index].messages[
     } finally {
       setStreamController(null);
       setLoading(false);
-      setLoadingStage("idle");
     }
   };
   const handleFeedback = async (chatId: number, msgIndex: number, type: string) => {
@@ -2109,32 +2001,6 @@ console.log("FEEDBACK CLICKED", { chatId, msgIndex, type });
   }
 };
 
-const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) => {
-  const keyId = chatId + "-" + msgIndex;
-
-  setImprovedFeedbackGiven(prev => ({
-    ...prev,
-    [keyId]: true
-  }));
-
-  if (type === "down") {
-  const updatedChats = [...chats];
-  const chatIndex = updatedChats.findIndex(c => c.id === chatId);
-
-  const original = updatedChats[chatIndex].messages[msgIndex].content;
-
-  updatedChats[chatIndex].messages[msgIndex] = {
-  ...updatedChats[chatIndex].messages[msgIndex],
-  content:
-    original +
-    "\n\n---\n\n🤖 OpenLura is still learning.\nYour feedback has been saved and will improve future answers.",
-  isLearningNote: true,
-};
-
-  setChats([...updatedChats]);
-}
-};
-
     const handleIdeaSubmit = () => {
   if (!feedbackText.trim()) return;
 
@@ -2234,15 +2100,15 @@ const handleImprovedFeedback = (chatId: number, msgIndex: number, type: string) 
 
             <div className="flex gap-2">
               <button
-                onClick={confirmClearDeletedChats}
-                className="flex-1 rounded-[20px] border border-red-400/18 bg-red-500/80 p-3 text-white shadow-[0_10px_22px_rgba(239,68,68,0.24)] ol-interactive transition-[transform,background-color,box-shadow] duration-200 hover:bg-red-500 hover:shadow-[0_12px_26px_rgba(239,68,68,0.28)] active:scale-[0.99]"
+                onClick={() => setShowClearDeletedConfirm(false)}
+                className="flex-1 rounded-[20px] border border-white/8 bg-white/[0.04] p-3 text-white/88 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.99]"
               >
-                Delete
+                Cancel
               </button>
 
               <button
                 onClick={confirmClearDeletedChats}
-                className="flex-1 rounded-[20px] border border-red-400/18 bg-red-500/80 p-3 text-white shadow-[0_8px_18px_rgba(239,68,68,0.22)] ol-interactive hover:bg-red-500 active:scale-[0.99]"
+                className="flex-1 rounded-[20px] border border-red-400/18 bg-red-500/80 p-3 text-white shadow-[0_10px_22px_rgba(239,68,68,0.24)] ol-interactive transition-[transform,background-color,box-shadow] duration-200 hover:bg-red-500 hover:shadow-[0_12px_26px_rgba(239,68,68,0.28)] active:scale-[0.99]"
               >
                 Delete
               </button>
