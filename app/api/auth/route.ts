@@ -383,7 +383,7 @@ export async function POST(req: Request) {
         {
           success: false,
           error:
-            "Persoonlijke omgeving vereist een gekoppelde Supabase gebruiker met hetzelfde e-mailadres en wachtwoord.",
+            "Je login is herkend, maar je persoonlijke omgeving is nog niet gekoppeld.",
         },
         {
           status: 401,
