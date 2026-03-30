@@ -374,6 +374,110 @@ export default function HomePage() {
               </div>
             </div>
           </div>
+
+          {/* PLANS */}
+          <div className="mt-16 w-full max-w-5xl">
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold text-white/92">
+                Plans
+              </h2>
+              <p className="mt-2 max-w-2xl text-sm text-white/50">
+                Start simple with Free or move deeper with Go as OpenLura evolves.
+              </p>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-6 backdrop-blur-xl sm:p-7">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className="text-lg font-semibold text-white">Free</div>
+                    <p className="mt-2 text-sm leading-6 text-white/50">
+                      A simple starting point for exploring the core OpenLura experience.
+                    </p>
+                  </div>
+
+                  <span className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-white/60">
+                    Available now
+                  </span>
+                </div>
+
+                <div className="mt-6 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <span className="mt-1 h-2 w-2 rounded-full bg-white/50" />
+                    <p className="text-sm leading-6 text-white/72">
+                      Core chat access
+                    </p>
+                  </div>
+
+                  <div className="flex items-start gap-3">
+                    <span className="mt-1 h-2 w-2 rounded-full bg-white/50" />
+                    <p className="text-sm leading-6 text-white/72">
+                      Basic usage and product exploration
+                    </p>
+                  </div>
+
+                  <div className="flex items-start gap-3">
+                    <span className="mt-1 h-2 w-2 rounded-full bg-white/50" />
+                    <p className="text-sm leading-6 text-white/72">
+                      Clean starting flow with no extra setup
+                    </p>
+                  </div>
+
+                  <div className="flex items-start gap-3">
+                    <span className="mt-1 h-2 w-2 rounded-full bg-white/50" />
+                    <p className="text-sm leading-6 text-white/72">
+                      Good for getting familiar with OpenLura
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-[24px] border border-blue-400/16 bg-gradient-to-b from-[#0d1733] to-[#0a1022] p-6 shadow-[0_18px_40px_rgba(29,78,216,0.12)] backdrop-blur-xl sm:p-7">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className="text-lg font-semibold text-white">Go</div>
+                    <p className="mt-2 text-sm leading-6 text-white/50">
+                      Built for more consistent usage, deeper workflows, and a stronger product experience over time.
+                    </p>
+                  </div>
+
+                  <span className="inline-flex items-center rounded-full border border-blue-400/20 bg-blue-400/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-blue-300">
+                    Evolving
+                  </span>
+                </div>
+
+                <div className="mt-6 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <span className="mt-1 h-2 w-2 rounded-full bg-blue-300" />
+                    <p className="text-sm leading-6 text-white/78">
+                      More capable overall experience
+                    </p>
+                  </div>
+
+                  <div className="flex items-start gap-3">
+                    <span className="mt-1 h-2 w-2 rounded-full bg-blue-300" />
+                    <p className="text-sm leading-6 text-white/78">
+                      Better depth for repeat usage and ongoing work
+                    </p>
+                  </div>
+
+                  <div className="flex items-start gap-3">
+                    <span className="mt-1 h-2 w-2 rounded-full bg-blue-300" />
+                    <p className="text-sm leading-6 text-white/78">
+                      Expanded product value as features continue to grow
+                    </p>
+                  </div>
+
+                  <div className="flex items-start gap-3">
+                    <span className="mt-1 h-2 w-2 rounded-full bg-blue-300" />
+                    <p className="text-sm leading-6 text-white/78">
+                      Designed for users who want more from OpenLura over time
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         {isFeedbackOpen && (
