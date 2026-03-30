@@ -2510,6 +2510,31 @@ updated[index].messages[
                   <p className="mx-auto max-w-md text-sm leading-6 text-white/44">
                     Ask a question, upload an image, or continue an earlier chat.
                   </p>
+                  {!isPersonalRoute && (
+                    <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+                      <a
+                        href="/"
+                        className="rounded-full border border-white/8 bg-white/[0.03] px-3 py-2 text-xs text-white/58 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.05] hover:text-white"
+                      >
+                        Back to home
+                      </a>
+
+                      <a
+                        href="/analytics"
+                        className="rounded-full border border-white/8 bg-white/[0.03] px-3 py-2 text-xs text-white/58 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.05] hover:text-white"
+                      >
+                        View insights
+                      </a>
+
+                      <button
+                        type="button"
+                        onClick={() => setShowLoginBox(true)}
+                        className="rounded-full border border-white/8 bg-white/[0.03] px-3 py-2 text-xs text-white/58 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.05] hover:text-white"
+                      >
+                        Login
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (
@@ -2874,7 +2899,7 @@ enterKeyHint="send"
         </div>
       </div>
 
-      {isPersonalRoute && (
+      {isPersonalRoute ? (
         <button
           type="button"
           onClick={handlePersonalLogout}
@@ -2882,6 +2907,30 @@ enterKeyHint="send"
         >
           Log out
         </button>
+      ) : (
+        <div className="fixed right-4 top-[max(env(safe-area-inset-top),16px)] z-[60] hidden items-center gap-2 md:flex">
+          <a
+            href="/"
+            className="rounded-full border border-white/8 bg-white/[0.04] px-3.5 py-2 text-sm text-white/70 shadow-[0_12px_28px_rgba(0,0,0,0.16)] backdrop-blur-2xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.07] hover:text-white hover:shadow-[0_14px_30px_rgba(0,0,0,0.18)] active:scale-95"
+          >
+            Home
+          </a>
+
+          <a
+            href="/analytics"
+            className="rounded-full border border-white/8 bg-white/[0.04] px-3.5 py-2 text-sm text-white/70 shadow-[0_12px_28px_rgba(0,0,0,0.16)] backdrop-blur-2xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.07] hover:text-white hover:shadow-[0_14px_30px_rgba(0,0,0,0.18)] active:scale-95"
+          >
+            Analytics
+          </a>
+
+          <button
+            type="button"
+            onClick={() => setShowLoginBox(true)}
+            className="rounded-full border border-white/8 bg-white/[0.05] px-3.5 py-2 text-sm text-white/78 shadow-[0_12px_28px_rgba(0,0,0,0.18)] backdrop-blur-2xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.08] hover:text-white hover:shadow-[0_14px_30px_rgba(0,0,0,0.20)] active:scale-95"
+          >
+            Log in
+          </button>
+        </div>
       )}
 
       {showLoginBox && !isPersonalRoute && (
