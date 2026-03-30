@@ -476,10 +476,74 @@ async function fetchAllFeedbackEntries(input: {
   return allRows;
 }
 
+function mapFeedbackRowToApi(row: Record<string, unknown>) {
+  return {
+    chatId: row.chat_id ?? null,
+    msgIndex: row.msg_index ?? null,
+    type: row.type ?? null,
+    message: row.message ?? null,
+    userMessage: row.user_message ?? null,
+    source: row.source ?? null,
+    userScope: row.user_scope ?? null,
+    user_id: row.user_id ?? null,
+    environment: row.environment ?? null,
+    timestamp: row.timestamp ?? null,
+    workflowKey: row.workflow_key ?? null,
+    workflowStatus: row.workflow_status ?? null,
+    learningType: row.learning_type ?? null,
+  };
+}
+
+function mapFeedbackEntryToDb(entry: {
+  chatId: string | null;
+  msgIndex: number | null;
+  type: FeedbackType;
+  message: string | null;
+  userMessage: string | null;
+  source: string | null;
+  userScope: string | null;
+  user_id: string | null;
+  environment: string | null;
+  timestamp: string;
+  workflowKey: string;
+  workflowStatus: string | null;
+  learningType: string | null;
+}) {
+  return {
+    chat_id: entry.chatId,
+    msg_index: entry.msgIndex,
+    type: entry.type,
+    message: entry.message,
+    user_message: entry.userMessage,
+    source: entry.source,
+    user_scope: entry.userScope,
+    user_id: entry.user_id,
+    environment: entry.environment,
+    timestamp: entry.timestamp,
+    workflow_key: entry.workflowKey,
+    workflow_status: entry.workflowStatus,
+    learning_type: entry.learningType,
+  };
+}
+
 async function saveFeedbackEntry(input: {
   feedbackTableUrl: string;
   supabaseServiceRoleKey: string;
-  entry: Record<string, unknown>;
+  entry: {
+    chatId: string | null;
+    msgIndex: number | null;
+    type: FeedbackType;
+    message: string | null;
+    userMessage: string | null;
+    source: string | null;
+    userScope: string | null;
+    user_id: string | null;
+    environment: string | null;
+    timestamp: string;
+    workflowKey: string;
+    workflowStatus: string | null;
+    learningType: string | null;
+  };
   errorLabel: string;
 }) {
   const headers = new Headers();
@@ -488,10 +552,12 @@ async function saveFeedbackEntry(input: {
   headers.set("Authorization", `Bearer ${input.supabaseServiceRoleKey}`);
   headers.set("Prefer", "return=representation");
 
+  const dbEntry = mapFeedbackEntryToDb(input.entry);
+
   const res = await fetch(input.feedbackTableUrl, {
     method: "POST",
     headers,
-    body: JSON.stringify(input.entry),
+    body: JSON.stringify(dbEntry),
     cache: "no-store",
   });
 
@@ -501,7 +567,9 @@ async function saveFeedbackEntry(input: {
   }
 
   const data: unknown = await res.json();
-  return Array.isArray(data) ? data : [];
+  return Array.isArray(data)
+    ? data.map((row) => mapFeedbackRowToApi(row as Record<string, unknown>))
+    : [];
 }
 
 function inferIdeaSource(
@@ -758,7 +826,21 @@ const workflowKey =
     environment,
   });
 
-const entry = {
+const entry: {
+  chatId: string | null;
+  msgIndex: number | null;
+  type: FeedbackType;
+  message: string | null;
+  userMessage: string | null;
+  source: string | null;
+  userScope: string | null;
+  user_id: string | null;
+  environment: string | null;
+  timestamp: string;
+  workflowKey: string;
+  workflowStatus: string | null;
+  learningType: string | null;
+} = {
   ...baseEntry,
   workflowKey,
   workflowStatus: isAnalyticsWorkflowUpdate ? data.workflowStatus || null : null,
@@ -775,7 +857,7 @@ try {
     workflowHeaders.set("Prefer", "return=representation");
 
     const workflowQuery =
-      `type=eq.workflow_status&source=eq.analytics_workflow&workflowKey=eq.${encodeURIComponent(
+      `type=eq.workflow_status&source=eq.analytics_workflow&workflow_key=eq.${encodeURIComponent(
         workflowKey
       )}`;
 
@@ -784,7 +866,7 @@ try {
       headers: workflowHeaders,
       body: JSON.stringify({
         message: entry.message,
-        workflowStatus: entry.workflowStatus,
+        workflow_status: entry.workflowStatus,
         timestamp: entry.timestamp,
         environment: entry.environment,
       }),
@@ -797,7 +879,9 @@ try {
     }
 
     const updatedRows: unknown = await updateRes.json();
-    const normalizedUpdatedRows = Array.isArray(updatedRows) ? updatedRows : [];
+    const normalizedUpdatedRows = Array.isArray(updatedRows)
+      ? updatedRows.map((row) => mapFeedbackRowToApi(row as Record<string, unknown>))
+      : [];
 
     if (normalizedUpdatedRows.length > 0) {
       saved = normalizedUpdatedRows;
@@ -874,7 +958,7 @@ export async function GET(req: Request) {
 
     const { feedbackTableUrl, supabaseServiceRoleKey } = getSupabaseConfig();
     const query =
-      "select=chatId,msgIndex,type,message,userMessage,source,userScope,user_id,environment,timestamp,workflowKey,workflowStatus,learningType" +
+      "select=chatId:chat_id,msgIndex:msg_index,type,message,userMessage:user_message,source,userScope:user_scope,user_id,environment,timestamp,workflowKey:workflow_key,workflowStatus:workflow_status,learningType:learning_type" +
       "&order=timestamp.desc.nullslast";
 
     let data: unknown;
