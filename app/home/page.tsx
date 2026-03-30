@@ -3,10 +3,22 @@
 import Link from "next/link";
 import { useState } from "react";
 
+const chapterLinks = [
+  { href: "#how-it-works", label: "How it works" },
+  { href: "#roadmap", label: "Roadmap" },
+  { href: "#use-cases", label: "Use cases" },
+  { href: "#plans", label: "Plans" },
+  { href: "#security", label: "Security" },
+  { href: "#changelog", label: "Changelog" },
+];
+
 export default function HomePage() {
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   return (
-    <main className="min-h-screen bg-[#050510] text-white">
+    <main
+      id="top"
+      className="min-h-screen overflow-x-hidden bg-[#050510] text-white"
+    >
       <div className="mx-auto w-full max-w-6xl px-6 py-16 sm:px-8 lg:px-10">
         <div className="w-full">
           <div className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-white/50">
@@ -31,13 +43,52 @@ export default function HomePage() {
 </Link>
 
             <Link
-              href="/home"
-              className="inline-flex h-12 items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.04] px-6 text-sm font-medium text-white/88 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/14 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.99]"
+              href="#how-it-works"
+              className="inline-flex h-12 items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.04] px-6 text-sm font-medium text-white/88 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/30 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.99]"
             >
               See how it works
             </Link>
           </div>
+
+          <div className="mt-8 flex flex-col items-start gap-4">
+            <div className="flex flex-wrap gap-2">
+              {chapterLinks.map((item) => (
+                <a
+                  key={item.href}
+                  href={item.href}
+                  className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[12px] font-medium text-white/62 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-[#3b82f6]/26 hover:bg-[#3b82f6]/10 hover:text-white hover:shadow-[0_10px_24px_rgba(59,130,246,0.14)]"
+                >
+                  {item.label}
+                </a>
+              ))}
+            </div>
+
+            <a
+              href="#how-it-works"
+              aria-label="Scroll to next section"
+              className="group inline-flex h-12 w-12 items-center justify-center rounded-full border border-[#3b82f6]/24 bg-gradient-to-b from-[#1d4ed8]/30 to-[#3b82f6]/12 text-[#7db7ff] shadow-[0_14px_30px_rgba(59,130,246,0.18)] ol-interactive transition-[transform,filter,box-shadow,border-color] duration-200 hover:-translate-y-[2px] hover:border-[#60a5fa]/40 hover:brightness-110 hover:shadow-[0_18px_36px_rgba(59,130,246,0.24)]"
+            >
+              <span className="text-lg transition-transform duration-200 group-hover:translate-y-[2px]">
+                ↓
+              </span>
+            </a>
+          </div>
         </div>
+
+        <div className="sticky top-0 z-20 mt-8 hidden w-full max-w-5xl border-y border-white/8 bg-[#050510]/72 py-3 backdrop-blur-2xl lg:block">
+          <div className="flex flex-wrap gap-2">
+            {chapterLinks.map((item) => (
+              <a
+                key={item.href}
+                href={item.href}
+                className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[12px] font-medium text-white/56 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/26 hover:bg-[#3b82f6]/10 hover:text-white"
+              >
+                {item.label}
+              </a>
+            ))}
+          </div>
+        </div>
+
                     <div className="mt-10 grid w-full max-w-3xl gap-3 sm:grid-cols-3">
             <Link
               href="/chat"
@@ -50,8 +101,8 @@ export default function HomePage() {
             </Link>
 
             <Link
-              href="/home"
-              className="rounded-[20px] border border-white/10 bg-white/[0.03] px-4 py-4 text-left backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-white/14 hover:bg-white/[0.05] hover:shadow-[0_10px_24px_rgba(0,0,0,0.12)]"
+              href="#how-it-works"
+              className="rounded-[20px] border border-white/10 bg-white/[0.03] px-4 py-4 text-left backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-[#3b82f6]/24 hover:bg-white/[0.05] hover:shadow-[0_10px_24px_rgba(59,130,246,0.10)]"
             >
               <div className="text-sm font-medium text-white">How it works</div>
               <div className="mt-1 text-sm leading-6 text-white/46">
@@ -60,8 +111,8 @@ export default function HomePage() {
             </Link>
 
             <Link
-              href="/home"
-              className="rounded-[20px] border border-white/10 bg-white/[0.03] px-4 py-4 text-left backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-white/14 hover:bg-white/[0.05] hover:shadow-[0_10px_24px_rgba(0,0,0,0.12)]"
+              href="#use-cases"
+              className="rounded-[20px] border border-white/10 bg-white/[0.03] px-4 py-4 text-left backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-[#3b82f6]/24 hover:bg-white/[0.05] hover:shadow-[0_10px_24px_rgba(59,130,246,0.10)]"
             >
               <div className="text-sm font-medium text-white">Use cases</div>
               <div className="mt-1 text-sm leading-6 text-white/46">
@@ -70,8 +121,10 @@ export default function HomePage() {
             </Link>
           </div>
 
+          <div className="mt-16 h-px w-full max-w-5xl bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+
           {/* PRODUCT OVERVIEW */}
-          <div className="mt-16 w-full max-w-4xl">
+          <div id="how-it-works" className="scroll-mt-28 mt-16 w-full max-w-4xl">
             <div className="mb-6">
               <h2 className="text-xl font-semibold text-white/92">
                 How OpenLura works
@@ -112,7 +165,7 @@ export default function HomePage() {
           </div>
 
           {/* ROADMAP */}
-          <div className="mt-16 w-full max-w-5xl">
+          <div id="roadmap" className="scroll-mt-28 mt-16 w-full max-w-5xl">
             <div className="mb-6">
               <h2 className="text-xl font-semibold text-white/92">
                 Where OpenLura is going
@@ -228,7 +281,7 @@ export default function HomePage() {
           </div>
 
           {/* SYSTEM STATUS */}
-          <div className="mt-16 w-full max-w-5xl">
+          <div id="system-status" className="scroll-mt-28 mt-16 w-full max-w-5xl">
             <div className="mb-6">
               <h2 className="text-xl font-semibold text-white/92">
                 System status
@@ -278,7 +331,7 @@ export default function HomePage() {
           </div>
 
           {/* USE CASES */}
-          <div className="mt-16 w-full max-w-5xl">
+          <div id="use-cases" className="scroll-mt-28 mt-16 w-full max-w-5xl">
             <div className="mb-6">
               <h2 className="text-xl font-semibold text-white/92">
                 Use cases
@@ -376,7 +429,7 @@ export default function HomePage() {
           </div>
 
           {/* PLANS */}
-          <div className="mt-16 w-full max-w-5xl">
+          <div id="plans" className="scroll-mt-28 mt-16 w-full max-w-5xl">
             <div className="mb-6">
               <h2 className="text-xl font-semibold text-white/92">
                 Plans
@@ -480,7 +533,7 @@ export default function HomePage() {
           </div>
 
           {/* SECURITY */}
-          <div className="mt-16 w-full max-w-5xl">
+          <div id="security" className="scroll-mt-28 mt-16 w-full max-w-5xl">
             <div className="mb-6">
               <h2 className="text-xl font-semibold text-white/92">
                 Security
@@ -576,7 +629,7 @@ export default function HomePage() {
           </div>
 
           {/* CHANGELOG */}
-          <div className="mt-16 w-full max-w-5xl">
+          <div id="changelog" className="scroll-mt-28 mt-16 w-full max-w-5xl">
             <div className="mb-6">
               <h2 className="text-xl font-semibold text-white/92">
                 Changelog
@@ -640,7 +693,73 @@ export default function HomePage() {
               </div>
             </div>
           </div>
+
+          <div className="mt-20 w-full max-w-5xl">
+            <div className="overflow-hidden rounded-[28px] border border-[#3b82f6]/14 bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.16),transparent_38%),rgba(255,255,255,0.03)] p-6 shadow-[0_20px_48px_rgba(0,0,0,0.18)] backdrop-blur-xl sm:p-7">
+              <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+                <div className="max-w-2xl">
+                  <div className="inline-flex items-center rounded-full border border-[#3b82f6]/18 bg-[#3b82f6]/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.16em] text-blue-300">
+                    Ready to try OpenLura
+                  </div>
+
+                  <h2 className="mt-4 text-2xl font-semibold text-white/95 sm:text-3xl">
+                    Start where the value is strongest: the chat.
+                  </h2>
+
+                  <p className="mt-3 text-sm leading-6 text-white/58 sm:text-base">
+                    Skip the noise, open the workspace, and let OpenLura help you think,
+                    write, plan, and move faster.
+                  </p>
+                </div>
+
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <Link
+                    href="/chat"
+                    className="inline-flex h-12 items-center justify-center rounded-[18px] bg-gradient-to-r from-[#1d4ed8] via-[#2563eb] to-[#3b82f6] px-6 text-sm font-medium text-white shadow-[0_14px_34px_rgba(59,130,246,0.28)] ol-interactive transition-[transform,filter,box-shadow] duration-200 hover:-translate-y-[1px] hover:brightness-110 hover:shadow-[0_18px_40px_rgba(59,130,246,0.34)] active:scale-[0.99]"
+                  >
+                    Open chat
+                  </Link>
+
+                  <a
+                    href="#top"
+                    className="inline-flex h-12 items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.04] px-6 text-sm font-medium text-white/86 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/14 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.10)] active:scale-[0.99]"
+                  >
+                    Back to top
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
+
+        <style jsx global>{`
+          html {
+            scroll-behavior: smooth;
+          }
+
+          * {
+            scrollbar-width: thin;
+            scrollbar-color: #3b82f6 rgba(255, 255, 255, 0.08);
+          }
+
+          *::-webkit-scrollbar {
+            width: 10px;
+          }
+
+          *::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+          }
+
+          *::-webkit-scrollbar-thumb {
+            border-radius: 999px;
+            border: 2px solid rgba(5, 5, 16, 0.9);
+            background: linear-gradient(180deg, #1d4ed8 0%, #3b82f6 100%);
+          }
+
+          *::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(180deg, #2563eb 0%, #60a5fa 100%);
+          }
+        `}</style>
 
         {isFeedbackOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
