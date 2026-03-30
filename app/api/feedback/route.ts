@@ -440,17 +440,17 @@ async function fetchAllFeedbackEntries(input: {
   query: string;
 }) {
   const pageSize = 1000;
-  let from = 0;
+  let offset = 0;
   let allRows: unknown[] = [];
 
   while (true) {
     const headers = new Headers();
     headers.set("apikey", input.supabaseServiceRoleKey);
     headers.set("Authorization", `Bearer ${input.supabaseServiceRoleKey}`);
-    headers.set("Range-Unit", "items");
-    headers.set("Range", `${from}-${from + pageSize - 1}`);
 
-    const res = await fetch(`${input.feedbackTableUrl}?${input.query}`, {
+    const pagedQuery = `${input.query}&limit=${pageSize}&offset=${offset}`;
+
+    const res = await fetch(`${input.feedbackTableUrl}?${pagedQuery}`, {
       method: "GET",
       headers,
       cache: "no-store",
@@ -470,7 +470,7 @@ async function fetchAllFeedbackEntries(input: {
       break;
     }
 
-    from += pageSize;
+    offset += pageSize;
   }
 
   return allRows;
