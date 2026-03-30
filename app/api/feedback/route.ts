@@ -639,22 +639,20 @@ function buildCanonicalFeedbackEntry(input: {
     isAuthenticatedPersonalUser: boolean;
   };
   isAnalyticsWorkflowUpdate: boolean;
-  isPersonalEnvironment: boolean;
+  canonicalEnvironment: "default" | "personal";
 }): CanonicalFeedbackEntry {
   const timestamp = new Date().toISOString();
-  const environment: "default" | "personal" = input.isPersonalEnvironment
-    ? "personal"
-    : "default";
+  const environment: "default" | "personal" = input.canonicalEnvironment;
 
   const userScope: "admin" | "guest" | "personal" = input.isAnalyticsWorkflowUpdate
     ? "admin"
-    : input.isPersonalEnvironment
+    : environment === "personal"
       ? "personal"
       : "guest";
 
   const user_id =
     !input.isAnalyticsWorkflowUpdate &&
-    input.isPersonalEnvironment &&
+    environment === "personal" &&
     input.identity.isAuthenticatedPersonalUser &&
     input.identity.userId
       ? input.identity.userId
@@ -668,7 +666,7 @@ function buildCanonicalFeedbackEntry(input: {
     ? "analytics_workflow"
     : input.data.type === "idea" &&
         input.data.source === "personal_environment" &&
-        !input.isPersonalEnvironment
+        environment !== "personal"
       ? inferIdeaSource(input.data.type, input.data.message, null)
       : inferIdeaSource(input.data.type, input.data.message, input.data.source);
 
@@ -679,7 +677,6 @@ function buildCanonicalFeedbackEntry(input: {
   const workflowStatus = input.isAnalyticsWorkflowUpdate
     ? input.data.workflowStatus || null
     : null;
-
   const workflowKey = sanitizeWorkflowKey(
     input.data.workflowKey ||
       createFeedbackWorkflowKey({
@@ -733,14 +730,10 @@ async function saveFeedbackEntry(input: {
     `select=chatId,msgIndex,type,message,userMessage,source,userScope,user_id,environment,timestamp,workflowKey,workflowStatus,learningType` +
     `&workflowKey=eq.${encodeURIComponent(input.entry.workflowKey)}` +
     `&type=eq.${encodeURIComponent(input.entry.type)}` +
-    `&source=eq.${encodeURIComponent(String(input.entry.source || ""))}` +
+    `&${buildPostgrestEqOrNullFilter("source", input.entry.source)}` +
     `&userScope=eq.${encodeURIComponent(input.entry.userScope)}` +
     `&environment=eq.${encodeURIComponent(input.entry.environment)}` +
-    (
-      input.entry.user_id
-        ? `&user_id=eq.${encodeURIComponent(input.entry.user_id)}`
-        : `&user_id=is.null`
-    ) +
+    `&${buildPostgrestEqOrNullFilter("user_id", input.entry.user_id)}` +
     `&order=timestamp.desc` +
     `&limit=1`;
 
@@ -780,6 +773,38 @@ async function saveFeedbackEntry(input: {
   return Array.isArray(data)
     ? data.map((row) => mapFeedbackRowToApi(row as Record<string, unknown>))
     : [];
+}
+function buildPostgrestEqOrNullFilter(column: string, value: string | null) {
+  if (value === null) {
+    return `${column}=is.null`;
+  }
+
+  return `${column}=eq.${encodeURIComponent(value)}`;
+}
+
+function resolveCanonicalRequestEnvironment(input: {
+  requestedEnvironment: string | null;
+  personalEnvironmentHeader: boolean;
+  isAuthenticatedPersonalUser: boolean;
+  isAnalyticsWorkflowUpdate: boolean;
+}) {
+  if (input.isAnalyticsWorkflowUpdate) {
+    return "default" as const;
+  }
+
+  if (input.personalEnvironmentHeader) {
+    if (!input.isAuthenticatedPersonalUser) {
+      return null;
+    }
+
+    return "personal" as const;
+  }
+
+  if (input.requestedEnvironment === "personal") {
+    return null;
+  }
+
+  return "default" as const;
 }
 
 function inferIdeaSource(
@@ -933,34 +958,29 @@ const identity = await resolveFeedbackIdentity(req);
 const personalEnvironmentRequested = isPersonalEnvironmentRequest(req);
 const isAnalyticsWorkflowUpdate = data.action === "update_workflow_status";
 const hasAnalyticsAccess = isFeedbackReadAuthorized(req);
-const explicitlyPersonalEnvironment = data.environment === "personal";
 
 if (isAnalyticsWorkflowUpdate && !hasAnalyticsAccess) {
   return unauthorized("Analytics authorization required", rateLimit);
 }
 
 if (
-  explicitlyPersonalEnvironment &&
+  data.environment === "personal" &&
   !personalEnvironmentRequested &&
   !isAnalyticsWorkflowUpdate
 ) {
   return badRequest("Personal environment header required", rateLimit);
 }
 
-const wantsPersonalEnvironment =
-  explicitlyPersonalEnvironment && personalEnvironmentRequested;
+const canonicalEnvironment = resolveCanonicalRequestEnvironment({
+  requestedEnvironment: data.environment,
+  personalEnvironmentHeader: personalEnvironmentRequested,
+  isAuthenticatedPersonalUser: identity.isAuthenticatedPersonalUser,
+  isAnalyticsWorkflowUpdate,
+});
 
-if (
-  wantsPersonalEnvironment &&
-  !identity.isAuthenticatedPersonalUser &&
-  !isAnalyticsWorkflowUpdate
-) {
+if (!canonicalEnvironment) {
   return unauthorized("Personal feedback requires authentication", rateLimit);
 }
-
-const isPersonalEnvironment =
-  wantsPersonalEnvironment &&
-  (identity.isAuthenticatedPersonalUser || isAnalyticsWorkflowUpdate);
 
 if (data.action === "update_workflow_status") {
   if (!data.workflowKey || !data.workflowStatus) {
@@ -1007,7 +1027,7 @@ const entry = buildCanonicalFeedbackEntry({
   data,
   identity,
   isAnalyticsWorkflowUpdate,
-  isPersonalEnvironment,
+  canonicalEnvironment,
 });
 
 const persistedEntry = isAnalyticsWorkflowUpdate
@@ -1026,10 +1046,10 @@ try {
 
     const workflowQuery =
       `type=eq.${encodeURIComponent(persistedEntry.type)}` +
-      `&source=eq.${encodeURIComponent(String(persistedEntry.source || ""))}` +
+      `&${buildPostgrestEqOrNullFilter("source", persistedEntry.source)}` +
       `&userScope=eq.${encodeURIComponent(persistedEntry.userScope)}` +
       `&environment=eq.${encodeURIComponent(persistedEntry.environment)}` +
-      `&user_id=is.null` +
+      `&${buildPostgrestEqOrNullFilter("user_id", persistedEntry.user_id)}` +
       `&workflowKey=eq.${encodeURIComponent(persistedEntry.workflowKey)}`;
 
     const updateRes = await fetch(`${feedbackTableUrl}?${workflowQuery}`, {
@@ -1043,6 +1063,7 @@ try {
         environment: persistedEntry.environment,
         userScope: persistedEntry.userScope,
         user_id: persistedEntry.user_id,
+        workflowKey: persistedEntry.workflowKey,
         learningType: persistedEntry.learningType,
       }),
       cache: "no-store",

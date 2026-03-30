@@ -833,11 +833,14 @@ const activeChat =
   visibleChats[0] ??
   null;
 
+const activeMessages = Array.isArray(activeChat?.messages)
+  ? activeChat.messages
+  : [];
+
 const renderedChatId = activeChat?.id ?? null;
 
 const getFeedbackUiKey = (chatId: number | null, msgIndex: number) =>
   `${chatId ?? "no-chat"}-${msgIndex}`;
-
 const resizeComposerTextarea = () => {
   const el = inputRef.current;
   if (!el) return;
@@ -2508,10 +2511,10 @@ updated[index].messages[
           <div
   ref={messagesRef}
   className={`${messageShellClass} flex-1 min-h-0 w-full overflow-x-hidden overflow-y-auto pb-[188px] md:pb-6 ${
-    activeChat?.messages?.length ? "space-y-4 p-4 pt-20 md:px-6 md:pt-6" : "flex items-center justify-center p-4 pt-20 md:px-6 md:pt-6"
+    activeMessages.length ? "space-y-4 p-4 pt-20 md:px-6 md:pt-6" : "flex items-center justify-center p-4 pt-20 md:px-6 md:pt-6"
   }`}
 >
-                        {activeChat?.messages?.length === 0 ? (
+                        {activeMessages.length === 0 ? (
               <div className="flex h-full w-full max-w-2xl -mt-20 flex-col items-center justify-center px-4 md:px-6 text-center">
                 <div className="rounded-[28px] border border-white/8 bg-white/[0.032] px-8 py-8 shadow-[0_16px_36px_rgba(0,0,0,0.16)] backdrop-blur-xl md:px-10 md:py-10">
                   <h1 className="mb-3 bg-gradient-to-r from-white via-white to-white/70 bg-clip-text text-2xl font-semibold tracking-tight text-transparent md:text-4xl">
@@ -2524,7 +2527,7 @@ updated[index].messages[
               </div>
             ) : (
               <>
-                                                {activeChat?.messages
+                                                {activeMessages
                   .map((msg: any, originalIndex: number) => ({
                     msg,
                     originalIndex,
@@ -2783,7 +2786,7 @@ updated[index].messages[
 
                                         <div
   className={`${
-    activeChat?.messages?.length === 0
+    activeMessages.length === 0
       ? "mx-auto mt-6 w-full max-w-2xl px-3 md:px-4"
       : "fixed bottom-0 left-1/2 z-[90] w-full max-w-2xl -translate-x-1/2 bg-[#050510]/95 px-3 pt-3 pb-[calc(env(safe-area-inset-bottom)+14px)] md:static md:left-auto md:z-auto md:mt-auto md:w-full md:max-w-none md:translate-x-0 md:border-0 md:bg-transparent md:p-0"
   } flex w-full min-w-0 max-w-full overflow-x-hidden items-end gap-2 rounded-[28px] border border-white/8 bg-white/[0.038] shadow-[0_16px_34px_rgba(0,0,0,0.18)] backdrop-blur-2xl md:rounded-b-[32px] md:rounded-t-[28px] md:border-x-0 md:border-b-0 md:border-t md:px-4 md:py-4 md:shadow-none`}
@@ -2860,7 +2863,7 @@ updated[index].messages[
     }
   }}
   className={`${composerInputClass} min-h-[52px] max-h-[140px] flex-1 rounded-2xl bg-transparent px-2 py-3 text-[16px] leading-6 text-white/95 outline-none placeholder:text-white/28`}
-  placeholder={activeChat?.messages?.length === 0 ? "Ask anything" : "Message OpenLura..."}
+  placeholder={activeMessages.length === 0 ? "Ask anything" : "Message OpenLura..."}
 enterKeyHint="send"
   rows={1}
 />
