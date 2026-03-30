@@ -192,6 +192,35 @@ export default function HomePage() {
               </div>
             </div>
           </div>
+
+          {/* BUG CHANNEL */}
+          <div className="mt-16 w-full max-w-4xl">
+            <div className="overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.03] p-6 backdrop-blur-xl sm:p-7">
+              <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+                <div className="max-w-2xl">
+                  <div className="inline-flex items-center rounded-full border border-amber-400/16 bg-amber-400/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.16em] text-amber-300">
+                    Feedback channel
+                  </div>
+
+                  <h2 className="mt-4 text-xl font-semibold text-white/92">
+                    Found a bug or something unclear?
+                  </h2>
+
+                  <p className="mt-2 text-sm leading-6 text-white/50">
+                    Report issues, broken flows, or confusing behavior directly through chat.
+                    It helps improve OpenLura faster and keeps the product experience clean.
+                  </p>
+                </div>
+
+                <Link
+                  href="/chat"
+                  className="inline-flex h-12 items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.05] px-6 text-sm font-medium text-white/88 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/14 hover:bg-white/[0.07] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.12)] active:scale-[0.99]"
+                >
+                  Report via chat
+                </Link>
+              </div>
+            </div>
+          </div>
         </div>
     </main>
   );
