@@ -574,6 +574,72 @@ export default function HomePage() {
               </div>
             </div>
           </div>
+
+          {/* CHANGELOG */}
+          <div className="mt-16 w-full max-w-5xl">
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold text-white/92">
+                Changelog
+              </h2>
+              <p className="mt-2 max-w-2xl text-sm text-white/50">
+                A simple view of recent product progress as OpenLura continues to evolve.
+              </p>
+            </div>
+
+            <div className="grid gap-4">
+              <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-6 backdrop-blur-xl sm:p-7">
+                <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="max-w-3xl">
+                    <div className="inline-flex items-center rounded-full border border-emerald-400/16 bg-emerald-400/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.14em] text-emerald-300">
+                      Recent progress
+                    </div>
+
+                    <h2 className="mt-4 text-xl font-semibold text-white/92">
+                      Homepage structure expanded
+                    </h2>
+
+                    <p className="mt-2 text-sm leading-6 text-white/50">
+                      OpenLura now includes a more complete homepage flow focused on clarity, trust, and product direction.
+                    </p>
+                  </div>
+
+                  <div className="text-sm text-white/42">
+                    Phase 4.4
+                  </div>
+                </div>
+
+                <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className="rounded-[20px] border border-white/10 bg-white/[0.02] p-4">
+                    <div className="text-sm font-medium text-white">Homepage flow</div>
+                    <p className="mt-2 text-sm leading-6 text-white/46">
+                      Hero, quick actions, and supporting product sections now work as one narrative.
+                    </p>
+                  </div>
+
+                  <div className="rounded-[20px] border border-white/10 bg-white/[0.02] p-4">
+                    <div className="text-sm font-medium text-white">Roadmap visibility</div>
+                    <p className="mt-2 text-sm leading-6 text-white/46">
+                      Users can now see where OpenLura is heading without extra navigation.
+                    </p>
+                  </div>
+
+                  <div className="rounded-[20px] border border-white/10 bg-white/[0.02] p-4">
+                    <div className="text-sm font-medium text-white">Feedback entry</div>
+                    <p className="mt-2 text-sm leading-6 text-white/46">
+                      A dedicated feedback modal improves product input without sending users into chat.
+                    </p>
+                  </div>
+
+                  <div className="rounded-[20px] border border-white/10 bg-white/[0.02] p-4">
+                    <div className="text-sm font-medium text-white">Trust layers</div>
+                    <p className="mt-2 text-sm leading-6 text-white/46">
+                      Plans, security, system status, and account flow now add clearer product confidence.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         {isFeedbackOpen && (
