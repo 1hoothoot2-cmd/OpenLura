@@ -1208,6 +1208,10 @@ export async function GET(req: Request) {
               !!row.user_id
             );
           })
+          .map((row) => ({
+            ...row,
+            user_id: row.environment === "personal" ? null : row.user_id,
+          }))
       : [];
 
 return NextResponse.json(normalizedRows, {

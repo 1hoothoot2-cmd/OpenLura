@@ -3247,7 +3247,7 @@ Do not use web search for this path.`,
           headers: buildNoStoreTextHeaders({
             "X-OpenLura-Variant": responseVariant,
             "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
-            "X-OpenLura-Speed": "fast_text",
+            "X-OpenLura-Speed": "fast_image",
             ...buildRateLimitHeaders(rateLimit),
             ...buildUsageHeaders(usageLimitSnapshot),
           }),

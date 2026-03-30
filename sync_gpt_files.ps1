@@ -7,10 +7,10 @@ if (!(Test-Path $syncRoot)) {
 
 $filesToSync = @(
     # CORE APP
-    @{ Source = "app\page.tsx"; Destination = "app_page.tsx" },
+    @{ Source = "app\page.tsx"; Destinationtion = "Home_page.tsx" },
     @{ Source = "app\layout.tsx"; Destination = "layout.tsx" },
     @{ Source = "app\globals.css"; Destination = "globals.css" },
-    @{ Source = "app\home\page.tsx"; Destination = "Home_page.tsx" }
+    @{ Source = "app\chat\page.tsx"; Destination = "chat_page.tsx" },
     # ROUTES
     @{ Source = "app\api\chat\route.ts"; Destination = "chat_route.ts" },
     @{ Source = "app\api\feedback\route.ts"; Destination = "feedback_route.ts" },

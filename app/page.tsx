@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
 
 const chapterLinks = [
   { href: "#how-it-works", label: "How it works" },
@@ -44,7 +43,6 @@ function SectionFooter({
 }
 
 export default function HomePage() {
-  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   return (
     <main
       id="top"
@@ -66,12 +64,19 @@ export default function HomePage() {
           </p>
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-           <Link
-  href="/chat"
-  className="inline-flex h-12 items-center justify-center rounded-[18px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-6 text-sm font-medium text-white shadow-[0_12px_28px_rgba(59,130,246,0.24)] ol-interactive transition-[transform,filter,box-shadow] duration-200 hover:brightness-110 hover:shadow-[0_14px_32px_rgba(59,130,246,0.28)] active:scale-[0.99]"
->
-  Start chat
-</Link>
+            <Link
+              href="/chat"
+              className="inline-flex h-12 items-center justify-center rounded-[18px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-6 text-sm font-medium text-white shadow-[0_12px_28px_rgba(59,130,246,0.24)] ol-interactive transition-[transform,filter,box-shadow] duration-200 hover:brightness-110 hover:shadow-[0_14px_32px_rgba(59,130,246,0.28)] active:scale-[0.99]"
+            >
+              Start chat
+            </Link>
+
+            <Link
+              href="/auth"
+              className="inline-flex h-12 items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.04] px-6 text-sm font-medium text-white/88 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/30 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.99]"
+            >
+              Log in
+            </Link>
 
             <Link
               href="#how-it-works"
@@ -94,17 +99,10 @@ export default function HomePage() {
               ))}
             </div>
 
-            <button
-              type="button"
-              onClick={() => setIsFeedbackOpen(true)}
-              className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[12px] font-medium text-white/56 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-amber-400/26 hover:bg-amber-400/10 hover:text-amber-200 hover:shadow-[0_10px_24px_rgba(251,191,36,0.12)]"
-            >
-              Give feedback
-            </button>
           </div>
         </div>
 
-                    <div className="mt-10 grid w-full max-w-3xl gap-3 sm:grid-cols-3">
+                    <div className="mt-10 grid w-full max-w-4xl gap-3 sm:grid-cols-2 xl:grid-cols-3">
             <Link
               href="/chat"
               className="rounded-[20px] border border-white/10 bg-white/[0.03] px-4 py-4 text-left backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-white/14 hover:bg-white/[0.05] hover:shadow-[0_10px_24px_rgba(0,0,0,0.12)]"
@@ -741,13 +739,12 @@ export default function HomePage() {
                     Open chat
                   </Link>
 
-                  <button
-                    type="button"
-                    onClick={() => setIsFeedbackOpen(true)}
-                    className="inline-flex h-12 items-center justify-center rounded-[18px] border border-amber-400/16 bg-amber-400/10 px-6 text-sm font-medium text-amber-200 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-amber-400/24 hover:bg-amber-400/14 hover:text-amber-100 hover:shadow-[0_10px_24px_rgba(251,191,36,0.12)] active:scale-[0.99]"
+                  <Link
+                    href="/auth"
+                    className="inline-flex h-12 items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.04] px-6 text-sm font-medium text-white/86 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/14 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.10)] active:scale-[0.99]"
                   >
-                    Give feedback
-                  </button>
+                    Log in
+                  </Link>
 
                   <a
                     href="#top"
@@ -869,85 +866,6 @@ export default function HomePage() {
               0 0 22px rgba(59, 130, 246, 0.28);
           }
         `}</style>
-
-        {isFeedbackOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-            <button
-              type="button"
-              aria-label="Close feedback modal"
-              onClick={() => setIsFeedbackOpen(false)}
-              className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-            />
-
-            <div className="relative z-10 w-full max-w-xl rounded-[28px] border border-white/10 bg-[#0b0b17] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.45)] sm:p-7">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="inline-flex items-center rounded-full border border-amber-400/16 bg-amber-400/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.16em] text-amber-300">
-                    Feedback
-                  </div>
-
-                  <h2 className="mt-4 text-xl font-semibold text-white/92">
-                    Help improve OpenLura
-                  </h2>
-
-                  <p className="mt-2 max-w-lg text-sm leading-6 text-white/50">
-                    Share bugs, confusing behavior, or product ideas.
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  aria-label="Close"
-                  onClick={() => setIsFeedbackOpen(false)}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white/70 transition-colors duration-200 hover:bg-white/[0.07] hover:text-white"
-                >
-                  ×
-                </button>
-              </div>
-
-              <form className="mt-6 space-y-4">
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-white/88">
-                    Subject
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Bug, feedback, or idea"
-                    className="w-full rounded-[18px] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none placeholder:text-white/30 transition-colors duration-200 focus:border-white/20"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-white/88">
-                    Details
-                  </label>
-                  <textarea
-                    rows={5}
-                    placeholder="Tell us what happened or what could be improved"
-                    className="w-full rounded-[18px] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none placeholder:text-white/30 transition-colors duration-200 focus:border-white/20"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:justify-end">
-                  <button
-                    type="button"
-                    onClick={() => setIsFeedbackOpen(false)}
-                    className="inline-flex h-11 items-center justify-center rounded-[16px] border border-white/10 bg-white/[0.04] px-5 text-sm font-medium text-white/78 transition-[background-color,border-color,color] duration-200 hover:border-white/14 hover:bg-white/[0.06] hover:text-white"
-                  >
-                    Cancel
-                  </button>
-
-                  <button
-                    type="submit"
-                    className="inline-flex h-11 items-center justify-center rounded-[16px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-5 text-sm font-medium text-white shadow-[0_12px_28px_rgba(59,130,246,0.24)] transition-[transform,filter,box-shadow] duration-200 hover:brightness-110 hover:shadow-[0_14px_32px_rgba(59,130,246,0.28)] active:scale-[0.99]"
-                  >
-                    Send feedback
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
     </main>
   );
 }

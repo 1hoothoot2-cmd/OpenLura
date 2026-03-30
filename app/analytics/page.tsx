@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 function safeParseJson<T>(raw: string | null, fallback: T): T {
   if (!raw) return fallback;
 
@@ -90,6 +90,9 @@ export default function AnalyticsPage() {
       personalCount: 0,
       total: 0,
     });
+    const latestFeedbackRef = useRef<AnalyticsFeedbackItem[]>([]);
+    const hasLoadedServerTruthRef = useRef(false);
+    const pendingAutoLearningInsightsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -246,10 +249,7 @@ export default function AnalyticsPage() {
     f: AnalyticsFeedbackItem,
     statusOverride?: string
   ) {
-    const currentStatus =
-      statusOverride ||
-      (f.workflowKey ? itemStatus[f.workflowKey] : itemStatus[getItemKey(f)]) ||
-      getAutoStatus(f);
+    const currentStatus = getResolvedStatus(f, statusOverride);
 
     if (workflowFilter !== "all" && currentStatus !== workflowFilter) {
       return false;
@@ -310,6 +310,27 @@ export default function AnalyticsPage() {
 
     return true;
   }
+
+  const getResolvedStatus = (
+    f: AnalyticsFeedbackItem,
+    statusOverride?: string
+  ) => {
+    if (statusOverride) {
+      return statusOverride;
+    }
+
+    if (f.workflowKey && itemStatus[f.workflowKey]) {
+      return itemStatus[f.workflowKey];
+    }
+
+    const fallbackKey = getItemKey(f);
+
+    if (itemStatus[fallbackKey]) {
+      return itemStatus[fallbackKey];
+    }
+
+    return getAutoStatus(f);
+  };
 
   const filteredFeedback = feedback.filter((f: AnalyticsFeedbackItem) =>
     matchesCurrentAnalyticsFilters(f)
@@ -399,10 +420,10 @@ export default function AnalyticsPage() {
   );
 
     const bugNewCount = bugIdeas.filter(
-    (f: any) => (itemStatus[getItemKey(f)] || getAutoStatus(f)) === "nieuw"
+    (f: any) => getResolvedStatus(f) === "nieuw"
   ).length;
   const bugBezigCount = bugIdeas.filter(
-    (f: any) => (itemStatus[getItemKey(f)] || getAutoStatus(f)) === "bezig"
+    (f: any) => getResolvedStatus(f) === "bezig"
   ).length;
 
   const learningPool = [
@@ -420,17 +441,17 @@ export default function AnalyticsPage() {
   );
 
   const learningNewCount = learningPool.filter(
-    (f: any) => (itemStatus[getItemKey(f)] || getAutoStatus(f)) === "nieuw"
+    (f: any) => getResolvedStatus(f) === "nieuw"
   ).length;
   const learningBezigCount = learningPool.filter(
-    (f: any) => (itemStatus[getItemKey(f)] || getAutoStatus(f)) === "bezig"
+    (f: any) => getResolvedStatus(f) === "bezig"
   ).length;
 
   const adjustmentNewCount = adjustmentIdeas.filter(
-    (f: any) => (itemStatus[getItemKey(f)] || getAutoStatus(f)) === "nieuw"
+    (f: any) => getResolvedStatus(f) === "nieuw"
   ).length;
   const adjustmentBezigCount = adjustmentIdeas.filter(
-    (f: any) => (itemStatus[getItemKey(f)] || getAutoStatus(f)) === "bezig"
+    (f: any) => getResolvedStatus(f) === "bezig"
   ).length;
 
   const priorityItems = useMemo(
@@ -498,9 +519,9 @@ export default function AnalyticsPage() {
       : 0;
 
             const workflowCounts = {
-    nieuw: filteredFeedback.filter((f: any) => (itemStatus[getItemKey(f)] || getAutoStatus(f)) === "nieuw").length,
-    bezig: filteredFeedback.filter((f: any) => (itemStatus[getItemKey(f)] || getAutoStatus(f)) === "bezig").length,
-    klaar: filteredFeedback.filter((f: any) => (itemStatus[getItemKey(f)] || getAutoStatus(f)) === "klaar").length,
+    nieuw: filteredFeedback.filter((f: any) => getResolvedStatus(f) === "nieuw").length,
+    bezig: filteredFeedback.filter((f: any) => getResolvedStatus(f) === "bezig").length,
+    klaar: filteredFeedback.filter((f: any) => getResolvedStatus(f) === "klaar").length,
   };
 
   const autoLearningItems = learningIdeas.filter(
@@ -532,13 +553,13 @@ export default function AnalyticsPage() {
 
     const learningWorkflowCounts = {
     nieuw: learningPool.filter(
-      (f: any) => (itemStatus[getItemKey(f)] || getAutoStatus(f)) === "nieuw"
+      (f: any) => getResolvedStatus(f) === "nieuw"
     ).length,
     bezig: learningPool.filter(
-      (f: any) => (itemStatus[getItemKey(f)] || getAutoStatus(f)) === "bezig"
+      (f: any) => getResolvedStatus(f) === "bezig"
     ).length,
     klaar: learningPool.filter(
-      (f: any) => (itemStatus[getItemKey(f)] || getAutoStatus(f)) === "klaar"
+      (f: any) => getResolvedStatus(f) === "klaar"
     ).length,
   };
 
@@ -817,6 +838,8 @@ useEffect(() => {
     if (res.status === 401) {
       setIsUnlocked(false);
       setFeedback([]);
+      latestFeedbackRef.current = [];
+      hasLoadedServerTruthRef.current = false;
       setItemStatus({});
       if (typeof window !== "undefined") {
         sessionStorage.removeItem(ANALYTICS_UNLOCK_STORAGE_KEY);
@@ -856,6 +879,7 @@ useEffect(() => {
     }, {});
 
   if (serverFetchSucceeded) {
+    hasLoadedServerTruthRef.current = true;
     setItemStatus(serverStatusMap);
   }
 
@@ -901,12 +925,11 @@ useEffect(() => {
   })
   .filter((item: AnalyticsFeedbackItem) => isRenderableAnalyticsItem(item));
 
-  const truthSource =
-    serverFetchSucceeded || feedback.length === 0
-      ? serverFetchSucceeded
-        ? normalServerFeedback
-        : normalizedLocal
-      : feedback;
+  const truthSource = serverFetchSucceeded
+    ? normalServerFeedback
+    : hasLoadedServerTruthRef.current
+    ? latestFeedbackRef.current
+    : normalizedLocal;
 
   const deduped = truthSource.filter(
     (item: AnalyticsFeedbackItem, index: number, arr: AnalyticsFeedbackItem[]) => {
@@ -922,6 +945,7 @@ useEffect(() => {
     return timeB - timeA;
   });
 
+  latestFeedbackRef.current = sorted;
   setFeedback(sorted);
 };
 
@@ -986,6 +1010,7 @@ return () => {
       setAnalyticsPassword("");
       window.dispatchEvent(new Event("openlura_feedback_update"));
     } catch {
+      setIsUnlocked(false);
       setAuthError("Inloggen mislukt");
     }
   };
@@ -1027,7 +1052,15 @@ return () => {
         (item.message || "").trim() === message.trim()
     );
 
-    if (existing.includes(key) || alreadyStoredInFeedback) return;
+    if (
+      existing.includes(key) ||
+      alreadyStoredInFeedback ||
+      pendingAutoLearningInsightsRef.current.has(key)
+    ) {
+      return;
+    }
+
+    pendingAutoLearningInsightsRef.current.add(key);
 
     try {
       const res = await fetch("/api/feedback", {
@@ -1043,7 +1076,10 @@ return () => {
         }),
       });
 
-      if (!res.ok) return;
+      if (!res.ok) {
+        pendingAutoLearningInsightsRef.current.delete(key);
+        return;
+      }
 
       try {
         localStorage.setItem(
@@ -1052,8 +1088,10 @@ return () => {
         );
       } catch {}
 
+      pendingAutoLearningInsightsRef.current.delete(key);
       window.dispatchEvent(new Event("openlura_feedback_update"));
     } catch (error) {
+      pendingAutoLearningInsightsRef.current.delete(key);
       console.error("Auto learning sync failed:", error);
     }
   };
@@ -1061,7 +1099,7 @@ return () => {
         const handleInsightAction = async (action: string) => {
     if (action === "focus_bug") {
       const nextBug = bugIdeas.find(
-        (f: any) => (itemStatus[getItemKey(f)] || getAutoStatus(f)) === "nieuw"
+        (f: any) => getResolvedStatus(f) === "nieuw"
       );
 
       if (nextBug) {
@@ -1152,6 +1190,8 @@ return () => {
       if (!res.ok) {
         throw new Error("Workflow status sync failed");
       }
+
+      window.dispatchEvent(new Event("openlura_feedback_update"));
     } catch (error) {
       setItemStatus((prev) => {
         const next = { ...prev };
@@ -1251,6 +1291,8 @@ return () => {
       setItemStatus({});
       setIsUnlocked(false);
       setFeedback([]);
+      latestFeedbackRef.current = [];
+      hasLoadedServerTruthRef.current = false;
     }}
     className="text-xs px-3 py-1 bg-white/10 rounded-lg hover:bg-white/20"
   >
@@ -2072,7 +2114,7 @@ return () => {
 
                         {filteredFeedback.map((f, i) => {
   const itemKey = getItemKey(f);
-    const currentStatus = itemStatus[itemKey] || getAutoStatus(f);
+    const currentStatus = getResolvedStatus(f);
 
   return (
   <div key={i} className="p-4 bg-white/10 rounded-2xl">

@@ -127,13 +127,27 @@ function getSupabaseCookieValue(
   predicate: (cookieName: string) => boolean
 ) {
   const cookies = parseRequestCookies(req);
-  const directMatch = [...cookies.keys()].find(predicate);
+  const cookieNames = [...cookies.keys()];
 
-  if (!directMatch) {
+  const directMatch = cookieNames.find(predicate);
+
+  if (directMatch) {
+    return getChunkedCookieValue(cookies, directMatch);
+  }
+
+  const chunkBaseMatch = cookieNames
+    .map((cookieName) => {
+      const match = cookieName.match(/^(.*)\.(\d+)$/);
+      return match ? match[1] : null;
+    })
+    .filter((baseName): baseName is string => !!baseName)
+    .find((baseName) => predicate(baseName));
+
+  if (!chunkBaseMatch) {
     return null;
   }
 
-  return getChunkedCookieValue(cookies, directMatch);
+  return getChunkedCookieValue(cookies, chunkBaseMatch);
 }
 
 function getPackedCookieToken(value: string) {
