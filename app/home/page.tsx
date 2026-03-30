@@ -520,6 +520,60 @@ export default function HomePage() {
               </div>
             </div>
           </div>
+
+          {/* ACCOUNT FLOW */}
+          <div className="mt-16 w-full max-w-5xl">
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold text-white/92">
+                Account flow
+              </h2>
+              <p className="mt-2 max-w-2xl text-sm text-white/50">
+                A simple path from getting started to using OpenLura with more continuity over time.
+              </p>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+                <div className="mb-3 inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-sm font-medium text-white/78">
+                  1
+                </div>
+                <div className="text-sm font-medium text-white">Start</div>
+                <p className="mt-2 text-sm leading-6 text-white/46">
+                  OpenLura is easy to try and explore from the first visit.
+                </p>
+              </div>
+
+              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+                <div className="mb-3 inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-sm font-medium text-white/78">
+                  2
+                </div>
+                <div className="text-sm font-medium text-white">Create your account</div>
+                <p className="mt-2 text-sm leading-6 text-white/46">
+                  Set up access when you want a more consistent experience over time.
+                </p>
+              </div>
+
+              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+                <div className="mb-3 inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-sm font-medium text-white/78">
+                  3
+                </div>
+                <div className="text-sm font-medium text-white">Keep your flow going</div>
+                <p className="mt-2 text-sm leading-6 text-white/46">
+                  Return to the same workspace and continue with more continuity.
+                </p>
+              </div>
+
+              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+                <div className="mb-3 inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-sm font-medium text-white/78">
+                  4
+                </div>
+                <div className="text-sm font-medium text-white">Grow over time</div>
+                <p className="mt-2 text-sm leading-6 text-white/46">
+                  As OpenLura evolves, the experience becomes more useful and more connected.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
 
         {isFeedbackOpen && (
