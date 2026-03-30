@@ -28,7 +28,14 @@ const FEEDBACK_RATE_LIMIT_MAX_REQUESTS = 12;
 const feedbackRateLimitStore = new Map<string, { count: number; resetAt: number }>();
 
 type FeedbackAction = "unlock_analytics" | "update_workflow_status" | null;
-type FeedbackType = string | null;
+type FeedbackType =
+  | "up"
+  | "down"
+  | "improve"
+  | "idea"
+  | "auto_debug"
+  | "workflow_status"
+  | null;
 
 type FeedbackRequestBody = {
   action: FeedbackAction;
@@ -220,7 +227,12 @@ function normalizeOptionalString(value: unknown, maxLength = MAX_TEXT_LENGTH) {
 }
 
 function normalizeOptionalNumber(value: unknown) {
-  if (typeof value !== "number" || !Number.isFinite(value)) {
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value) ||
+    !Number.isInteger(value) ||
+    value < 0
+  ) {
     return null;
   }
 
@@ -253,6 +265,49 @@ function normalizeLearningType(value: unknown) {
   }
 
   return normalized;
+}
+function normalizeFeedbackType(value: unknown): FeedbackType {
+  const normalized = normalizeOptionalString(value, 50)?.toLowerCase() || null;
+
+  if (!normalized) {
+    return null;
+  }
+
+  if (
+    normalized === "up" ||
+    normalized === "down" ||
+    normalized === "improve" ||
+    normalized === "idea" ||
+    normalized === "auto_debug" ||
+    normalized === "workflow_status"
+  ) {
+    return normalized;
+  }
+
+  return null;
+}
+
+function isPersonalEnvironmentRequest(req: Request) {
+  return req.headers.get("x-openlura-personal-env") === "true";
+}
+
+function normalizeIdeaSource(value: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  const normalized = value.trim().toLowerCase();
+
+  if (
+    normalized === "idea_bug" ||
+    normalized === "idea_adjustment" ||
+    normalized === "idea_feedback_learning" ||
+    normalized === "personal_environment"
+  ) {
+    return normalized;
+  }
+
+  return null;
 }
 
 function safeSecretEquals(input: string, expected: string) {
@@ -303,7 +358,6 @@ function createFeedbackWorkflowKey(input: {
   environment: string | null;
   userScope: string | null;
   user_id: string | null;
-  timestamp?: string | null;
 }) {
   return [
     input.chatId || "",
@@ -315,7 +369,6 @@ function createFeedbackWorkflowKey(input: {
     input.user_id || "",
     input.userMessage || "",
     input.message || "",
-    input.timestamp || "",
   ].join("::");
 }
 
@@ -332,7 +385,7 @@ function parseFeedbackRequestBody(body: unknown): FeedbackRequestBody | null {
     password: normalizeOptionalString(body.password, 1000),
     chatId: normalizeOptionalString(body.chatId, 200),
     msgIndex: normalizeOptionalNumber(body.msgIndex),
-    type: normalizeOptionalString(body.type, 100),
+    type: normalizeFeedbackType(body.type),
     message: normalizeOptionalString(body.message),
     userMessage: normalizeOptionalString(body.userMessage),
     source: normalizeOptionalString(body.source, 100),
@@ -401,6 +454,12 @@ function inferIdeaSource(
 ) {
   if (type !== "idea") {
     return source;
+  }
+
+  const explicitSource = normalizeIdeaSource(source);
+
+  if (explicitSource) {
+    return explicitSource;
   }
 
   const rawMessage = (message || "").toLowerCase();
@@ -528,7 +587,9 @@ export async function POST(req: Request) {
 }
 
 const identity = await resolveFeedbackIdentity(req);
-const wantsPersonalEnvironment = data.environment === "personal";
+const personalEnvironmentRequested = isPersonalEnvironmentRequest(req);
+const wantsPersonalEnvironment =
+  personalEnvironmentRequested && data.environment === "personal";
 const isAnalyticsWorkflowUpdate = data.action === "update_workflow_status";
 const hasAnalyticsAccess = isFeedbackReadAuthorized(req);
 
@@ -571,16 +632,24 @@ if (
 
 const timestamp = new Date().toISOString();
 const environment = isPersonalEnvironment ? "personal" : "default";
-const hasAuthenticatedUser =
+const hasAuthenticatedPersonalContext =
   !isAnalyticsWorkflowUpdate &&
+  isPersonalEnvironment &&
   identity.isAuthenticatedPersonalUser &&
   !!identity.userId;
 const userScope = isAnalyticsWorkflowUpdate
   ? "admin"
-  : hasAuthenticatedUser
+  : isPersonalEnvironment
   ? "personal"
   : "guest";
-const user_id = hasAuthenticatedUser ? identity.userId || null : null;
+const user_id = hasAuthenticatedPersonalContext ? identity.userId || null : null;
+
+const resolvedSource =
+  data.type === "idea" &&
+  data.source === "personal_environment" &&
+  !isPersonalEnvironment
+    ? inferIdeaSource(data.type, data.message, null)
+    : inferIdeaSource(data.type, data.message, data.source);
 
 const baseEntry = {
   chatId: data.chatId,
@@ -588,7 +657,7 @@ const baseEntry = {
   type: data.type,
   message: data.message,
   userMessage: data.userMessage,
-  source: inferIdeaSource(data.type, data.message, data.source),
+  source: resolvedSource,
   userScope,
   user_id,
   environment,
@@ -603,7 +672,6 @@ const workflowKey =
     userScope,
     user_id,
     environment,
-    timestamp,
   });
 
 const entry = {
