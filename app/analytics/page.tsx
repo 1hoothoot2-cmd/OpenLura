@@ -202,11 +202,12 @@ export default function AnalyticsPage() {
 
         if (res.ok) {
           setIsUnlocked(true);
+          setAuthError("");
 
           if (typeof window !== "undefined") {
             sessionStorage.setItem(ANALYTICS_UNLOCK_STORAGE_KEY, "true");
           }
-        } else {
+        } else if (res.status === 401) {
           setIsUnlocked(false);
 
           if (typeof window !== "undefined") {
@@ -643,6 +644,104 @@ useEffect(() => {
       total: defaultLocalFeedback.length + personalLocalFeedback.length,
     });
 
+    const localFeedback = [
+      ...defaultLocalFeedback.map((item: any) => ({
+        ...item,
+        environment: item.environment || "default",
+        userScope: item.userScope || "guest",
+      })),
+      ...personalLocalFeedback.map((item: any) => ({
+        ...item,
+        environment: item.environment || "personal",
+        userScope: item.userScope || "personal",
+      })),
+    ];
+
+    const normalizedLocal = localFeedback.map((item: any) => {
+      const isImprovementItem =
+        item.type === "improve" ||
+        item.type === "improvement" ||
+        item.source === "improvement_reply" ||
+        item.userMessage === "Direct improvement feedback";
+
+      const normalizedType =
+        item.type === "idea"
+          ? "idea"
+          : isImprovementItem
+          ? "improve"
+          : item.type || "down";
+
+      const rawMessage = String(item.message || "").toLowerCase();
+
+      const normalizedSource =
+        normalizedType === "idea"
+          ? item.source ||
+            (rawMessage.includes("bug") ||
+            rawMessage.includes("werkt niet") ||
+            rawMessage.includes("error") ||
+            rawMessage.includes("fout") ||
+            rawMessage.includes("crash") ||
+            rawMessage.includes("stuk") ||
+            rawMessage.includes("kapot")
+              ? "idea_bug"
+              : rawMessage.includes("aanpassen") ||
+                rawMessage.includes("aanpassing") ||
+                rawMessage.includes("toevoegen") ||
+                rawMessage.includes("maak") ||
+                rawMessage.includes("zet") ||
+                rawMessage.includes("verander") ||
+                rawMessage.includes("wijzig")
+              ? "idea_adjustment"
+              : rawMessage.includes("ai") ||
+                rawMessage.includes("antwoord") ||
+                rawMessage.includes("reageer") ||
+                rawMessage.includes("korter") ||
+                rawMessage.includes("duidelijker") ||
+                rawMessage.includes("beter") ||
+                rawMessage.includes("leren")
+              ? "idea_feedback_learning"
+              : "idea_adjustment")
+          : item.source;
+
+      const resolvedEnvironment = item.environment || "default";
+      const resolvedUserScope =
+        item.userScope ||
+        (resolvedEnvironment === "personal" ? "personal" : "guest");
+
+      return {
+        ...item,
+        _localOnly: true,
+        type: normalizedType,
+        source: normalizedSource,
+        environment: resolvedEnvironment,
+        userScope: resolvedUserScope,
+        user_id:
+          item.user_id || (resolvedEnvironment === "personal" ? "local_personal" : null),
+        learningType:
+          item.learningType ||
+          (normalizedType === "down" || normalizedType === "improve"
+            ? inferLearningType({
+                ...item,
+                type: normalizedType,
+                source: normalizedSource,
+              })
+            : null),
+        workflowKey:
+          item.workflowKey ||
+          [
+            item.chatId || "",
+            item.msgIndex ?? "",
+            normalizedType || "",
+            normalizedSource || "",
+            resolvedEnvironment,
+            resolvedUserScope,
+            item.user_id || "",
+            item.userMessage || "",
+            item.message || "",
+          ].join("::"),
+      };
+    });
+
     let data: AnalyticsFeedbackItem[] = [];
     let serverFetchSucceeded = false;
 
@@ -751,11 +850,11 @@ useEffect(() => {
     };
   });
 
-  if (!serverFetchSucceeded) {
-    return;
-  }
+  const truthSource = serverFetchSucceeded
+    ? [...normalServerFeedback, ...normalizedLocal]
+    : normalizedLocal;
 
-  const deduped = normalServerFeedback.filter(
+  const deduped = truthSource.filter(
     (item: AnalyticsFeedbackItem, index: number, arr: AnalyticsFeedbackItem[]) => {
       const itemKey = getItemKey(item);
 
