@@ -228,11 +228,11 @@ export default function Sidebar({
   return (
     <div
       ref={sidebarRef}
-      className={`fixed top-0 left-0 z-50 h-full w-[88vw] max-w-[280px] transform border-r border-white/8 bg-[linear-gradient(180deg,rgba(10,15,29,0.98),rgba(11,18,35,0.95))] p-3 pb-[max(env(safe-area-inset-bottom),12px)] shadow-[0_24px_64px_rgba(0,0,0,0.36)] backdrop-blur-2xl transition-transform duration-300 md:relative md:top-auto md:left-auto md:z-auto md:w-[292px] md:max-w-none md:translate-x-0 md:rounded-[28px] md:border md:border-white/8 md:p-3 md:shadow-[0_18px_42px_rgba(0,0,0,0.22)] ${
+      className={`fixed top-0 left-0 z-50 h-[100dvh] w-[88vw] max-w-[280px] transform overflow-hidden border-r border-white/8 bg-[linear-gradient(180deg,rgba(10,15,29,0.98),rgba(11,18,35,0.95))] p-3 pb-[max(env(safe-area-inset-bottom),12px)] shadow-[0_24px_64px_rgba(0,0,0,0.36)] backdrop-blur-2xl transition-transform duration-300 md:relative md:top-auto md:left-auto md:z-auto md:h-full md:w-[292px] md:max-w-none md:translate-x-0 md:rounded-[28px] md:border md:border-white/8 md:p-3 md:shadow-[0_18px_42px_rgba(0,0,0,0.22)] ${
         mobileMenu ? "translate-x-0" : "-translate-x-full"
       }`}
     >
-            <div className="flex h-full flex-col">
+            <div className="flex h-full min-h-0 flex-col">
         <div className="sticky top-0 z-20 -mx-3 mb-2 border-b border-white/8 bg-[linear-gradient(180deg,rgba(10,15,29,0.98),rgba(10,15,29,0.92))] px-3 pb-3 pt-[max(env(safe-area-inset-top),12px)] backdrop-blur-2xl md:mx-0 md:border-b-0 md:bg-transparent md:px-0 md:pb-0 md:pt-0">
           <div className="mb-3 flex items-center justify-between md:hidden">
             <div className="px-1 text-[11px] font-medium uppercase tracking-[0.18em] text-white/34">
@@ -272,7 +272,7 @@ export default function Sidebar({
           />
         </div>
 
-        <div className="mt-1 flex-1 space-y-6 overflow-x-visible overflow-y-auto pr-1 pb-[max(env(safe-area-inset-bottom),14px)] pt-1">
+        <div className="mt-1 min-h-0 flex-1 space-y-6 overflow-x-visible overflow-y-auto pr-1 pb-4 pt-1">
           {searchedPinnedChats.length > 0 && (
             <div>
               <div className="mb-3.5 flex items-center justify-between px-1.5">
@@ -407,11 +407,12 @@ export default function Sidebar({
           </div>
         </div>
 
-        <div className="mt-5 space-y-2.5 border-t border-white/8 pt-4.5 pb-[max(env(safe-area-inset-bottom),2px)]">
+        <div className="mt-5 shrink-0 space-y-2.5 border-t border-white/8 pt-4.5 pb-[max(env(safe-area-inset-bottom),2px)]">
           <button
             type="button"
             onClick={() => {
               setOpenChatMenuId(null);
+              setMobileMenu(false);
               setShowFeedbackBox(true);
             }}
             className="w-full rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2.5 text-left text-sm text-white/82 ol-interactive transition-[background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.985]"
@@ -424,6 +425,7 @@ export default function Sidebar({
               type="button"
               onClick={() => {
                 setOpenChatMenuId(null);
+                setMobileMenu(false);
                 setShowLoginBox(true);
               }}
               className="w-full rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2.5 text-left text-sm text-white/82 ol-interactive transition-[background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.985]"
