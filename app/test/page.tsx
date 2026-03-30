@@ -781,7 +781,10 @@ const getOrCreateOpenLuraUserId = () => {
   return newId;
 };
 
-const getOpenLuraRequestHeaders = (includeJson = true) => {
+const getOpenLuraRequestHeaders = (
+  includeJson = true,
+  options?: { personalEnv?: boolean }
+) => {
   const headers: Record<string, string> = includeJson
     ? { "Content-Type": "application/json" }
     : {};
@@ -792,7 +795,7 @@ const getOpenLuraRequestHeaders = (includeJson = true) => {
     headers["x-openlura-user-id"] = resolvedUserId;
   }
 
-  if (isPersonalRoute) {
+  if (options?.personalEnv ?? isPersonalRoute) {
     headers["x-openlura-personal-env"] = "true";
   }
 
@@ -1249,7 +1252,11 @@ const restoreDeletedChat = (chatId: number) => {
       next = next.sort((a, b) => b.weight - a.weight).slice(0, 10);
 
       if (!isPersonalRoute) {
-        localStorage.setItem(memoryStorageKey, JSON.stringify(next));
+        try {
+          localStorage.setItem(memoryStorageKey, JSON.stringify(next));
+        } catch (error) {
+          console.error("OpenLura memory persistence failed:", error);
+        }
       }
 
       return next;
@@ -1322,7 +1329,7 @@ const restoreDeletedChat = (chatId: number) => {
 
       const verifyRes = await fetch("/api/personal-state", {
         method: "GET",
-        headers: getOpenLuraRequestHeaders(true),
+        headers: getOpenLuraRequestHeaders(true, { personalEnv: true }),
         credentials: "same-origin",
         cache: "no-store",
       });
@@ -1502,7 +1509,10 @@ const restoreDeletedChat = (chatId: number) => {
       if (!retryRequest) {
         if (!isPersonalRoute) {
           const localFeedbackKey = "openlura_feedback";
-          const existingFeedback = JSON.parse(localStorage.getItem(localFeedbackKey) || "[]");
+          const existingFeedback = safeParseJson<any[]>(
+            localStorage.getItem(localFeedbackKey),
+            []
+          );
 
           existingFeedback.push({
             chatId: currentChatId,
@@ -1515,7 +1525,11 @@ const restoreDeletedChat = (chatId: number) => {
             learningType: classifyLearningSignal(input),
           });
 
-          localStorage.setItem(localFeedbackKey, JSON.stringify(existingFeedback));
+          try {
+            localStorage.setItem(localFeedbackKey, JSON.stringify(existingFeedback));
+          } catch (error) {
+            console.error("OpenLura local improvement feedback persistence failed:", error);
+          }
         }
 
         const keyId = currentChatId + "-" + (updated[index].messages.length - 1);
@@ -1538,7 +1552,7 @@ const restoreDeletedChat = (chatId: number) => {
             method: "POST",
             headers: getOpenLuraRequestHeaders(true),
             body: JSON.stringify({
-              chatId: currentChatId,
+              chatId: String(currentChatId),
               msgIndex: pendingImprovement?.targetMsgIndex ?? null,
               type: "improve",
               message: input,
@@ -2076,7 +2090,11 @@ updated[index].messages[
       setMemory(newMemory);
 
       if (initialStateReady && !isPersonalRoute) {
-        localStorage.setItem(memoryStorageKey, JSON.stringify(newMemory));
+        try {
+          localStorage.setItem(memoryStorageKey, JSON.stringify(newMemory));
+        } catch (error) {
+          console.error("OpenLura memory persistence failed:", error);
+        }
       }
     }
 
@@ -2105,7 +2123,7 @@ updated[index].messages[
 
   if (!isPersonalRoute) {
     existing.push({
-      chatId,
+      chatId: String(chatId),
       msgIndex,
       type,
       message: message?.content,
@@ -2118,7 +2136,11 @@ updated[index].messages[
           : "content",
     });
 
-    localStorage.setItem(key, JSON.stringify(existing));
+    try {
+      localStorage.setItem(key, JSON.stringify(existing));
+    } catch (error) {
+      console.error("OpenLura local feedback persistence failed:", error);
+    }
   }
 
   if (prevMessage?.content) {
@@ -2128,9 +2150,11 @@ updated[index].messages[
       try {
   const res = await fetch("/api/feedback", {
     method: "POST",
-    headers: getOpenLuraRequestHeaders(true),
+    headers: getOpenLuraRequestHeaders(true, {
+      personalEnv: isPersonalRoute,
+    }),
         body: JSON.stringify({
-      chatId,
+      chatId: String(chatId),
       msgIndex,
       type,
       message: message?.content,
@@ -2221,9 +2245,11 @@ updated[index].messages[
 
     fetch("/api/feedback", {
       method: "POST",
-      headers: getOpenLuraRequestHeaders(true),
+      headers: getOpenLuraRequestHeaders(true, {
+        personalEnv: isPersonalEnvironment,
+      }),
       body: JSON.stringify({
-        chatId: activeChatId,
+        chatId: activeChatId !== null ? String(activeChatId) : null,
         type: "idea",
         message: feedbackText.trim(),
         userMessage: isPersonalEnvironment ? "Persoonlijke omgeving feedback" : "Feedback / Idee",
@@ -2399,8 +2425,8 @@ updated[index].messages[
         </div>
       )}
 
-      <div className="flex min-w-0 flex-1 items-stretch justify-center pt-0 md:h-screen md:justify-start md:p-4">
-        <div className="flex h-full w-full min-w-0 max-w-2xl flex-col border border-white/8 bg-white/[0.042] shadow-[0_20px_56px_rgba(0,0,0,0.20)] backdrop-blur-2xl md:ml-4 md:min-h-0 md:rounded-[28px] xl:ml-6 xl:max-w-[920px]">
+      <div className="flex min-w-0 flex-1 items-stretch justify-start pt-0 md:h-screen md:p-4">
+        <div className="mr-auto flex h-full w-full min-w-0 max-w-2xl flex-col border border-white/8 bg-white/[0.042] shadow-[0_20px_56px_rgba(0,0,0,0.20)] backdrop-blur-2xl md:ml-4 md:min-h-0 md:rounded-[28px] xl:ml-6 xl:max-w-[920px]">
 
           {usage && usage.percentage >= 0.8 && !upgradeNotice.visible && (
             <div className="mx-4 mt-4 rounded-[24px] border border-yellow-300/12 bg-yellow-500/[0.065] px-4 py-3 text-sm text-yellow-100 shadow-[0_10px_22px_rgba(0,0,0,0.10)] backdrop-blur-xl">
