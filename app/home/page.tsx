@@ -276,6 +276,62 @@ export default function HomePage() {
               </div>
             </div>
           </div>
+
+          {/* USE CASES */}
+          <div className="mt-16 w-full max-w-5xl">
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold text-white/92">
+                Use cases
+              </h2>
+              <p className="mt-2 max-w-2xl text-sm text-white/50">
+                Practical ways to use OpenLura across everyday work and thinking.
+              </p>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+                <div className="text-sm font-medium text-white">Writing and rewriting</div>
+                <p className="mt-2 text-sm leading-6 text-white/46">
+                  Draft ideas faster, improve clarity, and refine content without losing your tone.
+                </p>
+              </div>
+
+              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+                <div className="text-sm font-medium text-white">Research support</div>
+                <p className="mt-2 text-sm leading-6 text-white/46">
+                  Break down topics, organize findings, and turn scattered notes into direction.
+                </p>
+              </div>
+
+              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+                <div className="text-sm font-medium text-white">Workflow thinking</div>
+                <p className="mt-2 text-sm leading-6 text-white/46">
+                  Use OpenLura to structure tasks, plan next steps, and reduce decision friction.
+                </p>
+              </div>
+
+              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+                <div className="text-sm font-medium text-white">Idea development</div>
+                <p className="mt-2 text-sm leading-6 text-white/46">
+                  Explore concepts, test directions, and expand rough thoughts into usable output.
+                </p>
+              </div>
+
+              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+                <div className="text-sm font-medium text-white">Learning as you go</div>
+                <p className="mt-2 text-sm leading-6 text-white/46">
+                  Get help understanding topics while building context over time through interaction.
+                </p>
+              </div>
+
+              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+                <div className="text-sm font-medium text-white">Daily AI workspace</div>
+                <p className="mt-2 text-sm leading-6 text-white/46">
+                  Keep one consistent place for asking, refining, planning, and moving work forward.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
 
         {isFeedbackOpen && (
