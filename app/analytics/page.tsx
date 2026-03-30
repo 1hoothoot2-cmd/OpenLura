@@ -48,16 +48,18 @@ export default function AnalyticsPage() {
 
   const getOpenLuraRequestHeaders = (
     includeJson = true,
-    options?: { personalEnv?: boolean }
+    options?: { personalEnv?: boolean; includeUserId?: boolean }
   ) => {
     const headers: Record<string, string> = includeJson
       ? { "Content-Type": "application/json" }
       : {};
 
-    const resolvedUserId = getOrCreateOpenLuraUserId();
+    if (options?.includeUserId) {
+      const resolvedUserId = getOrCreateOpenLuraUserId();
 
-    if (resolvedUserId) {
-      headers["x-openlura-user-id"] = resolvedUserId;
+      if (resolvedUserId) {
+        headers["x-openlura-user-id"] = resolvedUserId;
+      }
     }
 
     if (options?.personalEnv) {
@@ -91,12 +93,7 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const rememberedUnlock =
-        sessionStorage.getItem(ANALYTICS_UNLOCK_STORAGE_KEY) === "true";
-
-      if (rememberedUnlock) {
-        setIsUnlocked(true);
-      }
+      sessionStorage.removeItem(ANALYTICS_UNLOCK_STORAGE_KEY);
     }
   }, []);
 
@@ -152,24 +149,16 @@ export default function AnalyticsPage() {
   };
 
     const getUserScope = (f: any) => {
-    if (f.userScope === "admin" || f.userScope === "guest" || f.userScope === "personal") {
+    if (
+      f.userScope === "admin" ||
+      f.userScope === "guest" ||
+      f.userScope === "personal"
+    ) {
       return f.userScope;
     }
 
-    if (f.userScope === "user") {
-      return f.environment === "personal" || f.user_id ? "personal" : "guest";
-    }
-
-    if (f.environment === "personal") {
+    if (f.environment === "personal" && f.user_id) {
       return "personal";
-    }
-
-    if (f.user_id) {
-      return "personal";
-    }
-
-    if (f._localOnly) {
-      return "guest";
     }
 
     return "guest";
@@ -196,7 +185,7 @@ export default function AnalyticsPage() {
       try {
         const res = await fetch("/api/feedback", {
   method: "GET",
-  headers: getOpenLuraRequestHeaders(false),
+  headers: getOpenLuraRequestHeaders(false, { includeUserId: false }),
   cache: "no-store",
 });
 
@@ -205,7 +194,7 @@ export default function AnalyticsPage() {
           setAuthError("");
 
           if (typeof window !== "undefined") {
-            sessionStorage.setItem(ANALYTICS_UNLOCK_STORAGE_KEY, "true");
+            sessionStorage.removeItem(ANALYTICS_UNLOCK_STORAGE_KEY);
           }
         } else if (res.status === 401) {
           setIsUnlocked(false);
@@ -748,7 +737,7 @@ useEffect(() => {
   try {
     const res = await fetch("/api/feedback", {
       method: "GET",
-      headers: getOpenLuraRequestHeaders(false),
+      headers: getOpenLuraRequestHeaders(false, { includeUserId: false }),
       cache: "no-store",
     });
 
@@ -793,21 +782,9 @@ useEffect(() => {
       return acc;
     }, {});
 
-  setItemStatus((prev) => {
-    const next: Record<string, string> = {};
-
-    for (const [workflowKey, workflowStatus] of Object.entries(serverStatusMap)) {
-      next[workflowKey] = workflowStatus;
-    }
-
-    for (const [workflowKey, workflowStatus] of Object.entries(prev)) {
-      if (!(workflowKey in next)) {
-        next[workflowKey] = workflowStatus;
-      }
-    }
-
-    return next;
-  });
+  if (serverFetchSucceeded) {
+    setItemStatus(serverStatusMap);
+  }
 
  const normalServerFeedback = data
   .filter((item: AnalyticsFeedbackItem) => item.type !== "workflow_status")
@@ -816,10 +793,9 @@ useEffect(() => {
     const resolvedUserScope =
       item.userScope === "admin" ||
       item.userScope === "guest" ||
-      item.userScope === "personal" ||
-      item.userScope === "user"
+      item.userScope === "personal"
         ? item.userScope
-        : resolvedEnvironment === "personal"
+        : resolvedEnvironment === "personal" && item.user_id
         ? "personal"
         : "guest";
 
@@ -851,7 +827,7 @@ useEffect(() => {
   });
 
   const truthSource = serverFetchSucceeded
-    ? [...normalServerFeedback, ...normalizedLocal]
+    ? normalServerFeedback
     : normalizedLocal;
 
   const deduped = truthSource.filter(
@@ -905,7 +881,7 @@ return () => {
     try {
       const res = await fetch("/api/feedback", {
         method: "POST",
-        headers: getOpenLuraRequestHeaders(true),
+        headers: getOpenLuraRequestHeaders(true, { includeUserId: false }),
         body: JSON.stringify({
           action: "unlock_analytics",
           password: analyticsPassword,
@@ -924,7 +900,7 @@ return () => {
       }
 
       if (typeof window !== "undefined") {
-        sessionStorage.setItem(ANALYTICS_UNLOCK_STORAGE_KEY, "true");
+        sessionStorage.removeItem(ANALYTICS_UNLOCK_STORAGE_KEY);
       }
 
       setIsUnlocked(true);
@@ -978,7 +954,7 @@ return () => {
     try {
       const res = await fetch("/api/feedback", {
         method: "POST",
-        headers: getOpenLuraRequestHeaders(true),
+        headers: getOpenLuraRequestHeaders(true, { includeUserId: false }),
         body: JSON.stringify({
           type: "idea",
           message,
@@ -1020,7 +996,7 @@ return () => {
     if (action === "shorter_answers") {
       const res = await fetch("/api/feedback", {
         method: "POST",
-        headers: getOpenLuraRequestHeaders(true),
+        headers: getOpenLuraRequestHeaders(true, { includeUserId: false }),
         body: JSON.stringify({
           type: "idea",
           message: "AI antwoorden zijn te lang, maak antwoorden korter en directer",
@@ -1042,7 +1018,7 @@ return () => {
     if (action === "clearer_structure") {
       const res = await fetch("/api/feedback", {
         method: "POST",
-        headers: getOpenLuraRequestHeaders(true),
+        headers: getOpenLuraRequestHeaders(true, { includeUserId: false }),
         body: JSON.stringify({
           type: "idea",
           message: "Veel users willen duidelijkere structuur en helderdere opbouw in antwoorden",
@@ -1083,6 +1059,7 @@ return () => {
         method: "POST",
         headers: getOpenLuraRequestHeaders(true, {
           personalEnv: isPersonalItem,
+          includeUserId: false,
         }),
         body: JSON.stringify({
           action: "update_workflow_status",
@@ -1184,8 +1161,8 @@ return () => {
     onClick={async () => {
       try {
         await fetch("/api/feedback", {
-          method: "DELETE",
-          headers: getOpenLuraRequestHeaders(false),
+        method: "DELETE",
+        headers: getOpenLuraRequestHeaders(false, { includeUserId: false }),
         });
       } catch (error) {
         console.error("Analytics logout failed:", error);

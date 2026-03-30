@@ -2,6 +2,15 @@
 import Sidebar from "@/components/chat/Sidebar";
 import { useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
+function safeParseJson<T>(raw: string | null, fallback: T): T {
+  if (!raw) return fallback;
+
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}
 
 export default function Home() {
   const pathname = usePathname();
@@ -273,7 +282,7 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
         const mem = localStorage.getItem(memoryStorageKey);
 
         if (!loadedFromServer && !isPersonalRoute && saved) {
-          const parsed = JSON.parse(saved);
+          const parsed = safeParseJson<any[]>(saved, []);
           const normalizedChats = parsed.map((chat: any) => ({
             ...chat,
             pinned: chat.pinned ?? false,
@@ -305,7 +314,7 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
         }
 
         if (!loadedFromServer && !isPersonalRoute && mem) {
-          const parsed = JSON.parse(mem);
+          const parsed = safeParseJson<any[]>(mem, []);
           if (parsed.length && typeof parsed[0] === "string") {
             setMemory(parsed.map((m: string) => ({ text: m, weight: 0.5 })));
           } else {
@@ -403,10 +412,12 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
       }),
     }));
 
-    try {
-      localStorage.setItem(chatStorageKey, JSON.stringify(safeChats));
-    } catch (error) {
-      console.error("OpenLura local chat persistence failed:", error);
+    if (!isPersonalRoute) {
+      try {
+        localStorage.setItem(chatStorageKey, JSON.stringify(safeChats));
+      } catch (error) {
+        console.error("OpenLura local chat persistence failed:", error);
+      }
     }
 
     if (!isPersonalRoute || !personalStateLoaded) {
@@ -446,7 +457,7 @@ const hasMeaningfulPersonalState =
 
     personalSyncTimeoutRef.current = setTimeout(async () => {
       try {
-        await fetch("/api/personal-state", {
+        const res = await fetch("/api/personal-state", {
           method: "POST",
           headers: getOpenLuraRequestHeaders(true),
           credentials: "same-origin",
@@ -455,6 +466,10 @@ const hasMeaningfulPersonalState =
             memory,
           }),
         });
+
+        if (!res.ok) {
+          throw new Error(`Personal sync failed with status ${res.status}`);
+        }
       } catch (error) {
         console.error("OpenLura personal sync failed:", error);
       }
@@ -682,10 +697,15 @@ const hasMeaningfulPersonalState =
 
     loadPersonalStateFromServer(false);
 
+    const pollId = window.setInterval(() => {
+      loadPersonalStateFromServer(false);
+    }, 5000);
+
     window.addEventListener("focus", handleWindowFocus);
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
+      window.clearInterval(pollId);
       window.removeEventListener("focus", handleWindowFocus);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
@@ -761,7 +781,10 @@ const getOrCreateOpenLuraUserId = () => {
   return newId;
 };
 
-const getOpenLuraRequestHeaders = (includeJson = true) => {
+const getOpenLuraRequestHeaders = (
+  includeJson = true,
+  options?: { personalEnv?: boolean }
+) => {
   const headers: Record<string, string> = includeJson
     ? { "Content-Type": "application/json" }
     : {};
@@ -772,7 +795,7 @@ const getOpenLuraRequestHeaders = (includeJson = true) => {
     headers["x-openlura-user-id"] = resolvedUserId;
   }
 
-  if (isPersonalRoute) {
+  if (options?.personalEnv ?? isPersonalRoute) {
     headers["x-openlura-personal-env"] = "true";
   }
 
@@ -1099,14 +1122,23 @@ const restoreDeletedChat = (chatId: number) => {
     const remainingChats = chats.filter((chat: any) => !chat.deleted);
 
     if (remainingChats.length === 0) {
-      const fallbackChat = buildFallbackChat();
+      if (isPersonalRoute) {
+        isBootstrappingChatRef.current = false;
+        setChats([]);
+        preferredActiveChatIdRef.current = null;
+        pendingActiveChatIdRef.current = null;
+        forcedActiveChatIdRef.current = null;
+        setActiveChatId(null);
+      } else {
+        const fallbackChat = buildFallbackChat();
 
-      isBootstrappingChatRef.current = false;
-      setChats([fallbackChat]);
-      preferredActiveChatIdRef.current = fallbackChat.id;
-      pendingActiveChatIdRef.current = fallbackChat.id;
-      forcedActiveChatIdRef.current = fallbackChat.id;
-      setActiveChatId(fallbackChat.id);
+        isBootstrappingChatRef.current = false;
+        setChats([fallbackChat]);
+        preferredActiveChatIdRef.current = fallbackChat.id;
+        pendingActiveChatIdRef.current = fallbackChat.id;
+        forcedActiveChatIdRef.current = fallbackChat.id;
+        setActiveChatId(fallbackChat.id);
+      }
     } else {
       setChats(remainingChats);
 
@@ -1218,7 +1250,15 @@ const restoreDeletedChat = (chatId: number) => {
         : [...prev, { text: text.trim(), weight: Math.max(0.1, Math.min(0.5 + delta, 1)) }];
 
       next = next.sort((a, b) => b.weight - a.weight).slice(0, 10);
-      localStorage.setItem(memoryStorageKey, JSON.stringify(next));
+
+      if (!isPersonalRoute) {
+        try {
+          localStorage.setItem(memoryStorageKey, JSON.stringify(next));
+        } catch (error) {
+          console.error("OpenLura memory persistence failed:", error);
+        }
+      }
+
       return next;
     });
   };
@@ -1287,26 +1327,15 @@ const restoreDeletedChat = (chatId: number) => {
         return;
       }
 
-      let verified = false;
+      const verifyRes = await fetch("/api/personal-state", {
+        method: "GET",
+        headers: getOpenLuraRequestHeaders(true, { personalEnv: true }),
+        credentials: "same-origin",
+        cache: "no-store",
+      });
 
-      for (let attempt = 0; attempt < 4; attempt += 1) {
-        const verifyRes = await fetch("/api/personal-state", {
-          method: "GET",
-          headers: getOpenLuraRequestHeaders(true),
-          credentials: "same-origin",
-          cache: "no-store",
-        });
-
-        if (verifyRes.ok) {
-          verified = true;
-          break;
-        }
-
-        await new Promise((resolve) => setTimeout(resolve, 250));
-      }
-
-      if (!verified) {
-        setLoginError("Persoonlijke sessie is nog niet actief. Probeer opnieuw.");
+      if (!verifyRes.ok) {
+        setLoginError("Persoonlijke sessie kon niet worden bevestigd.");
         return;
       }
 
@@ -1478,23 +1507,30 @@ const restoreDeletedChat = (chatId: number) => {
         pendingImprovement?.originalAiMessage || "";
 
       if (!retryRequest) {
-        const localFeedbackKey = isPersonalRoute
-          ? "openlura_personal_feedback"
-          : "openlura_feedback";
-        const existingFeedback = JSON.parse(localStorage.getItem(localFeedbackKey) || "[]");
+        if (!isPersonalRoute) {
+          const localFeedbackKey = "openlura_feedback";
+          const existingFeedback = safeParseJson<any[]>(
+            localStorage.getItem(localFeedbackKey),
+            []
+          );
 
-        existingFeedback.push({
-          chatId: currentChatId,
-          msgIndex: pendingImprovement?.targetMsgIndex ?? updated[index].messages.length - 1,
-          type: "improve",
-          message: input,
-          userMessage: originalUserMessage || "Direct improvement feedback",
-          timestamp: Date.now(),
-          source: "improvement_reply",
-          learningType: classifyLearningSignal(input),
-        });
+          existingFeedback.push({
+            chatId: currentChatId,
+            msgIndex: pendingImprovement?.targetMsgIndex ?? updated[index].messages.length - 1,
+            type: "improve",
+            message: input,
+            userMessage: originalUserMessage || "Direct improvement feedback",
+            timestamp: Date.now(),
+            source: "improvement_reply",
+            learningType: classifyLearningSignal(input),
+          });
 
-        localStorage.setItem(localFeedbackKey, JSON.stringify(existingFeedback));
+          try {
+            localStorage.setItem(localFeedbackKey, JSON.stringify(existingFeedback));
+          } catch (error) {
+            console.error("OpenLura local improvement feedback persistence failed:", error);
+          }
+        }
 
         const keyId = currentChatId + "-" + (updated[index].messages.length - 1);
 
@@ -1516,7 +1552,7 @@ const restoreDeletedChat = (chatId: number) => {
             method: "POST",
             headers: getOpenLuraRequestHeaders(true),
             body: JSON.stringify({
-              chatId: currentChatId,
+              chatId: String(currentChatId),
               msgIndex: pendingImprovement?.targetMsgIndex ?? null,
               type: "improve",
               message: input,
@@ -1816,10 +1852,11 @@ setChats([...updated]);
       requestAnimationFrame(() => resolve());
     });
 
-    const rawFeedback = JSON.parse(
+    const rawFeedback = safeParseJson<any[]>(
       localStorage.getItem(
         isPersonalRoute ? "openlura_personal_feedback" : "openlura_feedback"
-      ) || "[]"
+      ),
+      []
     ).slice(-20);
 
     // geef recente feedback meer gewicht
@@ -1855,35 +1892,53 @@ setChats([...updated]);
       .map((m) => m.text)
       .join(" | ");
 
-    const res = await fetch("/api/chat", {
-      method: "POST",
-      signal: controller.signal,
-      headers: getOpenLuraRequestHeaders(true),
-      body: JSON.stringify({
-        message: inputToSend,
-        image: imageToSend,
-        memory: resolvedMemoryText,
-        personalMemory: isPersonalRoute ? resolvedMemoryText : "",
-        feedback: feedbackSummary,
-        recentMessages: (updated[index]?.messages || [])
-          .filter(
-            (msg: any) =>
-              msg &&
-              (msg.role === "user" || msg.role === "ai") &&
-              !msg.disableFeedback &&
-              typeof msg.content === "string" &&
-              msg.content.trim() &&
-              msg.content !== "Thinking..." &&
-              msg.content !== "Analyzing image..." &&
-              msg.content !== "🤖 Wat kan ik beter doen?"
-          )
-          .slice(-6)
-          .map((msg: any) => ({
-            role: msg.role,
-            content: msg.content,
-          })),
-      }),
-    });
+    let res: Response;
+
+    try {
+      res = await fetch("/api/chat", {
+        method: "POST",
+        signal: controller.signal,
+        headers: getOpenLuraRequestHeaders(true),
+        body: JSON.stringify({
+          message: inputToSend,
+          image: imageToSend,
+          memory: resolvedMemoryText,
+          personalMemory: isPersonalRoute ? resolvedMemoryText : "",
+          feedback: feedbackSummary,
+          recentMessages: (updated[index]?.messages || [])
+            .filter(
+              (msg: any) =>
+                msg &&
+                (msg.role === "user" || msg.role === "ai") &&
+                !msg.disableFeedback &&
+                typeof msg.content === "string" &&
+                msg.content.trim() &&
+                msg.content !== "Thinking..." &&
+                msg.content !== "Analyzing image..." &&
+                msg.content !== "🤖 Wat kan ik beter doen?"
+            )
+            .slice(-6)
+            .map((msg: any) => ({
+              role: msg.role,
+              content: msg.content,
+            })),
+        }),
+      });
+    } catch (error) {
+      updated[index].messages[
+        updated[index].messages.length - 1
+      ] = {
+        ...updated[index].messages[
+          updated[index].messages.length - 1
+        ],
+        content: "OpenLura kon nu geen antwoord ophalen. Probeer het opnieuw.",
+        isStreaming: false,
+      };
+      setChats([...updated]);
+      setStreamController(null);
+      setLoading(false);
+      return;
+    }
 
     if (res.status === 429) {
       const limitMessage = await getUsageLimitMessage(res);
@@ -2034,8 +2089,12 @@ updated[index].messages[
 
       setMemory(newMemory);
 
-      if (initialStateReady) {
-        localStorage.setItem(memoryStorageKey, JSON.stringify(newMemory));
+      if (initialStateReady && !isPersonalRoute) {
+        try {
+          localStorage.setItem(memoryStorageKey, JSON.stringify(newMemory));
+        } catch (error) {
+          console.error("OpenLura memory persistence failed:", error);
+        }
       }
     }
 
@@ -2053,7 +2112,7 @@ updated[index].messages[
   const key = isPersonalRoute
     ? "openlura_personal_feedback"
     : "openlura_feedback";
-  const existing = JSON.parse(localStorage.getItem(key) || "[]");
+  const existing = safeParseJson<any[]>(localStorage.getItem(key), []);
 
   const chat = chats.find(c => c.id === chatId);
   const message = chat?.messages[msgIndex];
@@ -2062,21 +2121,27 @@ updated[index].messages[
     content: resolvedTarget.originalUserMessage,
   };
 
+  if (!isPersonalRoute) {
     existing.push({
-    chatId,
-    msgIndex,
-    type,
-    message: message?.content,
-    userMessage: prevMessage?.content,
-    source: message?.variant ? `ab_test_${message.variant}` : null,
-    timestamp: Date.now(),
-    learningType:
-      type === "down"
-        ? classifyLearningSignal(`${prevMessage?.content || ""} ${message?.content || ""}`)
-        : "content",
-  });
+      chatId: String(chatId),
+      msgIndex,
+      type,
+      message: message?.content,
+      userMessage: prevMessage?.content,
+      source: message?.variant ? `ab_test_${message.variant}` : null,
+      timestamp: Date.now(),
+      learningType:
+        type === "down"
+          ? classifyLearningSignal(`${prevMessage?.content || ""} ${message?.content || ""}`)
+          : "content",
+    });
 
-    localStorage.setItem(key, JSON.stringify(existing));
+    try {
+      localStorage.setItem(key, JSON.stringify(existing));
+    } catch (error) {
+      console.error("OpenLura local feedback persistence failed:", error);
+    }
+  }
 
   if (prevMessage?.content) {
     updateMemoryWeight(prevMessage.content, type === "up" ? 0.2 : -0.2);
@@ -2085,9 +2150,11 @@ updated[index].messages[
       try {
   const res = await fetch("/api/feedback", {
     method: "POST",
-    headers: getOpenLuraRequestHeaders(true),
+    headers: getOpenLuraRequestHeaders(true, {
+      personalEnv: isPersonalRoute,
+    }),
         body: JSON.stringify({
-      chatId,
+      chatId: String(chatId),
       msgIndex,
       type,
       message: message?.content,
@@ -2159,27 +2226,30 @@ updated[index].messages[
     const handleIdeaSubmit = () => {
   if (!feedbackText.trim()) return;
 
-  const key = "openlura_ideas";
-  const existing = JSON.parse(localStorage.getItem(key) || "[]");
+  if (!isPersonalEnvironment) {
+    const key = "openlura_ideas";
+    const existing = safeParseJson<any[]>(localStorage.getItem(key), []);
 
     const ideaEntry = {
-    text: feedbackText.trim(),
-    source: isPersonalEnvironment ? "personal_environment" : `idea_${feedbackCategory}`,
-    category: feedbackCategory,
-    chatId: activeChatId,
-    environment: isPersonalEnvironment ? "personal" : "default",
-    timestamp: Date.now(),
-  };
+      text: feedbackText.trim(),
+      source: `idea_${feedbackCategory}`,
+      category: feedbackCategory,
+      chatId: activeChatId,
+      environment: "default",
+      timestamp: Date.now(),
+    };
 
-  existing.push(ideaEntry);
-
-  localStorage.setItem(key, JSON.stringify(existing));
+    existing.push(ideaEntry);
+    localStorage.setItem(key, JSON.stringify(existing));
+  }
 
     fetch("/api/feedback", {
       method: "POST",
-      headers: getOpenLuraRequestHeaders(true),
+      headers: getOpenLuraRequestHeaders(true, {
+        personalEnv: isPersonalEnvironment,
+      }),
       body: JSON.stringify({
-        chatId: activeChatId,
+        chatId: activeChatId !== null ? String(activeChatId) : null,
         type: "idea",
         message: feedbackText.trim(),
         userMessage: isPersonalEnvironment ? "Persoonlijke omgeving feedback" : "Feedback / Idee",
@@ -2205,7 +2275,7 @@ updated[index].messages[
 };
 
   return (
-    <main className="fixed inset-0 flex bg-[#050510] text-white overflow-hidden">
+    <main className="fixed inset-0 flex overflow-hidden bg-[#050510] text-white">
       <button
   onClick={() => setMobileMenu(!mobileMenu)}
   aria-label={mobileMenu ? "Close menu" : "Open menu"}
@@ -2355,8 +2425,8 @@ updated[index].messages[
         </div>
       )}
 
-      <div className="flex-1 min-w-0 flex items-stretch justify-center pt-0 md:h-screen md:p-4 xl:justify-start">
-        <div className="flex h-full w-full min-w-0 max-w-2xl flex-col border border-white/8 bg-white/[0.042] shadow-[0_20px_56px_rgba(0,0,0,0.20)] backdrop-blur-2xl md:min-h-0 md:rounded-[28px] xl:ml-6 xl:max-w-[920px]">
+      <div className="flex min-w-0 flex-1 items-stretch justify-start pt-0 md:h-screen md:p-4">
+        <div className="mr-auto flex h-full w-full min-w-0 max-w-2xl flex-col border border-white/8 bg-white/[0.042] shadow-[0_20px_56px_rgba(0,0,0,0.20)] backdrop-blur-2xl md:ml-4 md:min-h-0 md:rounded-[28px] xl:ml-6 xl:max-w-[920px]">
 
           {usage && usage.percentage >= 0.8 && !upgradeNotice.visible && (
             <div className="mx-4 mt-4 rounded-[24px] border border-yellow-300/12 bg-yellow-500/[0.065] px-4 py-3 text-sm text-yellow-100 shadow-[0_10px_22px_rgba(0,0,0,0.10)] backdrop-blur-xl">
@@ -2380,7 +2450,7 @@ updated[index].messages[
 
           <div
   ref={messagesRef}
-  className={`${messageShellClass} flex-1 min-h-0 overflow-x-hidden overflow-y-auto pb-[188px] md:pb-6 ${
+  className={`${messageShellClass} flex-1 min-h-0 w-full overflow-x-hidden overflow-y-auto pb-[188px] md:pb-6 ${
     activeChat?.messages?.length ? "space-y-4 p-4 pt-20 md:px-6 md:pt-6" : "flex items-center justify-center p-4 pt-20 md:px-6 md:pt-6"
   }`}
 >
@@ -2621,7 +2691,7 @@ updated[index].messages[
   className={`${
     activeChat?.messages?.length === 0
       ? "mx-auto mt-6 w-full max-w-2xl px-3 md:px-4"
-      : "fixed bottom-0 left-1/2 z-[90] w-full max-w-2xl -translate-x-1/2 bg-[#050510]/95 px-3 pt-3 pb-[calc(env(safe-area-inset-bottom)+14px)] md:static md:z-auto md:mt-auto md:w-full md:max-w-none md:border-0 md:bg-transparent md:p-0"
+      : "fixed bottom-0 left-1/2 z-[90] w-full max-w-2xl -translate-x-1/2 bg-[#050510]/95 px-3 pt-3 pb-[calc(env(safe-area-inset-bottom)+14px)] md:static md:left-auto md:z-auto md:mt-auto md:w-full md:max-w-none md:translate-x-0 md:border-0 md:bg-transparent md:p-0"
   } flex w-full min-w-0 max-w-full overflow-x-hidden items-end gap-2 rounded-[28px] border border-white/8 bg-white/[0.038] shadow-[0_16px_34px_rgba(0,0,0,0.18)] backdrop-blur-2xl md:rounded-b-[32px] md:rounded-t-[28px] md:border-x-0 md:border-b-0 md:border-t md:px-4 md:py-4 md:shadow-none`}
 >
 

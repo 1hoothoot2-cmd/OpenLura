@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { resolveOpenLuraRequestIdentity } from "@/lib/auth/requestIdentity";
+import { requireOpenLuraIdentity } from "@/lib/auth/requestIdentity";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +17,9 @@ const MAX_ITEMS_PER_COLLECTION = 500;
 const MAX_REQUEST_BYTES = 1024 * 1024;
 const MAX_JSON_DEPTH = 12;
 const MAX_STRING_LENGTH = 100_000;
+const MAX_CHAT_MESSAGES_PER_CHAT = 500;
+const MAX_CHAT_TITLE_LENGTH = 300;
+const MAX_MESSAGE_ROLE_LENGTH = 20;
 
 type PersonalStateBody = {
   chats: unknown[];
@@ -137,6 +140,109 @@ function isJsonSafeValue(value: unknown, depth = 0): boolean {
   return false;
 }
 
+function normalizePersonalMemory(memory: unknown[]) {
+  const normalizedMemory = memory
+    .filter((item) => isPlainObject(item))
+    .map((item) => {
+      const text =
+        typeof item.text === "string" ? item.text.trim().slice(0, MAX_STRING_LENGTH) : "";
+      const rawWeight = typeof item.weight === "number" ? item.weight : 0.5;
+      const weight = Number.isFinite(rawWeight)
+        ? Math.max(0.1, Math.min(rawWeight, 1))
+        : 0.5;
+
+      if (!text) {
+        return null;
+      }
+
+      return {
+        text,
+        weight,
+      };
+    })
+    .filter(
+      (item): item is { text: string; weight: number } =>
+        !!item
+    )
+    .slice(0, MAX_ITEMS_PER_COLLECTION);
+
+  return normalizedMemory;
+}
+
+function normalizePersonalChats(chats: unknown[]) {
+  const normalizedChats = chats
+    .filter((chat) => isPlainObject(chat))
+    .map((chat) => {
+      const rawMessages = Array.isArray(chat.messages) ? chat.messages : [];
+
+      const messages = rawMessages
+        .filter((msg) => isPlainObject(msg))
+        .map((msg) => {
+          const role =
+            typeof msg.role === "string"
+              ? msg.role.trim().slice(0, MAX_MESSAGE_ROLE_LENGTH)
+              : "";
+          const content =
+            typeof msg.content === "string"
+              ? msg.content.slice(0, MAX_STRING_LENGTH)
+              : "";
+          const image =
+            typeof msg.image === "string"
+              ? msg.image.slice(0, MAX_STRING_LENGTH)
+              : null;
+          const variant =
+            typeof msg.variant === "string"
+              ? msg.variant.slice(0, 100)
+              : undefined;
+          const sources = Array.isArray(msg.sources) && isJsonSafeValue(msg.sources)
+            ? msg.sources
+            : undefined;
+          const isStreaming = msg.isStreaming === true;
+          const disableFeedback = msg.disableFeedback === true;
+
+          if (!role) {
+            return null;
+          }
+
+          return {
+            role,
+            content,
+            image,
+            ...(variant ? { variant } : {}),
+            ...(sources ? { sources } : {}),
+            ...(isStreaming ? { isStreaming: true } : {}),
+            ...(disableFeedback ? { disableFeedback: true } : {}),
+          };
+        })
+        .filter((msg): msg is NonNullable<typeof msg> => msg !== null)
+        .slice(0, MAX_CHAT_MESSAGES_PER_CHAT);
+
+      const normalizedId =
+        typeof chat.id === "number" && Number.isFinite(chat.id)
+          ? chat.id
+          : Number(
+              `${typeof chat.title === "string" ? chat.title.length : 0}${messages.length}`
+            );
+
+      const title =
+        typeof chat.title === "string"
+          ? chat.title.trim().slice(0, MAX_CHAT_TITLE_LENGTH)
+          : "New Chat";
+
+      return {
+        id: normalizedId,
+        title: title || "New Chat",
+        messages,
+        pinned: chat.pinned === true,
+        archived: chat.archived === true,
+        deleted: chat.deleted === true,
+      };
+    })
+    .slice(0, MAX_ITEMS_PER_COLLECTION);
+
+  return normalizedChats;
+}
+
 function validatePersonalStateBody(body: unknown): PersonalStateBody | null {
   if (!isPlainObject(body)) {
     return null;
@@ -166,8 +272,8 @@ function validatePersonalStateBody(body: unknown): PersonalStateBody | null {
   }
 
   return {
-    chats,
-    memory,
+    chats: normalizePersonalChats(chats),
+    memory: normalizePersonalMemory(memory),
   };
 }
 
@@ -181,18 +287,52 @@ function getContentLength(req: Request) {
   return Number(raw);
 }
 
+async function readJsonBodyWithinLimit(req: Request, maxBytes: number) {
+  const rawText = await req.text();
+  const rawBytes = Buffer.byteLength(rawText, "utf8");
+
+  if (rawBytes > maxBytes) {
+    return {
+      ok: false as const,
+      reason: "too_large" as const,
+      body: null,
+    };
+  }
+
+  try {
+    return {
+      ok: true as const,
+      reason: null,
+      body: JSON.parse(rawText) as unknown,
+    };
+  } catch {
+    return {
+      ok: false as const,
+      reason: "invalid_json" as const,
+      body: null,
+    };
+  }
+}
+
 async function resolveAuthenticatedIdentity(
   req: Request
 ): Promise<AuthenticatedIdentity | null> {
-  const identity = await resolveOpenLuraRequestIdentity(req);
+  const result = await requireOpenLuraIdentity(req);
 
-  if (!identity.accessToken || !identity.userId) {
+  if (!result.ok) {
+    if (result.reason === "misconfigured") {
+      logSafeError(
+        "OpenLura personal state identity misconfigured",
+        new Error("Identity enforcement misconfigured")
+      );
+    }
+
     return null;
   }
 
   return {
-    accessToken: identity.accessToken,
-    userId: identity.userId,
+    accessToken: result.identity.accessToken,
+    userId: result.identity.userId,
   };
 }
 
@@ -209,13 +349,14 @@ async function fetchPersonalStateRow(input: {
     `&limit=2`;
 
   try {
+    const headers = new Headers();
+    headers.set("apikey", input.supabaseAnonKey);
+    headers.set("Authorization", `Bearer ${input.accessToken}`);
+    headers.set("Accept", "application/json");
+
     const res = await fetch(`${input.personalStateTableUrl}?${query}`, {
       method: "GET",
-      headers: {
-        apikey: input.supabaseAnonKey,
-        Authorization: `Bearer ${input.accessToken}`,
-        Accept: "application/json",
-      },
+      headers,
       cache: "no-store",
     });
 
@@ -257,6 +398,11 @@ async function fetchPersonalStateRow(input: {
           userIdPresent: !!input.userId,
         }
       );
+
+      return {
+        ok: false,
+        reason: "error",
+      };
     }
 
     const firstRow = rows[0];
@@ -307,11 +453,17 @@ export async function GET(req: Request) {
     }
 
     const row = result.row;
+    const normalizedChats = Array.isArray(row?.chats)
+      ? normalizePersonalChats(row.chats)
+      : [];
+    const normalizedMemory = Array.isArray(row?.memory)
+      ? normalizePersonalMemory(row.memory)
+      : [];
 
     return NextResponse.json(
       {
-        chats: Array.isArray(row?.chats) ? row.chats : [],
-        memory: Array.isArray(row?.memory) ? row.memory : [],
+        chats: normalizedChats,
+        memory: normalizedMemory,
       },
       {
         headers: NO_STORE_HEADERS,
@@ -348,15 +500,17 @@ export async function POST(req: Request) {
       return badRequestResponse("Request body too large");
     }
 
-    let rawBody: unknown;
+    const parsedBody = await readJsonBodyWithinLimit(req, MAX_REQUEST_BYTES);
 
-    try {
-      rawBody = await req.json();
-    } catch {
+    if (!parsedBody.ok) {
+      if (parsedBody.reason === "too_large") {
+        return badRequestResponse("Request body too large");
+      }
+
       return badRequestResponse("Invalid request body");
     }
 
-    const body = validatePersonalStateBody(rawBody);
+    const body = validatePersonalStateBody(parsedBody.body);
 
     if (!body) {
       return badRequestResponse("Invalid personal state payload");
@@ -371,14 +525,15 @@ export async function POST(req: Request) {
       updated_at: new Date().toISOString(),
     };
 
+    const headers = new Headers();
+    headers.set("Content-Type", "application/json");
+    headers.set("apikey", supabaseAnonKey);
+    headers.set("Authorization", `Bearer ${identity.accessToken}`);
+    headers.set("Prefer", "resolution=merge-duplicates,return=representation");
+
     const res = await fetch(`${personalStateTableUrl}?on_conflict=user_id`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${identity.accessToken}`,
-        Prefer: "resolution=merge-duplicates,return=representation",
-      },
+      headers,
       body: JSON.stringify(payload),
       cache: "no-store",
     });
@@ -397,9 +552,19 @@ export async function POST(req: Request) {
       return internalErrorResponse("Save failed");
     }
 
+    const savedRows: unknown = await res.json();
+    const savedRow =
+      Array.isArray(savedRows) && isPlainObject(savedRows[0]) ? savedRows[0] : null;
+
     return NextResponse.json(
       {
         success: true,
+        chats: Array.isArray(savedRow?.chats)
+          ? normalizePersonalChats(savedRow.chats)
+          : body.chats,
+        memory: Array.isArray(savedRow?.memory)
+          ? normalizePersonalMemory(savedRow.memory)
+          : body.memory,
       },
       {
         headers: NO_STORE_HEADERS,

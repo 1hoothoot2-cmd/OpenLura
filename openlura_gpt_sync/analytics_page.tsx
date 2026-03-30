@@ -1,5 +1,14 @@
 "use client";
 import { useEffect, useState } from "react";
+function safeParseJson<T>(raw: string | null, fallback: T): T {
+  if (!raw) return fallback;
+
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}
 
 export default function AnalyticsPage() {
     type AnalyticsFeedbackItem = {
@@ -11,6 +20,7 @@ export default function AnalyticsPage() {
     source?: string | null;
     environment?: string | null;
     userScope?: string | null;
+    user_id?: string | null;
     workflowKey?: string | null;
     workflowStatus?: string | null;
     timestamp?: string | null;
@@ -36,16 +46,22 @@ export default function AnalyticsPage() {
     return newId;
   };
 
-  const getOpenLuraRequestHeaders = (includeJson = true) => {
+  const getOpenLuraRequestHeaders = (
+    includeJson = true,
+    options?: { personalEnv?: boolean }
+  ) => {
     const headers: Record<string, string> = includeJson
       ? { "Content-Type": "application/json" }
       : {};
 
-    // ⚠️ Only fallback identity (no override)
-const resolvedUserId = getOrCreateOpenLuraUserId();
+    const resolvedUserId = getOrCreateOpenLuraUserId();
 
     if (resolvedUserId) {
       headers["x-openlura-user-id"] = resolvedUserId;
+    }
+
+    if (options?.personalEnv) {
+      headers["x-openlura-personal-env"] = "true";
     }
 
     return headers;
@@ -60,22 +76,20 @@ const resolvedUserId = getOrCreateOpenLuraUserId();
 
     const ANALYTICS_UNLOCK_STORAGE_KEY = "openlura_analytics_unlocked";
     const [itemStatus, setItemStatus] = useState<Record<string, string>>({});
+      // Workflow status is server-truth first.
+  // Local state is only an in-memory optimistic overlay for this tab/session.
     const [workflowFilter, setWorkflowFilter] = useState("all");
     const [learningTypeFilter, setLearningTypeFilter] = useState("all");
     const [autoDebugConfidenceFilter, setAutoDebugConfidenceFilter] = useState("all");
     const [autoDebugRouteFilter, setAutoDebugRouteFilter] = useState("all");
     const [autoDebugSignalFilter, setAutoDebugSignalFilter] = useState("all");
+    const [localFeedbackStats, setLocalFeedbackStats] = useState({
+      defaultCount: 0,
+      personalCount: 0,
+      total: 0,
+    });
 
   useEffect(() => {
-    const saved = localStorage.getItem("openlura_analytics_status");
-    if (saved) {
-      try {
-        setItemStatus(JSON.parse(saved));
-      } catch {
-        localStorage.removeItem("openlura_analytics_status");
-      }
-    }
-
     if (typeof window !== "undefined") {
       const rememberedUnlock =
         sessionStorage.getItem(ANALYTICS_UNLOCK_STORAGE_KEY) === "true";
@@ -142,7 +156,15 @@ const resolvedUserId = getOrCreateOpenLuraUserId();
       return f.userScope;
     }
 
+    if (f.userScope === "user") {
+      return f.environment === "personal" || f.user_id ? "personal" : "guest";
+    }
+
     if (f.environment === "personal") {
+      return "personal";
+    }
+
+    if (f.user_id) {
       return "personal";
     }
 
@@ -178,13 +200,22 @@ const resolvedUserId = getOrCreateOpenLuraUserId();
   cache: "no-store",
 });
 
-        setIsUnlocked(res.ok);
+        if (res.ok) {
+          setIsUnlocked(true);
+          setAuthError("");
 
-        if (res.ok && typeof window !== "undefined") {
-  sessionStorage.setItem(ANALYTICS_UNLOCK_STORAGE_KEY, "true");
-}
+          if (typeof window !== "undefined") {
+            sessionStorage.setItem(ANALYTICS_UNLOCK_STORAGE_KEY, "true");
+          }
+        } else if (res.status === 401) {
+          setIsUnlocked(false);
+
+          if (typeof window !== "undefined") {
+            sessionStorage.removeItem(ANALYTICS_UNLOCK_STORAGE_KEY);
+          }
+        }
       } catch {
-        setIsUnlocked(false);
+        setAuthError("");
       } finally {
         setAuthLoading(false);
       }
@@ -193,9 +224,76 @@ const resolvedUserId = getOrCreateOpenLuraUserId();
     checkAnalyticsAccess();
   }, []);
 
+  function matchesCurrentAnalyticsFilters(
+    f: AnalyticsFeedbackItem,
+    statusOverride?: string
+  ) {
+    const currentStatus =
+      statusOverride || itemStatus[getItemKey(f)] || getAutoStatus(f);
+
+    if (workflowFilter !== "all" && currentStatus !== workflowFilter) {
+      return false;
+    }
+
+    const resolvedLearningType = inferLearningType(f);
+    const supportsLearningTypeFilter =
+      f.type === "down" ||
+      f.type === "improve" ||
+      f.type === "auto_debug" ||
+      f.source === "idea_feedback_learning";
+
+    if (
+      learningTypeFilter !== "all" &&
+      supportsLearningTypeFilter &&
+      resolvedLearningType !== learningTypeFilter
+    ) {
+      return false;
+    }
+
+    if (
+      activeTab === "auto_debug" &&
+      autoDebugConfidenceFilter !== "all" &&
+      getAutoDebugConfidence(f) !== autoDebugConfidenceFilter
+    ) {
+      return false;
+    }
+
+    if (
+      activeTab === "auto_debug" &&
+      autoDebugRouteFilter !== "all" &&
+      getAutoDebugRouteType(f) !== autoDebugRouteFilter
+    ) {
+      return false;
+    }
+
+    if (
+      activeTab === "auto_debug" &&
+      autoDebugSignalFilter !== "all" &&
+      getAutoDebugSignalType(f) !== autoDebugSignalFilter
+    ) {
+      return false;
+    }
+
+    if (activeTab === "all") return true;
+    if (activeTab === "positive") return f.type === "up";
+    if (activeTab === "negative") return f.type === "down";
+    if (activeTab === "improvement") return f.type === "improve";
+    if (activeTab === "auto_debug") return f.type === "auto_debug";
+
+    if (activeTab === "ideas") {
+      if (f.type !== "idea") return false;
+      if (ideaFilter === "all") return true;
+      if (ideaFilter === "bug") return f.source === "idea_bug";
+      if (ideaFilter === "adjustment") return f.source === "idea_adjustment";
+      if (ideaFilter === "learning") return f.source === "idea_feedback_learning";
+    }
+
+    return true;
+  }
+
   const filteredFeedback = feedback.filter((f: AnalyticsFeedbackItem) =>
-  matchesCurrentAnalyticsFilters(f)
-);
+    matchesCurrentAnalyticsFilters(f)
+  );
 
           const negativeFeedback = feedback.filter((f: any) => f.type === "down");
   const positiveFeedback = feedback.filter((f: any) => f.type === "up");
@@ -371,6 +469,9 @@ const resolvedUserId = getOrCreateOpenLuraUserId();
     (f: any) => f.userMessage === "AI insight action"
   );
 
+  void autoLearningItems;
+  void manualLearningItems;
+
   const activeLearningRules: string[] = [
     topComplaints.some(
       (c) => c.keyword.includes("korter") || c.keyword.includes("te lang")
@@ -528,110 +629,121 @@ useEffect(() => {
   if (!isUnlocked) return;
 
   const load = async () => {
-  const defaultLocalFeedback = JSON.parse(
-    localStorage.getItem("openlura_feedback") || "[]"
-  );
-  const personalLocalFeedback = JSON.parse(
-    localStorage.getItem("openlura_personal_feedback") || "[]"
-  );
+    const defaultLocalFeedback = safeParseJson<any[]>(
+      localStorage.getItem("openlura_feedback"),
+      []
+    );
+    const personalLocalFeedback = safeParseJson<any[]>(
+      localStorage.getItem("openlura_personal_feedback"),
+      []
+    );
 
-  const localFeedback = [
-    ...defaultLocalFeedback.map((item: any) => ({
-      ...item,
-      environment: item.environment || "default",
-      userScope: item.userScope || "guest",
-    })),
-    ...personalLocalFeedback.map((item: any) => ({
-      ...item,
-      environment: item.environment || "personal",
-      userScope: item.userScope || "personal",
-    })),
-  ];
+    setLocalFeedbackStats({
+      defaultCount: defaultLocalFeedback.length,
+      personalCount: personalLocalFeedback.length,
+      total: defaultLocalFeedback.length + personalLocalFeedback.length,
+    });
+
+    const localFeedback = [
+      ...defaultLocalFeedback.map((item: any) => ({
+        ...item,
+        environment: item.environment || "default",
+        userScope: item.userScope || "guest",
+      })),
+      ...personalLocalFeedback.map((item: any) => ({
+        ...item,
+        environment: item.environment || "personal",
+        userScope: item.userScope || "personal",
+      })),
+    ];
 
     const normalizedLocal = localFeedback.map((item: any) => {
-    const isImprovementItem =
-      item.type === "improve" ||
-      item.type === "improvement" ||
-      item.source === "improvement_reply" ||
-      item.userMessage === "Direct improvement feedback";
+      const isImprovementItem =
+        item.type === "improve" ||
+        item.type === "improvement" ||
+        item.source === "improvement_reply" ||
+        item.userMessage === "Direct improvement feedback";
 
-    const normalizedType =
-      item.type === "idea"
-        ? "idea"
-        : isImprovementItem
-        ? "improve"
-        : item.type || "down";
+      const normalizedType =
+        item.type === "idea"
+          ? "idea"
+          : isImprovementItem
+          ? "improve"
+          : item.type || "down";
 
-    const rawMessage = String(item.message || "").toLowerCase();
+      const rawMessage = String(item.message || "").toLowerCase();
 
-    const normalizedSource =
-      normalizedType === "idea"
-        ? item.source ||
-          (rawMessage.includes("bug") ||
-          rawMessage.includes("werkt niet") ||
-          rawMessage.includes("error") ||
-          rawMessage.includes("fout") ||
-          rawMessage.includes("crash") ||
-          rawMessage.includes("stuk") ||
-          rawMessage.includes("kapot")
-            ? "idea_bug"
-            : rawMessage.includes("aanpassen") ||
-              rawMessage.includes("aanpassing") ||
-              rawMessage.includes("toevoegen") ||
-              rawMessage.includes("maak") ||
-              rawMessage.includes("zet") ||
-              rawMessage.includes("verander") ||
-              rawMessage.includes("wijzig")
-            ? "idea_adjustment"
-            : rawMessage.includes("ai") ||
-              rawMessage.includes("antwoord") ||
-              rawMessage.includes("reageer") ||
-              rawMessage.includes("korter") ||
-              rawMessage.includes("duidelijker") ||
-              rawMessage.includes("beter") ||
-              rawMessage.includes("leren")
-            ? "idea_feedback_learning"
-            : "idea_adjustment")
-        : item.source;
+      const normalizedSource =
+        normalizedType === "idea"
+          ? item.source ||
+            (rawMessage.includes("bug") ||
+            rawMessage.includes("werkt niet") ||
+            rawMessage.includes("error") ||
+            rawMessage.includes("fout") ||
+            rawMessage.includes("crash") ||
+            rawMessage.includes("stuk") ||
+            rawMessage.includes("kapot")
+              ? "idea_bug"
+              : rawMessage.includes("aanpassen") ||
+                rawMessage.includes("aanpassing") ||
+                rawMessage.includes("toevoegen") ||
+                rawMessage.includes("maak") ||
+                rawMessage.includes("zet") ||
+                rawMessage.includes("verander") ||
+                rawMessage.includes("wijzig")
+              ? "idea_adjustment"
+              : rawMessage.includes("ai") ||
+                rawMessage.includes("antwoord") ||
+                rawMessage.includes("reageer") ||
+                rawMessage.includes("korter") ||
+                rawMessage.includes("duidelijker") ||
+                rawMessage.includes("beter") ||
+                rawMessage.includes("leren")
+              ? "idea_feedback_learning"
+              : "idea_adjustment")
+          : item.source;
 
-    const resolvedEnvironment = item.environment || "default";
-    const resolvedUserScope =
-      item.userScope ||
-      (resolvedEnvironment === "personal" ? "personal" : "guest");
+      const resolvedEnvironment = item.environment || "default";
+      const resolvedUserScope =
+        item.userScope ||
+        (resolvedEnvironment === "personal" ? "personal" : "guest");
 
-    return {
-      ...item,
-      _localOnly: true,
-      type: normalizedType,
-      source: normalizedSource,
-      environment: resolvedEnvironment,
-      userScope: resolvedUserScope,
-      learningType:
-        item.learningType ||
-        (normalizedType === "down" || normalizedType === "improve"
-          ? inferLearningType({
-              ...item,
-              type: normalizedType,
-              source: normalizedSource,
-            })
-          : null),
-      workflowKey:
-        item.workflowKey ||
-        [
-          item.chatId || "",
-          item.msgIndex ?? "",
-          normalizedType || "",
-          normalizedSource || "",
-          resolvedEnvironment,
-          resolvedUserScope,
-          item.userMessage || "",
-          item.message || "",
-          item.timestamp || "",
-        ].join("::"),
-    };
-  });
+      return {
+        ...item,
+        _localOnly: true,
+        type: normalizedType,
+        source: normalizedSource,
+        environment: resolvedEnvironment,
+        userScope: resolvedUserScope,
+        user_id:
+          item.user_id || (resolvedEnvironment === "personal" ? "local_personal" : null),
+        learningType:
+          item.learningType ||
+          (normalizedType === "down" || normalizedType === "improve"
+            ? inferLearningType({
+                ...item,
+                type: normalizedType,
+                source: normalizedSource,
+              })
+            : null),
+        workflowKey:
+          item.workflowKey ||
+          [
+            item.chatId || "",
+            item.msgIndex ?? "",
+            normalizedType || "",
+            normalizedSource || "",
+            resolvedEnvironment,
+            resolvedUserScope,
+            item.user_id || "",
+            item.userMessage || "",
+            item.message || "",
+          ].join("::"),
+      };
+    });
 
     let data: AnalyticsFeedbackItem[] = [];
+    let serverFetchSucceeded = false;
 
   try {
     const res = await fetch("/api/feedback", {
@@ -643,6 +755,10 @@ useEffect(() => {
     if (res.status === 401) {
       setIsUnlocked(false);
       setFeedback([]);
+      setItemStatus({});
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem(ANALYTICS_UNLOCK_STORAGE_KEY);
+      }
       return;
     }
 
@@ -650,7 +766,9 @@ useEffect(() => {
       throw new Error("Feedback ophalen mislukt");
     }
 
-    data = await res.json();
+    const rawData: unknown = await res.json();
+    data = Array.isArray(rawData) ? rawData : [];
+    serverFetchSucceeded = true;
   } catch (error) {
     console.warn("Analytics server tijdelijk niet bereikbaar");
   }
@@ -676,8 +794,18 @@ useEffect(() => {
     }, {});
 
   setItemStatus((prev) => {
-    const next = { ...prev, ...serverStatusMap };
-    localStorage.setItem("openlura_analytics_status", JSON.stringify(next));
+    const next: Record<string, string> = {};
+
+    for (const [workflowKey, workflowStatus] of Object.entries(serverStatusMap)) {
+      next[workflowKey] = workflowStatus;
+    }
+
+    for (const [workflowKey, workflowStatus] of Object.entries(prev)) {
+      if (!(workflowKey in next)) {
+        next[workflowKey] = workflowStatus;
+      }
+    }
+
     return next;
   });
 
@@ -697,8 +825,10 @@ useEffect(() => {
 
     return {
       ...item,
+      _localOnly: false,
       environment: resolvedEnvironment,
       userScope: resolvedUserScope,
+      user_id: item.user_id || null,
       learningType:
         item.learningType ||
         (item.type === "down" || item.type === "improve" || item.type === "auto_debug"
@@ -713,16 +843,18 @@ useEffect(() => {
           item.source || "",
           resolvedEnvironment,
           resolvedUserScope,
+          item.user_id || "",
           item.userMessage || "",
           item.message || "",
-          item.timestamp || "",
         ].join("::"),
     };
   });
 
-const combined = [...normalServerFeedback, ...normalizedLocal];
+  const truthSource = serverFetchSucceeded
+    ? [...normalServerFeedback, ...normalizedLocal]
+    : normalizedLocal;
 
-  const deduped = combined.filter(
+  const deduped = truthSource.filter(
     (item: AnalyticsFeedbackItem, index: number, arr: AnalyticsFeedbackItem[]) => {
       const itemKey = getItemKey(item);
 
@@ -730,11 +862,11 @@ const combined = [...normalServerFeedback, ...normalizedLocal];
     }
   );
 
-      const sorted = [...deduped].sort((a: AnalyticsFeedbackItem, b: AnalyticsFeedbackItem) => {
-      const timeA = a?.timestamp ? new Date(a.timestamp).getTime() : 0;
-      const timeB = b?.timestamp ? new Date(b.timestamp).getTime() : 0;
-      return timeB - timeA;
-    });
+  const sorted = [...deduped].sort((a: AnalyticsFeedbackItem, b: AnalyticsFeedbackItem) => {
+    const timeA = a?.timestamp ? new Date(a.timestamp).getTime() : 0;
+    const timeB = b?.timestamp ? new Date(b.timestamp).getTime() : 0;
+    return timeB - timeA;
+  });
 
   setFeedback(sorted);
 };
@@ -747,6 +879,10 @@ const combined = [...normalServerFeedback, ...normalizedLocal];
 
 runLoad();
 
+const pollId = window.setInterval(() => {
+  runLoad();
+}, 5000);
+
 const handleVisibilityChange = () => {
   if (document.visibilityState === "visible") {
     runLoad();
@@ -758,6 +894,7 @@ window.addEventListener("focus", runLoad);
 document.addEventListener("visibilitychange", handleVisibilityChange);
 
 return () => {
+  window.clearInterval(pollId);
   window.removeEventListener("openlura_feedback_update", runLoad);
   window.removeEventListener("focus", runLoad);
   document.removeEventListener("visibilitychange", handleVisibilityChange);
@@ -776,6 +913,12 @@ return () => {
       });
 
       if (!res.ok) {
+        setIsUnlocked(false);
+
+        if (typeof window !== "undefined") {
+          sessionStorage.removeItem(ANALYTICS_UNLOCK_STORAGE_KEY);
+        }
+
         setAuthError("Verkeerd wachtwoord");
         return;
       }
@@ -805,9 +948,9 @@ return () => {
       f.source || "",
       f.environment || "",
       f.userScope || "",
+      f.user_id || "",
       f.userMessage || "",
       f.message || "",
-      f.timestamp || "",
     ].join("::");
   }
 
@@ -816,78 +959,21 @@ return () => {
     return "nieuw";
   }
 
-  const matchesCurrentAnalyticsFilters = (
-  f: AnalyticsFeedbackItem,
-  statusOverride?: string
-) => {
-  const currentStatus =
-    statusOverride || itemStatus[getItemKey(f)] || getAutoStatus(f);
-
-  if (workflowFilter !== "all" && currentStatus !== workflowFilter) {
-    return false;
-  }
-
-  const resolvedLearningType = inferLearningType(f);
-  const supportsLearningTypeFilter =
-    f.type === "down" ||
-    f.type === "improve" ||
-    f.type === "auto_debug" ||
-    f.source === "idea_feedback_learning";
-
-  if (
-    learningTypeFilter !== "all" &&
-    supportsLearningTypeFilter &&
-    resolvedLearningType !== learningTypeFilter
-  ) {
-    return false;
-  }
-
-  if (
-    activeTab === "auto_debug" &&
-    autoDebugConfidenceFilter !== "all" &&
-    getAutoDebugConfidence(f) !== autoDebugConfidenceFilter
-  ) {
-    return false;
-  }
-
-  if (
-    activeTab === "auto_debug" &&
-    autoDebugRouteFilter !== "all" &&
-    getAutoDebugRouteType(f) !== autoDebugRouteFilter
-  ) {
-    return false;
-  }
-
-  if (
-    activeTab === "auto_debug" &&
-    autoDebugSignalFilter !== "all" &&
-    getAutoDebugSignalType(f) !== autoDebugSignalFilter
-  ) {
-    return false;
-  }
-
-  if (activeTab === "all") return true;
-  if (activeTab === "positive") return f.type === "up";
-  if (activeTab === "negative") return f.type === "down";
-  if (activeTab === "improvement") return f.type === "improve";
-  if (activeTab === "auto_debug") return f.type === "auto_debug";
-
-  if (activeTab === "ideas") {
-    if (f.type !== "idea") return false;
-    if (ideaFilter === "all") return true;
-    if (ideaFilter === "bug") return f.source === "idea_bug";
-    if (ideaFilter === "adjustment") return f.source === "idea_adjustment";
-    if (ideaFilter === "learning") return f.source === "idea_feedback_learning";
-  }
-
-  return true;
-};
-
   const pushAutoLearningInsight = async (key: string, message: string) => {
     const storageKey = "openlura_auto_learning_insights";
-    const existing = JSON.parse(localStorage.getItem(storageKey) || "[]");
+    const existing = safeParseJson<string[]>(
+      localStorage.getItem(storageKey),
+      []
+    );
+    const alreadyStoredInFeedback = feedback.some(
+      (item: AnalyticsFeedbackItem) =>
+        item.type === "idea" &&
+        item.source === "idea_feedback_learning" &&
+        item.userMessage === "Auto learning insight" &&
+        (item.message || "").trim() === message.trim()
+    );
 
-    if (existing.includes(key)) return;
+    if (existing.includes(key) || alreadyStoredInFeedback) return;
 
     try {
       const res = await fetch("/api/feedback", {
@@ -905,10 +991,12 @@ return () => {
 
       if (!res.ok) return;
 
-      localStorage.setItem(
-        storageKey,
-        JSON.stringify([...existing, key])
-      );
+      try {
+        localStorage.setItem(
+          storageKey,
+          JSON.stringify([...existing, key])
+        );
+      } catch {}
 
       window.dispatchEvent(new Event("openlura_feedback_update"));
     } catch (error) {
@@ -930,7 +1018,7 @@ return () => {
     }
 
     if (action === "shorter_answers") {
-      await fetch("/api/feedback", {
+      const res = await fetch("/api/feedback", {
         method: "POST",
         headers: getOpenLuraRequestHeaders(true),
         body: JSON.stringify({
@@ -943,12 +1031,16 @@ return () => {
         }),
       });
 
+      if (!res.ok) {
+        throw new Error("AI insight action save failed");
+      }
+
       window.dispatchEvent(new Event("openlura_feedback_update"));
       return;
     }
 
     if (action === "clearer_structure") {
-      await fetch("/api/feedback", {
+      const res = await fetch("/api/feedback", {
         method: "POST",
         headers: getOpenLuraRequestHeaders(true),
         body: JSON.stringify({
@@ -961,16 +1053,21 @@ return () => {
         }),
       });
 
+      if (!res.ok) {
+        throw new Error("AI insight action save failed");
+      }
+
       window.dispatchEvent(new Event("openlura_feedback_update"));
     }
   };
 
         const updateItemStatus = async (key: string, status: string) => {
-    setItemStatus((prev) => {
-      const next = { ...prev, [key]: status };
-      localStorage.setItem("openlura_analytics_status", JSON.stringify(next));
-      return next;
-    });
+    const previousStatus = itemStatus[key];
+
+    setItemStatus((prev) => ({
+      ...prev,
+      [key]: status,
+    }));
 
     try {
       const item = feedback.find((f: AnalyticsFeedbackItem) => getItemKey(f) === key);
@@ -979,9 +1076,14 @@ return () => {
         return;
       }
 
+      const isPersonalItem =
+        getUserScope(item) === "personal" || item?.environment === "personal";
+
       const res = await fetch("/api/feedback", {
         method: "POST",
-        headers: getOpenLuraRequestHeaders(true),
+        headers: getOpenLuraRequestHeaders(true, {
+          personalEnv: isPersonalItem,
+        }),
         body: JSON.stringify({
           action: "update_workflow_status",
           chatId: item?.chatId ?? null,
@@ -990,10 +1092,7 @@ return () => {
           message: status,
           userMessage: item?.userMessage ?? null,
           source: "analytics_workflow",
-          environment:
-            getUserScope(item) === "personal" || item?.environment === "personal"
-              ? "personal"
-              : "default",
+          environment: isPersonalItem ? "personal" : "default",
           workflowKey: key,
           workflowStatus: status,
         }),
@@ -1003,6 +1102,18 @@ return () => {
         throw new Error("Workflow status sync failed");
       }
     } catch (error) {
+      setItemStatus((prev) => {
+        const next = { ...prev };
+
+        if (previousStatus !== undefined) {
+          next[key] = previousStatus;
+        } else {
+          delete next[key];
+        }
+
+        return next;
+      });
+
       console.error("Workflow status sync failed:", error);
     }
   };
@@ -1080,10 +1191,13 @@ return () => {
         console.error("Analytics logout failed:", error);
       }
 
-      localStorage.removeItem("openlura_auto_learning_insights");
+      try {
+        localStorage.removeItem("openlura_auto_learning_insights");
+      } catch {}
       if (typeof window !== "undefined") {
         sessionStorage.removeItem(ANALYTICS_UNLOCK_STORAGE_KEY);
       }
+      setItemStatus({});
       setIsUnlocked(false);
       setFeedback([]);
     }}
@@ -1105,10 +1219,7 @@ return () => {
 
   <div className="p-4 bg-white/10 rounded-2xl">
     <p className="text-xs opacity-60">Lokale items</p>
-    <p className="text-xl">
-      {(JSON.parse(localStorage.getItem("openlura_feedback") || "[]").length) +
-        (JSON.parse(localStorage.getItem("openlura_personal_feedback") || "[]").length)}
-    </p>
+    <p className="text-xl">{localFeedbackStats.total}</p>
   </div>
 
   <div className="p-4 bg-white/10 rounded-2xl">
@@ -1405,14 +1516,14 @@ return () => {
         Casual mismatch
       </button>
       <button
-        onClick={() => setAutoDebugSignalFilter("search_miss")}
-        className={`px-3 py-2 rounded-xl text-sm ${autoDebugSignalFilter === "search_miss" ? "bg-cyan-400 text-black" : "bg-white/10 text-white"}`}
+        onClick={() => setAutoDebugSignalFilter("possible_search_miss")}
+        className={`px-3 py-2 rounded-xl text-sm ${autoDebugSignalFilter === "possible_search_miss" ? "bg-cyan-400 text-black" : "bg-white/10 text-white"}`}
       >
         Search miss
       </button>
       <button
-        onClick={() => setAutoDebugSignalFilter("image_context_miss")}
-        className={`px-3 py-2 rounded-xl text-sm ${autoDebugSignalFilter === "image_context_miss" ? "bg-pink-400 text-black" : "bg-white/10 text-white"}`}
+        onClick={() => setAutoDebugSignalFilter("possible_image_context_miss")}
+        className={`px-3 py-2 rounded-xl text-sm ${autoDebugSignalFilter === "possible_image_context_miss" ? "bg-pink-400 text-black" : "bg-white/10 text-white"}`}
       >
         Image miss
       </button>
@@ -1423,8 +1534,8 @@ return () => {
         Weak sources
       </button>
       <button
-        onClick={() => setAutoDebugSignalFilter("verbose_image_route")}
-        className={`px-3 py-2 rounded-xl text-sm ${autoDebugSignalFilter === "verbose_image_route" ? "bg-red-400 text-black" : "bg-white/10 text-white"}`}
+        onClick={() => setAutoDebugSignalFilter("too_verbose_for_image_route")}
+        className={`px-3 py-2 rounded-xl text-sm ${autoDebugSignalFilter === "too_verbose_for_image_route" ? "bg-red-400 text-black" : "bg-white/10 text-white"}`}
       >
         Verbose image
       </button>

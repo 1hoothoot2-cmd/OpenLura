@@ -68,6 +68,74 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function parseRequestCookies(req: Request) {
+  const cookieHeader = req.headers.get("cookie") || "";
+  const cookies = new Map<string, string>();
+
+  for (const part of cookieHeader.split(";")) {
+    const trimmedPart = part.trim();
+    if (!trimmedPart) continue;
+
+    const separatorIndex = trimmedPart.indexOf("=");
+    if (separatorIndex <= 0) continue;
+
+    const name = trimmedPart.slice(0, separatorIndex).trim();
+    const value = trimmedPart.slice(separatorIndex + 1).trim();
+
+    if (!name) continue;
+    cookies.set(name, value);
+  }
+
+  return cookies;
+}
+
+function getChunkedCookieValue(cookies: Map<string, string>, baseName: string) {
+  const directValue = cookies.get(baseName);
+
+  if (directValue) {
+    return directValue;
+  }
+
+  const chunkEntries = [...cookies.entries()]
+    .map(([name, value]) => {
+      const match = name.match(new RegExp(`^${baseName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\.(\\d+)$`));
+
+      if (!match) {
+        return null;
+      }
+
+      return {
+        index: Number(match[1]),
+        value,
+      };
+    })
+    .filter(
+      (entry): entry is { index: number; value: string } =>
+        !!entry && Number.isInteger(entry.index) && entry.index >= 0
+    )
+    .sort((a, b) => a.index - b.index);
+
+  if (chunkEntries.length === 0) {
+    return null;
+  }
+
+  return chunkEntries.map((entry) => entry.value).join("");
+}
+
+function getSupabaseCookieValue(
+  req: Request,
+  predicate: (cookieName: string) => boolean
+) {
+  const cookies = parseRequestCookies(req);
+  const directMatch = [...cookies.keys()].find(predicate);
+
+  if (!directMatch) {
+    return null;
+  }
+
+  return getChunkedCookieValue(cookies, directMatch);
+}
+
 function getPackedCookieToken(value: string) {
   try {
     const decoded = decodeURIComponent(value);
@@ -77,15 +145,52 @@ function getPackedCookieToken(value: string) {
       return normalizeToken(parsed);
     }
 
-    if (Array.isArray(parsed) && typeof parsed[0] === "string") {
-      return normalizeToken(parsed[0]);
+    if (Array.isArray(parsed)) {
+      if (typeof parsed[0] === "string") {
+        return normalizeToken(parsed[0]);
+      }
+
+      if (isPlainObject(parsed[0])) {
+        const firstItem = parsed[0];
+
+        if (typeof firstItem.access_token === "string") {
+          return normalizeToken(firstItem.access_token);
+        }
+
+        if (
+          isPlainObject(firstItem.currentSession) &&
+          typeof firstItem.currentSession.access_token === "string"
+        ) {
+          return normalizeToken(firstItem.currentSession.access_token);
+        }
+
+        if (
+          isPlainObject(firstItem.session) &&
+          typeof firstItem.session.access_token === "string"
+        ) {
+          return normalizeToken(firstItem.session.access_token);
+        }
+      }
     }
 
-    if (
-      isPlainObject(parsed) &&
-      typeof parsed.access_token === "string"
-    ) {
-      return normalizeToken(parsed.access_token);
+    if (isPlainObject(parsed)) {
+      if (typeof parsed.access_token === "string") {
+        return normalizeToken(parsed.access_token);
+      }
+
+      if (
+        isPlainObject(parsed.currentSession) &&
+        typeof parsed.currentSession.access_token === "string"
+      ) {
+        return normalizeToken(parsed.currentSession.access_token);
+      }
+
+      if (
+        isPlainObject(parsed.session) &&
+        typeof parsed.session.access_token === "string"
+      ) {
+        return normalizeToken(parsed.session.access_token);
+      }
     }
   } catch {
     return null;
@@ -108,7 +213,13 @@ export function getBearerTokenFromRequest(req: Request) {
 
   const directCookieToken = normalizeToken(
     getCookieValue(req, "sb-access-token") ||
-      getCookieValue(req, "supabase-access-token")
+      getCookieValue(req, "supabase-access-token") ||
+      getSupabaseCookieValue(
+        req,
+        (cookieName) =>
+          /^sb-[a-z0-9_-]+-access-token$/i.test(cookieName) ||
+          /^supabase-[a-z0-9_-]+-access-token$/i.test(cookieName)
+      )
   );
 
   if (directCookieToken) {
@@ -117,7 +228,13 @@ export function getBearerTokenFromRequest(req: Request) {
 
   const packedCookie =
     getCookieValue(req, "supabase-auth-token") ||
-    getCookieValue(req, "sb-auth-token");
+    getCookieValue(req, "sb-auth-token") ||
+    getSupabaseCookieValue(
+      req,
+      (cookieName) =>
+        /^sb-[a-z0-9_-]+-auth-token$/i.test(cookieName) ||
+        /^supabase-[a-z0-9_-]+-auth-token$/i.test(cookieName)
+    );
 
   if (!packedCookie) {
     return null;
