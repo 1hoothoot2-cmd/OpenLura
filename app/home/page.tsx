@@ -75,30 +75,30 @@ export default function HomePage() {
               </p>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="min-w-0 rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
                 <div className="text-sm font-medium text-white">
                   Learns from context
                 </div>
-                <p className="mt-2 text-sm leading-6 text-white/46">
+                <p className="mt-2 text-sm leading-6 text-white/46 break-normal">
                   Understands your conversations and builds useful context over time.
                 </p>
               </div>
 
-              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+              <div className="min-w-0 rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
                 <div className="text-sm font-medium text-white">
                   Improves with feedback
                 </div>
-                <p className="mt-2 text-sm leading-6 text-white/46">
+                <p className="mt-2 text-sm leading-6 text-white/46 break-normal">
                   Uses your feedback to continuously refine how it responds.
                 </p>
               </div>
 
-              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+              <div className="min-w-0 rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
                 <div className="text-sm font-medium text-white">
                   Personal by design
                 </div>
-                <p className="mt-2 text-sm leading-6 text-white/46">
+                <p className="mt-2 text-sm leading-6 text-white/46 break-normal">
                   Adapts to your style, preferences, and workflows.
                 </p>
               </div>
