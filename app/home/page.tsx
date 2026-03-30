@@ -478,6 +478,48 @@ export default function HomePage() {
               </div>
             </div>
           </div>
+
+          {/* SECURITY */}
+          <div className="mt-16 w-full max-w-5xl">
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold text-white/92">
+                Security
+              </h2>
+              <p className="mt-2 max-w-2xl text-sm text-white/50">
+                Built with privacy, separation, and responsible product design in mind.
+              </p>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+                <div className="text-sm font-medium text-white">Private by default</div>
+                <p className="mt-2 text-sm leading-6 text-white/46">
+                  Core product flows are designed to keep user interactions scoped and protected.
+                </p>
+              </div>
+
+              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+                <div className="text-sm font-medium text-white">Separated environments</div>
+                <p className="mt-2 text-sm leading-6 text-white/46">
+                  Clear boundaries help keep users, data, and product contexts properly separated.
+                </p>
+              </div>
+
+              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+                <div className="text-sm font-medium text-white">Access-aware design</div>
+                <p className="mt-2 text-sm leading-6 text-white/46">
+                  Sensitive flows are approached with controlled access and product safety in mind.
+                </p>
+              </div>
+
+              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+                <div className="text-sm font-medium text-white">Security-first foundation</div>
+                <p className="mt-2 text-sm leading-6 text-white/46">
+                  Protection is built into the product foundation rather than added later.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
 
         {isFeedbackOpen && (
