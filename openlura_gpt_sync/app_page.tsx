@@ -194,7 +194,10 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
           try {
             const res = await fetch("/api/personal-state", {
               method: "GET",
-              headers: getOpenLuraRequestHeaders(false),
+              headers: getOpenLuraRequestHeaders(false, {
+                personalEnv: true,
+                includeUserId: false,
+              }),
               cache: "no-store",
               credentials: "same-origin",
             });
@@ -424,30 +427,21 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
   return;
 }
 
-const hasMeaningfulPersonalState =
-  safeChats.some((chat: any) => {
-    const normalizedTitle = String(chat?.title || "").trim();
-    const messages = Array.isArray(chat?.messages) ? chat.messages : [];
+const personalPlaceholderMessage =
+  "👋 Welkom in je persoonlijke omgeving. Hier testen we privé memory, verbeterpunten en training van jouw AI-gedrag.";
 
-    const hasRealMessageContent = messages.some(
-      (msg: any) =>
-        typeof msg?.content === "string" &&
-        msg.content.trim() &&
-        msg.content !==
-          "👋 Welkom in je persoonlijke omgeving. Hier testen we privé memory, verbeterpunten en training van jouw AI-gedrag."
-    );
+const hasOnlyPersonalFallbackPlaceholder =
+  safeChats.length === 1 &&
+  String(safeChats[0]?.title || "").trim() === "Persoonlijke omgeving" &&
+  Array.isArray(safeChats[0]?.messages) &&
+  safeChats[0].messages.length === 1 &&
+  safeChats[0].messages[0]?.role === "ai" &&
+  safeChats[0].messages[0]?.content === personalPlaceholderMessage;
 
-    const isPersonalFallbackPlaceholder =
-      normalizedTitle === "Persoonlijke omgeving" &&
-      messages.length === 1 &&
-      messages[0]?.role === "ai" &&
-      messages[0]?.content ===
-        "👋 Welkom in je persoonlijke omgeving. Hier testen we privé memory, verbeterpunten en training van jouw AI-gedrag.";
+const shouldSkipPersonalStateSync =
+  hasOnlyPersonalFallbackPlaceholder && memory.length === 0;
 
-    return hasRealMessageContent || !isPersonalFallbackPlaceholder;
-  }) || memory.length > 0;
-
-    if (!hasMeaningfulPersonalState) {
+    if (shouldSkipPersonalStateSync) {
       return;
     }
 
@@ -459,7 +453,10 @@ const hasMeaningfulPersonalState =
       try {
         const res = await fetch("/api/personal-state", {
           method: "POST",
-          headers: getOpenLuraRequestHeaders(true),
+          headers: getOpenLuraRequestHeaders(true, {
+            personalEnv: true,
+            includeUserId: false,
+          }),
           credentials: "same-origin",
           body: JSON.stringify({
             chats: safeChats,
@@ -578,13 +575,16 @@ const hasMeaningfulPersonalState =
   }, [input, image]);
 
   useEffect(() => {
-    if (!isPersonalRoute) return;
+    if (!isPersonalRoute || !initialStateReady || !personalStateLoaded) return;
 
     const loadPersonalStateFromServer = async (forceApply = false) => {
       try {
         const res = await fetch("/api/personal-state", {
           method: "GET",
-          headers: getOpenLuraRequestHeaders(false),
+          headers: getOpenLuraRequestHeaders(false, {
+            personalEnv: true,
+            includeUserId: false,
+          }),
           cache: "no-store",
           credentials: "same-origin",
         });
@@ -695,8 +695,6 @@ const hasMeaningfulPersonalState =
       }
     };
 
-    loadPersonalStateFromServer(false);
-
     const pollId = window.setInterval(() => {
       loadPersonalStateFromServer(false);
     }, 5000);
@@ -709,7 +707,7 @@ const hasMeaningfulPersonalState =
       window.removeEventListener("focus", handleWindowFocus);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [isPersonalRoute]);
+  }, [isPersonalRoute, initialStateReady, personalStateLoaded]);
 
   useEffect(() => {
     const handlePaste = async (e: ClipboardEvent) => {
@@ -783,16 +781,18 @@ const getOrCreateOpenLuraUserId = () => {
 
 const getOpenLuraRequestHeaders = (
   includeJson = true,
-  options?: { personalEnv?: boolean }
+  options?: { personalEnv?: boolean; includeUserId?: boolean }
 ) => {
   const headers: Record<string, string> = includeJson
     ? { "Content-Type": "application/json" }
     : {};
 
-  const resolvedUserId = getOrCreateOpenLuraUserId();
+  if (options?.includeUserId === true) {
+    const resolvedUserId = getOrCreateOpenLuraUserId();
 
-  if (resolvedUserId) {
-    headers["x-openlura-user-id"] = resolvedUserId;
+    if (resolvedUserId) {
+      headers["x-openlura-user-id"] = resolvedUserId;
+    }
   }
 
   if (options?.personalEnv ?? isPersonalRoute) {
@@ -833,6 +833,14 @@ const activeChat =
   visibleChats[0] ??
   null;
 
+const activeMessages = Array.isArray(activeChat?.messages)
+  ? activeChat.messages
+  : [];
+
+const renderedChatId = activeChat?.id ?? null;
+
+const getFeedbackUiKey = (chatId: number | null, msgIndex: number) =>
+  `${chatId ?? "no-chat"}-${msgIndex}`;
 const resizeComposerTextarea = () => {
   const el = inputRef.current;
   if (!el) return;
@@ -1312,7 +1320,9 @@ const restoreDeletedChat = (chatId: number) => {
     try {
       const res = await fetch("/api/auth", {
         method: "POST",
-        headers: getOpenLuraRequestHeaders(true),
+        headers: getOpenLuraRequestHeaders(true, {
+          includeUserId: false,
+        }),
         credentials: "same-origin",
         body: JSON.stringify({
           username: loginUsername,
@@ -1329,7 +1339,10 @@ const restoreDeletedChat = (chatId: number) => {
 
       const verifyRes = await fetch("/api/personal-state", {
         method: "GET",
-        headers: getOpenLuraRequestHeaders(true, { personalEnv: true }),
+        headers: getOpenLuraRequestHeaders(true, {
+          personalEnv: true,
+          includeUserId: false,
+        }),
         credentials: "same-origin",
         cache: "no-store",
       });
@@ -1354,7 +1367,9 @@ const restoreDeletedChat = (chatId: number) => {
     try {
       await fetch("/api/auth", {
         method: "DELETE",
-        headers: getOpenLuraRequestHeaders(false),
+        headers: getOpenLuraRequestHeaders(false, {
+          includeUserId: false,
+        }),
         credentials: "same-origin",
       });
     } catch (error) {
@@ -1481,7 +1496,13 @@ const restoreDeletedChat = (chatId: number) => {
 
     try {
 
-    const currentChatId = activeChatId!;
+      const currentChatId = activeChatId ?? activeChat?.id ?? null;
+
+    if (currentChatId === null) {
+      setLoading(false);
+      return;
+    }
+
     const pendingImprovement = awaitingImprovement[currentChatId];
     const isImprovementReply = !!pendingImprovement && !!input.trim();
 
@@ -1490,7 +1511,7 @@ const restoreDeletedChat = (chatId: number) => {
       const index = updated.findIndex((c) => c.id === currentChatId);
       const retryRequest = isRetryInstruction(input);
 
-      if (index === -1) {
+      if (index === -1 || currentChatId === null) {
         setLoading(false);
         return;
       }
@@ -1506,33 +1527,37 @@ const restoreDeletedChat = (chatId: number) => {
       const originalAiMessage =
         pendingImprovement?.originalAiMessage || "";
 
-      if (!retryRequest) {
-        if (!isPersonalRoute) {
-          const localFeedbackKey = "openlura_feedback";
-          const existingFeedback = safeParseJson<any[]>(
-            localStorage.getItem(localFeedbackKey),
-            []
-          );
+              if (!retryRequest) {
+        const localFeedbackKey = isPersonalRoute
+          ? "openlura_personal_feedback"
+          : "openlura_feedback";
+        const existingFeedback = safeParseJson<any[]>(
+          localStorage.getItem(localFeedbackKey),
+          []
+        );
 
-          existingFeedback.push({
-            chatId: currentChatId,
-            msgIndex: pendingImprovement?.targetMsgIndex ?? updated[index].messages.length - 1,
-            type: "improve",
-            message: input,
-            userMessage: originalUserMessage || "Direct improvement feedback",
-            timestamp: Date.now(),
-            source: "improvement_reply",
-            learningType: classifyLearningSignal(input),
-          });
+        existingFeedback.push({
+          chatId: currentChatId,
+          msgIndex: pendingImprovement?.targetMsgIndex ?? updated[index].messages.length - 1,
+          type: "improve",
+          message: input,
+          userMessage: originalUserMessage || "Direct improvement feedback",
+          timestamp: Date.now(),
+          source: "improvement_reply",
+          learningType: classifyLearningSignal(input),
+          environment: isPersonalRoute ? "personal" : "default",
+        });
 
-          try {
-            localStorage.setItem(localFeedbackKey, JSON.stringify(existingFeedback));
-          } catch (error) {
-            console.error("OpenLura local improvement feedback persistence failed:", error);
-          }
+        try {
+          localStorage.setItem(localFeedbackKey, JSON.stringify(existingFeedback));
+        } catch (error) {
+          console.error("OpenLura local improvement feedback persistence failed:", error);
         }
 
-        const keyId = currentChatId + "-" + (updated[index].messages.length - 1);
+        const keyId = getFeedbackUiKey(
+          currentChatId,
+          updated[index].messages.length - 1
+        );
 
         setFeedbackUI(prev => ({
           ...prev,
@@ -1550,7 +1575,10 @@ const restoreDeletedChat = (chatId: number) => {
         try {
           const feedbackRes = await fetch("/api/feedback", {
             method: "POST",
-            headers: getOpenLuraRequestHeaders(true),
+            headers: getOpenLuraRequestHeaders(true, {
+              personalEnv: isPersonalRoute,
+              includeUserId: false,
+            }),
             body: JSON.stringify({
               chatId: String(currentChatId),
               msgIndex: pendingImprovement?.targetMsgIndex ?? null,
@@ -1592,7 +1620,10 @@ const restoreDeletedChat = (chatId: number) => {
       try {
         improveRes = await fetch("/api/chat", {
           method: "POST",
-          headers: getOpenLuraRequestHeaders(true),
+          headers: getOpenLuraRequestHeaders(true, {
+            personalEnv: isPersonalRoute,
+            includeUserId: false,
+          }),
           body: JSON.stringify({
             message: retryRequest
               ? `De gebruiker wil dat je opnieuw antwoord geeft op dezelfde vraag.
@@ -1731,7 +1762,11 @@ Geef alleen direct het betere antwoord.`,
 
           updated[index].messages[
             updated[index].messages.length - 1
-          ].content = improvedText || "…";
+          ] = {
+            ...updated[index].messages[updated[index].messages.length - 1],
+            content: improvedText || "…",
+            isStreaming: false,
+          };
 
           setChats([...updated]);
         }
@@ -1749,9 +1784,17 @@ Geef alleen direct het betere antwoord.`,
           content: "OpenLura kon de verbeterde versie nu niet genereren. Probeer het opnieuw.",
           isStreaming: false,
         };
-
-        setChats([...updated]);
+      } else {
+        updated[index].messages[
+          updated[index].messages.length - 1
+        ] = {
+          ...updated[index].messages[updated[index].messages.length - 1],
+          content: improvedText,
+          isStreaming: false,
+        };
       }
+
+      setChats([...updated]);
 
             setStreamController(null);
       setLoading(false);
@@ -1768,7 +1811,7 @@ Geef alleen direct het betere antwoord.`,
     }
 
     let updated = [...chats];
-    let index = updated.findIndex((c) => c.id === activeChatId);
+    let index = updated.findIndex((c) => c.id === currentChatId);
 
     if (index === -1) {
       const fallbackChat = buildFallbackChat({
@@ -1898,7 +1941,10 @@ setChats([...updated]);
       res = await fetch("/api/chat", {
         method: "POST",
         signal: controller.signal,
-        headers: getOpenLuraRequestHeaders(true),
+        headers: getOpenLuraRequestHeaders(true, {
+          personalEnv: isPersonalRoute,
+          includeUserId: false,
+        }),
         body: JSON.stringify({
           message: inputToSend,
           image: imageToSend,
@@ -2061,9 +2107,17 @@ updated[index].messages[
         content: "OpenLura kon nu geen antwoord genereren. Probeer het opnieuw.",
         isStreaming: false,
       };
-
-      setChats([...updated]);
+    } else {
+      updated[index].messages[
+        updated[index].messages.length - 1
+      ] = {
+        ...updated[index].messages[updated[index].messages.length - 1],
+        content: aiText,
+        isStreaming: false,
+      };
     }
+
+    setChats([...updated]);
 
     setStreamController(null);
 
@@ -2114,33 +2168,32 @@ updated[index].messages[
     : "openlura_feedback";
   const existing = safeParseJson<any[]>(localStorage.getItem(key), []);
 
-  const chat = chats.find(c => c.id === chatId);
+  const chat = chats.find((c) => c.id === chatId);
   const message = chat?.messages[msgIndex];
   const resolvedTarget = resolveFeedbackTargetContext(chat?.messages || [], msgIndex);
   const prevMessage = {
     content: resolvedTarget.originalUserMessage,
   };
 
-  if (!isPersonalRoute) {
-    existing.push({
-      chatId: String(chatId),
-      msgIndex,
-      type,
-      message: message?.content,
-      userMessage: prevMessage?.content,
-      source: message?.variant ? `ab_test_${message.variant}` : null,
-      timestamp: Date.now(),
-      learningType:
-        type === "down"
-          ? classifyLearningSignal(`${prevMessage?.content || ""} ${message?.content || ""}`)
-          : "content",
-    });
+  existing.push({
+    chatId: String(chatId),
+    msgIndex,
+    type,
+    message: message?.content,
+    userMessage: prevMessage?.content,
+    source: message?.variant ? `ab_test_${message.variant}` : null,
+    timestamp: Date.now(),
+    learningType:
+      type === "down"
+        ? classifyLearningSignal(`${prevMessage?.content || ""} ${message?.content || ""}`)
+        : "content",
+    environment: isPersonalRoute ? "personal" : "default",
+  });
 
-    try {
-      localStorage.setItem(key, JSON.stringify(existing));
-    } catch (error) {
-      console.error("OpenLura local feedback persistence failed:", error);
-    }
+  try {
+    localStorage.setItem(key, JSON.stringify(existing));
+  } catch (error) {
+    console.error("OpenLura local feedback persistence failed:", error);
   }
 
   if (prevMessage?.content) {
@@ -2152,6 +2205,7 @@ updated[index].messages[
     method: "POST",
     headers: getOpenLuraRequestHeaders(true, {
       personalEnv: isPersonalRoute,
+      includeUserId: false,
     }),
         body: JSON.stringify({
       chatId: String(chatId),
@@ -2177,7 +2231,7 @@ updated[index].messages[
   console.error("OpenLura feedback save failed:", error);
 }
 
-  const keyId = chatId + "-" + msgIndex;
+  const keyId = getFeedbackUiKey(chatId, msgIndex);
 
   setFeedbackGiven(prev => ({
     ...prev,
@@ -2199,7 +2253,12 @@ updated[index].messages[
 
   if (type === "down") {
     const updatedChats = [...chats];
-    const chatIndex = updatedChats.findIndex(c => c.id === chatId);
+    const chatIndex = updatedChats.findIndex((c) => c.id === chatId);
+
+    if (chatIndex === -1) {
+      return;
+    }
+
     const targetMessages = updatedChats[chatIndex]?.messages || [];
 
     const resolvedTarget = resolveFeedbackTargetContext(targetMessages, msgIndex);
@@ -2247,6 +2306,7 @@ updated[index].messages[
       method: "POST",
       headers: getOpenLuraRequestHeaders(true, {
         personalEnv: isPersonalEnvironment,
+        includeUserId: false,
       }),
       body: JSON.stringify({
         chatId: activeChatId !== null ? String(activeChatId) : null,
@@ -2451,10 +2511,10 @@ updated[index].messages[
           <div
   ref={messagesRef}
   className={`${messageShellClass} flex-1 min-h-0 w-full overflow-x-hidden overflow-y-auto pb-[188px] md:pb-6 ${
-    activeChat?.messages?.length ? "space-y-4 p-4 pt-20 md:px-6 md:pt-6" : "flex items-center justify-center p-4 pt-20 md:px-6 md:pt-6"
+    activeMessages.length ? "space-y-4 p-4 pt-20 md:px-6 md:pt-6" : "flex items-center justify-center p-4 pt-20 md:px-6 md:pt-6"
   }`}
 >
-                        {activeChat?.messages?.length === 0 ? (
+                        {activeMessages.length === 0 ? (
               <div className="flex h-full w-full max-w-2xl -mt-20 flex-col items-center justify-center px-4 md:px-6 text-center">
                 <div className="rounded-[28px] border border-white/8 bg-white/[0.032] px-8 py-8 shadow-[0_16px_36px_rgba(0,0,0,0.16)] backdrop-blur-xl md:px-10 md:py-10">
                   <h1 className="mb-3 bg-gradient-to-r from-white via-white to-white/70 bg-clip-text text-2xl font-semibold tracking-tight text-transparent md:text-4xl">
@@ -2467,16 +2527,23 @@ updated[index].messages[
               </div>
             ) : (
               <>
-                                                {activeChat?.messages
+                                                {activeMessages
+                  .map((msg: any, originalIndex: number) => ({
+                    msg,
+                    originalIndex,
+                  }))
                   .filter(
-                    (msg: any) =>
-                      msg.content !==
+                    (entry: { msg: any; originalIndex: number }) =>
+                      entry.msg.content !==
                       "🤖 Bedankt voor je feedback. Ik sla dit op en gebruik het om toekomstige antwoorden te verbeteren."
                   )
-                  .map((msg: any, i: number, arr: any[]) => {
+                  .map((entry: { msg: any; originalIndex: number }) => {
+                    const msg = entry.msg;
+                    const originalIndex = entry.originalIndex;
+
                     return (
                       <div
-                        key={i}
+                        key={`${msg.role}-${originalIndex}-${msg.content || ""}`}
                         className={`${messageShellClass} animate-[fadeInUp_0.22s_ease-out] transition-[opacity,transform] duration-200 ${
                           msg.role === "user" ? "mb-2" : "mb-4"
                         }`}
@@ -2559,20 +2626,32 @@ updated[index].messages[
                         </div>
 
                         {msg.role === "ai" &&
-                          i !== 0 &&
+                          renderedChatId !== null &&
+                          originalIndex !== 0 &&
                           !msg.disableFeedback &&
                           msg.content !== "🤖 Wat kan ik beter doen?" &&
                           msg.content !== "🤖 Bedankt voor je feedback. Ik sla dit op en gebruik het om toekomstige antwoorden te verbeteren." && (
                             <>
                               <div className="mt-3 flex flex-wrap items-center gap-2 pl-1">
-                                {!feedbackGiven[activeChatId + "-" + i] && (
+                                {!feedbackGiven[
+                                  getFeedbackUiKey(renderedChatId, originalIndex)
+                                ] && (
                                   <>
                                     <button
                                       type="button"
-                                      onClick={() => handleFeedback(activeChatId!, i, "up")}
+                                      disabled={renderedChatId === null}
+                                      onClick={() => {
+                                        if (renderedChatId !== null) {
+                                          handleFeedback(
+                                            renderedChatId,
+                                            originalIndex,
+                                            "up"
+                                          );
+                                        }
+                                      }}
                                       aria-label="Good answer"
                                       title="Good answer"
-                                      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-white/66 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/28 hover:bg-[#3b82f6]/8 hover:text-white hover:shadow-[0_8px_18px_rgba(59,130,246,0.12)] active:scale-95"
+                                      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-white/66 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/28 hover:bg-[#3b82f6]/8 hover:text-white hover:shadow-[0_8px_18px_rgba(59,130,246,0.12)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
                                     >
                                       <svg
                                         viewBox="0 0 24 24"
@@ -2591,10 +2670,19 @@ updated[index].messages[
 
                                     <button
                                       type="button"
-                                      onClick={() => handleFeedback(activeChatId!, i, "down")}
+                                      disabled={renderedChatId === null}
+                                      onClick={() => {
+                                        if (renderedChatId !== null) {
+                                          handleFeedback(
+                                            renderedChatId,
+                                            originalIndex,
+                                            "down"
+                                          );
+                                        }
+                                      }}
                                       aria-label="Needs improvement"
                                       title="Needs improvement"
-                                      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-white/66 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/28 hover:bg-[#3b82f6]/8 hover:text-white hover:shadow-[0_8px_18px_rgba(59,130,246,0.12)] active:scale-95"
+                                      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-white/66 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/28 hover:bg-[#3b82f6]/8 hover:text-white hover:shadow-[0_8px_18px_rgba(59,130,246,0.12)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
                                     >
                                       <svg
                                         viewBox="0 0 24 24"
@@ -2613,9 +2701,18 @@ updated[index].messages[
                                   </>
                                 )}
 
-                                {feedbackUI[activeChatId + "-" + i] && (
+                                {feedbackUI[
+                                  getFeedbackUiKey(renderedChatId, originalIndex)
+                                ] && (
                                   <span className="rounded-full border border-[#3b82f6]/20 bg-[#3b82f6]/8 px-3 py-2 text-xs text-white/70 shadow-[inset_0_0_0_1px_rgba(191,219,254,0.03)]">
-                                    {feedbackUI[activeChatId + "-" + i]}
+                                    {
+                                      feedbackUI[
+                                        getFeedbackUiKey(
+                                          renderedChatId,
+                                          originalIndex
+                                        )
+                                      ]
+                                    }
                                   </span>
                                 )}
                               </div>
@@ -2689,7 +2786,7 @@ updated[index].messages[
 
                                         <div
   className={`${
-    activeChat?.messages?.length === 0
+    activeMessages.length === 0
       ? "mx-auto mt-6 w-full max-w-2xl px-3 md:px-4"
       : "fixed bottom-0 left-1/2 z-[90] w-full max-w-2xl -translate-x-1/2 bg-[#050510]/95 px-3 pt-3 pb-[calc(env(safe-area-inset-bottom)+14px)] md:static md:left-auto md:z-auto md:mt-auto md:w-full md:max-w-none md:translate-x-0 md:border-0 md:bg-transparent md:p-0"
   } flex w-full min-w-0 max-w-full overflow-x-hidden items-end gap-2 rounded-[28px] border border-white/8 bg-white/[0.038] shadow-[0_16px_34px_rgba(0,0,0,0.18)] backdrop-blur-2xl md:rounded-b-[32px] md:rounded-t-[28px] md:border-x-0 md:border-b-0 md:border-t md:px-4 md:py-4 md:shadow-none`}
@@ -2766,7 +2863,7 @@ updated[index].messages[
     }
   }}
   className={`${composerInputClass} min-h-[52px] max-h-[140px] flex-1 rounded-2xl bg-transparent px-2 py-3 text-[16px] leading-6 text-white/95 outline-none placeholder:text-white/28`}
-  placeholder={activeChat?.messages?.length === 0 ? "Ask anything" : "Message OpenLura..."}
+  placeholder={activeMessages.length === 0 ? "Ask anything" : "Message OpenLura..."}
 enterKeyHint="send"
   rows={1}
 />

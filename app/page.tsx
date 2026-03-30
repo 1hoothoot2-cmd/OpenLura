@@ -12,6 +12,9 @@ function safeParseJson<T>(raw: string | null, fallback: T): T {
   }
 }
 
+const PERSONAL_ENV_WELCOME_MESSAGE =
+  "👋 Welcome to your personal environment. Here we test private memory, improvement feedback, and training of your AI behavior.";
+
 export default function Home() {
   const pathname = usePathname();
   const isPersonalRoute = pathname === "/persoonlijke-omgeving";
@@ -87,7 +90,9 @@ const [usage, setUsage] = useState<{
   const [openChatMenuId, setOpenChatMenuId] = useState<number | null>(null);
 
   const hasBlockingOverlay =
-    mobileMenu ||
+    (mobileMenu &&
+      typeof window !== "undefined" &&
+      window.innerWidth < 768) ||
     showFeedbackBox ||
     showClearDeletedConfirm ||
     deleteTargetChatId !== null ||
@@ -427,8 +432,7 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
   return;
 }
 
-const personalPlaceholderMessage =
-  "👋 Welkom in je persoonlijke omgeving. Hier testen we privé memory, verbeterpunten en training van jouw AI-gedrag.";
+const personalPlaceholderMessage = PERSONAL_ENV_WELCOME_MESSAGE;
 
 const hasOnlyPersonalFallbackPlaceholder =
   safeChats.length === 1 &&
@@ -453,10 +457,7 @@ const shouldSkipPersonalStateSync =
       try {
         const res = await fetch("/api/personal-state", {
           method: "POST",
-          headers: getOpenLuraRequestHeaders(true, {
-            personalEnv: true,
-            includeUserId: false,
-          }),
+          headers: getScopedRequestHeaders(true, isPersonalRoute),
           credentials: "same-origin",
           body: JSON.stringify({
             chats: safeChats,
@@ -632,8 +633,7 @@ const shouldSkipPersonalStateSync =
               (msg: any) =>
                 typeof msg?.content === "string" &&
                 msg.content.trim() &&
-                msg.content !==
-                  "👋 Welkom in je persoonlijke omgeving. Hier testen we privé memory, verbeterpunten en training van jouw AI-gedrag."
+                msg.content !== PERSONAL_ENV_WELCOME_MESSAGE
             )
         );
 
@@ -1239,8 +1239,8 @@ const restoreDeletedChat = (chatId: number) => {
     const tier = res.headers.get("X-OpenLura-Usage-Tier") || "free";
 
     return tier === "free"
-      ? "Je hebt je maandelijkse limiet bereikt voor je persoonlijke AI. Upgrade je plan om verder te chatten."
-      : "Je huidige gebruikslimiet is bereikt. Controleer je plan of verhoog je limiet.";
+      ? "You have reached your monthly limit for your personal AI. Upgrade your plan to keep chatting."
+      : "Your current usage limit has been reached. Check your plan or increase your limit.";
   };
 
   const updateMemoryWeight = (text: string, delta: number) => {
@@ -1282,6 +1282,14 @@ const restoreDeletedChat = (chatId: number) => {
   };
 
   const isPersonalEnvironment = isPersonalRoute;
+  const getScopedRequestHeaders = (
+  includeJson = true,
+  personalEnv = isPersonalRoute
+) =>
+  getOpenLuraRequestHeaders(includeJson, {
+    personalEnv,
+    includeUserId: !personalEnv,
+  });
 
             const stopStreaming = () => {
     if (streamController) {
@@ -1333,22 +1341,19 @@ const restoreDeletedChat = (chatId: number) => {
       const data = await res.json();
 
       if (!res.ok || !data?.success) {
-        setLoginError(data?.error || "Inloggen mislukt");
+        setLoginError(data?.error || "Login failed");
         return;
       }
 
       const verifyRes = await fetch("/api/personal-state", {
         method: "GET",
-        headers: getOpenLuraRequestHeaders(true, {
-          personalEnv: true,
-          includeUserId: false,
-        }),
+        headers: getScopedRequestHeaders(true, true),
         credentials: "same-origin",
         cache: "no-store",
       });
 
       if (!verifyRes.ok) {
-        setLoginError("Persoonlijke sessie kon niet worden bevestigd.");
+        setLoginError("Your personal session could not be verified.");
         return;
       }
 
@@ -1357,7 +1362,7 @@ const restoreDeletedChat = (chatId: number) => {
       setLoginPassword("");
       window.location.href = "/persoonlijke-omgeving";
     } catch {
-      setLoginError("Inloggen mislukt");
+      setLoginError("Login failed");
     } finally {
       setLoginLoading(false);
     }
@@ -1382,26 +1387,23 @@ const restoreDeletedChat = (chatId: number) => {
   const isRetryInstruction = (text: string) => {
     const normalized = text.toLowerCase().trim();
     return [
-      "opnieuw",
       "retry",
       "again",
-      "nog een keer",
-      "probeer opnieuw",
-      "ga opnieuw",
-      "doe opnieuw",
-      "verder",
-      "ga verder",
-      "maak af",
-      "maak het af",
+      "one more time",
+      "try again",
+      "do it again",
       "continue",
-      "ga door",
+      "go on",
+      "finish it",
+      "complete it",
+      "keep going",
     ].includes(normalized);
   };
 
   const isRefinementInstruction = (text: string) => {
     const normalized = text.toLowerCase().trim();
 
-    return /^(en )?(nu )?(nog )?(korter|kort|duidelijker|simpeler|meer concreet|concreter|anders|opnieuw maar korter|maak korter|maak het korter|korter graag|duidelijker graag|simpel(er)? graag|meer context|minder tekst)([.!?])?$/.test(
+    return /^(and )?(now )?(even )?(shorter|short|clearer|simpler|more concrete|different|retry but shorter|make it shorter|shorter please|clearer please|simpler please|more context|less text)([.!?])?$/.test(
       normalized
     );
   };
@@ -1575,10 +1577,7 @@ const restoreDeletedChat = (chatId: number) => {
         try {
           const feedbackRes = await fetch("/api/feedback", {
             method: "POST",
-            headers: getOpenLuraRequestHeaders(true, {
-              personalEnv: isPersonalRoute,
-              includeUserId: false,
-            }),
+            headers: getScopedRequestHeaders(true, isPersonalRoute),
             body: JSON.stringify({
               chatId: String(currentChatId),
               msgIndex: pendingImprovement?.targetMsgIndex ?? null,
@@ -1620,44 +1619,41 @@ const restoreDeletedChat = (chatId: number) => {
       try {
         improveRes = await fetch("/api/chat", {
           method: "POST",
-          headers: getOpenLuraRequestHeaders(true, {
-            personalEnv: isPersonalRoute,
-            includeUserId: false,
-          }),
+          headers: getScopedRequestHeaders(true, isPersonalRoute),
           body: JSON.stringify({
             message: retryRequest
-              ? `De gebruiker wil dat je opnieuw antwoord geeft op dezelfde vraag.
+              ? `The user wants you to answer the same question again.
 
-Oorspronkelijke vraag:
+Original question:
 ${originalUserMessage}
 
-Je vorige onvolledige of afgewezen antwoord:
+Your previous incomplete or rejected answer:
 ${originalAiMessage}
 
-Geef nu direct opnieuw een volledig, goed antwoord op de oorspronkelijke vraag.
-Noem niet dat dit een nieuwe poging is.`
-              : `De gebruiker was niet tevreden met je vorige antwoord.
+Now give a complete, good answer to the original question.
+Do not mention that this is a new attempt.`
+              : `The user was not satisfied with your previous answer.
 
-Oorspronkelijke vraag:
+Original question:
 ${originalUserMessage}
 
-Je vorige antwoord:
+Your previous answer:
 ${originalAiMessage}
 
-Verbeterpunt van de gebruiker:
+User improvement request:
 ${input}
 
-Geef nu meteen een betere versie van hetzelfde antwoord.
+Now immediately give a better version of the same answer.
 
-BELANGRIJK:
-- Volg het verbeterpunt van de gebruiker letterlijk op
-- Als de gebruiker zegt "korter" of "te lang": maak het antwoord maximaal 50% van de oorspronkelijke lengte
-- Als de gebruiker zegt "duidelijker": maak het antwoord simpeler en concreter
-- Als de gebruiker kritiek geeft op structuur: pas de structuur zichtbaar aan
-- Herhaal niet dezelfde fout als in het vorige antwoord
+IMPORTANT:
+- Follow the user's improvement request literally
+- If the user says "shorter" or "too long": make the answer at most 50% of the original length
+- If the user says "clearer": make the answer simpler and more concrete
+- If the user criticizes the structure: visibly improve the structure
+- Do not repeat the same mistake as in the previous answer
 
-Noem niet dat dit een verbeterde versie is.
-Geef alleen direct het betere antwoord.`,
+Do not mention that this is an improved version.
+Only give the improved answer directly.`,
             memory: memory
               .filter((m) => m.weight > 0.6)
               .map((m) => m.text)
@@ -1681,7 +1677,7 @@ Geef alleen direct het betere antwoord.`,
         console.error("OpenLura improvement request failed:", error);
         updated[index].messages.push({
           role: "ai",
-          content: "OpenLura kon de verbeterde versie nu niet ophalen. Probeer het opnieuw.",
+          content: "OpenLura could not fetch the improved version right now. Please try again.",
         });
         setChats([...updated]);
         setStreamController(null);
@@ -1781,7 +1777,7 @@ Geef alleen direct het betere antwoord.`,
           updated[index].messages.length - 1
         ] = {
           ...updated[index].messages[updated[index].messages.length - 1],
-          content: "OpenLura kon de verbeterde versie nu niet genereren. Probeer het opnieuw.",
+          content: "OpenLura could not generate the improved version right now. Please try again.",
           isStreaming: false,
         };
       } else {
@@ -1836,27 +1832,27 @@ Geef alleen direct het betere antwoord.`,
         : null;
 
     const inputToSend = refinementContext
-      ? `De gebruiker wil dat je je vorige antwoord verfijnt, niet dat je een nieuwe vraag beantwoordt.
+      ? `The user wants you to refine your previous answer, not answer a new question.
 
-Oorspronkelijke vraag:
+Original question:
 ${refinementContext.originalUserMessage}
 
-Je meest recente relevante antwoord:
+Your most recent relevant answer:
 ${refinementContext.originalAiMessage}
 
-Nieuwe instructie van de gebruiker:
+New user instruction:
 ${rawInputToSend}
 
-Voer deze instructie direct uit op je vorige antwoord.
+Apply this instruction directly to your previous answer.
 
-BELANGRIJK:
-- Behoud exact hetzelfde onderwerp
-- Stel geen wedervraag zoals "wat wil je korter hebben?"
-- Doe de aanpassing direct
-- Als de instructie "nog korter" of "korter" is: maak de bestaande versie duidelijk compacter
-- Als de instructie "duidelijker" of "simpeler" is: herschrijf hetzelfde antwoord helderder
-- Verander niet van onderwerp
-- Geef alleen het aangepaste antwoord`
+IMPORTANT:
+- Keep exactly the same topic
+- Do not ask a follow-up question like "what do you want shorter?"
+- Apply the change directly
+- If the instruction is "even shorter" or "shorter": make the existing version clearly more compact
+- If the instruction is "clearer" or "simpler": rewrite the same answer more clearly
+- Do not change the topic
+- Only give the adjusted answer`
       : rawInputToSend;
 
     updated[index].messages.push({
@@ -1941,10 +1937,7 @@ setChats([...updated]);
       res = await fetch("/api/chat", {
         method: "POST",
         signal: controller.signal,
-        headers: getOpenLuraRequestHeaders(true, {
-          personalEnv: isPersonalRoute,
-          includeUserId: false,
-        }),
+        headers: getScopedRequestHeaders(true, isPersonalRoute),
         body: JSON.stringify({
           message: inputToSend,
           image: imageToSend,
@@ -1977,7 +1970,7 @@ setChats([...updated]);
         ...updated[index].messages[
           updated[index].messages.length - 1
         ],
-        content: "OpenLura kon nu geen antwoord ophalen. Probeer het opnieuw.",
+        content: "OpenLura could not fetch an answer right now. Please try again.",
         isStreaming: false,
       };
       setChats([...updated]);
@@ -2020,7 +2013,7 @@ setChats([...updated]);
         ...updated[index].messages[
           updated[index].messages.length - 1
         ],
-        content: "OpenLura kon nu geen antwoord ophalen. Probeer het opnieuw.",
+        content: "OpenLura could not fetch an answer right now. Please try again.",
         isStreaming: false,
       };
       setChats([...updated]);
@@ -2203,10 +2196,7 @@ updated[index].messages[
       try {
   const res = await fetch("/api/feedback", {
     method: "POST",
-    headers: getOpenLuraRequestHeaders(true, {
-      personalEnv: isPersonalRoute,
-      includeUserId: false,
-    }),
+    headers: getScopedRequestHeaders(true, isPersonalEnvironment),
         body: JSON.stringify({
       chatId: String(chatId),
       msgIndex,
@@ -2265,7 +2255,7 @@ updated[index].messages[
 
     updatedChats[chatIndex].messages.push({
       role: "ai",
-      content: "🤖 Wat kan ik beter doen?",
+      content: "🤖 What can I improve?",
       disableFeedback: true,
     });
 
@@ -2304,10 +2294,7 @@ updated[index].messages[
 
     fetch("/api/feedback", {
       method: "POST",
-      headers: getOpenLuraRequestHeaders(true, {
-        personalEnv: isPersonalEnvironment,
-        includeUserId: false,
-      }),
+      headers: getScopedRequestHeaders(true, isPersonalEnvironment),
       body: JSON.stringify({
         chatId: activeChatId !== null ? String(activeChatId) : null,
         type: "idea",
@@ -2535,7 +2522,7 @@ updated[index].messages[
                   .filter(
                     (entry: { msg: any; originalIndex: number }) =>
                       entry.msg.content !==
-                      "🤖 Bedankt voor je feedback. Ik sla dit op en gebruik het om toekomstige antwoorden te verbeteren."
+                      "🤖 Thanks for your feedback. I’ll use this to improve future answers."
                   )
                   .map((entry: { msg: any; originalIndex: number }) => {
                     const msg = entry.msg;
@@ -2629,8 +2616,8 @@ updated[index].messages[
                           renderedChatId !== null &&
                           originalIndex !== 0 &&
                           !msg.disableFeedback &&
-                          msg.content !== "🤖 Wat kan ik beter doen?" &&
-                          msg.content !== "🤖 Bedankt voor je feedback. Ik sla dit op en gebruik het om toekomstige antwoorden te verbeteren." && (
+                          msg.content !== "🤖 What can I improve?" &&
+                          msg.content !== "🤖 Thanks for your feedback. I’ll use this to improve future answers." && (
                             <>
                               <div className="mt-3 flex flex-wrap items-center gap-2 pl-1">
                                 {!feedbackGiven[

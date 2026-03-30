@@ -26,6 +26,14 @@ const MAX_REQUEST_BYTES = 16 * 1024;
 const FEEDBACK_RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const FEEDBACK_RATE_LIMIT_MAX_REQUESTS = 12;
 const feedbackRateLimitStore = new Map<string, { count: number; resetAt: number }>();
+function cleanupRateLimitStore() {
+  const now = Date.now();
+  for (const [key, value] of feedbackRateLimitStore.entries()) {
+    if (value.resetAt <= now) {
+      feedbackRateLimitStore.delete(key);
+    }
+  }
+}
 
 type FeedbackAction = "unlock_analytics" | "update_workflow_status" | null;
 type FeedbackType =
@@ -50,6 +58,22 @@ type FeedbackRequestBody = {
   workflowKey: string | null;
   workflowStatus: string | null;
   learningType: string | null;
+};
+
+type CanonicalFeedbackEntry = {
+  chatId: string | null;
+  msgIndex: number | null;
+  type: Exclude<FeedbackType, null>;
+  message: string | null;
+  userMessage: string | null;
+  source: string | null;
+  userScope: "admin" | "guest" | "personal";
+  user_id: string | null;
+  environment: "default" | "personal";
+  timestamp: string;
+  workflowKey: string;
+  workflowStatus: string | null;
+  learningType: "style" | "content" | null;
 };
 
 type RateLimitResult = {
@@ -123,15 +147,20 @@ function buildHeadersWithRateLimit(rateLimit?: RateLimitResult) {
   };
 }
 
-function checkFeedbackRateLimit(req: Request) {
+async function checkFeedbackRateLimit(req: Request) {
+  cleanupRateLimitStore();
+
   const ip = getRequestIp(req);
+  const identity = await resolveOpenLuraRequestIdentity(req);
+  const userKey = identity?.userId || "anon";
+  const rateLimitKey = `${ip}:${userKey}`;
   const now = Date.now();
-  const existing = feedbackRateLimitStore.get(ip);
+  const existing = feedbackRateLimitStore.get(rateLimitKey);
 
   if (!existing || existing.resetAt <= now) {
     const resetAt = now + FEEDBACK_RATE_LIMIT_WINDOW_MS;
 
-    feedbackRateLimitStore.set(ip, {
+    feedbackRateLimitStore.set(rateLimitKey, {
       count: 1,
       resetAt,
     });
@@ -152,7 +181,7 @@ function checkFeedbackRateLimit(req: Request) {
   }
 
   existing.count += 1;
-  feedbackRateLimitStore.set(ip, existing);
+  feedbackRateLimitStore.set(rateLimitKey, existing);
 
   return {
     allowed: true,
@@ -476,74 +505,219 @@ async function fetchAllFeedbackEntries(input: {
   return allRows;
 }
 
-function mapFeedbackRowToApi(row: Record<string, unknown>) {
-  return {
-    chatId: row.chatId ?? null,
-    msgIndex: row.msgIndex ?? null,
-    type: row.type ?? null,
-    message: row.message ?? null,
-    userMessage: row.userMessage ?? null,
-    source: row.source ?? null,
-    userScope: row.userScope ?? null,
-    user_id: row.user_id ?? null,
-    environment: row.environment ?? null,
-    timestamp: row.timestamp ?? null,
-    workflowKey: row.workflowKey ?? null,
-    workflowStatus: row.workflowStatus ?? null,
-    learningType: row.learningType ?? null,
-  };
+function normalizeFeedbackUserScope(
+  value: unknown
+): "admin" | "guest" | "personal" | null {
+  return value === "admin" || value === "guest" || value === "personal"
+    ? value
+    : null;
 }
 
-function mapFeedbackEntryToDb(entry: {
+function normalizeFeedbackEnvironment(
+  value: unknown
+): "default" | "personal" | null {
+  return value === "default" || value === "personal" ? value : null;
+}
+
+function normalizeFeedbackWorkflowStatus(
+  value: unknown
+): "nieuw" | "bezig" | "klaar" | null {
+  return value === "nieuw" || value === "bezig" || value === "klaar"
+    ? value
+    : null;
+}
+
+function mapFeedbackRowToApi(row: Record<string, unknown>): CanonicalFeedbackEntry | {
   chatId: string | null;
   msgIndex: number | null;
   type: FeedbackType;
   message: string | null;
   userMessage: string | null;
   source: string | null;
-  userScope: string | null;
+  userScope: "admin" | "guest" | "personal" | null;
   user_id: string | null;
-  environment: string | null;
-  timestamp: string;
-  workflowKey: string;
-  workflowStatus: string | null;
-  learningType: string | null;
-}) {
+  environment: "default" | "personal" | null;
+  timestamp: string | null;
+  workflowKey: string | null;
+  workflowStatus: "nieuw" | "bezig" | "klaar" | null;
+  learningType: "style" | "content" | null;
+} {
+  const normalizedType = normalizeFeedbackType(row.type);
+  const normalizedEnvironment = normalizeFeedbackEnvironment(row.environment);
+  const normalizedUserScope = normalizeFeedbackUserScope(row.userScope);
+  const normalizedLearningType = normalizeLearningType(row.learningType);
+  const normalizedWorkflowStatus = normalizeFeedbackWorkflowStatus(
+    row.workflowStatus
+  );
+
   return {
-  chatId: entry.chatId,
-  msgIndex: entry.msgIndex,
-  type: entry.type,
-  message: entry.message,
-  userMessage: entry.userMessage,
-  source: entry.source,
-  userScope: entry.userScope,
-  user_id: entry.user_id,
-  environment: entry.environment,
-  timestamp: entry.timestamp,
-  workflowKey: entry.workflowKey,
-  workflowStatus: entry.workflowStatus,
-  learningType: entry.learningType,
-};
+    chatId: typeof row.chatId === "string" ? row.chatId : null,
+    msgIndex:
+      typeof row.msgIndex === "number" && Number.isInteger(row.msgIndex)
+        ? row.msgIndex
+        : null,
+    type: normalizedType,
+    message: typeof row.message === "string" ? row.message : null,
+    userMessage: typeof row.userMessage === "string" ? row.userMessage : null,
+    source: typeof row.source === "string" ? row.source : null,
+    userScope: normalizedUserScope,
+    user_id: typeof row.user_id === "string" ? row.user_id : null,
+    environment: normalizedEnvironment,
+    timestamp: typeof row.timestamp === "string" ? row.timestamp : null,
+    workflowKey: typeof row.workflowKey === "string" ? row.workflowKey : null,
+    workflowStatus: normalizedWorkflowStatus,
+    learningType: normalizedLearningType,
+  };
+}
+
+function mapFeedbackEntryToDb(entry: CanonicalFeedbackEntry) {
+  return {
+    chatId: entry.chatId,
+    msgIndex: entry.msgIndex,
+    type: entry.type,
+    message: entry.message,
+    userMessage: entry.userMessage,
+    source: entry.source,
+    userScope: entry.userScope,
+    user_id: entry.user_id,
+    environment: entry.environment,
+    timestamp: entry.timestamp,
+    workflowKey: entry.workflowKey,
+    workflowStatus: entry.workflowStatus,
+    learningType: entry.learningType,
+  };
+}
+
+function resolveCanonicalLearningType(input: {
+  type: FeedbackType;
+  learningType: string | null;
+  message: string | null;
+  userMessage: string | null;
+}) {
+  if (input.type === "workflow_status" || input.type === "auto_debug") {
+    return input.learningType === "style" || input.learningType === "content"
+      ? input.learningType
+      : null;
+  }
+
+  if (input.learningType === "style" || input.learningType === "content") {
+    return input.learningType;
+  }
+
+  const combined = `${input.userMessage || ""} ${input.message || ""}`.toLowerCase();
+
+  const isStyleSignal =
+    /korter|te lang|shorter|too long|duidelijker|onduidelijk|clearer|unclear|structuur|structure|vaag|vague|meer context|more context|menselijker|spontaner|luchtiger|too formal|more natural/.test(
+      combined
+    );
+
+  return isStyleSignal ? "style" : "content";
+}
+
+function sanitizeWorkflowKey(value: string) {
+  return value.trim().slice(0, 500);
+}
+
+function buildCanonicalWorkflowAdminEntry(
+  entry: CanonicalFeedbackEntry
+): CanonicalFeedbackEntry {
+  return {
+    ...entry,
+    type: "workflow_status",
+    source: "analytics_workflow",
+    userScope: "admin",
+    user_id: null,
+    environment: "default",
+    learningType: null,
+  };
+}
+
+function buildCanonicalFeedbackEntry(input: {
+  data: FeedbackRequestBody;
+  identity: {
+    userId: string | null;
+    isAuthenticatedPersonalUser: boolean;
+  };
+  isAnalyticsWorkflowUpdate: boolean;
+  canonicalEnvironment: "default" | "personal";
+}): CanonicalFeedbackEntry {
+  const timestamp = new Date().toISOString();
+  const environment: "default" | "personal" = input.canonicalEnvironment;
+
+  const userScope: "admin" | "guest" | "personal" = input.isAnalyticsWorkflowUpdate
+    ? "admin"
+    : environment === "personal"
+      ? "personal"
+      : "guest";
+
+  const user_id =
+    !input.isAnalyticsWorkflowUpdate &&
+    environment === "personal" &&
+    input.identity.isAuthenticatedPersonalUser &&
+    input.identity.userId
+      ? input.identity.userId
+      : null;
+
+  const resolvedType: Exclude<FeedbackType, null> = input.isAnalyticsWorkflowUpdate
+    ? "workflow_status"
+    : (input.data.type as Exclude<FeedbackType, null>);
+
+  const resolvedSource = input.isAnalyticsWorkflowUpdate
+    ? "analytics_workflow"
+    : input.data.type === "idea" &&
+        input.data.source === "personal_environment" &&
+        environment !== "personal"
+      ? inferIdeaSource(input.data.type, input.data.message, null)
+      : inferIdeaSource(input.data.type, input.data.message, input.data.source);
+
+  const message = input.isAnalyticsWorkflowUpdate
+    ? input.data.workflowStatus
+    : input.data.message;
+
+  const workflowStatus = input.isAnalyticsWorkflowUpdate
+    ? input.data.workflowStatus || null
+    : null;
+  const workflowKey = sanitizeWorkflowKey(
+    input.data.workflowKey ||
+      createFeedbackWorkflowKey({
+        chatId: input.data.chatId,
+        msgIndex: input.data.msgIndex,
+        type: resolvedType,
+        message,
+        userMessage: input.data.userMessage,
+        source: resolvedSource,
+        environment,
+        userScope,
+        user_id,
+      })
+  );
+
+  return {
+    chatId: input.data.chatId,
+    msgIndex: input.data.msgIndex,
+    type: resolvedType,
+    message,
+    userMessage: input.data.userMessage,
+    source: resolvedSource,
+    userScope,
+    user_id,
+    environment,
+    timestamp,
+    workflowKey,
+    workflowStatus,
+    learningType: resolveCanonicalLearningType({
+      type: resolvedType,
+      learningType: input.data.learningType,
+      message,
+      userMessage: input.data.userMessage,
+    }),
+  };
 }
 
 async function saveFeedbackEntry(input: {
   feedbackTableUrl: string;
   supabaseServiceRoleKey: string;
-  entry: {
-    chatId: string | null;
-    msgIndex: number | null;
-    type: FeedbackType;
-    message: string | null;
-    userMessage: string | null;
-    source: string | null;
-    userScope: string | null;
-    user_id: string | null;
-    environment: string | null;
-    timestamp: string;
-    workflowKey: string;
-    workflowStatus: string | null;
-    learningType: string | null;
-  };
+  entry: CanonicalFeedbackEntry;
   errorLabel: string;
 }) {
   const headers = new Headers();
@@ -551,6 +725,35 @@ async function saveFeedbackEntry(input: {
   headers.set("apikey", input.supabaseServiceRoleKey);
   headers.set("Authorization", `Bearer ${input.supabaseServiceRoleKey}`);
   headers.set("Prefer", "return=representation");
+
+  const dedupeQuery =
+    `select=chatId,msgIndex,type,message,userMessage,source,userScope,user_id,environment,timestamp,workflowKey,workflowStatus,learningType` +
+    `&workflowKey=eq.${encodeURIComponent(input.entry.workflowKey)}` +
+    `&type=eq.${encodeURIComponent(input.entry.type)}` +
+    `&${buildPostgrestEqOrNullFilter("source", input.entry.source)}` +
+    `&userScope=eq.${encodeURIComponent(input.entry.userScope)}` +
+    `&environment=eq.${encodeURIComponent(input.entry.environment)}` +
+    `&${buildPostgrestEqOrNullFilter("user_id", input.entry.user_id)}` +
+    `&order=timestamp.desc` +
+    `&limit=1`;
+
+  const existingRes = await fetch(`${input.feedbackTableUrl}?${dedupeQuery}`, {
+    method: "GET",
+    headers,
+    cache: "no-store",
+  });
+
+  if (!existingRes.ok) {
+    const errorText = await existingRes.text();
+    throw new Error(`${input.errorLabel} dedupe check failed ${existingRes.status}: ${errorText}`);
+  }
+
+  const existingData: unknown = await existingRes.json();
+  const existingRows = Array.isArray(existingData) ? existingData : [];
+
+  if (existingRows.length > 0) {
+    return existingRows.map((row) => mapFeedbackRowToApi(row as Record<string, unknown>));
+  }
 
   const dbEntry = mapFeedbackEntryToDb(input.entry);
 
@@ -570,6 +773,38 @@ async function saveFeedbackEntry(input: {
   return Array.isArray(data)
     ? data.map((row) => mapFeedbackRowToApi(row as Record<string, unknown>))
     : [];
+}
+function buildPostgrestEqOrNullFilter(column: string, value: string | null) {
+  if (value === null) {
+    return `${column}=is.null`;
+  }
+
+  return `${column}=eq.${encodeURIComponent(value)}`;
+}
+
+function resolveCanonicalRequestEnvironment(input: {
+  requestedEnvironment: string | null;
+  personalEnvironmentHeader: boolean;
+  isAuthenticatedPersonalUser: boolean;
+  isAnalyticsWorkflowUpdate: boolean;
+}) {
+  if (input.isAnalyticsWorkflowUpdate) {
+    return "default" as const;
+  }
+
+  if (input.personalEnvironmentHeader) {
+    if (!input.isAuthenticatedPersonalUser) {
+      return null;
+    }
+
+    return "personal" as const;
+  }
+
+  if (input.requestedEnvironment === "personal") {
+    return null;
+  }
+
+  return "default" as const;
 }
 
 function inferIdeaSource(
@@ -629,7 +864,7 @@ function inferIdeaSource(
 }
 
 export async function POST(req: Request) {
-  const rateLimit = checkFeedbackRateLimit(req);
+  const rateLimit = await checkFeedbackRateLimit(req);
 
   if (!rateLimit.allowed) {
     return NextResponse.json(
@@ -723,34 +958,29 @@ const identity = await resolveFeedbackIdentity(req);
 const personalEnvironmentRequested = isPersonalEnvironmentRequest(req);
 const isAnalyticsWorkflowUpdate = data.action === "update_workflow_status";
 const hasAnalyticsAccess = isFeedbackReadAuthorized(req);
-const explicitlyPersonalEnvironment = data.environment === "personal";
 
 if (isAnalyticsWorkflowUpdate && !hasAnalyticsAccess) {
   return unauthorized("Analytics authorization required", rateLimit);
 }
 
 if (
-  explicitlyPersonalEnvironment &&
+  data.environment === "personal" &&
   !personalEnvironmentRequested &&
   !isAnalyticsWorkflowUpdate
 ) {
   return badRequest("Personal environment header required", rateLimit);
 }
 
-const wantsPersonalEnvironment =
-  explicitlyPersonalEnvironment && personalEnvironmentRequested;
+const canonicalEnvironment = resolveCanonicalRequestEnvironment({
+  requestedEnvironment: data.environment,
+  personalEnvironmentHeader: personalEnvironmentRequested,
+  isAuthenticatedPersonalUser: identity.isAuthenticatedPersonalUser,
+  isAnalyticsWorkflowUpdate,
+});
 
-if (
-  wantsPersonalEnvironment &&
-  !identity.isAuthenticatedPersonalUser &&
-  !isAnalyticsWorkflowUpdate
-) {
+if (!canonicalEnvironment) {
   return unauthorized("Personal feedback requires authentication", rateLimit);
 }
-
-const isPersonalEnvironment =
-  wantsPersonalEnvironment &&
-  (identity.isAuthenticatedPersonalUser || isAnalyticsWorkflowUpdate);
 
 if (data.action === "update_workflow_status") {
   if (!data.workflowKey || !data.workflowStatus) {
@@ -777,74 +1007,32 @@ if (
   return badRequest("Invalid feedback type for this action", rateLimit);
 }
 
-const timestamp = new Date().toISOString();
-const environment = isPersonalEnvironment ? "personal" : "default";
-const hasAuthenticatedPersonalContext =
+if (
   !isAnalyticsWorkflowUpdate &&
-  isPersonalEnvironment &&
-  identity.isAuthenticatedPersonalUser &&
-  !!identity.userId;
-const userScope = isAnalyticsWorkflowUpdate
-  ? "admin"
-  : isPersonalEnvironment
-  ? "personal"
-  : "guest";
-const user_id = hasAuthenticatedPersonalContext ? identity.userId || null : null;
+  data.type === "auto_debug" &&
+  !hasAnalyticsAccess
+) {
+  return unauthorized("Analytics authorization required", rateLimit);
+}
 
-const resolvedType: FeedbackType = isAnalyticsWorkflowUpdate
-  ? "workflow_status"
-  : data.type;
+if (
+  !isAnalyticsWorkflowUpdate &&
+  data.type === "auto_debug" &&
+  data.environment === "personal"
+) {
+  return badRequest("Auto debug entries must use default environment", rateLimit);
+}
 
-const resolvedSource = isAnalyticsWorkflowUpdate
-  ? "analytics_workflow"
-  : data.type === "idea" &&
-    data.source === "personal_environment" &&
-    !isPersonalEnvironment
-  ? inferIdeaSource(data.type, data.message, null)
-  : inferIdeaSource(data.type, data.message, data.source);
+const entry = buildCanonicalFeedbackEntry({
+  data,
+  identity,
+  isAnalyticsWorkflowUpdate,
+  canonicalEnvironment,
+});
 
-const baseEntry = {
-  chatId: data.chatId,
-  msgIndex: data.msgIndex,
-  type: resolvedType,
-  message: isAnalyticsWorkflowUpdate ? data.workflowStatus : data.message,
-  userMessage: data.userMessage,
-  source: resolvedSource,
-  userScope,
-  user_id,
-  environment,
-  timestamp,
-  learningType: data.learningType,
-};
-
-const workflowKey =
-  data.workflowKey ||
-  createFeedbackWorkflowKey({
-    ...baseEntry,
-    userScope,
-    user_id,
-    environment,
-  });
-
-const entry: {
-  chatId: string | null;
-  msgIndex: number | null;
-  type: FeedbackType;
-  message: string | null;
-  userMessage: string | null;
-  source: string | null;
-  userScope: string | null;
-  user_id: string | null;
-  environment: string | null;
-  timestamp: string;
-  workflowKey: string;
-  workflowStatus: string | null;
-  learningType: string | null;
-} = {
-  ...baseEntry,
-  workflowKey,
-  workflowStatus: isAnalyticsWorkflowUpdate ? data.workflowStatus || null : null,
-};
+const persistedEntry = isAnalyticsWorkflowUpdate
+  ? buildCanonicalWorkflowAdminEntry(entry)
+  : entry;
 
 try {
   let saved;
@@ -857,18 +1045,26 @@ try {
     workflowHeaders.set("Prefer", "return=representation");
 
     const workflowQuery =
-      `type=eq.workflow_status&source=eq.analytics_workflow&workflowKey=eq.${encodeURIComponent(
-        workflowKey
-      )}`;
+      `type=eq.${encodeURIComponent(persistedEntry.type)}` +
+      `&${buildPostgrestEqOrNullFilter("source", persistedEntry.source)}` +
+      `&userScope=eq.${encodeURIComponent(persistedEntry.userScope)}` +
+      `&environment=eq.${encodeURIComponent(persistedEntry.environment)}` +
+      `&${buildPostgrestEqOrNullFilter("user_id", persistedEntry.user_id)}` +
+      `&workflowKey=eq.${encodeURIComponent(persistedEntry.workflowKey)}`;
 
     const updateRes = await fetch(`${feedbackTableUrl}?${workflowQuery}`, {
       method: "PATCH",
       headers: workflowHeaders,
       body: JSON.stringify({
-        message: entry.message,
-        workflowStatus: entry.workflowStatus,
-        timestamp: entry.timestamp,
-        environment: entry.environment,
+        message: persistedEntry.message,
+        workflowStatus: persistedEntry.workflowStatus,
+        timestamp: persistedEntry.timestamp,
+        source: persistedEntry.source,
+        environment: persistedEntry.environment,
+        userScope: persistedEntry.userScope,
+        user_id: persistedEntry.user_id,
+        workflowKey: persistedEntry.workflowKey,
+        learningType: persistedEntry.learningType,
       }),
       cache: "no-store",
     });
@@ -889,7 +1085,7 @@ try {
       saved = await saveFeedbackEntry({
         feedbackTableUrl,
         supabaseServiceRoleKey,
-        entry,
+        entry: persistedEntry,
         errorLabel: "Workflow status opslaan mislukt:",
       });
     }
@@ -897,7 +1093,7 @@ try {
     saved = await saveFeedbackEntry({
       feedbackTableUrl,
       supabaseServiceRoleKey,
-      entry,
+      entry: persistedEntry,
       errorLabel: "Feedback opslaan mislukt:",
     });
   }
@@ -905,36 +1101,34 @@ try {
   return NextResponse.json(
     {
       success: true,
-      item: saved[0] ?? entry,
+      item: saved[0] ?? persistedEntry,
     },
     {
       headers: buildHeadersWithRateLimit(rateLimit),
     }
   );
-}
-    
-    catch (error) {
-      logSafeError("Feedback POST save failed", error, {
-        action: data.action || "feedback",
-        environment: entry.environment,
-        userScope: entry.userScope,
-        hasUserId: !!entry.user_id,
-      });
+} catch (error) {
+  logSafeError("Feedback POST save failed", error, {
+    action: data.action || "feedback",
+    environment: persistedEntry.environment,
+    userScope: persistedEntry.userScope,
+    hasUserId: !!persistedEntry.user_id,
+  });
 
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            data.action === "update_workflow_status"
-              ? "Workflow status opslaan mislukt"
-              : "Feedback opslaan mislukt",
-        },
-        {
-          status: 500,
-          headers: buildHeadersWithRateLimit(rateLimit),
-        }
-      );
+  return NextResponse.json(
+    {
+      success: false,
+      error:
+        data.action === "update_workflow_status"
+          ? "Workflow status opslaan mislukt"
+          : "Feedback opslaan mislukt",
+    },
+    {
+      status: 500,
+      headers: buildHeadersWithRateLimit(rateLimit),
     }
+  );
+}
   } catch (error) {
     logSafeError("Feedback POST failed", error);
 
@@ -984,18 +1178,45 @@ export async function GET(req: Request) {
       );
     }
 
-    return NextResponse.json(
-      Array.isArray(data)
-        ? data.map((row) => mapFeedbackRowToApi(row as Record<string, unknown>))
-        : [],
-      {
-        headers: {
-          "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
-          Pragma: "no-cache",
-          Expires: "0",
-        },
-      }
-    );
+    const normalizedRows = Array.isArray(data)
+      ? data
+          .map((row) => mapFeedbackRowToApi(row as Record<string, unknown>))
+          .filter((row) => {
+            if (!row.type || !row.environment || !row.userScope) {
+              return false;
+            }
+
+            if (row.type === "workflow_status") {
+              return (
+                row.source === "analytics_workflow" &&
+                row.userScope === "admin" &&
+                row.environment === "default" &&
+                row.user_id === null &&
+                !!row.workflowKey &&
+                !!row.workflowStatus
+              );
+            }
+
+            if (row.environment === "default") {
+              return row.userScope !== "personal";
+            }
+
+            return (
+              row.environment === "personal" &&
+              row.userScope === "personal" &&
+              typeof row.user_id === "string" &&
+              !!row.user_id
+            );
+          })
+      : [];
+
+return NextResponse.json(normalizedRows, {
+  headers: {
+    "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+    Pragma: "no-cache",
+    Expires: "0",
+  },
+});
   } catch (error) {
     logSafeError("Feedback GET failed", error);
 
