@@ -30,7 +30,39 @@ export default function HomePage() {
               href="/analytics"
               className="inline-flex h-12 items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.04] px-6 text-sm font-medium text-white/88 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/14 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.99]"
             >
-              View product signals
+              View analytics
+            </Link>
+          </div>
+
+          <div className="mt-10 grid w-full max-w-3xl gap-3 sm:grid-cols-3">
+            <Link
+              href="/chat"
+              className="rounded-[20px] border border-white/10 bg-white/[0.03] px-4 py-4 text-left backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-white/14 hover:bg-white/[0.05] hover:shadow-[0_10px_24px_rgba(0,0,0,0.12)]"
+            >
+              <div className="text-sm font-medium text-white">Start chat</div>
+              <div className="mt-1 text-sm leading-6 text-white/46">
+                Open the core assistant workspace.
+              </div>
+            </Link>
+
+            <Link
+              href="/persoonlijke-omgeving"
+              className="rounded-[20px] border border-white/10 bg-white/[0.03] px-4 py-4 text-left backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-white/14 hover:bg-white/[0.05] hover:shadow-[0_10px_24px_rgba(0,0,0,0.12)]"
+            >
+              <div className="text-sm font-medium text-white">Personal AI</div>
+              <div className="mt-1 text-sm leading-6 text-white/46">
+                Open your private environment.
+              </div>
+            </Link>
+
+            <Link
+              href="/analytics"
+              className="rounded-[20px] border border-white/10 bg-white/[0.03] px-4 py-4 text-left backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-white/14 hover:bg-white/[0.05] hover:shadow-[0_10px_24px_rgba(0,0,0,0.12)]"
+            >
+              <div className="text-sm font-medium text-white">Analytics</div>
+              <div className="mt-1 text-sm leading-6 text-white/46">
+                View product signals and feedback data.
+              </div>
             </Link>
           </div>
         </div>
