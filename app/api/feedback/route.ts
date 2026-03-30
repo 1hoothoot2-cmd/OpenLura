@@ -266,6 +266,21 @@ function normalizeLearningType(value: unknown) {
 
   return normalized;
 }
+
+function normalizeEnvironment(value: unknown) {
+  const normalized = normalizeOptionalString(value, 50)?.toLowerCase() || null;
+
+  if (!normalized) {
+    return null;
+  }
+
+  if (normalized !== "default" && normalized !== "personal") {
+    return null;
+  }
+
+  return normalized;
+}
+
 function normalizeFeedbackType(value: unknown): FeedbackType {
   const normalized = normalizeOptionalString(value, 50)?.toLowerCase() || null;
 
@@ -389,7 +404,7 @@ function parseFeedbackRequestBody(body: unknown): FeedbackRequestBody | null {
     message: normalizeOptionalString(body.message),
     userMessage: normalizeOptionalString(body.userMessage),
     source: normalizeOptionalString(body.source, 100),
-    environment: normalizeOptionalString(body.environment, 50),
+    environment: normalizeEnvironment(body.environment),
     workflowKey: normalizeOptionalString(body.workflowKey, 500),
     workflowStatus: normalizeWorkflowStatus(body.workflowStatus),
     learningType: normalizeLearningType(body.learningType),
@@ -417,6 +432,48 @@ async function resolveFeedbackIdentity(req: Request) {
     userId: softIdentity.userId,
     isAuthenticatedPersonalUser: softIdentity.isAuthenticated && !!softIdentity.userId,
   };
+}
+
+async function fetchAllFeedbackEntries(input: {
+  feedbackTableUrl: string;
+  supabaseServiceRoleKey: string;
+  query: string;
+}) {
+  const pageSize = 1000;
+  let from = 0;
+  let allRows: unknown[] = [];
+
+  while (true) {
+    const headers = new Headers();
+    headers.set("apikey", input.supabaseServiceRoleKey);
+    headers.set("Authorization", `Bearer ${input.supabaseServiceRoleKey}`);
+    headers.set("Range-Unit", "items");
+    headers.set("Range", `${from}-${from + pageSize - 1}`);
+
+    const res = await fetch(`${input.feedbackTableUrl}?${input.query}`, {
+      method: "GET",
+      headers,
+      cache: "no-store",
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error(`Feedback fetch failed ${res.status}: ${errorText}`);
+    }
+
+    const pageData: unknown = await res.json();
+    const pageRows = Array.isArray(pageData) ? pageData : [];
+
+    allRows = [...allRows, ...pageRows];
+
+    if (pageRows.length < pageSize) {
+      break;
+    }
+
+    from += pageSize;
+  }
+
+  return allRows;
 }
 
 async function saveFeedbackEntry(input: {
@@ -539,6 +596,14 @@ export async function POST(req: Request) {
 
     if (!data) {
       return badRequest("Invalid request body", rateLimit);
+    }
+
+    if (
+      isPlainObject(parsedBody.body) &&
+      typeof parsedBody.body.environment === "string" &&
+      !data.environment
+    ) {
+      return badRequest("Invalid environment", rateLimit);
     }
 
     if (data.action === "unlock_analytics") {
@@ -703,20 +768,55 @@ try {
   let saved;
 
   if (data.action === "update_workflow_status") {
-  saved = await saveFeedbackEntry({
-    feedbackTableUrl,
-    supabaseServiceRoleKey,
-    entry,
-    errorLabel: "Workflow status opslaan mislukt:",
-  });
-} else {
-  saved = await saveFeedbackEntry({
-    feedbackTableUrl,
-    supabaseServiceRoleKey,
-    entry,
-    errorLabel: "Feedback opslaan mislukt:",
-  });
-}
+    const workflowHeaders = new Headers();
+    workflowHeaders.set("Content-Type", "application/json");
+    workflowHeaders.set("apikey", supabaseServiceRoleKey);
+    workflowHeaders.set("Authorization", `Bearer ${supabaseServiceRoleKey}`);
+    workflowHeaders.set("Prefer", "return=representation");
+
+    const workflowQuery =
+      `type=eq.workflow_status&source=eq.analytics_workflow&workflowKey=eq.${encodeURIComponent(
+        workflowKey
+      )}`;
+
+    const updateRes = await fetch(`${feedbackTableUrl}?${workflowQuery}`, {
+      method: "PATCH",
+      headers: workflowHeaders,
+      body: JSON.stringify({
+        message: entry.message,
+        workflowStatus: entry.workflowStatus,
+        timestamp: entry.timestamp,
+        environment: entry.environment,
+      }),
+      cache: "no-store",
+    });
+
+    if (!updateRes.ok) {
+      const errorText = await updateRes.text();
+      throw new Error(`Workflow update failed ${updateRes.status}: ${errorText}`);
+    }
+
+    const updatedRows: unknown = await updateRes.json();
+    const normalizedUpdatedRows = Array.isArray(updatedRows) ? updatedRows : [];
+
+    if (normalizedUpdatedRows.length > 0) {
+      saved = normalizedUpdatedRows;
+    } else {
+      saved = await saveFeedbackEntry({
+        feedbackTableUrl,
+        supabaseServiceRoleKey,
+        entry,
+        errorLabel: "Workflow status opslaan mislukt:",
+      });
+    }
+  } else {
+    saved = await saveFeedbackEntry({
+      feedbackTableUrl,
+      supabaseServiceRoleKey,
+      entry,
+      errorLabel: "Feedback opslaan mislukt:",
+    });
+  }
 
   return NextResponse.json(
     {
@@ -777,22 +877,16 @@ export async function GET(req: Request) {
       "select=chatId,msgIndex,type,message,userMessage,source,userScope,user_id,environment,timestamp,workflowKey,workflowStatus,learningType" +
       "&order=timestamp.desc.nullslast";
 
-    const headers = new Headers();
-    headers.set("apikey", String(supabaseServiceRoleKey));
-    headers.set("Authorization", `Bearer ${String(supabaseServiceRoleKey)}`);
+    let data: unknown;
 
-    const res = await fetch(`${feedbackTableUrl}?${query}`, {
-      method: "GET",
-      headers,
-      cache: "no-store",
-    });
-
-    if (!res.ok) {
-      const errorText = await res.text();
-
-      logSafeError("Supabase feedback GET failed", new Error(errorText), {
-        status: res.status,
+    try {
+      data = await fetchAllFeedbackEntries({
+        feedbackTableUrl,
+        supabaseServiceRoleKey: String(supabaseServiceRoleKey),
+        query,
       });
+    } catch (error) {
+      logSafeError("Supabase feedback GET failed", error);
 
       return NextResponse.json(
         {
@@ -805,8 +899,6 @@ export async function GET(req: Request) {
         }
       );
     }
-
-    const data = await res.json();
 
     return NextResponse.json(Array.isArray(data) ? data : [], {
       headers: {
