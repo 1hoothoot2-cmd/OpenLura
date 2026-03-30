@@ -1,5 +1,14 @@
 "use client";
 import { useEffect, useState } from "react";
+function safeParseJson<T>(raw: string | null, fallback: T): T {
+  if (!raw) return fallback;
+
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}
 
 export default function AnalyticsPage() {
     type AnalyticsFeedbackItem = {
@@ -74,12 +83,12 @@ const resolvedUserId = getOrCreateOpenLuraUserId();
 
   useEffect(() => {
     const saved = localStorage.getItem("openlura_analytics_status");
-    if (saved) {
-      try {
-        setItemStatus(JSON.parse(saved));
-      } catch {
-        localStorage.removeItem("openlura_analytics_status");
-      }
+    const parsedStatus = safeParseJson<Record<string, string> | null>(saved, null);
+
+    if (parsedStatus && typeof parsedStatus === "object" && !Array.isArray(parsedStatus)) {
+      setItemStatus(parsedStatus);
+    } else if (saved) {
+      localStorage.removeItem("openlura_analytics_status");
     }
 
     if (typeof window !== "undefined") {
@@ -609,11 +618,13 @@ useEffect(() => {
   if (!isUnlocked) return;
 
   const load = async () => {
-  const defaultLocalFeedback = JSON.parse(
-    localStorage.getItem("openlura_feedback") || "[]"
+  const defaultLocalFeedback = safeParseJson<any[]>(
+    localStorage.getItem("openlura_feedback"),
+    []
   );
-  const personalLocalFeedback = JSON.parse(
-    localStorage.getItem("openlura_personal_feedback") || "[]"
+  const personalLocalFeedback = safeParseJson<any[]>(
+    localStorage.getItem("openlura_personal_feedback"),
+    []
   );
 
   setLocalFeedbackStats({
@@ -739,7 +750,8 @@ useEffect(() => {
       throw new Error("Feedback ophalen mislukt");
     }
 
-    data = await res.json();
+    const rawData: unknown = await res.json();
+    data = Array.isArray(rawData) ? rawData : [];
     serverFetchSucceeded = true;
   } catch (error) {
     console.warn("Analytics server tijdelijk niet bereikbaar");
@@ -767,7 +779,9 @@ useEffect(() => {
 
   setItemStatus((prev) => {
     const next = { ...prev, ...serverStatusMap };
-    localStorage.setItem("openlura_analytics_status", JSON.stringify(next));
+    try {
+      localStorage.setItem("openlura_analytics_status", JSON.stringify(next));
+    } catch {}
     return next;
   });
 
@@ -909,7 +923,10 @@ return () => {
 
   const pushAutoLearningInsight = async (key: string, message: string) => {
     const storageKey = "openlura_auto_learning_insights";
-    const existing = JSON.parse(localStorage.getItem(storageKey) || "[]");
+    const existing = safeParseJson<string[]>(
+      localStorage.getItem(storageKey),
+      []
+    );
     const alreadyStoredInFeedback = feedback.some(
       (item: AnalyticsFeedbackItem) =>
         item.type === "idea" &&
@@ -936,10 +953,12 @@ return () => {
 
       if (!res.ok) return;
 
-      localStorage.setItem(
-        storageKey,
-        JSON.stringify([...existing, key])
-      );
+      try {
+        localStorage.setItem(
+          storageKey,
+          JSON.stringify([...existing, key])
+        );
+      } catch {}
 
       window.dispatchEvent(new Event("openlura_feedback_update"));
     } catch (error) {
@@ -1001,7 +1020,9 @@ return () => {
 
     setItemStatus((prev) => {
       const next = { ...prev, [key]: status };
-      localStorage.setItem("openlura_analytics_status", JSON.stringify(next));
+      try {
+        localStorage.setItem("openlura_analytics_status", JSON.stringify(next));
+      } catch {}
       return next;
     });
 
@@ -1045,7 +1066,9 @@ return () => {
           delete next[key];
         }
 
-        localStorage.setItem("openlura_analytics_status", JSON.stringify(next));
+        try {
+          localStorage.setItem("openlura_analytics_status", JSON.stringify(next));
+        } catch {}
         return next;
       });
 
@@ -1126,7 +1149,9 @@ return () => {
         console.error("Analytics logout failed:", error);
       }
 
-      localStorage.removeItem("openlura_auto_learning_insights");
+      try {
+        localStorage.removeItem("openlura_auto_learning_insights");
+      } catch {}
       if (typeof window !== "undefined") {
         sessionStorage.removeItem(ANALYTICS_UNLOCK_STORAGE_KEY);
       }
