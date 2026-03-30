@@ -478,19 +478,19 @@ async function fetchAllFeedbackEntries(input: {
 
 function mapFeedbackRowToApi(row: Record<string, unknown>) {
   return {
-    chatId: row.chat_id ?? null,
-    msgIndex: row.msg_index ?? null,
+    chatId: row.chatId ?? null,
+    msgIndex: row.msgIndex ?? null,
     type: row.type ?? null,
     message: row.message ?? null,
-    userMessage: row.user_message ?? null,
+    userMessage: row.userMessage ?? null,
     source: row.source ?? null,
-    userScope: row.user_scope ?? null,
+    userScope: row.userScope ?? null,
     user_id: row.user_id ?? null,
     environment: row.environment ?? null,
     timestamp: row.timestamp ?? null,
-    workflowKey: row.workflow_key ?? null,
-    workflowStatus: row.workflow_status ?? null,
-    learningType: row.learning_type ?? null,
+    workflowKey: row.workflowKey ?? null,
+    workflowStatus: row.workflowStatus ?? null,
+    learningType: row.learningType ?? null,
   };
 }
 
@@ -510,20 +510,20 @@ function mapFeedbackEntryToDb(entry: {
   learningType: string | null;
 }) {
   return {
-    chat_id: entry.chatId,
-    msg_index: entry.msgIndex,
-    type: entry.type,
-    message: entry.message,
-    user_message: entry.userMessage,
-    source: entry.source,
-    user_scope: entry.userScope,
-    user_id: entry.user_id,
-    environment: entry.environment,
-    timestamp: entry.timestamp,
-    workflow_key: entry.workflowKey,
-    workflow_status: entry.workflowStatus,
-    learning_type: entry.learningType,
-  };
+  chatId: entry.chatId,
+  msgIndex: entry.msgIndex,
+  type: entry.type,
+  message: entry.message,
+  userMessage: entry.userMessage,
+  source: entry.source,
+  userScope: entry.userScope,
+  user_id: entry.user_id,
+  environment: entry.environment,
+  timestamp: entry.timestamp,
+  workflowKey: entry.workflowKey,
+  workflowStatus: entry.workflowStatus,
+  learningType: entry.learningType,
+};
 }
 
 async function saveFeedbackEntry(input: {
@@ -857,7 +857,7 @@ try {
     workflowHeaders.set("Prefer", "return=representation");
 
     const workflowQuery =
-      `type=eq.workflow_status&source=eq.analytics_workflow&workflow_key=eq.${encodeURIComponent(
+      `type=eq.workflow_status&source=eq.analytics_workflow&workflowKey=eq.${encodeURIComponent(
         workflowKey
       )}`;
 
@@ -866,7 +866,7 @@ try {
       headers: workflowHeaders,
       body: JSON.stringify({
         message: entry.message,
-        workflow_status: entry.workflowStatus,
+        workflowStatus: entry.workflowStatus,
         timestamp: entry.timestamp,
         environment: entry.environment,
       }),
@@ -958,7 +958,7 @@ export async function GET(req: Request) {
 
     const { feedbackTableUrl, supabaseServiceRoleKey } = getSupabaseConfig();
     const query =
-      "select=chatId:chat_id,msgIndex:msg_index,type,message,userMessage:user_message,source,userScope:user_scope,user_id,environment,timestamp,workflowKey:workflow_key,workflowStatus:workflow_status,learningType:learning_type" +
+      "select=chatId,msgIndex,type,message,userMessage,source,userScope,user_id,environment,timestamp,workflowKey,workflowStatus,learningType" +
       "&order=timestamp.desc.nullslast";
 
     let data: unknown;
