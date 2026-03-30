@@ -226,6 +226,56 @@ export default function HomePage() {
               </div>
             </div>
           </div>
+
+          {/* SYSTEM STATUS */}
+          <div className="mt-16 w-full max-w-5xl">
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold text-white/92">
+                System status
+              </h2>
+              <p className="mt-2 max-w-2xl text-sm text-white/50">
+                A simple view of current product readiness across core OpenLura flows.
+              </p>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="rounded-[22px] border border-emerald-400/14 bg-white/[0.03] p-5 backdrop-blur-xl">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-medium text-white">Chat workspace</div>
+                  <span className="inline-flex items-center rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
+                    Operational
+                  </span>
+                </div>
+                <p className="mt-2 text-sm leading-6 text-white/46">
+                  Core chat access and primary assistant flow are available.
+                </p>
+              </div>
+
+              <div className="rounded-[22px] border border-emerald-400/14 bg-white/[0.03] p-5 backdrop-blur-xl">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-medium text-white">Learning systems</div>
+                  <span className="inline-flex items-center rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
+                    Operational
+                  </span>
+                </div>
+                <p className="mt-2 text-sm leading-6 text-white/46">
+                  Context, feedback foundations, and adaptive behavior are in place.
+                </p>
+              </div>
+
+              <div className="rounded-[22px] border border-amber-400/14 bg-white/[0.03] p-5 backdrop-blur-xl">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-medium text-white">Feedback intake</div>
+                  <span className="inline-flex items-center rounded-full border border-amber-400/20 bg-amber-400/10 px-2.5 py-1 text-[11px] font-medium text-amber-300">
+                    In progress
+                  </span>
+                </div>
+                <p className="mt-2 text-sm leading-6 text-white/46">
+                  Feedback entry is live in the interface and backend wiring comes next.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
 
         {isFeedbackOpen && (
