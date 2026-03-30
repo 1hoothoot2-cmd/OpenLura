@@ -3,9 +3,9 @@ import Link from "next/link";
 export default function HomePage() {
   return (
     <main className="min-h-screen bg-[#050510] text-white">
-      <div className="mx-auto flex min-h-screen w-full max-w-7xl items-center px-6 py-16 sm:px-8 lg:px-12">
+      <div className="mx-auto w-full max-w-6xl px-6 py-16 sm:px-8 lg:px-10">
         <div className="w-full">
-          <div className="max-w-3xl">
+          <div className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-white/50">
             OpenLura
           </div>
 
@@ -67,7 +67,7 @@ export default function HomePage() {
           </div>
 
           {/* PRODUCT OVERVIEW */}
-          <div className="mt-16 w-full max-w-5xl">
+          <div className="mt-16 w-full max-w-4xl">
             <div className="mb-6">
               <h2 className="text-xl font-semibold text-white/92">
                 How OpenLura works
@@ -77,7 +77,7 @@ export default function HomePage() {
               </p>
             </div>
 
-            <div className="grid gap-5 md:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               <div className="min-w-0 rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
                 <div className="text-sm font-medium text-white">
                   Learns from context
