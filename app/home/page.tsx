@@ -7,8 +7,10 @@ const chapterLinks = [
   { href: "#how-it-works", label: "How it works" },
   { href: "#roadmap", label: "Roadmap" },
   { href: "#use-cases", label: "Use cases" },
+  { href: "#why-openlura", label: "Why OpenLura" },
   { href: "#plans", label: "Plans" },
   { href: "#security", label: "Security" },
+  { href: "#account-flow", label: "Account flow" },
   { href: "#changelog", label: "Changelog" },
 ];
 
@@ -50,7 +52,7 @@ export default function HomePage() {
             </Link>
           </div>
 
-          <div className="mt-8 flex flex-col items-start gap-2">
+          <div className="mt-8 flex flex-col items-start gap-3">
             <div className="flex flex-wrap gap-2">
               {chapterLinks.map((item) => (
                 <a
@@ -63,6 +65,13 @@ export default function HomePage() {
               ))}
             </div>
 
+            <button
+              type="button"
+              onClick={() => setIsFeedbackOpen(true)}
+              className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[12px] font-medium text-white/56 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-amber-400/26 hover:bg-amber-400/10 hover:text-amber-200 hover:shadow-[0_10px_24px_rgba(251,191,36,0.12)]"
+            >
+              Give feedback
+            </button>
           </div>
         </div>
 
@@ -233,36 +242,6 @@ export default function HomePage() {
             </div>
           </section>
 
-          {/* BUG CHANNEL */}
-          <div className="mt-16 w-full max-w-4xl">
-            <div className="overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.03] p-6 backdrop-blur-xl sm:p-7">
-              <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
-                <div className="max-w-2xl">
-                  <div className="inline-flex items-center rounded-full border border-amber-400/16 bg-amber-400/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.16em] text-amber-300">
-                    Feedback channel
-                  </div>
-
-                  <h2 className="mt-4 text-xl font-semibold text-white/92">
-                    Found a bug or something unclear?
-                  </h2>
-
-                  <p className="mt-2 text-sm leading-6 text-white/50">
-                    Share issues, unclear behavior, or ideas to improve OpenLura.
-                    Your feedback helps shape the product as it evolves.
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setIsFeedbackOpen(true)}
-                  className="inline-flex h-12 items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.05] px-6 text-sm font-medium text-white/88 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/14 hover:bg-white/[0.07] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.12)] active:scale-[0.99]"
-                >
-                  Give feedback
-                </button>
-              </div>
-            </div>
-          </div>
-
           {/* SYSTEM STATUS */}
           <section
             id="system-status"
@@ -376,7 +355,10 @@ export default function HomePage() {
           </section>
 
           {/* WHY OPENLURA */}
-          <div className="mt-16 w-full max-w-5xl">
+          <section
+            id="why-openlura"
+            className="section-panel scroll-mt-24 mt-16 w-full max-w-5xl"
+          >
             <div className="mb-6">
               <h2 className="text-xl font-semibold text-white/92">
                 Why OpenLura
@@ -415,7 +397,7 @@ export default function HomePage() {
                 </p>
               </div>
             </div>
-          </div>
+          </section>
 
           {/* PLANS */}
           <section
@@ -570,7 +552,10 @@ export default function HomePage() {
           </section>
 
           {/* ACCOUNT FLOW */}
-          <div className="mt-16 w-full max-w-5xl">
+          <section
+            id="account-flow"
+            className="section-panel scroll-mt-24 mt-16 w-full max-w-5xl"
+          >
             <div className="mb-6">
               <h2 className="text-xl font-semibold text-white/92">
                 Account flow
@@ -621,7 +606,7 @@ export default function HomePage() {
                 </p>
               </div>
             </div>
-          </div>
+          </section>
 
           {/* CHANGELOG */}
           <section
@@ -718,6 +703,14 @@ export default function HomePage() {
                     Open chat
                   </Link>
 
+                  <button
+                    type="button"
+                    onClick={() => setIsFeedbackOpen(true)}
+                    className="inline-flex h-12 items-center justify-center rounded-[18px] border border-amber-400/16 bg-amber-400/10 px-6 text-sm font-medium text-amber-200 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-amber-400/24 hover:bg-amber-400/14 hover:text-amber-100 hover:shadow-[0_10px_24px_rgba(251,191,36,0.12)] active:scale-[0.99]"
+                  >
+                    Give feedback
+                  </button>
+
                   <a
                     href="#top"
                     className="inline-flex h-12 items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.04] px-6 text-sm font-medium text-white/86 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/14 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.10)] active:scale-[0.99]"
@@ -738,13 +731,13 @@ export default function HomePage() {
 
           .section-panel {
             position: relative;
-            min-height: 78vh;
+            min-height: 88vh;
             scroll-snap-align: start;
             display: flex;
             flex-direction: column;
             justify-content: center;
-            padding-top: 2rem;
-            padding-bottom: 2rem;
+            padding-top: 3.5rem;
+            padding-bottom: 3.5rem;
           }
 
           .section-panel::before {
@@ -765,18 +758,30 @@ export default function HomePage() {
           }
 
           .section-panel:target {
-            animation: openluraSectionFocus 420ms ease;
+            animation: openluraSectionFocus 560ms cubic-bezier(0.22, 1, 0.36, 1);
+          }
+
+          .section-panel:target::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            border-radius: 28px;
+            pointer-events: none;
+            box-shadow:
+              inset 0 0 0 1px rgba(59, 130, 246, 0.14),
+              0 0 0 1px rgba(59, 130, 246, 0.08),
+              0 30px 80px rgba(59, 130, 246, 0.10);
           }
 
           @keyframes openluraSectionFocus {
             0% {
-              opacity: 0.72;
-              transform: translateY(18px);
-              filter: saturate(0.9);
+              opacity: 0.6;
+              transform: translateY(28px) scale(0.985);
+              filter: saturate(0.88);
             }
             100% {
               opacity: 1;
-              transform: translateY(0);
+              transform: translateY(0) scale(1);
               filter: saturate(1);
             }
           }
@@ -788,8 +793,12 @@ export default function HomePage() {
 
             .section-panel {
               min-height: auto;
-              padding-top: 0;
-              padding-bottom: 0;
+              padding-top: 0.5rem;
+              padding-bottom: 0.5rem;
+            }
+
+            .section-panel:target::after {
+              display: none;
             }
           }
 
