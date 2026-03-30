@@ -527,7 +527,21 @@ function normalizeFeedbackWorkflowStatus(
     : null;
 }
 
-function mapFeedbackRowToApi(row: Record<string, unknown>) {
+function mapFeedbackRowToApi(row: Record<string, unknown>): CanonicalFeedbackEntry | {
+  chatId: string | null;
+  msgIndex: number | null;
+  type: FeedbackType;
+  message: string | null;
+  userMessage: string | null;
+  source: string | null;
+  userScope: "admin" | "guest" | "personal" | null;
+  user_id: string | null;
+  environment: "default" | "personal" | null;
+  timestamp: string | null;
+  workflowKey: string | null;
+  workflowStatus: "nieuw" | "bezig" | "klaar" | null;
+  learningType: "style" | "content" | null;
+} {
   const normalizedType = normalizeFeedbackType(row.type);
   const normalizedEnvironment = normalizeFeedbackEnvironment(row.environment);
   const normalizedUserScope = normalizeFeedbackUserScope(row.userScope);
@@ -604,6 +618,20 @@ function sanitizeWorkflowKey(value: string) {
   return value.trim().slice(0, 500);
 }
 
+function buildCanonicalWorkflowAdminEntry(
+  entry: CanonicalFeedbackEntry
+): CanonicalFeedbackEntry {
+  return {
+    ...entry,
+    type: "workflow_status",
+    source: "analytics_workflow",
+    userScope: "admin",
+    user_id: null,
+    environment: "default",
+    learningType: null,
+  };
+}
+
 function buildCanonicalFeedbackEntry(input: {
   data: FeedbackRequestBody;
   identity: {
@@ -612,7 +640,7 @@ function buildCanonicalFeedbackEntry(input: {
   };
   isAnalyticsWorkflowUpdate: boolean;
   isPersonalEnvironment: boolean;
-}) {
+}): CanonicalFeedbackEntry {
   const timestamp = new Date().toISOString();
   const environment: "default" | "personal" = input.isPersonalEnvironment
     ? "personal"
@@ -621,8 +649,8 @@ function buildCanonicalFeedbackEntry(input: {
   const userScope: "admin" | "guest" | "personal" = input.isAnalyticsWorkflowUpdate
     ? "admin"
     : input.isPersonalEnvironment
-    ? "personal"
-    : "guest";
+      ? "personal"
+      : "guest";
 
   const user_id =
     !input.isAnalyticsWorkflowUpdate &&
@@ -639,10 +667,10 @@ function buildCanonicalFeedbackEntry(input: {
   const resolvedSource = input.isAnalyticsWorkflowUpdate
     ? "analytics_workflow"
     : input.data.type === "idea" &&
-      input.data.source === "personal_environment" &&
-      !input.isPersonalEnvironment
-    ? inferIdeaSource(input.data.type, input.data.message, null)
-    : inferIdeaSource(input.data.type, input.data.message, input.data.source);
+        input.data.source === "personal_environment" &&
+        !input.isPersonalEnvironment
+      ? inferIdeaSource(input.data.type, input.data.message, null)
+      : inferIdeaSource(input.data.type, input.data.message, input.data.source);
 
   const message = input.isAnalyticsWorkflowUpdate
     ? input.data.workflowStatus
@@ -686,7 +714,7 @@ function buildCanonicalFeedbackEntry(input: {
       message,
       userMessage: input.data.userMessage,
     }),
-  } satisfies CanonicalFeedbackEntry;
+  };
 }
 
 async function saveFeedbackEntry(input: {
@@ -705,6 +733,14 @@ async function saveFeedbackEntry(input: {
     `select=chatId,msgIndex,type,message,userMessage,source,userScope,user_id,environment,timestamp,workflowKey,workflowStatus,learningType` +
     `&workflowKey=eq.${encodeURIComponent(input.entry.workflowKey)}` +
     `&type=eq.${encodeURIComponent(input.entry.type)}` +
+    `&source=eq.${encodeURIComponent(String(input.entry.source || ""))}` +
+    `&userScope=eq.${encodeURIComponent(input.entry.userScope)}` +
+    `&environment=eq.${encodeURIComponent(input.entry.environment)}` +
+    (
+      input.entry.user_id
+        ? `&user_id=eq.${encodeURIComponent(input.entry.user_id)}`
+        : `&user_id=is.null`
+    ) +
     `&order=timestamp.desc` +
     `&limit=1`;
 
@@ -938,14 +974,17 @@ if (data.action === "update_workflow_status") {
   ) {
     return badRequest("Invalid workflowStatus", rateLimit);
   }
-
-  if (data.environment === "personal") {
-    return badRequest("Workflow status updates must use default environment", rateLimit);
-  }
 }
 
 if (!data.type && !isAnalyticsWorkflowUpdate) {
   return badRequest("Missing feedback type", rateLimit);
+}
+
+if (
+  data.action !== "update_workflow_status" &&
+  data.type === "workflow_status"
+) {
+  return badRequest("Invalid feedback type for this action", rateLimit);
 }
 
 if (
@@ -957,10 +996,11 @@ if (
 }
 
 if (
-  data.action !== "update_workflow_status" &&
-  data.type === "workflow_status"
+  !isAnalyticsWorkflowUpdate &&
+  data.type === "auto_debug" &&
+  data.environment === "personal"
 ) {
-  return badRequest("Invalid feedback type for this action", rateLimit);
+  return badRequest("Auto debug entries must use default environment", rateLimit);
 }
 
 const entry = buildCanonicalFeedbackEntry({
@@ -969,6 +1009,10 @@ const entry = buildCanonicalFeedbackEntry({
   isAnalyticsWorkflowUpdate,
   isPersonalEnvironment,
 });
+
+const persistedEntry = isAnalyticsWorkflowUpdate
+  ? buildCanonicalWorkflowAdminEntry(entry)
+  : entry;
 
 try {
   let saved;
@@ -981,24 +1025,26 @@ try {
     workflowHeaders.set("Prefer", "return=representation");
 
     const workflowQuery =
-  `type=eq.workflow_status` +
-  `&source=eq.analytics_workflow` +
-  `&userScope=eq.admin` +
-  `&environment=eq.default` +
-  `&workflowKey=eq.${encodeURIComponent(entry.workflowKey)}`;
+      `type=eq.${encodeURIComponent(persistedEntry.type)}` +
+      `&source=eq.${encodeURIComponent(String(persistedEntry.source || ""))}` +
+      `&userScope=eq.${encodeURIComponent(persistedEntry.userScope)}` +
+      `&environment=eq.${encodeURIComponent(persistedEntry.environment)}` +
+      `&user_id=is.null` +
+      `&workflowKey=eq.${encodeURIComponent(persistedEntry.workflowKey)}`;
 
     const updateRes = await fetch(`${feedbackTableUrl}?${workflowQuery}`, {
       method: "PATCH",
       headers: workflowHeaders,
       body: JSON.stringify({
-  message: entry.message,
-  workflowStatus: entry.workflowStatus,
-  timestamp: entry.timestamp,
-  environment: "default",
-  userScope: "admin",
-  user_id: null,
-  learningType: null,
-}),
+        message: persistedEntry.message,
+        workflowStatus: persistedEntry.workflowStatus,
+        timestamp: persistedEntry.timestamp,
+        source: persistedEntry.source,
+        environment: persistedEntry.environment,
+        userScope: persistedEntry.userScope,
+        user_id: persistedEntry.user_id,
+        learningType: persistedEntry.learningType,
+      }),
       cache: "no-store",
     });
 
@@ -1016,23 +1062,17 @@ try {
       saved = normalizedUpdatedRows;
     } else {
       saved = await saveFeedbackEntry({
-  feedbackTableUrl,
-  supabaseServiceRoleKey,
-  entry: {
-    ...entry,
-    environment: "default",
-    userScope: "admin",
-    user_id: null,
-    learningType: null,
-  },
-  errorLabel: "Workflow status opslaan mislukt:",
-});
+        feedbackTableUrl,
+        supabaseServiceRoleKey,
+        entry: persistedEntry,
+        errorLabel: "Workflow status opslaan mislukt:",
+      });
     }
   } else {
     saved = await saveFeedbackEntry({
       feedbackTableUrl,
       supabaseServiceRoleKey,
-      entry,
+      entry: persistedEntry,
       errorLabel: "Feedback opslaan mislukt:",
     });
   }
@@ -1040,36 +1080,34 @@ try {
   return NextResponse.json(
     {
       success: true,
-      item: saved[0] ?? entry,
+      item: saved[0] ?? persistedEntry,
     },
     {
       headers: buildHeadersWithRateLimit(rateLimit),
     }
   );
-}
-    
-    catch (error) {
-      logSafeError("Feedback POST save failed", error, {
-        action: data.action || "feedback",
-        environment: entry.environment,
-        userScope: entry.userScope,
-        hasUserId: !!entry.user_id,
-      });
+} catch (error) {
+  logSafeError("Feedback POST save failed", error, {
+    action: data.action || "feedback",
+    environment: persistedEntry.environment,
+    userScope: persistedEntry.userScope,
+    hasUserId: !!persistedEntry.user_id,
+  });
 
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            data.action === "update_workflow_status"
-              ? "Workflow status opslaan mislukt"
-              : "Feedback opslaan mislukt",
-        },
-        {
-          status: 500,
-          headers: buildHeadersWithRateLimit(rateLimit),
-        }
-      );
+  return NextResponse.json(
+    {
+      success: false,
+      error:
+        data.action === "update_workflow_status"
+          ? "Workflow status opslaan mislukt"
+          : "Feedback opslaan mislukt",
+    },
+    {
+      status: 500,
+      headers: buildHeadersWithRateLimit(rateLimit),
     }
+  );
+}
   } catch (error) {
     logSafeError("Feedback POST failed", error);
 
@@ -1120,19 +1158,36 @@ export async function GET(req: Request) {
     }
 
     const normalizedRows = Array.isArray(data)
-  ? data
-      .map((row) => mapFeedbackRowToApi(row as Record<string, unknown>))
-      .filter(
-        (row) =>
-          row.type &&
-          row.environment &&
-          row.userScope &&
-          (
-            row.environment === "default" ||
-            (row.environment === "personal" && typeof row.user_id === "string" && !!row.user_id)
-          )
-      )
-  : [];
+      ? data
+          .map((row) => mapFeedbackRowToApi(row as Record<string, unknown>))
+          .filter((row) => {
+            if (!row.type || !row.environment || !row.userScope) {
+              return false;
+            }
+
+            if (row.type === "workflow_status") {
+              return (
+                row.source === "analytics_workflow" &&
+                row.userScope === "admin" &&
+                row.environment === "default" &&
+                row.user_id === null &&
+                !!row.workflowKey &&
+                !!row.workflowStatus
+              );
+            }
+
+            if (row.environment === "default") {
+              return row.userScope !== "personal";
+            }
+
+            return (
+              row.environment === "personal" &&
+              row.userScope === "personal" &&
+              typeof row.user_id === "string" &&
+              !!row.user_id
+            );
+          })
+      : [];
 
 return NextResponse.json(normalizedRows, {
   headers: {
