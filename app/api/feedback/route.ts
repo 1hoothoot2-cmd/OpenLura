@@ -984,13 +984,18 @@ export async function GET(req: Request) {
       );
     }
 
-    return NextResponse.json(Array.isArray(data) ? data : [], {
-      headers: {
-        "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
-        Pragma: "no-cache",
-        Expires: "0",
-      },
-    });
+    return NextResponse.json(
+      Array.isArray(data)
+        ? data.map((row) => mapFeedbackRowToApi(row as Record<string, unknown>))
+        : [],
+      {
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+          Pragma: "no-cache",
+          Expires: "0",
+        },
+      }
+    );
   } catch (error) {
     logSafeError("Feedback GET failed", error);
 
