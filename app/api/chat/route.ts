@@ -41,13 +41,28 @@ function getRequestIp(req: Request) {
   return "unknown";
 }
 
-function checkRateLimit(req: Request) {
-  const ip = getRequestIp(req);
+function cleanupRateLimitStore() {
   const now = Date.now();
-  const existing = rateLimitStore.get(ip);
+
+  for (const [key, value] of rateLimitStore.entries()) {
+    if (value.resetAt <= now) {
+      rateLimitStore.delete(key);
+    }
+  }
+}
+
+async function checkRateLimit(req: Request) {
+  cleanupRateLimitStore();
+
+  const ip = getRequestIp(req);
+  const identity = await resolveOpenLuraRequestIdentity(req);
+  const userKey = identity?.userId || "anon";
+  const rateLimitKey = `${ip}:${userKey}`;
+  const now = Date.now();
+  const existing = rateLimitStore.get(rateLimitKey);
 
   if (!existing || existing.resetAt <= now) {
-    rateLimitStore.set(ip, {
+    rateLimitStore.set(rateLimitKey, {
       count: 1,
       resetAt: now + RATE_LIMIT_WINDOW_MS,
     });
@@ -68,7 +83,7 @@ function checkRateLimit(req: Request) {
   }
 
   existing.count += 1;
-  rateLimitStore.set(ip, existing);
+  rateLimitStore.set(rateLimitKey, existing);
 
   return {
     allowed: true,
@@ -1880,6 +1895,11 @@ async function storeAutoDebugSignals(input: {
       message: `[${signal.confidence}] ${signal.message}`,
       userMessage: input.userMessage || null,
       source: `${signal.source}__route_${signal.routeType}__variant_${signal.variant}`,
+      learningType: signal.learningType,
+      userScope: "guest",
+      environment: "default",
+      workflowKey: null,
+      workflowStatus: null,
       user_id: null,
       timestamp: new Date().toISOString(),
     } satisfies Record<string, unknown>));
@@ -1930,10 +1950,17 @@ async function storeAutoDebugSignals(input: {
     }
 
     const fallbackRows = rows.map((row) => ({
+      chatId: row.chatId,
+      msgIndex: row.msgIndex,
       type: row.type,
       message: row.message,
       userMessage: row.userMessage,
       source: row.source,
+      learningType: row.learningType,
+      userScope: row.userScope,
+      environment: row.environment,
+      workflowKey: row.workflowKey,
+      workflowStatus: row.workflowStatus,
       user_id: null,
       timestamp: row.timestamp,
     }));
@@ -2123,9 +2150,17 @@ function buildNoStoreTextHeaders(extra?: Record<string, string>) {
     ...(extra ?? {}),
   };
 }
+function buildRateLimitHeaders(rateLimit: {
+  remaining: number;
+}) {
+  return {
+    "X-OpenLura-RateLimit-Limit": String(RATE_LIMIT_MAX_REQUESTS),
+    "X-OpenLura-RateLimit-Remaining": String(Math.max(0, rateLimit.remaining)),
+  };
+}
 
 export async function POST(req: Request) {
-  const rateLimit = checkRateLimit(req);
+  const rateLimit = await checkRateLimit(req);
 
   if (!rateLimit.allowed) {
     const retryAfterSeconds = Math.max(
@@ -2153,7 +2188,9 @@ export async function POST(req: Request) {
   ) {
     return new Response("Request body too large", {
       status: 413,
-      headers: buildNoStoreTextHeaders(),
+      headers: buildNoStoreTextHeaders({
+        ...buildRateLimitHeaders(rateLimit),
+      }),
     });
   }
 
@@ -2166,7 +2203,9 @@ export async function POST(req: Request) {
         : "Invalid request body",
       {
         status: parsedBody.reason === "too_large" ? 413 : 400,
-        headers: buildNoStoreTextHeaders(),
+        headers: buildNoStoreTextHeaders({
+        ...buildRateLimitHeaders(rateLimit),
+      }),
       }
     );
   }
@@ -2176,7 +2215,9 @@ export async function POST(req: Request) {
   if (!body) {
     return new Response("Invalid request body", {
       status: 400,
-      headers: buildNoStoreTextHeaders(),
+      headers: buildNoStoreTextHeaders({
+        ...buildRateLimitHeaders(rateLimit),
+      }),
     });
   }
 
@@ -2192,7 +2233,9 @@ export async function POST(req: Request) {
   if (!message && !image) {
     return new Response("Empty request", {
       status: 400,
-      headers: buildNoStoreTextHeaders(),
+      headers: buildNoStoreTextHeaders({
+        ...buildRateLimitHeaders(rateLimit),
+      }),
     });
   }
 
@@ -2215,21 +2258,27 @@ export async function POST(req: Request) {
   if (personalEnvRequested && !isPersonalEnvironment) {
     return new Response("Unauthorized", {
       status: 401,
-      headers: buildNoStoreTextHeaders(),
+      headers: buildNoStoreTextHeaders({
+        ...buildRateLimitHeaders(rateLimit),
+      }),
     });
   }
 
   if (isPersonalEnvironment && !personalUserId) {
     return new Response("Unauthorized", {
       status: 401,
-      headers: buildNoStoreTextHeaders(),
+      headers: buildNoStoreTextHeaders({
+        ...buildRateLimitHeaders(rateLimit),
+      }),
     });
   }
 
   if (!personalUserId && learningScope === "personal") {
     return new Response("Unauthorized", {
       status: 401,
-      headers: buildNoStoreTextHeaders(),
+      headers: buildNoStoreTextHeaders({
+        ...buildRateLimitHeaders(rateLimit),
+      }),
     });
   }
 
@@ -3027,6 +3076,8 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
             "X-OpenLura-Variant": responseVariant,
             "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
             "X-OpenLura-Speed": "fast_text",
+            "X-OpenLura-RateLimit-Limit": String(RATE_LIMIT_MAX_REQUESTS),
+            "X-OpenLura-RateLimit-Remaining": String(rateLimit.remaining),
             ...buildUsageHeaders(usageLimitSnapshot),
           }),
         });
@@ -3135,7 +3186,8 @@ Fast-path rules:
           headers: buildNoStoreTextHeaders({
             "X-OpenLura-Variant": responseVariant,
             "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
-            "X-OpenLura-Speed": "fast_text",
+            "X-OpenLura-Speed": "fast_image",
+            ...buildRateLimitHeaders(rateLimit),
             ...buildUsageHeaders(usageLimitSnapshot),
           }),
         }
@@ -3196,6 +3248,7 @@ Do not use web search for this path.`,
             "X-OpenLura-Variant": responseVariant,
             "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
             "X-OpenLura-Speed": "fast_text",
+            ...buildRateLimitHeaders(rateLimit),
             ...buildUsageHeaders(usageLimitSnapshot),
           }),
         }
@@ -3205,6 +3258,7 @@ Do not use web search for this path.`,
     const canUseCache =
       !image &&
       !shouldUseWebSearch &&
+      !conversationDependentFollowUp &&
       !isRefinementInstruction(normalizedMessageForRouting) &&
       !!normalizedMessageForRouting &&
       normalizedMessageForRouting.length <= 120;
@@ -3226,8 +3280,12 @@ Do not use web search for this path.`,
         return new Response(cached.text, {
           headers: buildNoStoreTextHeaders({
             "X-OpenLura-Variant": responseVariant,
-            "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
+            "X-OpenLura-Sources": encodeURIComponent(
+              JSON.stringify(Array.isArray(cached.sources) ? cached.sources : [])
+            ),
             "X-OpenLura-Speed": "default",
+            "X-OpenLura-RateLimit-Limit": String(RATE_LIMIT_MAX_REQUESTS),
+            "X-OpenLura-RateLimit-Remaining": String(rateLimit.remaining),
             ...buildUsageHeaders(usageLimitSnapshot),
           }),
         });
@@ -3769,6 +3827,7 @@ ${aiText}`,
       headers: buildNoStoreTextHeaders({
         "X-OpenLura-Variant": responseVariant,
         "X-OpenLura-Sources": encodeURIComponent(JSON.stringify(sources)),
+        ...buildRateLimitHeaders(rateLimit),
         ...buildUsageHeaders(usageLimitSnapshot),
       }),
     }

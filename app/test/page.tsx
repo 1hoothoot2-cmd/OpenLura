@@ -194,7 +194,10 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
           try {
             const res = await fetch("/api/personal-state", {
               method: "GET",
-              headers: getOpenLuraRequestHeaders(false),
+              headers: getOpenLuraRequestHeaders(false, {
+                personalEnv: true,
+                includeUserId: false,
+              }),
               cache: "no-store",
               credentials: "same-origin",
             });
@@ -459,7 +462,10 @@ const hasMeaningfulPersonalState =
       try {
         const res = await fetch("/api/personal-state", {
           method: "POST",
-          headers: getOpenLuraRequestHeaders(true),
+          headers: getOpenLuraRequestHeaders(true, {
+            personalEnv: true,
+            includeUserId: false,
+          }),
           credentials: "same-origin",
           body: JSON.stringify({
             chats: safeChats,
@@ -578,13 +584,16 @@ const hasMeaningfulPersonalState =
   }, [input, image]);
 
   useEffect(() => {
-    if (!isPersonalRoute) return;
+    if (!isPersonalRoute || !initialStateReady || !personalStateLoaded) return;
 
     const loadPersonalStateFromServer = async (forceApply = false) => {
       try {
         const res = await fetch("/api/personal-state", {
           method: "GET",
-          headers: getOpenLuraRequestHeaders(false),
+          headers: getOpenLuraRequestHeaders(false, {
+            personalEnv: true,
+            includeUserId: false,
+          }),
           cache: "no-store",
           credentials: "same-origin",
         });
@@ -695,8 +704,6 @@ const hasMeaningfulPersonalState =
       }
     };
 
-    loadPersonalStateFromServer(false);
-
     const pollId = window.setInterval(() => {
       loadPersonalStateFromServer(false);
     }, 5000);
@@ -709,7 +716,7 @@ const hasMeaningfulPersonalState =
       window.removeEventListener("focus", handleWindowFocus);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [isPersonalRoute]);
+  }, [isPersonalRoute, initialStateReady, personalStateLoaded]);
 
   useEffect(() => {
     const handlePaste = async (e: ClipboardEvent) => {
@@ -783,16 +790,18 @@ const getOrCreateOpenLuraUserId = () => {
 
 const getOpenLuraRequestHeaders = (
   includeJson = true,
-  options?: { personalEnv?: boolean }
+  options?: { personalEnv?: boolean; includeUserId?: boolean }
 ) => {
   const headers: Record<string, string> = includeJson
     ? { "Content-Type": "application/json" }
     : {};
 
-  const resolvedUserId = getOrCreateOpenLuraUserId();
+  if (options?.includeUserId !== false) {
+    const resolvedUserId = getOrCreateOpenLuraUserId();
 
-  if (resolvedUserId) {
-    headers["x-openlura-user-id"] = resolvedUserId;
+    if (resolvedUserId) {
+      headers["x-openlura-user-id"] = resolvedUserId;
+    }
   }
 
   if (options?.personalEnv ?? isPersonalRoute) {
@@ -1312,7 +1321,9 @@ const restoreDeletedChat = (chatId: number) => {
     try {
       const res = await fetch("/api/auth", {
         method: "POST",
-        headers: getOpenLuraRequestHeaders(true),
+        headers: getOpenLuraRequestHeaders(true, {
+          includeUserId: false,
+        }),
         credentials: "same-origin",
         body: JSON.stringify({
           username: loginUsername,
@@ -1329,7 +1340,10 @@ const restoreDeletedChat = (chatId: number) => {
 
       const verifyRes = await fetch("/api/personal-state", {
         method: "GET",
-        headers: getOpenLuraRequestHeaders(true, { personalEnv: true }),
+        headers: getOpenLuraRequestHeaders(true, {
+          personalEnv: true,
+          includeUserId: false,
+        }),
         credentials: "same-origin",
         cache: "no-store",
       });
@@ -1354,7 +1368,9 @@ const restoreDeletedChat = (chatId: number) => {
     try {
       await fetch("/api/auth", {
         method: "DELETE",
-        headers: getOpenLuraRequestHeaders(false),
+        headers: getOpenLuraRequestHeaders(false, {
+          includeUserId: false,
+        }),
         credentials: "same-origin",
       });
     } catch (error) {
@@ -1506,30 +1522,31 @@ const restoreDeletedChat = (chatId: number) => {
       const originalAiMessage =
         pendingImprovement?.originalAiMessage || "";
 
-      if (!retryRequest) {
-        if (!isPersonalRoute) {
-          const localFeedbackKey = "openlura_feedback";
-          const existingFeedback = safeParseJson<any[]>(
-            localStorage.getItem(localFeedbackKey),
-            []
-          );
+              if (!retryRequest) {
+        const localFeedbackKey = isPersonalRoute
+          ? "openlura_personal_feedback"
+          : "openlura_feedback";
+        const existingFeedback = safeParseJson<any[]>(
+          localStorage.getItem(localFeedbackKey),
+          []
+        );
 
-          existingFeedback.push({
-            chatId: currentChatId,
-            msgIndex: pendingImprovement?.targetMsgIndex ?? updated[index].messages.length - 1,
-            type: "improve",
-            message: input,
-            userMessage: originalUserMessage || "Direct improvement feedback",
-            timestamp: Date.now(),
-            source: "improvement_reply",
-            learningType: classifyLearningSignal(input),
-          });
+        existingFeedback.push({
+          chatId: currentChatId,
+          msgIndex: pendingImprovement?.targetMsgIndex ?? updated[index].messages.length - 1,
+          type: "improve",
+          message: input,
+          userMessage: originalUserMessage || "Direct improvement feedback",
+          timestamp: Date.now(),
+          source: "improvement_reply",
+          learningType: classifyLearningSignal(input),
+          environment: isPersonalRoute ? "personal" : "default",
+        });
 
-          try {
-            localStorage.setItem(localFeedbackKey, JSON.stringify(existingFeedback));
-          } catch (error) {
-            console.error("OpenLura local improvement feedback persistence failed:", error);
-          }
+        try {
+          localStorage.setItem(localFeedbackKey, JSON.stringify(existingFeedback));
+        } catch (error) {
+          console.error("OpenLura local improvement feedback persistence failed:", error);
         }
 
         const keyId = currentChatId + "-" + (updated[index].messages.length - 1);
@@ -2121,26 +2138,25 @@ updated[index].messages[
     content: resolvedTarget.originalUserMessage,
   };
 
-  if (!isPersonalRoute) {
-    existing.push({
-      chatId: String(chatId),
-      msgIndex,
-      type,
-      message: message?.content,
-      userMessage: prevMessage?.content,
-      source: message?.variant ? `ab_test_${message.variant}` : null,
-      timestamp: Date.now(),
-      learningType:
-        type === "down"
-          ? classifyLearningSignal(`${prevMessage?.content || ""} ${message?.content || ""}`)
-          : "content",
-    });
+  existing.push({
+    chatId: String(chatId),
+    msgIndex,
+    type,
+    message: message?.content,
+    userMessage: prevMessage?.content,
+    source: message?.variant ? `ab_test_${message.variant}` : null,
+    timestamp: Date.now(),
+    learningType:
+      type === "down"
+        ? classifyLearningSignal(`${prevMessage?.content || ""} ${message?.content || ""}`)
+        : "content",
+    environment: isPersonalRoute ? "personal" : "default",
+  });
 
-    try {
-      localStorage.setItem(key, JSON.stringify(existing));
-    } catch (error) {
-      console.error("OpenLura local feedback persistence failed:", error);
-    }
+  try {
+    localStorage.setItem(key, JSON.stringify(existing));
+  } catch (error) {
+    console.error("OpenLura local feedback persistence failed:", error);
   }
 
   if (prevMessage?.content) {

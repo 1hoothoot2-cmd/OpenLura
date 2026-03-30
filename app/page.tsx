@@ -427,30 +427,21 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
   return;
 }
 
-const hasMeaningfulPersonalState =
-  safeChats.some((chat: any) => {
-    const normalizedTitle = String(chat?.title || "").trim();
-    const messages = Array.isArray(chat?.messages) ? chat.messages : [];
+const personalPlaceholderMessage =
+  "👋 Welkom in je persoonlijke omgeving. Hier testen we privé memory, verbeterpunten en training van jouw AI-gedrag.";
 
-    const hasRealMessageContent = messages.some(
-      (msg: any) =>
-        typeof msg?.content === "string" &&
-        msg.content.trim() &&
-        msg.content !==
-          "👋 Welkom in je persoonlijke omgeving. Hier testen we privé memory, verbeterpunten en training van jouw AI-gedrag."
-    );
+const hasOnlyPersonalFallbackPlaceholder =
+  safeChats.length === 1 &&
+  String(safeChats[0]?.title || "").trim() === "Persoonlijke omgeving" &&
+  Array.isArray(safeChats[0]?.messages) &&
+  safeChats[0].messages.length === 1 &&
+  safeChats[0].messages[0]?.role === "ai" &&
+  safeChats[0].messages[0]?.content === personalPlaceholderMessage;
 
-    const isPersonalFallbackPlaceholder =
-      normalizedTitle === "Persoonlijke omgeving" &&
-      messages.length === 1 &&
-      messages[0]?.role === "ai" &&
-      messages[0]?.content ===
-        "👋 Welkom in je persoonlijke omgeving. Hier testen we privé memory, verbeterpunten en training van jouw AI-gedrag.";
+const shouldSkipPersonalStateSync =
+  hasOnlyPersonalFallbackPlaceholder && memory.length === 0;
 
-    return hasRealMessageContent || !isPersonalFallbackPlaceholder;
-  }) || memory.length > 0;
-
-    if (!hasMeaningfulPersonalState) {
+    if (shouldSkipPersonalStateSync) {
       return;
     }
 
@@ -796,7 +787,7 @@ const getOpenLuraRequestHeaders = (
     ? { "Content-Type": "application/json" }
     : {};
 
-  if (options?.includeUserId !== false) {
+  if (options?.includeUserId === true) {
     const resolvedUserId = getOrCreateOpenLuraUserId();
 
     if (resolvedUserId) {
@@ -1497,7 +1488,13 @@ const restoreDeletedChat = (chatId: number) => {
 
     try {
 
-    const currentChatId = activeChatId!;
+    const currentChatId = activeChatId ?? activeChat?.id ?? null;
+
+    if (currentChatId === null) {
+      setLoading(false);
+      return;
+    }
+
     const pendingImprovement = awaitingImprovement[currentChatId];
     const isImprovementReply = !!pendingImprovement && !!input.trim();
 
@@ -1506,7 +1503,7 @@ const restoreDeletedChat = (chatId: number) => {
       const index = updated.findIndex((c) => c.id === currentChatId);
       const retryRequest = isRetryInstruction(input);
 
-      if (index === -1) {
+      if (index === -1 || currentChatId === null) {
         setLoading(false);
         return;
       }
@@ -1567,7 +1564,10 @@ const restoreDeletedChat = (chatId: number) => {
         try {
           const feedbackRes = await fetch("/api/feedback", {
             method: "POST",
-            headers: getOpenLuraRequestHeaders(true),
+            headers: getOpenLuraRequestHeaders(true, {
+              personalEnv: isPersonalRoute,
+              includeUserId: false,
+            }),
             body: JSON.stringify({
               chatId: String(currentChatId),
               msgIndex: pendingImprovement?.targetMsgIndex ?? null,
@@ -1609,7 +1609,10 @@ const restoreDeletedChat = (chatId: number) => {
       try {
         improveRes = await fetch("/api/chat", {
           method: "POST",
-          headers: getOpenLuraRequestHeaders(true),
+          headers: getOpenLuraRequestHeaders(true, {
+            personalEnv: isPersonalRoute,
+            includeUserId: false,
+          }),
           body: JSON.stringify({
             message: retryRequest
               ? `De gebruiker wil dat je opnieuw antwoord geeft op dezelfde vraag.
@@ -1915,7 +1918,10 @@ setChats([...updated]);
       res = await fetch("/api/chat", {
         method: "POST",
         signal: controller.signal,
-        headers: getOpenLuraRequestHeaders(true),
+        headers: getOpenLuraRequestHeaders(true, {
+          personalEnv: isPersonalRoute,
+          includeUserId: false,
+        }),
         body: JSON.stringify({
           message: inputToSend,
           image: imageToSend,
@@ -2168,6 +2174,7 @@ updated[index].messages[
     method: "POST",
     headers: getOpenLuraRequestHeaders(true, {
       personalEnv: isPersonalRoute,
+      includeUserId: false,
     }),
         body: JSON.stringify({
       chatId: String(chatId),
@@ -2263,6 +2270,7 @@ updated[index].messages[
       method: "POST",
       headers: getOpenLuraRequestHeaders(true, {
         personalEnv: isPersonalEnvironment,
+        includeUserId: false,
       }),
       body: JSON.stringify({
         chatId: activeChatId !== null ? String(activeChatId) : null,
