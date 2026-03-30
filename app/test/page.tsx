@@ -2284,7 +2284,6 @@ updated[index].messages[
   setShowFeedbackBox={setShowFeedbackBox}
   setShowLoginBox={setShowLoginBox}
 />
-<div className="hidden md:block md:w-[292px] md:min-w-[292px] md:max-w-[292px]" aria-hidden="true" />
 
 {mobileMenu && (
   <div
@@ -2400,8 +2399,8 @@ updated[index].messages[
         </div>
       )}
 
-      <div className="flex min-w-0 flex-1 items-stretch justify-center pt-0 md:h-screen md:p-4 md:pl-0">
-        <div className="flex h-full w-full min-w-0 max-w-2xl flex-col border border-white/8 bg-white/[0.042] shadow-[0_20px_56px_rgba(0,0,0,0.20)] backdrop-blur-2xl md:min-h-0 md:rounded-[28px] xl:max-w-[920px]">
+      <div className="flex min-w-0 flex-1 items-stretch justify-center pt-0 md:h-screen md:justify-start md:p-4">
+        <div className="flex h-full w-full min-w-0 max-w-2xl flex-col border border-white/8 bg-white/[0.042] shadow-[0_20px_56px_rgba(0,0,0,0.20)] backdrop-blur-2xl md:ml-4 md:min-h-0 md:rounded-[28px] xl:ml-6 xl:max-w-[920px]">
 
           {usage && usage.percentage >= 0.8 && !upgradeNotice.visible && (
             <div className="mx-4 mt-4 rounded-[24px] border border-yellow-300/12 bg-yellow-500/[0.065] px-4 py-3 text-sm text-yellow-100 shadow-[0_10px_22px_rgba(0,0,0,0.10)] backdrop-blur-xl">
