@@ -19,12 +19,12 @@ export default function HomePage() {
           </p>
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Link
-              href="/persoonlijke-omgeving"
-              className="inline-flex h-12 items-center justify-center rounded-[18px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-6 text-sm font-medium text-white shadow-[0_12px_28px_rgba(59,130,246,0.24)] ol-interactive transition-[transform,filter,box-shadow] duration-200 hover:brightness-110 hover:shadow-[0_14px_32px_rgba(59,130,246,0.28)] active:scale-[0.99]"
-            >
-              Open personal AI
-            </Link>
+           <Link
+  href="/chat"
+  className="inline-flex h-12 items-center justify-center rounded-[18px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-6 text-sm font-medium text-white shadow-[0_12px_28px_rgba(59,130,246,0.24)] ol-interactive transition-[transform,filter,box-shadow] duration-200 hover:brightness-110 hover:shadow-[0_14px_32px_rgba(59,130,246,0.28)] active:scale-[0.99]"
+>
+  Start chat
+</Link>
 
             <Link
               href="/home"
@@ -46,24 +46,24 @@ export default function HomePage() {
             </Link>
 
             <Link
-              href="/persoonlijke-omgeving"
-              className="rounded-[20px] border border-white/10 bg-white/[0.03] px-4 py-4 text-left backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-white/14 hover:bg-white/[0.05] hover:shadow-[0_10px_24px_rgba(0,0,0,0.12)]"
-            >
-              <div className="text-sm font-medium text-white">Personal AI</div>
-              <div className="mt-1 text-sm leading-6 text-white/46">
-                Open your private environment.
-              </div>
-            </Link>
+  href="/home"
+  className="rounded-[20px] border border-white/10 bg-white/[0.03] px-4 py-4 text-left backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-white/14 hover:bg-white/[0.05] hover:shadow-[0_10px_24px_rgba(0,0,0,0.12)]"
+>
+  <div className="text-sm font-medium text-white">How it works</div>
+  <div className="mt-1 text-sm leading-6 text-white/46">
+    Learn how OpenLura adapts, remembers, and improves.
+  </div>
+</Link>
 
             <Link
-              href="/home"
-              className="rounded-[20px] border border-white/10 bg-white/[0.03] px-4 py-4 text-left backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-white/14 hover:bg-white/[0.05] hover:shadow-[0_10px_24px_rgba(0,0,0,0.12)]"
-            >
-              <div className="text-sm font-medium text-white">Analytics</div>
-              <div className="mt-1 text-sm leading-6 text-white/46">
-                View product signals and feedback data.
-              </div>
-            </Link>
+  href="/home"
+  className="rounded-[20px] border border-white/10 bg-white/[0.03] px-4 py-4 text-left backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-white/14 hover:bg-white/[0.05] hover:shadow-[0_10px_24px_rgba(0,0,0,0.12)]"
+>
+  <div className="text-sm font-medium text-white">Use cases</div>
+  <div className="mt-1 text-sm leading-6 text-white/46">
+    Explore what you can do with OpenLura.
+  </div>
+</Link>
           </div>
         </div>
       </div>
