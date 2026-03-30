@@ -214,7 +214,7 @@ export default function AnalyticsPage() {
           }
         }
       } catch {
-        setIsUnlocked(false);
+        setAuthError("");
       } finally {
         setAuthLoading(false);
       }
@@ -752,12 +752,6 @@ useEffect(() => {
   });
 
   if (!serverFetchSucceeded) {
-    setIsUnlocked(false);
-
-    if (typeof window !== "undefined") {
-      sessionStorage.removeItem(ANALYTICS_UNLOCK_STORAGE_KEY);
-    }
-
     return;
   }
 
@@ -820,6 +814,12 @@ return () => {
       });
 
       if (!res.ok) {
+        setIsUnlocked(false);
+
+        if (typeof window !== "undefined") {
+          sessionStorage.removeItem(ANALYTICS_UNLOCK_STORAGE_KEY);
+        }
+
         setAuthError("Verkeerd wachtwoord");
         return;
       }
