@@ -106,6 +106,92 @@ export default function HomePage() {
               </div>
             </div>
           </div>
+
+          {/* ROADMAP */}
+          <div className="mt-16 w-full max-w-5xl">
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold text-white/92">
+                Where OpenLura is going
+              </h2>
+              <p className="mt-2 max-w-2xl text-sm text-white/50">
+                Built in phases, with clarity, privacy, and product quality first.
+              </p>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="rounded-[22px] border border-emerald-400/14 bg-white/[0.03] p-5 backdrop-blur-xl">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-medium text-white">Foundation</div>
+                  <span className="inline-flex items-center rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
+                    Complete
+                  </span>
+                </div>
+                <p className="mt-2 text-sm leading-6 text-white/46">
+                  Core chat, system architecture, and learning base.
+                </p>
+              </div>
+
+              <div className="rounded-[22px] border border-emerald-400/14 bg-white/[0.03] p-5 backdrop-blur-xl">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-medium text-white">Smarter AI</div>
+                  <span className="inline-flex items-center rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
+                    Complete
+                  </span>
+                </div>
+                <p className="mt-2 text-sm leading-6 text-white/46">
+                  Memory, feedback loops, and continuous improvement.
+                </p>
+              </div>
+
+              <div className="rounded-[22px] border border-emerald-400/14 bg-white/[0.03] p-5 backdrop-blur-xl">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-medium text-white">Secure by Design</div>
+                  <span className="inline-flex items-center rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
+                    Complete
+                  </span>
+                </div>
+                <p className="mt-2 text-sm leading-6 text-white/46">
+                  Private environments, data isolation, and protection.
+                </p>
+              </div>
+
+              <div className="rounded-[22px] border border-amber-400/14 bg-white/[0.03] p-5 backdrop-blur-xl">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-medium text-white">Experience</div>
+                  <span className="inline-flex items-center rounded-full border border-amber-400/20 bg-amber-400/10 px-2.5 py-1 text-[11px] font-medium text-amber-300">
+                    In progress
+                  </span>
+                </div>
+                <p className="mt-2 text-sm leading-6 text-white/46">
+                  Homepage, onboarding, and product clarity.
+                </p>
+              </div>
+
+              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-medium text-white">Personal AI</div>
+                  <span className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[11px] font-medium text-white/60">
+                    Coming next
+                  </span>
+                </div>
+                <p className="mt-2 text-sm leading-6 text-white/46">
+                  Private AI environments tailored to each user.
+                </p>
+              </div>
+
+              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-medium text-white">Expansion</div>
+                  <span className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[11px] font-medium text-white/60">
+                    Future
+                  </span>
+                </div>
+                <p className="mt-2 text-sm leading-6 text-white/46">
+                  Voice, image tools, and mobile apps.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
     </main>
   );
