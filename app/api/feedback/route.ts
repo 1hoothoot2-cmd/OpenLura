@@ -351,7 +351,7 @@ async function readJsonBodyWithinLimit(req: Request, maxBytes: number) {
 function createFeedbackWorkflowKey(input: {
   chatId: string | null;
   msgIndex: number | null;
-  type: string | null;
+  type: FeedbackType;
   message: string | null;
   userMessage: string | null;
   source: string | null;
@@ -448,7 +448,7 @@ async function saveFeedbackEntry(input: {
 }
 
 function inferIdeaSource(
-  type: string | null,
+  type: FeedbackType,
   message: string | null,
   source: string | null
 ) {
@@ -588,14 +588,24 @@ export async function POST(req: Request) {
 
 const identity = await resolveFeedbackIdentity(req);
 const personalEnvironmentRequested = isPersonalEnvironmentRequest(req);
-const wantsPersonalEnvironment =
-  personalEnvironmentRequested && data.environment === "personal";
 const isAnalyticsWorkflowUpdate = data.action === "update_workflow_status";
 const hasAnalyticsAccess = isFeedbackReadAuthorized(req);
+const explicitlyPersonalEnvironment = data.environment === "personal";
 
 if (isAnalyticsWorkflowUpdate && !hasAnalyticsAccess) {
   return unauthorized("Analytics authorization required", rateLimit);
 }
+
+if (
+  explicitlyPersonalEnvironment &&
+  !personalEnvironmentRequested &&
+  !isAnalyticsWorkflowUpdate
+) {
+  return badRequest("Personal environment header required", rateLimit);
+}
+
+const wantsPersonalEnvironment =
+  explicitlyPersonalEnvironment && personalEnvironmentRequested;
 
 if (
   wantsPersonalEnvironment &&
@@ -613,14 +623,18 @@ if (data.action === "update_workflow_status") {
   if (!data.workflowKey || !data.workflowStatus) {
     return badRequest("Missing workflowKey or workflowStatus", rateLimit);
   }
+
+  if (
+    data.workflowStatus !== "nieuw" &&
+    data.workflowStatus !== "bezig" &&
+    data.workflowStatus !== "klaar"
+  ) {
+    return badRequest("Invalid workflowStatus", rateLimit);
+  }
 }
 
 if (!data.type && !isAnalyticsWorkflowUpdate) {
   return badRequest("Missing feedback type", rateLimit);
-}
-
-if (isAnalyticsWorkflowUpdate && !data.type) {
-  data.type = "workflow_status";
 }
 
 if (
@@ -644,18 +658,23 @@ const userScope = isAnalyticsWorkflowUpdate
   : "guest";
 const user_id = hasAuthenticatedPersonalContext ? identity.userId || null : null;
 
-const resolvedSource =
-  data.type === "idea" &&
-  data.source === "personal_environment" &&
-  !isPersonalEnvironment
-    ? inferIdeaSource(data.type, data.message, null)
-    : inferIdeaSource(data.type, data.message, data.source);
+const resolvedType: FeedbackType = isAnalyticsWorkflowUpdate
+  ? "workflow_status"
+  : data.type;
+
+const resolvedSource = isAnalyticsWorkflowUpdate
+  ? "analytics_workflow"
+  : data.type === "idea" &&
+    data.source === "personal_environment" &&
+    !isPersonalEnvironment
+  ? inferIdeaSource(data.type, data.message, null)
+  : inferIdeaSource(data.type, data.message, data.source);
 
 const baseEntry = {
   chatId: data.chatId,
   msgIndex: data.msgIndex,
-  type: data.type,
-  message: data.message,
+  type: resolvedType,
+  message: isAnalyticsWorkflowUpdate ? data.workflowStatus : data.message,
   userMessage: data.userMessage,
   source: resolvedSource,
   userScope,
@@ -677,61 +696,27 @@ const workflowKey =
 const entry = {
   ...baseEntry,
   workflowKey,
-  workflowStatus:
-    data.action === "update_workflow_status"
-      ? data.workflowStatus || null
-      : null,
+  workflowStatus: isAnalyticsWorkflowUpdate ? data.workflowStatus || null : null,
 };
 
 try {
   let saved;
 
   if (data.action === "update_workflow_status") {
-    const workflowHeaders = new Headers();
-    workflowHeaders.set("Content-Type", "application/json");
-    workflowHeaders.set("apikey", supabaseServiceRoleKey);
-    workflowHeaders.set("Authorization", `Bearer ${supabaseServiceRoleKey}`);
-    workflowHeaders.set("Prefer", "return=representation");
-
-    const updateRes = await fetch(
-      `${feedbackTableUrl}?workflowKey=eq.${encodeURIComponent(workflowKey)}`,
-      {
-        method: "PATCH",
-        headers: workflowHeaders,
-        body: JSON.stringify({
-          workflowStatus: entry.workflowStatus,
-        }),
-        cache: "no-store",
-      }
-    );
-
-    if (!updateRes.ok) {
-      const errorText = await updateRes.text();
-      throw new Error(`Workflow update failed ${updateRes.status}: ${errorText}`);
-    }
-
-    const updatedRows: unknown = await updateRes.json();
-    const normalizedUpdatedRows = Array.isArray(updatedRows) ? updatedRows : [];
-
-    if (normalizedUpdatedRows.length > 0) {
-      saved = normalizedUpdatedRows;
-    } else {
-      saved = await saveFeedbackEntry({
-        feedbackTableUrl,
-        supabaseServiceRoleKey,
-        entry,
-        errorLabel: "Workflow status opslaan mislukt:",
-      });
-    }
-  } else {
-    // ✅ normale feedback → insert
-    saved = await saveFeedbackEntry({
-      feedbackTableUrl,
-      supabaseServiceRoleKey,
-      entry,
-      errorLabel: "Feedback opslaan mislukt:",
-    });
-  }
+  saved = await saveFeedbackEntry({
+    feedbackTableUrl,
+    supabaseServiceRoleKey,
+    entry,
+    errorLabel: "Workflow status opslaan mislukt:",
+  });
+} else {
+  saved = await saveFeedbackEntry({
+    feedbackTableUrl,
+    supabaseServiceRoleKey,
+    entry,
+    errorLabel: "Feedback opslaan mislukt:",
+  });
+}
 
   return NextResponse.json(
     {
