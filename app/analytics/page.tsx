@@ -801,6 +801,7 @@ useEffect(() => {
 
     return {
       ...item,
+      _localOnly: false,
       environment: resolvedEnvironment,
       userScope: resolvedUserScope,
       user_id: item.user_id || null,
@@ -825,7 +826,9 @@ useEffect(() => {
     };
   });
 
-const truthSource = serverFetchSucceeded ? normalServerFeedback : normalizedLocal;
+const truthSource = serverFetchSucceeded
+  ? [...normalServerFeedback, ...normalizedLocal]
+  : normalizedLocal;
 
   const deduped = truthSource.filter(
     (item: AnalyticsFeedbackItem, index: number, arr: AnalyticsFeedbackItem[]) => {
@@ -852,6 +855,10 @@ const truthSource = serverFetchSucceeded ? normalServerFeedback : normalizedLoca
 
 runLoad();
 
+const pollId = window.setInterval(() => {
+  runLoad();
+}, 5000);
+
 const handleVisibilityChange = () => {
   if (document.visibilityState === "visible") {
     runLoad();
@@ -863,6 +870,7 @@ window.addEventListener("focus", runLoad);
 document.addEventListener("visibilitychange", handleVisibilityChange);
 
 return () => {
+  window.clearInterval(pollId);
   window.removeEventListener("openlura_feedback_update", runLoad);
   window.removeEventListener("focus", runLoad);
   document.removeEventListener("visibilitychange", handleVisibilityChange);
