@@ -2593,8 +2593,8 @@ updated[index].messages[
       </span>
     ) : (
       <>
-        {msg.content.split(/(\s+)/).map((part: string, idx: number) => {
-          const isUrl = /^https?:\/\/\S+$/i.test(part);
+        {tokenizeMessageContent(msg.content).map((part: string, idx: number) => {
+          const isUrl = isUrlToken(part);
 
           if (isUrl) {
             return (
