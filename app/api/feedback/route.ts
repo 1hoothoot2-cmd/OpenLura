@@ -571,6 +571,23 @@ function mapFeedbackRowToApi(row: Record<string, unknown>): CanonicalFeedbackEnt
 }
 
 function mapFeedbackEntryToDb(entry: CanonicalFeedbackEntry) {
+  const environment: "default" | "personal" =
+    entry.environment === "personal" ? "personal" : "default";
+
+  const userScope: "admin" | "guest" | "personal" =
+    entry.userScope === "admin" ||
+    entry.userScope === "guest" ||
+    entry.userScope === "personal"
+      ? entry.userScope
+      : environment === "personal"
+      ? "personal"
+      : "guest";
+
+  const user_id =
+    environment === "personal"
+      ? entry.user_id || "personal_feedback"
+      : null;
+
   return {
     chatId: entry.chatId,
     msgIndex: entry.msgIndex,
@@ -578,9 +595,9 @@ function mapFeedbackEntryToDb(entry: CanonicalFeedbackEntry) {
     message: entry.message,
     userMessage: entry.userMessage,
     source: entry.source,
-    userScope: entry.userScope,
-    user_id: entry.user_id,
-    environment: entry.environment,
+    userScope,
+    user_id,
+    environment,
     timestamp: entry.timestamp,
     workflowKey: entry.workflowKey,
     workflowStatus: entry.workflowStatus,
@@ -629,6 +646,7 @@ function buildCanonicalWorkflowAdminEntry(
     user_id: null,
     environment: "default",
     learningType: null,
+    workflowStatus: entry.workflowStatus,
   };
 }
 
