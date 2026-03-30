@@ -50,7 +50,7 @@ export default function HomePage() {
             </Link>
           </div>
 
-          <div className="mt-8 flex flex-col items-start gap-4">
+          <div className="mt-8 flex flex-col items-start gap-2">
             <div className="flex flex-wrap gap-2">
               {chapterLinks.map((item) => (
                 <a
@@ -63,29 +63,6 @@ export default function HomePage() {
               ))}
             </div>
 
-            <a
-              href="#how-it-works"
-              aria-label="Scroll to next section"
-              className="group inline-flex h-12 w-12 items-center justify-center rounded-full border border-[#3b82f6]/24 bg-gradient-to-b from-[#1d4ed8]/30 to-[#3b82f6]/12 text-[#7db7ff] shadow-[0_14px_30px_rgba(59,130,246,0.18)] ol-interactive transition-[transform,filter,box-shadow,border-color] duration-200 hover:-translate-y-[2px] hover:border-[#60a5fa]/40 hover:brightness-110 hover:shadow-[0_18px_36px_rgba(59,130,246,0.24)]"
-            >
-              <span className="text-lg transition-transform duration-200 group-hover:translate-y-[2px]">
-                ↓
-              </span>
-            </a>
-          </div>
-        </div>
-
-        <div className="sticky top-0 z-20 mt-8 hidden w-full max-w-5xl border-y border-white/8 bg-[#050510]/72 py-3 backdrop-blur-2xl lg:block">
-          <div className="flex flex-wrap gap-2">
-            {chapterLinks.map((item) => (
-              <a
-                key={item.href}
-                href={item.href}
-                className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[12px] font-medium text-white/56 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/26 hover:bg-[#3b82f6]/10 hover:text-white"
-              >
-                {item.label}
-              </a>
-            ))}
           </div>
         </div>
 
@@ -124,7 +101,10 @@ export default function HomePage() {
           <div className="mt-16 h-px w-full max-w-5xl bg-gradient-to-r from-transparent via-white/10 to-transparent" />
 
           {/* PRODUCT OVERVIEW */}
-          <div id="how-it-works" className="scroll-mt-28 mt-16 w-full max-w-4xl">
+          <section
+            id="how-it-works"
+            className="section-panel scroll-mt-24 mt-16 w-full max-w-4xl"
+          >
             <div className="mb-6">
               <h2 className="text-xl font-semibold text-white/92">
                 How OpenLura works
@@ -162,10 +142,13 @@ export default function HomePage() {
                 </p>
               </div>
             </div>
-          </div>
+          </section>
 
           {/* ROADMAP */}
-          <div id="roadmap" className="scroll-mt-28 mt-16 w-full max-w-5xl">
+          <section
+            id="roadmap"
+            className="section-panel scroll-mt-24 mt-16 w-full max-w-5xl"
+          >
             <div className="mb-6">
               <h2 className="text-xl font-semibold text-white/92">
                 Where OpenLura is going
@@ -248,7 +231,7 @@ export default function HomePage() {
                 </p>
               </div>
             </div>
-          </div>
+          </section>
 
           {/* BUG CHANNEL */}
           <div className="mt-16 w-full max-w-4xl">
@@ -281,7 +264,10 @@ export default function HomePage() {
           </div>
 
           {/* SYSTEM STATUS */}
-          <div id="system-status" className="scroll-mt-28 mt-16 w-full max-w-5xl">
+          <section
+            id="system-status"
+            className="section-panel scroll-mt-24 mt-16 w-full max-w-5xl"
+          >
             <div className="mb-6">
               <h2 className="text-xl font-semibold text-white/92">
                 System status
@@ -328,10 +314,13 @@ export default function HomePage() {
                 </p>
               </div>
             </div>
-          </div>
+          </section>
 
           {/* USE CASES */}
-          <div id="use-cases" className="scroll-mt-28 mt-16 w-full max-w-5xl">
+          <section
+            id="use-cases"
+            className="section-panel scroll-mt-24 mt-16 w-full max-w-5xl"
+          >
             <div className="mb-6">
               <h2 className="text-xl font-semibold text-white/92">
                 Use cases
@@ -384,7 +373,7 @@ export default function HomePage() {
                 </p>
               </div>
             </div>
-          </div>
+          </section>
 
           {/* WHY OPENLURA */}
           <div className="mt-16 w-full max-w-5xl">
@@ -429,7 +418,10 @@ export default function HomePage() {
           </div>
 
           {/* PLANS */}
-          <div id="plans" className="scroll-mt-28 mt-16 w-full max-w-5xl">
+          <section
+            id="plans"
+            className="section-panel scroll-mt-24 mt-16 w-full max-w-5xl"
+          >
             <div className="mb-6">
               <h2 className="text-xl font-semibold text-white/92">
                 Plans
@@ -530,10 +522,13 @@ export default function HomePage() {
                 </div>
               </div>
             </div>
-          </div>
+          </section>
 
           {/* SECURITY */}
-          <div id="security" className="scroll-mt-28 mt-16 w-full max-w-5xl">
+          <section
+            id="security"
+            className="section-panel scroll-mt-24 mt-16 w-full max-w-5xl"
+          >
             <div className="mb-6">
               <h2 className="text-xl font-semibold text-white/92">
                 Security
@@ -572,7 +567,7 @@ export default function HomePage() {
                 </p>
               </div>
             </div>
-          </div>
+          </section>
 
           {/* ACCOUNT FLOW */}
           <div className="mt-16 w-full max-w-5xl">
@@ -629,7 +624,10 @@ export default function HomePage() {
           </div>
 
           {/* CHANGELOG */}
-          <div id="changelog" className="scroll-mt-28 mt-16 w-full max-w-5xl">
+          <section
+            id="changelog"
+            className="section-panel scroll-mt-24 mt-16 w-full max-w-5xl"
+          >
             <div className="mb-6">
               <h2 className="text-xl font-semibold text-white/92">
                 Changelog
@@ -692,7 +690,7 @@ export default function HomePage() {
                 </div>
               </div>
             </div>
-          </div>
+          </section>
 
           <div className="mt-20 w-full max-w-5xl">
             <div className="overflow-hidden rounded-[28px] border border-[#3b82f6]/14 bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.16),transparent_38%),rgba(255,255,255,0.03)] p-6 shadow-[0_20px_48px_rgba(0,0,0,0.18)] backdrop-blur-xl sm:p-7">
@@ -735,6 +733,64 @@ export default function HomePage() {
         <style jsx global>{`
           html {
             scroll-behavior: smooth;
+            scroll-snap-type: y proximity;
+          }
+
+          .section-panel {
+            position: relative;
+            min-height: 78vh;
+            scroll-snap-align: start;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding-top: 2rem;
+            padding-bottom: 2rem;
+          }
+
+          .section-panel::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: 0;
+            height: 1px;
+            background: linear-gradient(
+              90deg,
+              transparent 0%,
+              rgba(255, 255, 255, 0.08) 20%,
+              rgba(59, 130, 246, 0.18) 50%,
+              rgba(255, 255, 255, 0.08) 80%,
+              transparent 100%
+            );
+          }
+
+          .section-panel:target {
+            animation: openluraSectionFocus 420ms ease;
+          }
+
+          @keyframes openluraSectionFocus {
+            0% {
+              opacity: 0.72;
+              transform: translateY(18px);
+              filter: saturate(0.9);
+            }
+            100% {
+              opacity: 1;
+              transform: translateY(0);
+              filter: saturate(1);
+            }
+          }
+
+          @media (max-width: 767px) {
+            html {
+              scroll-snap-type: none;
+            }
+
+            .section-panel {
+              min-height: auto;
+              padding-top: 0;
+              padding-bottom: 0;
+            }
           }
 
           * {
@@ -753,11 +809,17 @@ export default function HomePage() {
           *::-webkit-scrollbar-thumb {
             border-radius: 999px;
             border: 2px solid rgba(5, 5, 16, 0.9);
-            background: linear-gradient(180deg, #1d4ed8 0%, #3b82f6 100%);
+            background: linear-gradient(90deg, #1d4ed8 0%, #3b82f6 100%);
+            box-shadow:
+              0 0 0 1px rgba(59, 130, 246, 0.18),
+              0 0 18px rgba(59, 130, 246, 0.22);
           }
 
           *::-webkit-scrollbar-thumb:hover {
-            background: linear-gradient(180deg, #2563eb 0%, #60a5fa 100%);
+            background: linear-gradient(90deg, #1d4ed8 0%, #3b82f6 100%);
+            box-shadow:
+              0 0 0 1px rgba(59, 130, 246, 0.24),
+              0 0 22px rgba(59, 130, 246, 0.28);
           }
         `}</style>
 
