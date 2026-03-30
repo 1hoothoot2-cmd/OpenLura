@@ -15,7 +15,7 @@ function safeParseJson<T>(raw: string | null, fallback: T): T {
 const PERSONAL_ENV_WELCOME_MESSAGE =
   "👋 Welcome to your personal environment. Here we test private memory, improvement feedback, and training of your AI behavior.";
 
-export default function Home() {
+export default function ChatPage() {
   const pathname = usePathname();
   const isPersonalRoute = pathname === "/persoonlijke-omgeving";
   const chatStorageKey = isPersonalRoute
@@ -1360,7 +1360,7 @@ const restoreDeletedChat = (chatId: number) => {
       setShowLoginBox(false);
       setLoginUsername("");
       setLoginPassword("");
-      window.location.href = "/persoonlijke-omgeving";
+      window.location.href = "/login";
     } catch {
       setLoginError("Login failed");
     } finally {
@@ -2519,12 +2519,13 @@ updated[index].messages[
                         Back to home
                       </a>
 
-                      <a
-                        href="/login"
+                      <button
+                        type="button"
+                        onClick={() => setShowLoginBox(true)}
                         className="rounded-full border border-white/8 bg-white/[0.03] px-3 py-2 text-xs text-white/58 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.05] hover:text-white"
                       >
                         Login
-                      </a>
+                      </button>
                     </div>
                   )}
                 </div>
@@ -2908,12 +2909,13 @@ enterKeyHint="send"
             Home
           </a>
 
-          <a
-            href="/login"
+          <button
+            type="button"
+            onClick={() => setShowLoginBox(true)}
             className="rounded-full border border-white/8 bg-white/[0.05] px-3.5 py-2 text-sm text-white/78 shadow-[0_12px_28px_rgba(0,0,0,0.18)] backdrop-blur-2xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.08] hover:text-white hover:shadow-[0_14px_30px_rgba(0,0,0,0.20)] active:scale-95"
           >
             Log in
-          </a>
+          </button>
         </div>
       )}
 
