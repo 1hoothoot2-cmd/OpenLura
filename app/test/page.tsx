@@ -849,6 +849,10 @@ const resizeComposerTextarea = () => {
   el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
 };
 
+const tokenizeMessageContent = (content: string) => content.split(/(\s+)/);
+
+const isUrlToken = (part: string) => /^https?:\/\/\S+$/i.test(part);
+
   useEffect(() => {
     const visibleChats = chats.filter(
       (chat: any) => !chat.archived && !chat.deleted
@@ -2519,7 +2523,7 @@ updated[index].messages[
                         Back to home
                       </a>
 
-                      button
+                      <button
                         type="button"
                         onClick={() => setShowLoginBox(true)}
                         className="rounded-full border border-white/8 bg-white/[0.03] px-3 py-2 text-xs text-white/58 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.05] hover:text-white"
@@ -2532,7 +2536,7 @@ updated[index].messages[
               </div>
             ) : (
               <>
-                                                {activeMessages
+               {activeMessages
                   .map((msg: any, originalIndex: number) => ({
                     msg,
                     originalIndex,
@@ -2589,8 +2593,8 @@ updated[index].messages[
       </span>
     ) : (
       <>
-        {msg.content.split(/(\s+)/).map((part: string, idx: number) => {
-          const isUrl = /^https?:\/\/\S+$/i.test(part);
+        {tokenizeMessageContent(msg.content).map((part: string, idx: number) => {
+          const isUrl = isUrlToken(part);
 
           if (isUrl) {
             return (
