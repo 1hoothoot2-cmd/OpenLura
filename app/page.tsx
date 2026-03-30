@@ -2249,7 +2249,7 @@ updated[index].messages[
 };
 
   return (
-    <main className="fixed inset-0 flex bg-[#050510] text-white overflow-hidden">
+    <main className="fixed inset-0 flex overflow-hidden bg-[#050510] text-white">
       <button
   onClick={() => setMobileMenu(!mobileMenu)}
   aria-label={mobileMenu ? "Close menu" : "Open menu"}
@@ -2284,6 +2284,7 @@ updated[index].messages[
   setShowFeedbackBox={setShowFeedbackBox}
   setShowLoginBox={setShowLoginBox}
 />
+<div className="hidden md:block md:w-[292px] md:min-w-[292px] md:max-w-[292px]" aria-hidden="true" />
 
 {mobileMenu && (
   <div
@@ -2399,8 +2400,8 @@ updated[index].messages[
         </div>
       )}
 
-      <div className="flex-1 min-w-0 flex items-stretch justify-center pt-0 md:h-screen md:p-4 xl:justify-start">
-        <div className="flex h-full w-full min-w-0 max-w-2xl flex-col border border-white/8 bg-white/[0.042] shadow-[0_20px_56px_rgba(0,0,0,0.20)] backdrop-blur-2xl md:min-h-0 md:rounded-[28px] xl:ml-6 xl:max-w-[920px]">
+      <div className="flex min-w-0 flex-1 items-stretch justify-center pt-0 md:h-screen md:p-4 md:pl-0">
+        <div className="flex h-full w-full min-w-0 max-w-2xl flex-col border border-white/8 bg-white/[0.042] shadow-[0_20px_56px_rgba(0,0,0,0.20)] backdrop-blur-2xl md:min-h-0 md:rounded-[28px] xl:max-w-[920px]">
 
           {usage && usage.percentage >= 0.8 && !upgradeNotice.visible && (
             <div className="mx-4 mt-4 rounded-[24px] border border-yellow-300/12 bg-yellow-500/[0.065] px-4 py-3 text-sm text-yellow-100 shadow-[0_10px_22px_rgba(0,0,0,0.10)] backdrop-blur-xl">
@@ -2424,7 +2425,7 @@ updated[index].messages[
 
           <div
   ref={messagesRef}
-  className={`${messageShellClass} flex-1 min-h-0 overflow-x-hidden overflow-y-auto pb-[188px] md:pb-6 ${
+  className={`${messageShellClass} flex-1 min-h-0 w-full overflow-x-hidden overflow-y-auto pb-[188px] md:pb-6 ${
     activeChat?.messages?.length ? "space-y-4 p-4 pt-20 md:px-6 md:pt-6" : "flex items-center justify-center p-4 pt-20 md:px-6 md:pt-6"
   }`}
 >
@@ -2665,7 +2666,7 @@ updated[index].messages[
   className={`${
     activeChat?.messages?.length === 0
       ? "mx-auto mt-6 w-full max-w-2xl px-3 md:px-4"
-      : "fixed bottom-0 left-1/2 z-[90] w-full max-w-2xl -translate-x-1/2 bg-[#050510]/95 px-3 pt-3 pb-[calc(env(safe-area-inset-bottom)+14px)] md:static md:z-auto md:mt-auto md:w-full md:max-w-none md:border-0 md:bg-transparent md:p-0"
+      : "fixed bottom-0 left-1/2 z-[90] w-full max-w-2xl -translate-x-1/2 bg-[#050510]/95 px-3 pt-3 pb-[calc(env(safe-area-inset-bottom)+14px)] md:static md:left-auto md:z-auto md:mt-auto md:w-full md:max-w-none md:translate-x-0 md:border-0 md:bg-transparent md:p-0"
   } flex w-full min-w-0 max-w-full overflow-x-hidden items-end gap-2 rounded-[28px] border border-white/8 bg-white/[0.038] shadow-[0_16px_34px_rgba(0,0,0,0.18)] backdrop-blur-2xl md:rounded-b-[32px] md:rounded-t-[28px] md:border-x-0 md:border-b-0 md:border-t md:px-4 md:py-4 md:shadow-none`}
 >
 
