@@ -6,6 +6,7 @@ import { useState } from "react";
 const chapterLinks = [
   { href: "#how-it-works", label: "How it works" },
   { href: "#roadmap", label: "Roadmap" },
+  { href: "#system-status", label: "System status" },
   { href: "#use-cases", label: "Use cases" },
   { href: "#why-openlura", label: "Why OpenLura" },
   { href: "#plans", label: "Plans" },
@@ -13,6 +14,34 @@ const chapterLinks = [
   { href: "#account-flow", label: "Account flow" },
   { href: "#changelog", label: "Changelog" },
 ];
+
+function SectionFooter({
+  nextHref,
+  nextLabel,
+}: {
+  nextHref?: string;
+  nextLabel?: string;
+}) {
+  return (
+    <div className="mt-12 flex flex-col items-center justify-center gap-3 pt-8">
+      {nextHref && nextLabel ? (
+        <a
+          href={nextHref}
+          className="inline-flex items-center justify-center rounded-full border border-[#3b82f6]/18 bg-[#3b82f6]/10 px-5 py-2 text-sm font-medium text-blue-200 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-[#60a5fa]/30 hover:bg-[#3b82f6]/14 hover:text-white hover:shadow-[0_14px_28px_rgba(59,130,246,0.16)]"
+        >
+          Continue to {nextLabel}
+        </a>
+      ) : null}
+
+      <a
+        href="#top"
+        className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-[12px] font-medium text-white/58 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-white/14 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_10px_22px_rgba(0,0,0,0.12)]"
+      >
+        Back to top
+      </a>
+    </div>
+  );
+}
 
 export default function HomePage() {
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
@@ -151,6 +180,7 @@ export default function HomePage() {
                 </p>
               </div>
             </div>
+            <SectionFooter nextHref="#roadmap" nextLabel="Roadmap" />
           </section>
 
           {/* ROADMAP */}
@@ -240,6 +270,7 @@ export default function HomePage() {
                 </p>
               </div>
             </div>
+            <SectionFooter nextHref="#system-status" nextLabel="System status" />
           </section>
 
           {/* SYSTEM STATUS */}
@@ -293,6 +324,7 @@ export default function HomePage() {
                 </p>
               </div>
             </div>
+            <SectionFooter nextHref="#use-cases" nextLabel="Use cases" />
           </section>
 
           {/* USE CASES */}
@@ -352,6 +384,7 @@ export default function HomePage() {
                 </p>
               </div>
             </div>
+            <SectionFooter nextHref="#why-openlura" nextLabel="Why OpenLura" />
           </section>
 
           {/* WHY OPENLURA */}
@@ -397,6 +430,7 @@ export default function HomePage() {
                 </p>
               </div>
             </div>
+            <SectionFooter nextHref="#plans" nextLabel="Plans" />
           </section>
 
           {/* PLANS */}
@@ -504,6 +538,7 @@ export default function HomePage() {
                 </div>
               </div>
             </div>
+            <SectionFooter nextHref="#security" nextLabel="Security" />
           </section>
 
           {/* SECURITY */}
@@ -549,6 +584,7 @@ export default function HomePage() {
                 </p>
               </div>
             </div>
+            <SectionFooter nextHref="#account-flow" nextLabel="Account flow" />
           </section>
 
           {/* ACCOUNT FLOW */}
@@ -606,6 +642,7 @@ export default function HomePage() {
                 </p>
               </div>
             </div>
+            <SectionFooter nextHref="#changelog" nextLabel="Changelog" />
           </section>
 
           {/* CHANGELOG */}
@@ -675,6 +712,7 @@ export default function HomePage() {
                 </div>
               </div>
             </div>
+            <SectionFooter />
           </section>
 
           <div className="mt-20 w-full max-w-5xl">
