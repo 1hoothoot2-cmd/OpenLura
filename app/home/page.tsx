@@ -64,6 +64,46 @@ export default function HomePage() {
     Explore what you can do with OpenLura.
   </div>
 </Link>
+          {/* PRODUCT OVERVIEW */}
+          <div className="mt-16 w-full max-w-3xl">
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold text-white/92">
+                How OpenLura works
+              </h2>
+              <p className="mt-2 text-sm text-white/50">
+                Built to adapt, remember, and improve over time.
+              </p>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+                <div className="text-sm font-medium text-white">
+                  Learns from context
+                </div>
+                <p className="mt-2 text-sm leading-6 text-white/46">
+                  Understands your conversations and builds useful context over time.
+                </p>
+              </div>
+
+              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+                <div className="text-sm font-medium text-white">
+                  Improves with feedback
+                </div>
+                <p className="mt-2 text-sm leading-6 text-white/46">
+                  Uses your feedback to continuously refine how it responds.
+                </p>
+              </div>
+
+              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+                <div className="text-sm font-medium text-white">
+                  Personal by design
+                </div>
+                <p className="mt-2 text-sm leading-6 text-white/46">
+                  Adapts to your style, preferences, and workflows.
+                </p>
+              </div>
+            </div>
+          </div>
           </div>
         </div>
       </div>
