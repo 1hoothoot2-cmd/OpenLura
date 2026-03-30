@@ -332,6 +332,48 @@ export default function HomePage() {
               </div>
             </div>
           </div>
+
+          {/* WHY OPENLURA */}
+          <div className="mt-16 w-full max-w-5xl">
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold text-white/92">
+                Why OpenLura
+              </h2>
+              <p className="mt-2 max-w-2xl text-sm text-white/50">
+                Built for clarity, continuity, and a more useful AI experience over time.
+              </p>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+                <div className="text-sm font-medium text-white">Less noise</div>
+                <p className="mt-2 text-sm leading-6 text-white/46">
+                  Focused help without unnecessary complexity or distracting product clutter.
+                </p>
+              </div>
+
+              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+                <div className="text-sm font-medium text-white">Context that carries forward</div>
+                <p className="mt-2 text-sm leading-6 text-white/46">
+                  Conversations become more useful as context builds across continued use.
+                </p>
+              </div>
+
+              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+                <div className="text-sm font-medium text-white">Improves through feedback</div>
+                <p className="mt-2 text-sm leading-6 text-white/46">
+                  Feedback helps shape a sharper, more aligned experience over time.
+                </p>
+              </div>
+
+              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+                <div className="text-sm font-medium text-white">Designed for real work</div>
+                <p className="mt-2 text-sm leading-6 text-white/46">
+                  Made to support thinking, writing, planning, and everyday execution.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
 
         {isFeedbackOpen && (
