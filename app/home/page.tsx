@@ -23,7 +23,7 @@ function SectionFooter({
   nextLabel?: string;
 }) {
   return (
-    <div className="mt-12 flex flex-col items-center justify-center gap-3 pt-8">
+    <div className="mt-auto flex flex-col items-center justify-center gap-3 pt-12">
       {nextHref && nextLabel ? (
         <a
           href={nextHref}
