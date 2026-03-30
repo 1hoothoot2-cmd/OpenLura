@@ -2,6 +2,15 @@
 import Sidebar from "@/components/chat/Sidebar";
 import { useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
+function safeParseJson<T>(raw: string | null, fallback: T): T {
+  if (!raw) return fallback;
+
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}
 
 export default function Home() {
   const pathname = usePathname();
@@ -273,7 +282,7 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
         const mem = localStorage.getItem(memoryStorageKey);
 
         if (!loadedFromServer && !isPersonalRoute && saved) {
-          const parsed = JSON.parse(saved);
+          const parsed = safeParseJson<any[]>(saved, []);
           const normalizedChats = parsed.map((chat: any) => ({
             ...chat,
             pinned: chat.pinned ?? false,
@@ -305,7 +314,7 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
         }
 
         if (!loadedFromServer && !isPersonalRoute && mem) {
-          const parsed = JSON.parse(mem);
+          const parsed = safeParseJson<any[]>(mem, []);
           if (parsed.length && typeof parsed[0] === "string") {
             setMemory(parsed.map((m: string) => ({ text: m, weight: 0.5 })));
           } else {
@@ -403,10 +412,12 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
       }),
     }));
 
-    try {
-      localStorage.setItem(chatStorageKey, JSON.stringify(safeChats));
-    } catch (error) {
-      console.error("OpenLura local chat persistence failed:", error);
+    if (!isPersonalRoute) {
+      try {
+        localStorage.setItem(chatStorageKey, JSON.stringify(safeChats));
+      } catch (error) {
+        console.error("OpenLura local chat persistence failed:", error);
+      }
     }
 
     if (!isPersonalRoute || !personalStateLoaded) {
@@ -686,10 +697,15 @@ const hasMeaningfulPersonalState =
 
     loadPersonalStateFromServer(false);
 
+    const pollId = window.setInterval(() => {
+      loadPersonalStateFromServer(false);
+    }, 5000);
+
     window.addEventListener("focus", handleWindowFocus);
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
+      window.clearInterval(pollId);
       window.removeEventListener("focus", handleWindowFocus);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
@@ -1822,10 +1838,11 @@ setChats([...updated]);
       requestAnimationFrame(() => resolve());
     });
 
-    const rawFeedback = JSON.parse(
+    const rawFeedback = safeParseJson<any[]>(
       localStorage.getItem(
         isPersonalRoute ? "openlura_personal_feedback" : "openlura_feedback"
-      ) || "[]"
+      ),
+      []
     ).slice(-20);
 
     // geef recente feedback meer gewicht
@@ -2077,7 +2094,7 @@ updated[index].messages[
   const key = isPersonalRoute
     ? "openlura_personal_feedback"
     : "openlura_feedback";
-  const existing = JSON.parse(localStorage.getItem(key) || "[]");
+  const existing = safeParseJson<any[]>(localStorage.getItem(key), []);
 
   const chat = chats.find(c => c.id === chatId);
   const message = chat?.messages[msgIndex];
@@ -2187,7 +2204,7 @@ updated[index].messages[
 
   if (!isPersonalEnvironment) {
     const key = "openlura_ideas";
-    const existing = JSON.parse(localStorage.getItem(key) || "[]");
+    const existing = safeParseJson<any[]>(localStorage.getItem(key), []);
 
     const ideaEntry = {
       text: feedbackText.trim(),

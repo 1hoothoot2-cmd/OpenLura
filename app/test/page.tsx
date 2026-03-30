@@ -2,6 +2,15 @@
 import Sidebar from "@/components/chat/Sidebar";
 import { useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
+function safeParseJson<T>(raw: string | null, fallback: T): T {
+  if (!raw) return fallback;
+
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}
 
 export default function Home() {
   const pathname = usePathname();
@@ -273,7 +282,7 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
         const mem = localStorage.getItem(memoryStorageKey);
 
         if (!loadedFromServer && !isPersonalRoute && saved) {
-          const parsed = JSON.parse(saved);
+          const parsed = safeParseJson<any[]>(saved, []);
           const normalizedChats = parsed.map((chat: any) => ({
             ...chat,
             pinned: chat.pinned ?? false,
@@ -305,7 +314,7 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
         }
 
         if (!loadedFromServer && !isPersonalRoute && mem) {
-          const parsed = JSON.parse(mem);
+          const parsed = safeParseJson<any[]>(mem, []);
           if (parsed.length && typeof parsed[0] === "string") {
             setMemory(parsed.map((m: string) => ({ text: m, weight: 0.5 })));
           } else {
@@ -403,10 +412,12 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
       }),
     }));
 
-    try {
-      localStorage.setItem(chatStorageKey, JSON.stringify(safeChats));
-    } catch (error) {
-      console.error("OpenLura local chat persistence failed:", error);
+    if (!isPersonalRoute) {
+      try {
+        localStorage.setItem(chatStorageKey, JSON.stringify(safeChats));
+      } catch (error) {
+        console.error("OpenLura local chat persistence failed:", error);
+      }
     }
 
     if (!isPersonalRoute || !personalStateLoaded) {
@@ -446,7 +457,7 @@ const hasMeaningfulPersonalState =
 
     personalSyncTimeoutRef.current = setTimeout(async () => {
       try {
-        await fetch("/api/personal-state", {
+        const res = await fetch("/api/personal-state", {
           method: "POST",
           headers: getOpenLuraRequestHeaders(true),
           credentials: "same-origin",
@@ -455,6 +466,10 @@ const hasMeaningfulPersonalState =
             memory,
           }),
         });
+
+        if (!res.ok) {
+          throw new Error(`Personal sync failed with status ${res.status}`);
+        }
       } catch (error) {
         console.error("OpenLura personal sync failed:", error);
       }
@@ -682,10 +697,15 @@ const hasMeaningfulPersonalState =
 
     loadPersonalStateFromServer(false);
 
+    const pollId = window.setInterval(() => {
+      loadPersonalStateFromServer(false);
+    }, 5000);
+
     window.addEventListener("focus", handleWindowFocus);
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
+      window.clearInterval(pollId);
       window.removeEventListener("focus", handleWindowFocus);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
@@ -1099,14 +1119,23 @@ const restoreDeletedChat = (chatId: number) => {
     const remainingChats = chats.filter((chat: any) => !chat.deleted);
 
     if (remainingChats.length === 0) {
-      const fallbackChat = buildFallbackChat();
+      if (isPersonalRoute) {
+        isBootstrappingChatRef.current = false;
+        setChats([]);
+        preferredActiveChatIdRef.current = null;
+        pendingActiveChatIdRef.current = null;
+        forcedActiveChatIdRef.current = null;
+        setActiveChatId(null);
+      } else {
+        const fallbackChat = buildFallbackChat();
 
-      isBootstrappingChatRef.current = false;
-      setChats([fallbackChat]);
-      preferredActiveChatIdRef.current = fallbackChat.id;
-      pendingActiveChatIdRef.current = fallbackChat.id;
-      forcedActiveChatIdRef.current = fallbackChat.id;
-      setActiveChatId(fallbackChat.id);
+        isBootstrappingChatRef.current = false;
+        setChats([fallbackChat]);
+        preferredActiveChatIdRef.current = fallbackChat.id;
+        pendingActiveChatIdRef.current = fallbackChat.id;
+        forcedActiveChatIdRef.current = fallbackChat.id;
+        setActiveChatId(fallbackChat.id);
+      }
     } else {
       setChats(remainingChats);
 
@@ -1218,7 +1247,11 @@ const restoreDeletedChat = (chatId: number) => {
         : [...prev, { text: text.trim(), weight: Math.max(0.1, Math.min(0.5 + delta, 1)) }];
 
       next = next.sort((a, b) => b.weight - a.weight).slice(0, 10);
-      localStorage.setItem(memoryStorageKey, JSON.stringify(next));
+
+      if (!isPersonalRoute) {
+        localStorage.setItem(memoryStorageKey, JSON.stringify(next));
+      }
+
       return next;
     });
   };
@@ -1287,26 +1320,15 @@ const restoreDeletedChat = (chatId: number) => {
         return;
       }
 
-      let verified = false;
+      const verifyRes = await fetch("/api/personal-state", {
+        method: "GET",
+        headers: getOpenLuraRequestHeaders(true),
+        credentials: "same-origin",
+        cache: "no-store",
+      });
 
-      for (let attempt = 0; attempt < 4; attempt += 1) {
-        const verifyRes = await fetch("/api/personal-state", {
-          method: "GET",
-          headers: getOpenLuraRequestHeaders(true),
-          credentials: "same-origin",
-          cache: "no-store",
-        });
-
-        if (verifyRes.ok) {
-          verified = true;
-          break;
-        }
-
-        await new Promise((resolve) => setTimeout(resolve, 250));
-      }
-
-      if (!verified) {
-        setLoginError("Persoonlijke sessie is nog niet actief. Probeer opnieuw.");
+      if (!verifyRes.ok) {
+        setLoginError("Persoonlijke sessie kon niet worden bevestigd.");
         return;
       }
 
@@ -1478,23 +1500,23 @@ const restoreDeletedChat = (chatId: number) => {
         pendingImprovement?.originalAiMessage || "";
 
       if (!retryRequest) {
-        const localFeedbackKey = isPersonalRoute
-          ? "openlura_personal_feedback"
-          : "openlura_feedback";
-        const existingFeedback = JSON.parse(localStorage.getItem(localFeedbackKey) || "[]");
+        if (!isPersonalRoute) {
+          const localFeedbackKey = "openlura_feedback";
+          const existingFeedback = JSON.parse(localStorage.getItem(localFeedbackKey) || "[]");
 
-        existingFeedback.push({
-          chatId: currentChatId,
-          msgIndex: pendingImprovement?.targetMsgIndex ?? updated[index].messages.length - 1,
-          type: "improve",
-          message: input,
-          userMessage: originalUserMessage || "Direct improvement feedback",
-          timestamp: Date.now(),
-          source: "improvement_reply",
-          learningType: classifyLearningSignal(input),
-        });
+          existingFeedback.push({
+            chatId: currentChatId,
+            msgIndex: pendingImprovement?.targetMsgIndex ?? updated[index].messages.length - 1,
+            type: "improve",
+            message: input,
+            userMessage: originalUserMessage || "Direct improvement feedback",
+            timestamp: Date.now(),
+            source: "improvement_reply",
+            learningType: classifyLearningSignal(input),
+          });
 
-        localStorage.setItem(localFeedbackKey, JSON.stringify(existingFeedback));
+          localStorage.setItem(localFeedbackKey, JSON.stringify(existingFeedback));
+        }
 
         const keyId = currentChatId + "-" + (updated[index].messages.length - 1);
 
@@ -1816,10 +1838,11 @@ setChats([...updated]);
       requestAnimationFrame(() => resolve());
     });
 
-    const rawFeedback = JSON.parse(
+    const rawFeedback = safeParseJson<any[]>(
       localStorage.getItem(
         isPersonalRoute ? "openlura_personal_feedback" : "openlura_feedback"
-      ) || "[]"
+      ),
+      []
     ).slice(-20);
 
     // geef recente feedback meer gewicht
@@ -1855,35 +1878,53 @@ setChats([...updated]);
       .map((m) => m.text)
       .join(" | ");
 
-    const res = await fetch("/api/chat", {
-      method: "POST",
-      signal: controller.signal,
-      headers: getOpenLuraRequestHeaders(true),
-      body: JSON.stringify({
-        message: inputToSend,
-        image: imageToSend,
-        memory: resolvedMemoryText,
-        personalMemory: isPersonalRoute ? resolvedMemoryText : "",
-        feedback: feedbackSummary,
-        recentMessages: (updated[index]?.messages || [])
-          .filter(
-            (msg: any) =>
-              msg &&
-              (msg.role === "user" || msg.role === "ai") &&
-              !msg.disableFeedback &&
-              typeof msg.content === "string" &&
-              msg.content.trim() &&
-              msg.content !== "Thinking..." &&
-              msg.content !== "Analyzing image..." &&
-              msg.content !== "🤖 Wat kan ik beter doen?"
-          )
-          .slice(-6)
-          .map((msg: any) => ({
-            role: msg.role,
-            content: msg.content,
-          })),
-      }),
-    });
+    let res: Response;
+
+    try {
+      res = await fetch("/api/chat", {
+        method: "POST",
+        signal: controller.signal,
+        headers: getOpenLuraRequestHeaders(true),
+        body: JSON.stringify({
+          message: inputToSend,
+          image: imageToSend,
+          memory: resolvedMemoryText,
+          personalMemory: isPersonalRoute ? resolvedMemoryText : "",
+          feedback: feedbackSummary,
+          recentMessages: (updated[index]?.messages || [])
+            .filter(
+              (msg: any) =>
+                msg &&
+                (msg.role === "user" || msg.role === "ai") &&
+                !msg.disableFeedback &&
+                typeof msg.content === "string" &&
+                msg.content.trim() &&
+                msg.content !== "Thinking..." &&
+                msg.content !== "Analyzing image..." &&
+                msg.content !== "🤖 Wat kan ik beter doen?"
+            )
+            .slice(-6)
+            .map((msg: any) => ({
+              role: msg.role,
+              content: msg.content,
+            })),
+        }),
+      });
+    } catch (error) {
+      updated[index].messages[
+        updated[index].messages.length - 1
+      ] = {
+        ...updated[index].messages[
+          updated[index].messages.length - 1
+        ],
+        content: "OpenLura kon nu geen antwoord ophalen. Probeer het opnieuw.",
+        isStreaming: false,
+      };
+      setChats([...updated]);
+      setStreamController(null);
+      setLoading(false);
+      return;
+    }
 
     if (res.status === 429) {
       const limitMessage = await getUsageLimitMessage(res);
@@ -2034,7 +2075,7 @@ updated[index].messages[
 
       setMemory(newMemory);
 
-      if (initialStateReady) {
+      if (initialStateReady && !isPersonalRoute) {
         localStorage.setItem(memoryStorageKey, JSON.stringify(newMemory));
       }
     }
@@ -2053,7 +2094,7 @@ updated[index].messages[
   const key = isPersonalRoute
     ? "openlura_personal_feedback"
     : "openlura_feedback";
-  const existing = JSON.parse(localStorage.getItem(key) || "[]");
+  const existing = safeParseJson<any[]>(localStorage.getItem(key), []);
 
   const chat = chats.find(c => c.id === chatId);
   const message = chat?.messages[msgIndex];
@@ -2062,21 +2103,23 @@ updated[index].messages[
     content: resolvedTarget.originalUserMessage,
   };
 
+  if (!isPersonalRoute) {
     existing.push({
-    chatId,
-    msgIndex,
-    type,
-    message: message?.content,
-    userMessage: prevMessage?.content,
-    source: message?.variant ? `ab_test_${message.variant}` : null,
-    timestamp: Date.now(),
-    learningType:
-      type === "down"
-        ? classifyLearningSignal(`${prevMessage?.content || ""} ${message?.content || ""}`)
-        : "content",
-  });
+      chatId,
+      msgIndex,
+      type,
+      message: message?.content,
+      userMessage: prevMessage?.content,
+      source: message?.variant ? `ab_test_${message.variant}` : null,
+      timestamp: Date.now(),
+      learningType:
+        type === "down"
+          ? classifyLearningSignal(`${prevMessage?.content || ""} ${message?.content || ""}`)
+          : "content",
+    });
 
     localStorage.setItem(key, JSON.stringify(existing));
+  }
 
   if (prevMessage?.content) {
     updateMemoryWeight(prevMessage.content, type === "up" ? 0.2 : -0.2);
@@ -2159,21 +2202,22 @@ updated[index].messages[
     const handleIdeaSubmit = () => {
   if (!feedbackText.trim()) return;
 
-  const key = "openlura_ideas";
-  const existing = JSON.parse(localStorage.getItem(key) || "[]");
+  if (!isPersonalEnvironment) {
+    const key = "openlura_ideas";
+    const existing = safeParseJson<any[]>(localStorage.getItem(key), []);
 
     const ideaEntry = {
-    text: feedbackText.trim(),
-    source: isPersonalEnvironment ? "personal_environment" : `idea_${feedbackCategory}`,
-    category: feedbackCategory,
-    chatId: activeChatId,
-    environment: isPersonalEnvironment ? "personal" : "default",
-    timestamp: Date.now(),
-  };
+      text: feedbackText.trim(),
+      source: `idea_${feedbackCategory}`,
+      category: feedbackCategory,
+      chatId: activeChatId,
+      environment: "default",
+      timestamp: Date.now(),
+    };
 
-  existing.push(ideaEntry);
-
-  localStorage.setItem(key, JSON.stringify(existing));
+    existing.push(ideaEntry);
+    localStorage.setItem(key, JSON.stringify(existing));
+  }
 
     fetch("/api/feedback", {
       method: "POST",
