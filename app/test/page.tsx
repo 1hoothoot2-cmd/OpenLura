@@ -427,30 +427,21 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
   return;
 }
 
-const hasMeaningfulPersonalState =
-  safeChats.some((chat: any) => {
-    const normalizedTitle = String(chat?.title || "").trim();
-    const messages = Array.isArray(chat?.messages) ? chat.messages : [];
+const personalPlaceholderMessage =
+  "👋 Welkom in je persoonlijke omgeving. Hier testen we privé memory, verbeterpunten en training van jouw AI-gedrag.";
 
-    const hasRealMessageContent = messages.some(
-      (msg: any) =>
-        typeof msg?.content === "string" &&
-        msg.content.trim() &&
-        msg.content !==
-          "👋 Welkom in je persoonlijke omgeving. Hier testen we privé memory, verbeterpunten en training van jouw AI-gedrag."
-    );
+const hasOnlyPersonalFallbackPlaceholder =
+  safeChats.length === 1 &&
+  String(safeChats[0]?.title || "").trim() === "Persoonlijke omgeving" &&
+  Array.isArray(safeChats[0]?.messages) &&
+  safeChats[0].messages.length === 1 &&
+  safeChats[0].messages[0]?.role === "ai" &&
+  safeChats[0].messages[0]?.content === personalPlaceholderMessage;
 
-    const isPersonalFallbackPlaceholder =
-      normalizedTitle === "Persoonlijke omgeving" &&
-      messages.length === 1 &&
-      messages[0]?.role === "ai" &&
-      messages[0]?.content ===
-        "👋 Welkom in je persoonlijke omgeving. Hier testen we privé memory, verbeterpunten en training van jouw AI-gedrag.";
+const shouldSkipPersonalStateSync =
+  hasOnlyPersonalFallbackPlaceholder && memory.length === 0;
 
-    return hasRealMessageContent || !isPersonalFallbackPlaceholder;
-  }) || memory.length > 0;
-
-    if (!hasMeaningfulPersonalState) {
+    if (shouldSkipPersonalStateSync) {
       return;
     }
 
@@ -796,7 +787,7 @@ const getOpenLuraRequestHeaders = (
     ? { "Content-Type": "application/json" }
     : {};
 
-  if (options?.includeUserId !== false) {
+  if (options?.includeUserId === true) {
     const resolvedUserId = getOrCreateOpenLuraUserId();
 
     if (resolvedUserId) {
@@ -841,6 +832,8 @@ const activeChat =
   visibleChats.find((c: any) => c.id === activeChatId) ??
   visibleChats[0] ??
   null;
+
+const renderedChatId = activeChat?.id ?? null;
 
 const resizeComposerTextarea = () => {
   const el = inputRef.current;
@@ -1497,7 +1490,13 @@ const restoreDeletedChat = (chatId: number) => {
 
     try {
 
-    const currentChatId = activeChatId!;
+      const currentChatId = activeChatId ?? activeChat?.id ?? null;
+
+    if (currentChatId === null) {
+      setLoading(false);
+      return;
+    }
+
     const pendingImprovement = awaitingImprovement[currentChatId];
     const isImprovementReply = !!pendingImprovement && !!input.trim();
 
@@ -1506,7 +1505,7 @@ const restoreDeletedChat = (chatId: number) => {
       const index = updated.findIndex((c) => c.id === currentChatId);
       const retryRequest = isRetryInstruction(input);
 
-      if (index === -1) {
+      if (index === -1 || currentChatId === null) {
         setLoading(false);
         return;
       }
@@ -1549,7 +1548,7 @@ const restoreDeletedChat = (chatId: number) => {
           console.error("OpenLura local improvement feedback persistence failed:", error);
         }
 
-        const keyId = currentChatId + "-" + (updated[index].messages.length - 1);
+        const keyId = `${currentChatId}-${updated[index].messages.length - 1}`;
 
         setFeedbackUI(prev => ({
           ...prev,
@@ -1567,7 +1566,10 @@ const restoreDeletedChat = (chatId: number) => {
         try {
           const feedbackRes = await fetch("/api/feedback", {
             method: "POST",
-            headers: getOpenLuraRequestHeaders(true),
+            headers: getOpenLuraRequestHeaders(true, {
+              personalEnv: isPersonalRoute,
+              includeUserId: false,
+            }),
             body: JSON.stringify({
               chatId: String(currentChatId),
               msgIndex: pendingImprovement?.targetMsgIndex ?? null,
@@ -1609,7 +1611,10 @@ const restoreDeletedChat = (chatId: number) => {
       try {
         improveRes = await fetch("/api/chat", {
           method: "POST",
-          headers: getOpenLuraRequestHeaders(true),
+          headers: getOpenLuraRequestHeaders(true, {
+            personalEnv: isPersonalRoute,
+            includeUserId: false,
+          }),
           body: JSON.stringify({
             message: retryRequest
               ? `De gebruiker wil dat je opnieuw antwoord geeft op dezelfde vraag.
@@ -1785,7 +1790,7 @@ Geef alleen direct het betere antwoord.`,
     }
 
     let updated = [...chats];
-    let index = updated.findIndex((c) => c.id === activeChatId);
+    let index = updated.findIndex((c) => c.id === currentChatId);
 
     if (index === -1) {
       const fallbackChat = buildFallbackChat({
@@ -1915,7 +1920,10 @@ setChats([...updated]);
       res = await fetch("/api/chat", {
         method: "POST",
         signal: controller.signal,
-        headers: getOpenLuraRequestHeaders(true),
+        headers: getOpenLuraRequestHeaders(true, {
+          personalEnv: isPersonalRoute,
+          includeUserId: false,
+        }),
         body: JSON.stringify({
           message: inputToSend,
           image: imageToSend,
@@ -2131,7 +2139,7 @@ updated[index].messages[
     : "openlura_feedback";
   const existing = safeParseJson<any[]>(localStorage.getItem(key), []);
 
-  const chat = chats.find(c => c.id === chatId);
+  const chat = chats.find((c) => c.id === chatId);
   const message = chat?.messages[msgIndex];
   const resolvedTarget = resolveFeedbackTargetContext(chat?.messages || [], msgIndex);
   const prevMessage = {
@@ -2168,6 +2176,7 @@ updated[index].messages[
     method: "POST",
     headers: getOpenLuraRequestHeaders(true, {
       personalEnv: isPersonalRoute,
+      includeUserId: false,
     }),
         body: JSON.stringify({
       chatId: String(chatId),
@@ -2193,7 +2202,7 @@ updated[index].messages[
   console.error("OpenLura feedback save failed:", error);
 }
 
-  const keyId = chatId + "-" + msgIndex;
+  const keyId = `${chatId}-${msgIndex}`;
 
   setFeedbackGiven(prev => ({
     ...prev,
@@ -2263,6 +2272,7 @@ updated[index].messages[
       method: "POST",
       headers: getOpenLuraRequestHeaders(true, {
         personalEnv: isPersonalEnvironment,
+        includeUserId: false,
       }),
       body: JSON.stringify({
         chatId: activeChatId !== null ? String(activeChatId) : null,
@@ -2489,7 +2499,7 @@ updated[index].messages[
                       msg.content !==
                       "🤖 Bedankt voor je feedback. Ik sla dit op en gebruik het om toekomstige antwoorden te verbeteren."
                   )
-                  .map((msg: any, i: number, arr: any[]) => {
+                  .map((msg: any, i: number) => {
                     return (
                       <div
                         key={i}
@@ -2581,14 +2591,19 @@ updated[index].messages[
                           msg.content !== "🤖 Bedankt voor je feedback. Ik sla dit op en gebruik het om toekomstige antwoorden te verbeteren." && (
                             <>
                               <div className="mt-3 flex flex-wrap items-center gap-2 pl-1">
-                                {!feedbackGiven[activeChatId + "-" + i] && (
+                                {!feedbackGiven[`${renderedChatId ?? "no-chat"}-${i}`] && (
                                   <>
                                     <button
                                       type="button"
-                                      onClick={() => handleFeedback(activeChatId!, i, "up")}
+                                      disabled={renderedChatId === null}
+                                      onClick={() => {
+                                        if (renderedChatId !== null) {
+                                          handleFeedback(renderedChatId, i, "up");
+                                        }
+                                      }}
                                       aria-label="Good answer"
                                       title="Good answer"
-                                      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-white/66 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/28 hover:bg-[#3b82f6]/8 hover:text-white hover:shadow-[0_8px_18px_rgba(59,130,246,0.12)] active:scale-95"
+                                      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-white/66 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/28 hover:bg-[#3b82f6]/8 hover:text-white hover:shadow-[0_8px_18px_rgba(59,130,246,0.12)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
                                     >
                                       <svg
                                         viewBox="0 0 24 24"
@@ -2607,10 +2622,15 @@ updated[index].messages[
 
                                     <button
                                       type="button"
-                                      onClick={() => handleFeedback(activeChatId!, i, "down")}
+                                      disabled={renderedChatId === null}
+                                      onClick={() => {
+                                        if (renderedChatId !== null) {
+                                          handleFeedback(renderedChatId, i, "down");
+                                        }
+                                      }}
                                       aria-label="Needs improvement"
                                       title="Needs improvement"
-                                      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-white/66 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/28 hover:bg-[#3b82f6]/8 hover:text-white hover:shadow-[0_8px_18px_rgba(59,130,246,0.12)] active:scale-95"
+                                      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-white/66 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/28 hover:bg-[#3b82f6]/8 hover:text-white hover:shadow-[0_8px_18px_rgba(59,130,246,0.12)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
                                     >
                                       <svg
                                         viewBox="0 0 24 24"
@@ -2629,9 +2649,9 @@ updated[index].messages[
                                   </>
                                 )}
 
-                                {feedbackUI[activeChatId + "-" + i] && (
+                                {feedbackUI[`${renderedChatId ?? "no-chat"}-${i}`] && (
                                   <span className="rounded-full border border-[#3b82f6]/20 bg-[#3b82f6]/8 px-3 py-2 text-xs text-white/70 shadow-[inset_0_0_0_1px_rgba(191,219,254,0.03)]">
-                                    {feedbackUI[activeChatId + "-" + i]}
+                                    {feedbackUI[`${renderedChatId ?? "no-chat"}-${i}`]}
                                   </span>
                                 )}
                               </div>

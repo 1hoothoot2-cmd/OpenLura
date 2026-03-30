@@ -2,16 +2,24 @@
 
 import { useEffect, useRef } from "react";
 
+type SidebarChat = {
+  id: number;
+  title?: string | null;
+  pinned?: boolean;
+  archived?: boolean;
+  deleted?: boolean;
+};
+
 type Props = {
   mobileMenu: boolean;
   setMobileMenu: (v: boolean) => void;
   createNewChat: () => void;
   search: string;
   setSearch: (v: string) => void;
-  searchedPinnedChats: any[];
-  regularChats: any[];
-  archivedChats: any[];
-  deletedChats: any[];
+  searchedPinnedChats: SidebarChat[];
+  regularChats: SidebarChat[];
+  archivedChats: SidebarChat[];
+  deletedChats: SidebarChat[];
   activeChatId: number | null;
   activateChat: (id: number) => void;
   openChatMenuId: number | null;
@@ -92,7 +100,7 @@ export default function Sidebar({
     setOpenChatMenuId(null);
   }, [activeChatId, setOpenChatMenuId]);
 
-  const renderChatRow = (chat: any, isPinned: boolean) => {
+  const renderChatRow = (chat: SidebarChat, isPinned: boolean) => {
   const isActive = activeChatId === chat.id;
   const isMenuOpen = openChatMenuId === chat.id;
 
@@ -284,7 +292,7 @@ export default function Sidebar({
                 </span>
               </div>
               <div className="space-y-3.5 overflow-visible">
-                {searchedPinnedChats.map((chat) => renderChatRow(chat, true))}
+                {searchedPinnedChats.map((chat: SidebarChat) => renderChatRow(chat, true))}
               </div>
             </div>
           )}
@@ -300,7 +308,7 @@ export default function Sidebar({
             </div>
             <div className="space-y-3 overflow-visible">
               {regularChats.length > 0 ? (
-                regularChats.map((chat) => renderChatRow(chat, false))
+                regularChats.map((chat: SidebarChat) => renderChatRow(chat, false))
               ) : (
                 <div className="rounded-2xl border border-white/8 bg-white/[0.022] px-3 py-2.5 text-sm text-white/32">
                   No chats found
@@ -320,7 +328,7 @@ export default function Sidebar({
             </div>
             <div className="space-y-3.5">
               {archivedChats.length > 0 ? (
-                archivedChats.map((chat) => (
+                archivedChats.map((chat: SidebarChat) => (
                   <div
                     key={chat.id}
                     className="group flex items-center justify-between rounded-2xl border border-white/8 bg-white/[0.022] px-3 py-2.5 text-sm ol-interactive transition-[background-color,border-color,box-shadow] duration-200 hover:border-white/10 hover:bg-white/[0.04] hover:shadow-[0_8px_16px_rgba(0,0,0,0.08)]"
@@ -376,7 +384,7 @@ export default function Sidebar({
 
             <div className="space-y-2.5">
               {deletedChats.length > 0 ? (
-                deletedChats.map((chat) => (
+                deletedChats.map((chat: SidebarChat) => (
                   <div
                     key={chat.id}
                     className="group flex items-center justify-between rounded-2xl border border-red-400/10 bg-red-500/[0.034] px-3 py-2.5 text-sm ol-interactive transition-[background-color,border-color,box-shadow] duration-200 hover:border-red-400/16 hover:bg-red-500/[0.056] hover:shadow-[0_8px_16px_rgba(0,0,0,0.08)]"

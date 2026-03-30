@@ -833,6 +833,11 @@ const activeChat =
   visibleChats[0] ??
   null;
 
+const renderedChatId = activeChat?.id ?? null;
+
+const getFeedbackUiKey = (chatId: number | null, msgIndex: number) =>
+  `${chatId ?? "no-chat"}-${msgIndex}`;
+
 const resizeComposerTextarea = () => {
   const el = inputRef.current;
   if (!el) return;
@@ -1488,7 +1493,7 @@ const restoreDeletedChat = (chatId: number) => {
 
     try {
 
-    const currentChatId = activeChatId ?? activeChat?.id ?? null;
+      const currentChatId = activeChatId ?? activeChat?.id ?? null;
 
     if (currentChatId === null) {
       setLoading(false);
@@ -1546,7 +1551,10 @@ const restoreDeletedChat = (chatId: number) => {
           console.error("OpenLura local improvement feedback persistence failed:", error);
         }
 
-        const keyId = currentChatId + "-" + (updated[index].messages.length - 1);
+        const keyId = getFeedbackUiKey(
+          currentChatId,
+          updated[index].messages.length - 1
+        );
 
         setFeedbackUI(prev => ({
           ...prev,
@@ -1751,7 +1759,11 @@ Geef alleen direct het betere antwoord.`,
 
           updated[index].messages[
             updated[index].messages.length - 1
-          ].content = improvedText || "…";
+          ] = {
+            ...updated[index].messages[updated[index].messages.length - 1],
+            content: improvedText || "…",
+            isStreaming: false,
+          };
 
           setChats([...updated]);
         }
@@ -1769,9 +1781,17 @@ Geef alleen direct het betere antwoord.`,
           content: "OpenLura kon de verbeterde versie nu niet genereren. Probeer het opnieuw.",
           isStreaming: false,
         };
-
-        setChats([...updated]);
+      } else {
+        updated[index].messages[
+          updated[index].messages.length - 1
+        ] = {
+          ...updated[index].messages[updated[index].messages.length - 1],
+          content: improvedText,
+          isStreaming: false,
+        };
       }
+
+      setChats([...updated]);
 
             setStreamController(null);
       setLoading(false);
@@ -1788,7 +1808,7 @@ Geef alleen direct het betere antwoord.`,
     }
 
     let updated = [...chats];
-    let index = updated.findIndex((c) => c.id === activeChatId);
+    let index = updated.findIndex((c) => c.id === currentChatId);
 
     if (index === -1) {
       const fallbackChat = buildFallbackChat({
@@ -2084,9 +2104,17 @@ updated[index].messages[
         content: "OpenLura kon nu geen antwoord genereren. Probeer het opnieuw.",
         isStreaming: false,
       };
-
-      setChats([...updated]);
+    } else {
+      updated[index].messages[
+        updated[index].messages.length - 1
+      ] = {
+        ...updated[index].messages[updated[index].messages.length - 1],
+        content: aiText,
+        isStreaming: false,
+      };
     }
+
+    setChats([...updated]);
 
     setStreamController(null);
 
@@ -2137,7 +2165,7 @@ updated[index].messages[
     : "openlura_feedback";
   const existing = safeParseJson<any[]>(localStorage.getItem(key), []);
 
-  const chat = chats.find(c => c.id === chatId);
+  const chat = chats.find((c) => c.id === chatId);
   const message = chat?.messages[msgIndex];
   const resolvedTarget = resolveFeedbackTargetContext(chat?.messages || [], msgIndex);
   const prevMessage = {
@@ -2200,7 +2228,7 @@ updated[index].messages[
   console.error("OpenLura feedback save failed:", error);
 }
 
-  const keyId = chatId + "-" + msgIndex;
+  const keyId = getFeedbackUiKey(chatId, msgIndex);
 
   setFeedbackGiven(prev => ({
     ...prev,
@@ -2222,7 +2250,12 @@ updated[index].messages[
 
   if (type === "down") {
     const updatedChats = [...chats];
-    const chatIndex = updatedChats.findIndex(c => c.id === chatId);
+    const chatIndex = updatedChats.findIndex((c) => c.id === chatId);
+
+    if (chatIndex === -1) {
+      return;
+    }
+
     const targetMessages = updatedChats[chatIndex]?.messages || [];
 
     const resolvedTarget = resolveFeedbackTargetContext(targetMessages, msgIndex);
@@ -2492,15 +2525,22 @@ updated[index].messages[
             ) : (
               <>
                                                 {activeChat?.messages
+                  .map((msg: any, originalIndex: number) => ({
+                    msg,
+                    originalIndex,
+                  }))
                   .filter(
-                    (msg: any) =>
-                      msg.content !==
+                    (entry: { msg: any; originalIndex: number }) =>
+                      entry.msg.content !==
                       "🤖 Bedankt voor je feedback. Ik sla dit op en gebruik het om toekomstige antwoorden te verbeteren."
                   )
-                  .map((msg: any, i: number, arr: any[]) => {
+                  .map((entry: { msg: any; originalIndex: number }) => {
+                    const msg = entry.msg;
+                    const originalIndex = entry.originalIndex;
+
                     return (
                       <div
-                        key={i}
+                        key={`${msg.role}-${originalIndex}-${msg.content || ""}`}
                         className={`${messageShellClass} animate-[fadeInUp_0.22s_ease-out] transition-[opacity,transform] duration-200 ${
                           msg.role === "user" ? "mb-2" : "mb-4"
                         }`}
@@ -2583,20 +2623,32 @@ updated[index].messages[
                         </div>
 
                         {msg.role === "ai" &&
-                          i !== 0 &&
+                          renderedChatId !== null &&
+                          originalIndex !== 0 &&
                           !msg.disableFeedback &&
                           msg.content !== "🤖 Wat kan ik beter doen?" &&
                           msg.content !== "🤖 Bedankt voor je feedback. Ik sla dit op en gebruik het om toekomstige antwoorden te verbeteren." && (
                             <>
                               <div className="mt-3 flex flex-wrap items-center gap-2 pl-1">
-                                {!feedbackGiven[activeChatId + "-" + i] && (
+                                {!feedbackGiven[
+                                  getFeedbackUiKey(renderedChatId, originalIndex)
+                                ] && (
                                   <>
                                     <button
                                       type="button"
-                                      onClick={() => handleFeedback(activeChatId!, i, "up")}
+                                      disabled={renderedChatId === null}
+                                      onClick={() => {
+                                        if (renderedChatId !== null) {
+                                          handleFeedback(
+                                            renderedChatId,
+                                            originalIndex,
+                                            "up"
+                                          );
+                                        }
+                                      }}
                                       aria-label="Good answer"
                                       title="Good answer"
-                                      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-white/66 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/28 hover:bg-[#3b82f6]/8 hover:text-white hover:shadow-[0_8px_18px_rgba(59,130,246,0.12)] active:scale-95"
+                                      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-white/66 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/28 hover:bg-[#3b82f6]/8 hover:text-white hover:shadow-[0_8px_18px_rgba(59,130,246,0.12)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
                                     >
                                       <svg
                                         viewBox="0 0 24 24"
@@ -2615,10 +2667,19 @@ updated[index].messages[
 
                                     <button
                                       type="button"
-                                      onClick={() => handleFeedback(activeChatId!, i, "down")}
+                                      disabled={renderedChatId === null}
+                                      onClick={() => {
+                                        if (renderedChatId !== null) {
+                                          handleFeedback(
+                                            renderedChatId,
+                                            originalIndex,
+                                            "down"
+                                          );
+                                        }
+                                      }}
                                       aria-label="Needs improvement"
                                       title="Needs improvement"
-                                      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-white/66 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/28 hover:bg-[#3b82f6]/8 hover:text-white hover:shadow-[0_8px_18px_rgba(59,130,246,0.12)] active:scale-95"
+                                      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-white/66 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/28 hover:bg-[#3b82f6]/8 hover:text-white hover:shadow-[0_8px_18px_rgba(59,130,246,0.12)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
                                     >
                                       <svg
                                         viewBox="0 0 24 24"
@@ -2637,9 +2698,18 @@ updated[index].messages[
                                   </>
                                 )}
 
-                                {feedbackUI[activeChatId + "-" + i] && (
+                                {feedbackUI[
+                                  getFeedbackUiKey(renderedChatId, originalIndex)
+                                ] && (
                                   <span className="rounded-full border border-[#3b82f6]/20 bg-[#3b82f6]/8 px-3 py-2 text-xs text-white/70 shadow-[inset_0_0_0_1px_rgba(191,219,254,0.03)]">
-                                    {feedbackUI[activeChatId + "-" + i]}
+                                    {
+                                      feedbackUI[
+                                        getFeedbackUiKey(
+                                          renderedChatId,
+                                          originalIndex
+                                        )
+                                      ]
+                                    }
                                   </span>
                                 )}
                               </div>
