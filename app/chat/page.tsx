@@ -507,7 +507,6 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
       if (window.innerWidth >= 768) {
         setMobileMenu(true);
       } else {
-        setMobileMenu(false);
         setOpenChatMenuId(null);
       }
     };
