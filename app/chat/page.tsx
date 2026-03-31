@@ -42,8 +42,8 @@ const getLastUserPrompt = () => {
   return lastUserMsg?.content || "";
 };
 
-const handleSavePrompt = async () => {
-  const content = input || getLastUserPrompt();
+const handleSavePrompt = async (explicitContent?: string) => {
+  const content = explicitContent || input || getLastUserPrompt();
   if (!content?.trim()) {
     setSavePromptError("Nothing to save");
     setSavePromptSuccess(false);
@@ -94,6 +94,7 @@ const handleSavePrompt = async () => {
 
     setSavePromptSuccess(true);
     setSavePromptError("");
+    setOpenUserMessageMenuKey(null);
 
     window.setTimeout(() => {
       setSavePromptSuccess(false);
@@ -165,6 +166,7 @@ const [usage, setUsage] = useState<{
   const latestActiveChatIdRef = useRef<number | null>(null);
   const [initialStateReady, setInitialStateReady] = useState(false);
   const [openChatMenuId, setOpenChatMenuId] = useState<number | null>(null);
+  const [openUserMessageMenuKey, setOpenUserMessageMenuKey] = useState<string | null>(null);
 
   const hasBlockingOverlay =
     (mobileMenu &&
@@ -570,6 +572,7 @@ const shouldSkipPersonalStateSync =
 
   useEffect(() => {
     setOpenChatMenuId(null);
+    setOpenUserMessageMenuKey(null);
   }, [activeChatId]);
 
   useEffect(() => {
@@ -601,6 +604,11 @@ const shouldSkipPersonalStateSync =
         return;
       }
 
+      if (openUserMessageMenuKey !== null) {
+        setOpenUserMessageMenuKey(null);
+        return;
+      }
+
       if (openChatMenuId !== null) {
         setOpenChatMenuId(null);
         return;
@@ -619,6 +627,7 @@ const shouldSkipPersonalStateSync =
   }, [
     mobileMenu,
     openChatMenuId,
+    openUserMessageMenuKey,
     showLoginBox,
     showFeedbackBox,
     showClearDeletedConfirm,
@@ -2866,14 +2875,67 @@ updated[index].messages[
                     const originalIndex = entry.originalIndex;
 
                     return (
-                      <div
-  key={`${msg.role}-${originalIndex}-${msg.content || ""}`}
-  className={`${messageShellClass} flex-col gap-1.5 md:gap-2 animate-[fadeInUp_0.22s_ease-out] transition-[opacity,transform] duration-200 ${
-    msg.role === "user" ? "items-end" : "items-start"
-  }`}
->
-                        <div
-  className={`${messageBubbleClass} min-w-0 max-w-[90%] md:max-w-[78%] whitespace-pre-line rounded-[24px] px-4 py-3.5 text-[15px] md:px-5 md:py-4 md:text-[16px] transition-[box-shadow,transform,background-color,border-color] duration-200 ${
+  <div
+    key={`${msg.role}-${originalIndex}-${msg.content || ""}`}
+    className={`${messageShellClass} relative flex-col gap-1.5 md:gap-2 animate-[fadeInUp_0.22s_ease-out] transition-[opacity,transform] duration-200 ${
+      msg.role === "user" ? "items-end" : "items-start"
+    }`}
+  >
+    {msg.role === "user" &&
+      !msg.isStreaming &&
+      String(msg.content || "").trim() && (
+        <div className="mb-1 flex w-full max-w-[90%] justify-end md:max-w-[78%]">
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => {
+                const menuKey = `${renderedChatId}-${originalIndex}`;
+                setOpenUserMessageMenuKey(
+                  openUserMessageMenuKey === menuKey ? null : menuKey
+                );
+                setSavePromptSuccess(false);
+                setSavePromptError("");
+              }}
+              aria-label="Open message options"
+              title="Message options"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-white/56 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white active:scale-95"
+            >
+              <span className="translate-y-[-1px] text-[16px] leading-none">⋯</span>
+            </button>
+
+            {openUserMessageMenuKey === `${renderedChatId}-${originalIndex}` && (
+              <div className="absolute right-0 top-9 z-[90] min-w-[190px] overflow-hidden rounded-[16px] border border-white/8 bg-[#0c1120]/96 p-1.5 shadow-[0_18px_40px_rgba(0,0,0,0.28)] backdrop-blur-2xl">
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleSavePrompt(String(msg.content || ""));
+                  }}
+                  disabled={savingPrompt || !String(msg.content || "").trim()}
+                  className="flex w-full items-center justify-between rounded-[12px] px-3 py-2 text-left text-sm text-white/86 ol-interactive transition-[background-color,color] duration-200 hover:bg-white/[0.06] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <span>{savingPrompt ? "Saving..." : "Save as prompt"}</span>
+                  <span className="text-xs text-white/34">↗</span>
+                </button>
+
+                {savePromptSuccess && (
+                  <div className="px-3 pb-1 pt-1 text-xs text-green-400">
+                    Saved
+                  </div>
+                )}
+
+                {!!savePromptError && (
+                  <div className="px-3 pb-1 pt-1 text-xs text-red-400">
+                    {savePromptError}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+    <div
+      className={`${messageBubbleClass} min-w-0 max-w-[90%] md:max-w-[78%] whitespace-pre-line rounded-[24px] px-4 py-3.5 text-[15px] md:px-5 md:py-4 md:text-[16px] transition-[box-shadow,transform,background-color,border-color] duration-200 ${
     msg.role === "user"
       ? "ml-auto rounded-[26px] bg-gradient-to-r from-[#1d4ed8] to-[#2563eb] text-white shadow-[0_0_0_1px_rgba(96,165,250,0.14),0_0_28px_rgba(37,99,235,0.20),0_12px_24px_rgba(37,99,235,0.18)]"
       : "border border-white/8 bg-white/[0.045] text-white/90 backdrop-blur-xl shadow-[0_10px_22px_rgba(0,0,0,0.10)]"
@@ -3223,7 +3285,6 @@ updated[index].messages[
               </div>
             )}
 
-HANGE:
 <textarea
   ref={inputRef}
   value={input}
@@ -3245,16 +3306,16 @@ HANGE:
     }
   }}
   onChange={(e) => {
-  setInput(e.target.value);
+    setInput(e.target.value);
 
-  if (savePromptSuccess) {
-    setSavePromptSuccess(false);
-  }
+    if (savePromptSuccess) {
+      setSavePromptSuccess(false);
+    }
 
-  if (savePromptError) {
-    setSavePromptError("");
-  }
-}}
+    if (savePromptError) {
+      setSavePromptError("");
+    }
+  }}
   onKeyDown={(e) => {
     const nativeEvent = e.nativeEvent as KeyboardEvent & {
       isComposing?: boolean;
@@ -3280,43 +3341,20 @@ HANGE:
   rows={1}
 />
 
-<div className="flex shrink-0 flex-col items-center gap-1.5">
-  <button
-    type="button"
-    onClick={handleSavePrompt}
-    disabled={savingPrompt || (!input.trim() && !getLastUserPrompt().trim())}
-    className="inline-flex min-h-[32px] items-center justify-center rounded-full border border-white/8 bg-white/[0.035] px-3 text-[11px] text-white/68 ol-interactive transition-[transform,background-color,border-color,color,box-shadow,opacity] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
-  >
-    {savingPrompt ? "Saving..." : "Save"}
-  </button>
-
-  {savePromptSuccess && (
-  <span className="text-[11px] text-green-400">
-    Saved
-  </span>
-)}
-
-{!!savePromptError && (
-  <span className="max-w-[88px] text-center text-[10px] leading-4 text-red-400">
-    {savePromptError}
-  </span>
-)}
-
-  <button
-    type="button"
-    disabled={!loading && !input.trim() && !image}
-    onClick={loading ? stopStreaming : sendMessage}
-    className={`flex h-11 w-11 touch-manipulation items-center justify-center rounded-full text-xl ol-interactive transition-[transform,filter,background-color,color,box-shadow,opacity] duration-200 active:scale-[0.97] disabled:cursor-not-allowed ${
-      loading
-        ? "bg-red-500 text-white shadow-[0_10px_24px_rgba(239,68,68,0.30)]"
-        : !input.trim() && !image
-        ? "bg-white/[0.07] text-white/24 shadow-none"
-        : "bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] text-white shadow-[0_12px_24px_rgba(59,130,246,0.26)] hover:brightness-110"
-    }`}
-  >
-    {loading ? "■" : "↑"}
-  </button>
-</div>
+<button
+  type="button"
+  disabled={!loading && !input.trim() && !image}
+  onClick={loading ? stopStreaming : sendMessage}
+  className={`flex h-11 w-11 shrink-0 touch-manipulation items-center justify-center rounded-full text-xl ol-interactive transition-[transform,filter,background-color,color,box-shadow,opacity] duration-200 active:scale-[0.97] disabled:cursor-not-allowed ${
+    loading
+      ? "bg-red-500 text-white shadow-[0_10px_24px_rgba(239,68,68,0.30)]"
+      : !input.trim() && !image
+      ? "bg-white/[0.07] text-white/24 shadow-none"
+      : "bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] text-white shadow-[0_12px_24px_rgba(59,130,246,0.26)] hover:brightness-110"
+  }`}
+>
+  {loading ? "■" : "↑"}
+</button>
           </div>
 
         </div>
