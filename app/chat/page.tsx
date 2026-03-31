@@ -76,7 +76,9 @@ const getLastUserPrompt = () => {
 
 const handleSavePrompt = async (explicitContent?: string) => {
   const content = explicitContent || input || getLastUserPrompt();
-  if (!content?.trim()) {
+  const trimmedContent = String(content || "").trim();
+
+  if (!trimmedContent) {
     setSavePromptError("Nothing to save");
     setSavePromptSuccess(false);
     return;
@@ -87,17 +89,21 @@ const handleSavePrompt = async (explicitContent?: string) => {
     setSavePromptSuccess(false);
     setSavePromptError("");
 
+    const resolvedUserId = getOrCreateOpenLuraUserId();
+
     const res = await fetch("/api/prompts", {
       method: "POST",
-      headers: getOpenLuraRequestHeaders(true, {
-        personalEnv: false,
-        includeUserId: true,
-      }),
+      headers: {
+        "Content-Type": "application/json",
+        ...(resolvedUserId
+          ? { "x-openlura-user-id": resolvedUserId }
+          : {}),
+      },
       credentials: "same-origin",
       body: JSON.stringify({
-        name: content.trim().slice(0, 60),
+        name: trimmedContent.slice(0, 60),
         description: "",
-        content: content.trim(),
+        content: trimmedContent,
       }),
     });
 
@@ -114,19 +120,25 @@ const handleSavePrompt = async (explicitContent?: string) => {
       const message =
         responseJson?.error ||
         responseJson?.message ||
+        responseText ||
         `Save failed (${res.status})`;
 
-      setSavePromptError("Failed to save prompt");
+      setSavePromptError(String(message).slice(0, 160));
       console.error("OpenLura prompt save failed:", {
         status: res.status,
         body: responseJson || responseText,
+        userIdIncluded: !!resolvedUserId,
+        contentLength: trimmedContent.length,
       });
       return;
     }
 
-    setSavePromptSuccess(true);
-    setSavePromptError("");
-    setOpenUserMessageMenuKey(null);
+setSavePromptSuccess(true);
+setSavePromptError("");
+setOpenUserMessageMenuKey(null);
+
+// 🔥 notify sidebar
+window.dispatchEvent(new Event("openlura_prompts_update"));
 
     window.setTimeout(() => {
       setSavePromptSuccess(false);
