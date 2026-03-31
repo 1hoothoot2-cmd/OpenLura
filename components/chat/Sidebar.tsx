@@ -250,42 +250,13 @@ export default function Sidebar({
         <div className="sticky top-0 z-20 -mx-3 mb-3 border-b border-white/8 bg-[linear-gradient(180deg,rgba(10,15,29,0.98),rgba(10,15,29,0.92))] px-3 pb-3 pt-[max(env(safe-area-inset-top),12px)] backdrop-blur-2xl md:mx-0 md:border-b-0 md:bg-transparent md:px-0 md:pb-1 md:pt-0">
           <div className="mb-3 flex items-center justify-between">
             <div className="flex min-w-0 items-center gap-3 px-1">
-              <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-[#3b82f6]/18 bg-[radial-gradient(circle_at_30%_30%,rgba(96,165,250,0.22),rgba(29,78,216,0.08)_52%,transparent_78%)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03),0_10px_22px_rgba(29,78,216,0.14)]">
-                <svg
-                  viewBox="0 0 48 48"
-                  className="h-6 w-6"
-                  fill="none"
-                  aria-hidden="true"
-                >
-                  <defs>
-                    <linearGradient id="openluraSidebarLogo" x1="8" y1="8" x2="40" y2="40" gradientUnits="userSpaceOnUse">
-                      <stop stopColor="#60a5fa" />
-                      <stop offset="1" stopColor="#1d4ed8" />
-                    </linearGradient>
-                  </defs>
-                  <circle
-                    cx="24"
-                    cy="24"
-                    r="17"
-                    stroke="url(#openluraSidebarLogo)"
-                    strokeWidth="3"
-                  />
-                  <path
-                    d="M17.5 24.5c0-4.6 2.9-7.6 7.4-7.6 3.8 0 6.2 2.1 6.2 5.4 0 3.3-2.2 5.4-5.7 5.4h-4.2"
-                    stroke="url(#openluraSidebarLogo)"
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                  <path
-                    d="M22.2 24.7v.1c0 4.1 2.1 6.3 5.8 6.3 2.5 0 4.7-1 6.3-3.1"
-                    stroke="url(#openluraSidebarLogo)"
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </div>
+              <div className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-[#3b82f6]/18 bg-[radial-gradient(circle_at_30%_30%,rgba(96,165,250,0.16),rgba(29,78,216,0.06)_52%,transparent_78%)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03),0_10px_22px_rgba(29,78,216,0.12)]">
+  <img
+    src="/openlura-logo.png"
+    alt="OpenLura logo"
+    className="h-full w-full object-contain"
+  />
+</div>
 
               <div className="min-w-0">
                 <div className="text-sm font-semibold tracking-[-0.02em] text-white/94">
