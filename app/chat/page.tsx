@@ -84,7 +84,7 @@ const handleSavePrompt = async (explicitContent?: string) => {
         responseJson?.message ||
         `Save failed (${res.status})`;
 
-      setSavePromptError(message);
+      setSavePromptError("Failed to save prompt");
       console.error("OpenLura prompt save failed:", {
         status: res.status,
         body: responseJson || responseText,
@@ -2925,8 +2925,8 @@ updated[index].messages[
 
                 {!!savePromptError && (
                   <div className="px-3 pb-1 pt-1 text-xs text-red-400">
-                    {savePromptError}
-                  </div>
+  {savePromptError || "Failed to save prompt"}
+</div>
                 )}
               </div>
             )}

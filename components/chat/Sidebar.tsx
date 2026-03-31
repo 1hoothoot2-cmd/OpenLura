@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type SidebarChat = {
   id: number;
@@ -8,6 +8,16 @@ type SidebarChat = {
   pinned?: boolean;
   archived?: boolean;
   deleted?: boolean;
+};
+
+type SidebarPrompt = {
+  id: string;
+  name?: string | null;
+  description?: string | null;
+  content?: string | null;
+  tags?: string[] | null;
+  created_at?: string | null;
+  last_used_at?: string | null;
 };
 
 type Props = {
@@ -60,6 +70,38 @@ export default function Sidebar({
   setShowLoginBox
 }: Props) {
   const sidebarRef = useRef<HTMLDivElement | null>(null);
+  const [prompts, setPrompts] = useState<SidebarPrompt[]>([]);
+  const [loadingPrompts, setLoadingPrompts] = useState(false);
+
+  const getOrCreateOpenLuraUserId = () => {
+    if (typeof window === "undefined") return "";
+
+    const storageKey = "openlura_user_id";
+    const existing = localStorage.getItem(storageKey);
+
+    if (existing?.trim()) {
+      return existing.trim();
+    }
+
+    const newId =
+      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `openlura_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+
+    localStorage.setItem(storageKey, newId);
+    return newId;
+  };
+
+  const getPromptRequestHeaders = () => {
+    const headers: Record<string, string> = {};
+    const userId = getOrCreateOpenLuraUserId();
+
+    if (userId) {
+      headers["x-openlura-user-id"] = userId;
+    }
+
+    return headers;
+  };
 
   useEffect(() => {
     if (openChatMenuId === null) return;
@@ -99,6 +141,44 @@ export default function Sidebar({
   useEffect(() => {
     setOpenChatMenuId(null);
   }, [activeChatId, setOpenChatMenuId]);
+
+  useEffect(() => {
+    const loadPrompts = async () => {
+      try {
+        setLoadingPrompts(true);
+
+        const res = await fetch("/api/prompts", {
+          method: "GET",
+          headers: getPromptRequestHeaders(),
+          credentials: "same-origin",
+          cache: "no-store",
+        });
+
+        if (!res.ok) {
+          return;
+        }
+
+        const data = await res.json();
+        setPrompts(Array.isArray(data) ? data : []);
+      } catch (error) {
+        console.error("OpenLura prompts load failed:", error);
+      } finally {
+        setLoadingPrompts(false);
+      }
+    };
+
+    loadPrompts();
+
+    const handlePromptRefresh = () => {
+      loadPrompts();
+    };
+
+    window.addEventListener("openlura_prompts_refresh", handlePromptRefresh);
+
+    return () => {
+      window.removeEventListener("openlura_prompts_refresh", handlePromptRefresh);
+    };
+  }, []);
 
   const sidebarActionButtonClass =
     "rounded-full border border-[#3b82f6]/18 bg-[#3b82f6]/8 px-3 py-1 text-xs text-white/68 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/34 hover:bg-[#3b82f6]/12 hover:text-white hover:shadow-[0_6px_14px_rgba(59,130,246,0.12)] active:scale-95";
@@ -334,6 +414,238 @@ export default function Sidebar({
                 <div className={emptyStateClass}>
   No chats found
 </div>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-2.5 flex items-center justify-between px-1.5">
+              <span className="text-[11px] uppercase tracking-[0.18em] text-white/30">
+                Prompts
+              </span>
+              <span className="rounded-full border border-white/8 bg-white/[0.035] px-2 py-0.5 text-[10px] text-white/42">
+                {prompts.length}
+              </span>
+            </div>
+
+            <div className="space-y-2.5">
+              {loadingPrompts ? (
+                <div className={emptyStateClass}>
+                  Loading prompts...
+                </div>
+              ) : prompts.length > 0 ? (
+                prompts.map((prompt: SidebarPrompt) => (
+                  <button
+                    key={prompt.id}
+                    type="button"
+                    onClick={() => {
+                      window.dispatchEvent(
+                        new CustomEvent("openlura_use_prompt", {
+                          detail: {
+                            content: String(prompt.content || ""),
+                            promptId: prompt.id,
+                          },
+                        })
+                      );
+                      setMobileMenu(false);
+                    }}
+                    className="group flex w-full items-start justify-between rounded-2xl border border-white/8 bg-white/[0.022] px-3 py-3 text-left ol-interactive transition-[background-color,border-color,box-shadow,transform] duration-200 hover:-translate-y-[1px] hover:border-white/12 hover:bg-white/[0.05] hover:shadow-[0_8px_16px_rgba(0,0,0,0.10)]"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium text-white/84 group-hover:text-white">
+                        {prompt.name || "Untitled prompt"}
+                      </div>
+
+                      {!!String(prompt.content || "").trim() && (
+                        <div className="mt-1 line-clamp-2 text-xs leading-5 text-white/40 group-hover:text-white/54">
+                          {String(prompt.content || "")}
+                        </div>
+                      )}
+                    </div>
+
+                    <span className="ml-3 shrink-0 text-xs text-white/24 group-hover:text-white/42">
+                      Use
+                    </span>
+                  </button>
+                ))
+              ) : (
+                <div className={emptyStateClass}>
+                  No saved prompts
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-2.5 flex items-center justify-between px-1.5">
+              <span className="text-[11px] uppercase tracking-[0.18em] text-white/30">
+                Prompts
+              </span>
+              <span className="rounded-full border border-white/8 bg-white/[0.035] px-2 py-0.5 text-[10px] text-white/42">
+                {prompts.length}
+              </span>
+            </div>
+
+            <div className="space-y-2.5">
+              {loadingPrompts ? (
+                <div className={emptyStateClass}>
+                  Loading prompts...
+                </div>
+              ) : prompts.length > 0 ? (
+                prompts.map((prompt: SidebarPrompt) => (
+                  <button
+                    key={prompt.id}
+                    type="button"
+                    onClick={() => {
+                      window.dispatchEvent(
+                        new CustomEvent("openlura_use_prompt", {
+                          detail: {
+                            content: String(prompt.content || ""),
+                            promptId: prompt.id,
+                          },
+                        })
+                      );
+                      setMobileMenu(false);
+                    }}
+                    className="group flex w-full items-start justify-between rounded-2xl border border-white/8 bg-white/[0.022] px-3 py-3 text-left ol-interactive transition-[background-color,border-color,box-shadow,transform] duration-200 hover:-translate-y-[1px] hover:border-white/12 hover:bg-white/[0.05] hover:shadow-[0_8px_16px_rgba(0,0,0,0.10)]"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium text-white/84 group-hover:text-white">
+                        {prompt.name || "Untitled prompt"}
+                      </div>
+
+                      {!!String(prompt.content || "").trim() && (
+                        <div className="mt-1 line-clamp-2 text-xs leading-5 text-white/40 group-hover:text-white/54">
+                          {String(prompt.content || "")}
+                        </div>
+                      )}
+                    </div>
+
+                    <span className="ml-3 shrink-0 text-xs text-white/24 group-hover:text-white/42">
+                      Use
+                    </span>
+                  </button>
+                ))
+              ) : (
+                <div className={emptyStateClass}>
+                  No saved prompts
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-2.5 flex items-center justify-between px-1.5">
+              <span className="text-[11px] uppercase tracking-[0.18em] text-white/30">
+                Prompts
+              </span>
+              <span className="rounded-full border border-white/8 bg-white/[0.035] px-2 py-0.5 text-[10px] text-white/42">
+                {prompts.length}
+              </span>
+            </div>
+
+            <div className="space-y-2.5">
+              {loadingPrompts ? (
+                <div className={emptyStateClass}>
+                  Loading prompts...
+                </div>
+              ) : prompts.length > 0 ? (
+                prompts.map((prompt: SidebarPrompt) => (
+                  <button
+                    key={prompt.id}
+                    type="button"
+                    onClick={() => {
+                      window.dispatchEvent(
+                        new CustomEvent("openlura_use_prompt", {
+                          detail: {
+                            content: String(prompt.content || ""),
+                            promptId: prompt.id,
+                          },
+                        })
+                      );
+                      setMobileMenu(false);
+                    }}
+                    className="group flex w-full items-start justify-between rounded-2xl border border-white/8 bg-white/[0.022] px-3 py-3 text-left ol-interactive transition-[background-color,border-color,box-shadow,transform] duration-200 hover:-translate-y-[1px] hover:border-white/12 hover:bg-white/[0.05] hover:shadow-[0_8px_16px_rgba(0,0,0,0.10)]"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium text-white/84 group-hover:text-white">
+                        {prompt.name || "Untitled prompt"}
+                      </div>
+
+                      {!!String(prompt.content || "").trim() && (
+                        <div className="mt-1 line-clamp-2 text-xs leading-5 text-white/40 group-hover:text-white/54">
+                          {String(prompt.content || "")}
+                        </div>
+                      )}
+                    </div>
+
+                    <span className="ml-3 shrink-0 text-xs text-white/24 group-hover:text-white/42">
+                      Use
+                    </span>
+                  </button>
+                ))
+              ) : (
+                <div className={emptyStateClass}>
+                  No saved prompts
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-2.5 flex items-center justify-between px-1.5">
+              <span className="text-[11px] uppercase tracking-[0.18em] text-white/30">
+                Prompts
+              </span>
+              <span className="rounded-full border border-white/8 bg-white/[0.035] px-2 py-0.5 text-[10px] text-white/42">
+                {prompts.length}
+              </span>
+            </div>
+
+            <div className="space-y-2.5">
+              {loadingPrompts ? (
+                <div className={emptyStateClass}>
+                  Loading prompts...
+                </div>
+              ) : prompts.length > 0 ? (
+                prompts.map((prompt: SidebarPrompt) => (
+                  <button
+                    key={prompt.id}
+                    type="button"
+                    onClick={() => {
+                      window.dispatchEvent(
+                        new CustomEvent("openlura_use_prompt", {
+                          detail: {
+                            content: String(prompt.content || ""),
+                            promptId: prompt.id,
+                          },
+                        })
+                      );
+                      setMobileMenu(false);
+                    }}
+                    className="group flex w-full items-start justify-between rounded-2xl border border-white/8 bg-white/[0.022] px-3 py-3 text-left ol-interactive transition-[background-color,border-color,box-shadow,transform] duration-200 hover:-translate-y-[1px] hover:border-white/12 hover:bg-white/[0.05] hover:shadow-[0_8px_16px_rgba(0,0,0,0.10)]"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium text-white/84 group-hover:text-white">
+                        {prompt.name || "Untitled prompt"}
+                      </div>
+
+                      {!!String(prompt.content || "").trim() && (
+                        <div className="mt-1 line-clamp-2 text-xs leading-5 text-white/40 group-hover:text-white/54">
+                          {String(prompt.content || "")}
+                        </div>
+                      )}
+                    </div>
+
+                    <span className="ml-3 shrink-0 text-xs text-white/24 group-hover:text-white/42">
+                      Use
+                    </span>
+                  </button>
+                ))
+              ) : (
+                <div className={emptyStateClass}>
+                  No saved prompts
+                </div>
               )}
             </div>
           </div>
