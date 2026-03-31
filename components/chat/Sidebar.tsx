@@ -70,9 +70,10 @@ export default function Sidebar({
   setShowLoginBox
 }: Props) {
   const sidebarRef = useRef<HTMLDivElement | null>(null);
-  const [prompts, setPrompts] = useState<SidebarPrompt[]>([]);
-  const [loadingPrompts, setLoadingPrompts] = useState(false);
-  const [deletingPromptId, setDeletingPromptId] = useState<string | null>(null);
+const [prompts, setPrompts] = useState<SidebarPrompt[]>([]);
+const [loadingPrompts, setLoadingPrompts] = useState(false);
+const [deletingPromptId, setDeletingPromptId] = useState<string | null>(null);
+const [promptActionMessage, setPromptActionMessage] = useState("");
 
   const getOrCreateOpenLuraUserId = () => {
     if (typeof window === "undefined") return "";
@@ -109,6 +110,7 @@ export default function Sidebar({
 
     try {
       setDeletingPromptId(promptId);
+      setPromptActionMessage("");
 
       const res = await fetch("/api/prompts", {
         method: "DELETE",
@@ -125,12 +127,19 @@ export default function Sidebar({
       if (!res.ok) {
         const text = await res.text();
         console.error("OpenLura prompt delete failed:", text);
+        setPromptActionMessage("Failed to delete prompt");
         return;
       }
 
       setPrompts((prev) => prev.filter((prompt) => prompt.id !== promptId));
+      setPromptActionMessage("Prompt deleted");
+
+      window.setTimeout(() => {
+        setPromptActionMessage("");
+      }, 1800);
     } catch (error) {
       console.error("OpenLura prompt delete failed:", error);
+      setPromptActionMessage("Failed to delete prompt");
     } finally {
       setDeletingPromptId(null);
     }
@@ -461,7 +470,13 @@ export default function Sidebar({
               </span>
             </div>
 
-            <div className="space-y-2.5">
+            {!!promptActionMessage && (
+              <div className="mb-2 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2 text-[11px] text-white/58">
+                {promptActionMessage}
+              </div>
+            )}
+
+            <div className="space-y-2">
               {loadingPrompts ? (
                 <div className={emptyStateClass}>
                   Loading prompts...
@@ -470,7 +485,7 @@ export default function Sidebar({
                 prompts.map((prompt: SidebarPrompt) => (
                   <div
                     key={prompt.id}
-                    className="group rounded-2xl border border-white/8 bg-white/[0.022] px-3 py-3 ol-interactive transition-[background-color,border-color,box-shadow,transform] duration-200 hover:-translate-y-[1px] hover:border-white/12 hover:bg-white/[0.05] hover:shadow-[0_8px_16px_rgba(0,0,0,0.10)]"
+                    className="group rounded-[18px] border border-white/8 bg-white/[0.02] px-3 py-2.5 transition-[background-color,border-color,box-shadow,transform] duration-200 hover:border-white/12 hover:bg-white/[0.045] hover:shadow-[0_8px_16px_rgba(0,0,0,0.10)]"
                   >
                     <button
                       type="button"
@@ -485,21 +500,21 @@ export default function Sidebar({
                         );
                         setMobileMenu(false);
                       }}
-                      className="flex w-full items-start justify-between text-left"
+                      className="flex w-full min-w-0 items-start justify-between gap-3 text-left"
                     >
                       <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-medium text-white/84 group-hover:text-white">
+                        <div className="truncate text-sm font-medium text-white/86 group-hover:text-white">
                           {prompt.name || "Untitled prompt"}
                         </div>
 
                         {!!String(prompt.content || "").trim() && (
-                          <div className="mt-1 line-clamp-2 text-xs leading-5 text-white/40 group-hover:text-white/54">
+                          <div className="mt-1 line-clamp-1 text-[11px] leading-5 text-white/38 group-hover:text-white/52">
                             {String(prompt.content || "")}
                           </div>
                         )}
                       </div>
 
-                      <span className="ml-3 shrink-0 text-xs text-white/24 group-hover:text-white/42">
+                      <span className="shrink-0 text-[11px] text-white/26 group-hover:text-white/42">
                         Use
                       </span>
                     </button>
@@ -509,7 +524,7 @@ export default function Sidebar({
                         type="button"
                         onClick={() => handleDeletePrompt(prompt.id)}
                         disabled={deletingPromptId === prompt.id}
-                        className="rounded-full border border-red-400/14 bg-red-500/[0.05] px-2.5 py-1 text-[11px] text-red-200/80 ol-interactive transition-[background-color,border-color,color,opacity] duration-200 hover:border-red-400/24 hover:bg-red-500/[0.09] hover:text-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="rounded-full border border-red-400/16 bg-transparent px-2.5 py-1 text-[10px] text-red-200/72 transition-[background-color,border-color,color,opacity] duration-200 hover:border-red-400/28 hover:bg-red-500/[0.06] hover:text-red-100 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {deletingPromptId === prompt.id ? "Deleting..." : "Delete"}
                       </button>
