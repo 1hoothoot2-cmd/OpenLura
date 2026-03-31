@@ -72,6 +72,7 @@ export default function Sidebar({
   const sidebarRef = useRef<HTMLDivElement | null>(null);
   const [prompts, setPrompts] = useState<SidebarPrompt[]>([]);
   const [loadingPrompts, setLoadingPrompts] = useState(false);
+  const [deletingPromptId, setDeletingPromptId] = useState<string | null>(null);
 
   const getOrCreateOpenLuraUserId = () => {
     if (typeof window === "undefined") return "";
@@ -101,6 +102,38 @@ export default function Sidebar({
     }
 
     return headers;
+  };
+
+  const handleDeletePrompt = async (promptId: string) => {
+    if (!promptId || deletingPromptId) return;
+
+    try {
+      setDeletingPromptId(promptId);
+
+      const res = await fetch("/api/prompts", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          ...getPromptRequestHeaders(),
+        },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          id: promptId,
+        }),
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        console.error("OpenLura prompt delete failed:", text);
+        return;
+      }
+
+      setPrompts((prev) => prev.filter((prompt) => prompt.id !== promptId));
+    } catch (error) {
+      console.error("OpenLura prompt delete failed:", error);
+    } finally {
+      setDeletingPromptId(null);
+    }
   };
 
   useEffect(() => {
@@ -435,38 +468,53 @@ export default function Sidebar({
                 </div>
               ) : prompts.length > 0 ? (
                 prompts.map((prompt: SidebarPrompt) => (
-                  <button
+                  <div
                     key={prompt.id}
-                    type="button"
-                    onClick={() => {
-                      window.dispatchEvent(
-                        new CustomEvent("openlura_use_prompt", {
-                          detail: {
-                            content: String(prompt.content || ""),
-                            promptId: prompt.id,
-                          },
-                        })
-                      );
-                      setMobileMenu(false);
-                    }}
-                    className="group flex w-full items-start justify-between rounded-2xl border border-white/8 bg-white/[0.022] px-3 py-3 text-left ol-interactive transition-[background-color,border-color,box-shadow,transform] duration-200 hover:-translate-y-[1px] hover:border-white/12 hover:bg-white/[0.05] hover:shadow-[0_8px_16px_rgba(0,0,0,0.10)]"
+                    className="group rounded-2xl border border-white/8 bg-white/[0.022] px-3 py-3 ol-interactive transition-[background-color,border-color,box-shadow,transform] duration-200 hover:-translate-y-[1px] hover:border-white/12 hover:bg-white/[0.05] hover:shadow-[0_8px_16px_rgba(0,0,0,0.10)]"
                   >
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-medium text-white/84 group-hover:text-white">
-                        {prompt.name || "Untitled prompt"}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        window.dispatchEvent(
+                          new CustomEvent("openlura_use_prompt", {
+                            detail: {
+                              content: String(prompt.content || ""),
+                              promptId: prompt.id,
+                            },
+                          })
+                        );
+                        setMobileMenu(false);
+                      }}
+                      className="flex w-full items-start justify-between text-left"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium text-white/84 group-hover:text-white">
+                          {prompt.name || "Untitled prompt"}
+                        </div>
+
+                        {!!String(prompt.content || "").trim() && (
+                          <div className="mt-1 line-clamp-2 text-xs leading-5 text-white/40 group-hover:text-white/54">
+                            {String(prompt.content || "")}
+                          </div>
+                        )}
                       </div>
 
-                      {!!String(prompt.content || "").trim() && (
-                        <div className="mt-1 line-clamp-2 text-xs leading-5 text-white/40 group-hover:text-white/54">
-                          {String(prompt.content || "")}
-                        </div>
-                      )}
-                    </div>
+                      <span className="ml-3 shrink-0 text-xs text-white/24 group-hover:text-white/42">
+                        Use
+                      </span>
+                    </button>
 
-                    <span className="ml-3 shrink-0 text-xs text-white/24 group-hover:text-white/42">
-                      Use
-                    </span>
-                  </button>
+                    <div className="mt-2 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => handleDeletePrompt(prompt.id)}
+                        disabled={deletingPromptId === prompt.id}
+                        className="rounded-full border border-red-400/14 bg-red-500/[0.05] px-2.5 py-1 text-[11px] text-red-200/80 ol-interactive transition-[background-color,border-color,color,opacity] duration-200 hover:border-red-400/24 hover:bg-red-500/[0.09] hover:text-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {deletingPromptId === prompt.id ? "Deleting..." : "Delete"}
+                      </button>
+                    </div>
+                  </div>
                 ))
               ) : (
                 <div className={emptyStateClass}>
