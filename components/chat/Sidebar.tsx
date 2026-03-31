@@ -81,10 +81,12 @@ const [promptDraft, setPromptDraft] = useState<{
   name: string;
   description: string;
   content: string;
+  tagsInput: string;
 }>({
   name: "",
   description: "",
   content: "",
+  tagsInput: "",
 });
 const [promptActionMessage, setPromptActionMessage] = useState("");
 
@@ -121,6 +123,24 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
   const hasPromptContent = (prompt: SidebarPrompt) =>
     !!String(prompt.content || "").trim();
 
+  const normalizePromptTags = (value: string) => {
+    return value
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter(Boolean)
+      .filter((tag, index, arr) => arr.indexOf(tag) === index)
+      .slice(0, 12)
+      .map((tag) => tag.slice(0, 40));
+  };
+
+  const sortPrompts = (items: SidebarPrompt[]) => {
+    return [...items].sort((a, b) => {
+      const aDate = new Date(a.last_used_at || a.created_at || 0).getTime();
+      const bDate = new Date(b.last_used_at || b.created_at || 0).getTime();
+      return bDate - aDate;
+    });
+  };
+
   const showPromptMessage = useCallback((message: string, duration = 1800) => {
     setPromptActionMessage(message);
 
@@ -150,7 +170,7 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
       }
 
       const data = await res.json();
-      setPrompts(Array.isArray(data) ? data : []);
+      setPrompts(Array.isArray(data) ? sortPrompts(data) : []);
     } catch (error) {
       console.error("OpenLura prompts load failed:", error);
     } finally {
@@ -165,6 +185,7 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
       name: "",
       description: "",
       content: "",
+      tagsInput: "",
     });
   };
 
@@ -174,6 +195,7 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
       name: String(prompt.name || "").trim(),
       description: String(prompt.description || "").trim(),
       content: String(prompt.content || ""),
+      tagsInput: Array.isArray(prompt.tags) ? prompt.tags.join(", ") : "",
     });
     setPromptActionMessage("");
   };
@@ -182,6 +204,7 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
     const trimmedContent = String(promptDraft.content || "").trim();
     const trimmedName = String(promptDraft.name || "").trim();
     const trimmedDescription = String(promptDraft.description || "").trim();
+    const normalizedTags = normalizePromptTags(promptDraft.tagsInput || "");
 
     if (!promptId || savingPromptId) return;
 
@@ -206,8 +229,7 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
           name: trimmedName,
           description: trimmedDescription,
           content: trimmedContent,
-          tags:
-            prompts.find((prompt) => prompt.id === promptId)?.tags || [],
+          tags: normalizedTags,
         }),
       });
 
@@ -308,13 +330,15 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
     );
 
     setPrompts((prev) =>
-      prev.map((item) =>
-        item.id === prompt.id
-          ? {
-              ...item,
-              last_used_at: new Date().toISOString(),
-            }
-          : item
+      sortPrompts(
+        prev.map((item) =>
+          item.id === prompt.id
+            ? {
+                ...item,
+                last_used_at: new Date().toISOString(),
+              }
+            : item
+        )
       )
     );
 
@@ -653,7 +677,7 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
               </div>
             )}
 
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               {loadingPrompts ? (
                 <div className={emptyStateClass}>
                   Loading prompts...
@@ -667,7 +691,11 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
                   return (
                     <div
                       key={prompt.id}
-                      className="group rounded-[18px] border border-white/8 bg-white/[0.02] px-3 py-2.5 transition-[background-color,border-color,box-shadow,transform] duration-200 hover:border-white/12 hover:bg-white/[0.045] hover:shadow-[0_8px_16px_rgba(0,0,0,0.10)]"
+                      className={`group rounded-[18px] border px-3 py-2.5 transition-[background-color,border-color,box-shadow,transform] duration-200 ${
+                        isEditing
+                          ? "border-[#3b82f6]/18 bg-[#3b82f6]/[0.06] shadow-[0_10px_22px_rgba(59,130,246,0.08)]"
+                          : "border-white/8 bg-white/[0.02] hover:border-white/12 hover:bg-white/[0.045] hover:shadow-[0_8px_16px_rgba(0,0,0,0.10)]"
+                      }`}
                     >
                       {isEditing ? (
                         <div
@@ -725,6 +753,35 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
                             className="w-full resize-none rounded-xl border border-white/8 bg-white/[0.04] px-3 py-2 text-sm text-white/88 outline-none placeholder:text-white/28"
                           />
 
+                          <input
+                            value={promptDraft.tagsInput}
+                            onClick={(e) => e.stopPropagation()}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onTouchStart={(e) => e.stopPropagation()}
+                            onFocus={(e) => e.stopPropagation()}
+                            onChange={(e) =>
+                              setPromptDraft((prev) => ({
+                                ...prev,
+                                tagsInput: e.target.value,
+                              }))
+                            }
+                            placeholder="Tags (comma separated)"
+                            className="w-full rounded-xl border border-white/8 bg-white/[0.04] px-3 py-2 text-sm text-white/88 outline-none placeholder:text-white/28"
+                          />
+
+                          {!!normalizePromptTags(promptDraft.tagsInput).length && (
+                            <div className="flex flex-wrap gap-1.5">
+                              {normalizePromptTags(promptDraft.tagsInput).map((tag) => (
+                                <span
+                                  key={tag}
+                                  className="rounded-full border border-[#3b82f6]/16 bg-[#3b82f6]/10 px-2 py-1 text-[10px] text-[#bfdbfe]"
+                                >
+                                  #{tag}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
                           <div className="flex justify-end gap-2">
                             <button
                               type="button"
@@ -765,8 +822,26 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
                               )}
 
                               {!!String(prompt.content || "").trim() && (
-                                <div className="mt-1 line-clamp-1 text-[11px] leading-5 text-white/38 group-hover:text-white/52">
+                                <div className="mt-1 line-clamp-2 text-[11px] leading-5 text-white/38 group-hover:text-white/52">
                                   {String(prompt.content || "")}
+                                </div>
+                              )}
+
+                              {!!prompt.tags?.length && (
+                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                  {prompt.tags.slice(0, 3).map((tag) => (
+                                    <span
+                                      key={`${prompt.id}-${tag}`}
+                                      className="rounded-full border border-white/8 bg-white/[0.04] px-2 py-0.5 text-[10px] text-white/50"
+                                    >
+                                      #{tag}
+                                    </span>
+                                  ))}
+                                  {prompt.tags.length > 3 && (
+                                    <span className="rounded-full border border-white/8 bg-white/[0.04] px-2 py-0.5 text-[10px] text-white/38">
+                                      +{prompt.tags.length - 3}
+                                    </span>
+                                  )}
                                 </div>
                               )}
                             </div>
@@ -806,7 +881,7 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
                 })
               ) : (
                 <div className={emptyStateClass}>
-                  No saved prompts
+                  No saved prompts yet
                 </div>
               )}
             </div>

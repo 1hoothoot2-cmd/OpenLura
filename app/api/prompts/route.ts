@@ -25,7 +25,7 @@ type PromptRow = {
   name: string;
   description: string;
   content: string;
-  tags?: string[] | null;
+  tags?: string[];
   created_at?: string;
   last_used_at?: string | null;
 };
@@ -168,12 +168,26 @@ function normalizeTags(input: unknown): string[] {
     return [];
   }
 
-  return input
+  const normalized = input
     .filter((tag): tag is string => typeof tag === "string")
     .map((tag) => tag.trim())
     .filter(Boolean)
-    .slice(0, MAX_TAGS)
     .map((tag) => tag.slice(0, MAX_TAG_LENGTH));
+
+  const uniqueTags: string[] = [];
+
+  for (const tag of normalized) {
+    const exists = uniqueTags.some(
+      (existingTag) => existingTag.toLowerCase() === tag.toLowerCase()
+    );
+
+    if (exists) continue;
+    if (uniqueTags.length >= MAX_TAGS) break;
+
+    uniqueTags.push(tag);
+  }
+
+  return uniqueTags;
 }
 
 function normalizeCreatePromptBody(body: unknown) {
@@ -301,9 +315,16 @@ async function insertPrompt(input: {
 
   const data = (await res.json()) as PromptRow[];
 
+  const prompt = Array.isArray(data) ? data[0] ?? null : null;
+
   return {
     ok: true as const,
-    data: Array.isArray(data) ? data[0] ?? null : null,
+    data: prompt
+      ? {
+          ...prompt,
+          tags: Array.isArray(prompt.tags) ? prompt.tags : [],
+        }
+      : null,
   };
 }
 
@@ -345,7 +366,12 @@ async function fetchPrompts(input: {
 
   return {
     ok: true as const,
-    data: Array.isArray(data) ? data : [],
+    data: Array.isArray(data)
+      ? data.map((prompt) => ({
+          ...prompt,
+          tags: Array.isArray(prompt.tags) ? prompt.tags : [],
+        }))
+      : [],
   };
 }
 
@@ -439,10 +465,16 @@ async function updatePrompt(input: {
   }
 
   const data = (await res.json()) as PromptRow[];
+  const prompt = Array.isArray(data) ? data[0] ?? null : null;
 
   return {
     ok: true as const,
-    data: Array.isArray(data) ? data[0] ?? null : null,
+    data: prompt
+      ? {
+          ...prompt,
+          tags: Array.isArray(prompt.tags) ? prompt.tags : [],
+        }
+      : null,
   };
 }
 
