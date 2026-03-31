@@ -2477,7 +2477,7 @@ updated[index].messages[
       )}
 
       <div className="flex min-w-0 flex-1 items-stretch justify-start pt-0 md:h-screen md:p-4">
-        <div className="mr-auto flex h-full w-full min-w-0 max-w-2xl flex-col border border-white/8 bg-white/[0.042] shadow-[0_20px_56px_rgba(0,0,0,0.20)] backdrop-blur-2xl md:ml-4 md:min-h-0 md:rounded-[28px] xl:ml-6 xl:max-w-[920px]">
+        <div className="mx-auto flex h-full w-full min-w-0 max-w-2xl flex-col border border-white/8 bg-white/[0.042] shadow-[0_20px_56px_rgba(0,0,0,0.20)] backdrop-blur-2xl md:min-h-0 md:rounded-[28px] xl:max-w-[920px]">
 
           {usage && usage.percentage >= 0.8 && !upgradeNotice.visible && (
             <div className="mx-4 mt-4 rounded-[24px] border border-yellow-300/12 bg-yellow-500/[0.065] px-4 py-3 text-sm text-yellow-100 shadow-[0_10px_22px_rgba(0,0,0,0.10)] backdrop-blur-xl">
@@ -2553,14 +2553,14 @@ updated[index].messages[
                     return (
                       <div
   key={`${msg.role}-${originalIndex}-${msg.content || ""}`}
-  className={`${messageShellClass} animate-[fadeInUp_0.22s_ease-out] transition-[opacity,transform] duration-200 ${
-    msg.role === "user" ? "justify-end" : "justify-start"
+  className={`${messageShellClass} flex-col animate-[fadeInUp_0.22s_ease-out] transition-[opacity,transform] duration-200 ${
+    msg.role === "user" ? "items-end" : "items-start"
   }`}
 >
                         <div
   className={`${messageBubbleClass} min-w-0 max-w-[88%] md:max-w-[78%] overflow-hidden whitespace-pre-line rounded-[24px] px-4 py-3.5 text-[15px] md:text-[16px] transition-[box-shadow,transform,background-color,border-color] duration-200 ${
     msg.role === "user"
-      ? "ml-auto bg-gradient-to-r from-[#1d4ed8] to-[#2563eb] text-white shadow-[0_12px_24px_rgba(37,99,235,0.20)]"
+      ? "ml-auto bg-gradient-to-r from-[#1d4ed8] to-[#2563eb] text-white shadow-[0_10px_20px_rgba(37,99,235,0.16)]"
       : "border border-white/8 bg-white/[0.05] text-white/92 backdrop-blur-xl shadow-[0_10px_22px_rgba(0,0,0,0.10)]"
   }`}
 >
@@ -2641,7 +2641,7 @@ updated[index].messages[
                           msg.content !== "🤖 What can I improve?" &&
                           msg.content !== "🤖 Thanks for your feedback. I’ll use this to improve future answers." && (
                             <>
-                              <div className="mt-3 flex flex-wrap items-center gap-2 pl-1 md:pl-2">
+                              <div className="mt-3 flex w-full max-w-[88%] flex-wrap items-center gap-2 pl-1 md:max-w-[78%] md:pl-2">
                                 {!feedbackGiven[
                                   getFeedbackUiKey(renderedChatId, originalIndex)
                                 ] && (
@@ -2707,6 +2707,74 @@ updated[index].messages[
                                         <path d="m10 18.5 1-5.5H5.8a2 2 0 0 1-2-2.4l1.1-5.5A2 2 0 0 1 6.9 4H17a2 2 0 0 1 2 2v5.5a2 2 0 0 1-.6 1.4l-5.7 5.6a1.5 1.5 0 0 1-2.7-1.3Z" />
                                       </svg>
                                     </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        try {
+                                          await navigator.clipboard.writeText(
+                                            String(msg.content || "")
+                                          );
+
+                                          const keyId = getFeedbackUiKey(
+                                            renderedChatId,
+                                            originalIndex
+                                          );
+
+                                          setFeedbackUI((prev) => ({
+                                            ...prev,
+                                            [keyId]: "Copied"
+                                          }));
+
+                                          setTimeout(() => {
+                                            setFeedbackUI((prev) => {
+                                              const copy = { ...prev };
+                                              delete copy[keyId];
+                                              return copy;
+                                            });
+                                          }, 1400);
+                                        } catch (error) {
+                                          console.error("OpenLura copy failed:", error);
+                                        }
+                                      }}
+                                      aria-label="Copy answer"
+                                      title="Copy answer"
+                                      className="inline-flex h-9 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] px-3 text-xs text-white/66 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/28 hover:bg-[#3b82f6]/8 hover:text-white hover:shadow-[0_8px_18px_rgba(59,130,246,0.12)] active:scale-95"
+                                    >
+                                      Copy
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const resolvedTarget = resolveFeedbackTargetContext(
+                                          activeMessages,
+                                          originalIndex
+                                        );
+
+                                        setAwaitingImprovement((prev) => ({
+                                          ...prev,
+                                          [renderedChatId]: {
+                                            targetMsgIndex: resolvedTarget.targetMsgIndex,
+                                            originalUserMessage:
+                                              resolvedTarget.originalUserMessage,
+                                            originalAiMessage:
+                                              resolvedTarget.originalAiMessage,
+                                          }
+                                        }));
+
+                                        setInput("retry");
+
+                                        requestAnimationFrame(() => {
+                                          inputRef.current?.focus();
+                                        });
+                                      }}
+                                      aria-label="Resend answer"
+                                      title="Resend answer"
+                                      className="inline-flex h-9 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] px-3 text-xs text-white/66 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/28 hover:bg-[#3b82f6]/8 hover:text-white hover:shadow-[0_8px_18px_rgba(59,130,246,0.12)] active:scale-95"
+                                    >
+                                      Resend
+                                    </button>
                                   </>
                                 )}
 
@@ -2727,7 +2795,7 @@ updated[index].messages[
                               </div>
 
                 {Array.isArray(msg.sources) && msg.sources.length > 0 && (
-          <div className="mt-4 space-y-2">
+          <div className="mt-4 w-full max-w-[88%] space-y-2 md:max-w-[78%]">
             <div className="flex items-center gap-2 px-0.5">
               <span className="text-[12px] text-white/30">🔎</span>
               <p className="text-[11px] uppercase tracking-[0.18em] text-white/32">
@@ -2797,8 +2865,8 @@ updated[index].messages[
   className={`${
     activeMessages.length === 0
       ? "mx-auto mt-6 w-full max-w-2xl px-3 md:px-4"
-      : "fixed bottom-0 left-1/2 z-[90] w-full max-w-2xl -translate-x-1/2 bg-[#050510]/95 px-3 pt-3 pb-[calc(env(safe-area-inset-bottom)+14px)] md:static md:left-auto md:z-auto md:mt-auto md:w-full md:max-w-none md:translate-x-0 md:border-0 md:bg-transparent md:p-0"
-  } flex w-full min-w-0 max-w-full overflow-x-hidden items-end gap-2 rounded-[28px] border border-white/8 bg-white/[0.038] shadow-[0_16px_34px_rgba(0,0,0,0.18)] backdrop-blur-2xl md:rounded-b-[32px] md:rounded-t-[28px] md:border-x-0 md:border-b-0 md:border-t md:px-4 md:py-4 md:shadow-none`}
+      : "fixed bottom-0 left-1/2 z-[90] w-full max-w-2xl -translate-x-1/2 bg-[#050510]/95 px-3 pt-3 pb-[calc(env(safe-area-inset-bottom)+14px)] md:static md:left-auto md:z-auto md:mt-auto md:w-full md:max-w-none md:translate-x-0 md:border-0 md:bg-transparent md:px-0 md:pt-0 md:pb-0"
+  } flex w-full min-w-0 max-w-full overflow-x-hidden items-end gap-2 rounded-[28px] border border-white/8 bg-white/[0.038] shadow-[0_16px_34px_rgba(0,0,0,0.18)] backdrop-blur-2xl md:rounded-b-[28px] md:rounded-t-[28px] md:border-x-0 md:border-b-0 md:border-t md:px-4 md:py-4 md:shadow-none`}
 >
 
                         <button
