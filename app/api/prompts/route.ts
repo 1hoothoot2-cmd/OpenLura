@@ -223,11 +223,12 @@ async function insertPrompt(input: {
   supabaseServiceRoleKey: string;
   row: PromptRow;
 }) {
-const headers = new Headers();
-headers.set("apikey", input.supabaseServiceRoleKey);
-headers.set("Authorization", `Bearer ${input.supabaseServiceRoleKey}`);
-headers.set("Accept", "application/json");
-headers.set("Prefer", "return=minimal");
+  const headers = new Headers();
+  headers.set("apikey", input.supabaseServiceRoleKey);
+  headers.set("Authorization", `Bearer ${input.supabaseServiceRoleKey}`);
+  headers.set("Accept", "application/json");
+  headers.set("Content-Type", "application/json");
+  headers.set("Prefer", "return=representation");
 
   const res = await fetch(input.promptsTableUrl, {
     method: "POST",
