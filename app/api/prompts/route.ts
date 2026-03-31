@@ -37,6 +37,12 @@ type CreatePromptBody = {
   tags?: unknown;
 };
 
+type DeletePromptBody = {
+  id?: unknown;
+};
+
+
+
 function unauthorizedResponse() {
   return NextResponse.json(
     { success: false, error: "Unauthorized" },
@@ -197,17 +203,31 @@ function normalizeCreatePromptBody(body: unknown) {
   };
 }
 
+function normalizeDeletePromptBody(body: unknown) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return null;
+  }
+
+  const candidate = body as DeletePromptBody;
+  const id = typeof candidate.id === "string" ? candidate.id.trim() : "";
+
+  if (!id || id.length > 200 || /[\r\n]/.test(id)) {
+    return null;
+  }
+
+  return { id };
+}
+
 async function insertPrompt(input: {
   promptsTableUrl: string;
   supabaseServiceRoleKey: string;
   row: PromptRow;
 }) {
-  const headers = new Headers();
-  headers.set("apikey", input.supabaseServiceRoleKey);
-  headers.set("Authorization", `Bearer ${input.supabaseServiceRoleKey}`);
-  headers.set("Content-Type", "application/json");
-  headers.set("Prefer", "return=representation");
-  headers.set("Accept", "application/json");
+const headers = new Headers();
+headers.set("apikey", input.supabaseServiceRoleKey);
+headers.set("Authorization", `Bearer ${input.supabaseServiceRoleKey}`);
+headers.set("Accept", "application/json");
+headers.set("Prefer", "return=minimal");
 
   const res = await fetch(input.promptsTableUrl, {
     method: "POST",
@@ -276,6 +296,45 @@ async function fetchPrompts(input: {
   return {
     ok: true as const,
     data: Array.isArray(data) ? data : [],
+  };
+}
+
+async function deletePrompt(input: {
+  promptsTableUrl: string;
+  supabaseServiceRoleKey: string;
+  userId: string;
+  promptId: string;
+}) {
+  const query =
+    `id=eq.${encodeURIComponent(input.promptId)}` +
+    `&user_id=eq.${encodeURIComponent(input.userId)}`;
+
+  const headers = new Headers();
+  headers.set("apikey", input.supabaseServiceRoleKey);
+  headers.set("Authorization", `Bearer ${input.supabaseServiceRoleKey}`);
+  headers.set("Accept", "application/json");
+
+  const res = await fetch(`${input.promptsTableUrl}?${query}`, {
+    method: "DELETE",
+    headers,
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+
+    logSafeError("OpenLura prompt delete failed", new Error(errorText), {
+      status: res.status,
+      promptId: input.promptId,
+    });
+
+    return {
+      ok: false as const,
+    };
+  }
+
+  return {
+    ok: true as const,
   };
 }
 
@@ -358,14 +417,70 @@ export async function GET(req: Request) {
     });
 
     if (!result.ok) {
-  return internalErrorResponse("Failed to fetch prompts");
-}
+      return internalErrorResponse("Failed to fetch prompts");
+    }
 
     return NextResponse.json(result.data, {
       headers: NO_STORE_HEADERS,
     });
   } catch (error) {
-  logSafeError("OpenLura prompts GET failed", error);
-  return internalErrorResponse("Failed to fetch prompts");
+    logSafeError("OpenLura prompts GET failed", error);
+    return internalErrorResponse("Failed to fetch prompts");
+  }
 }
+
+export async function DELETE(req: Request) {
+  try {
+    const contentLength = getContentLength(req);
+
+    if (contentLength !== null && contentLength > MAX_REQUEST_BYTES) {
+      return badRequestResponse("Request too large");
+    }
+
+    const userId = getRequestUserId(req);
+
+    if (!userId) {
+      return unauthorizedResponse();
+    }
+
+    const parsed = await readJsonBodyWithinLimit(req, MAX_REQUEST_BYTES);
+
+    if (!parsed.ok) {
+      return badRequestResponse(
+        parsed.reason === "too_large" ? "Request too large" : "Invalid JSON"
+      );
+    }
+
+    const normalized = normalizeDeletePromptBody(parsed.body);
+
+    if (!normalized) {
+      return badRequestResponse("Invalid prompt delete payload");
+    }
+
+    const { promptsTableUrl, supabaseServiceRoleKey } = getSupabaseConfig();
+
+    const result = await deletePrompt({
+      promptsTableUrl,
+      supabaseServiceRoleKey,
+      userId,
+      promptId: normalized.id,
+    });
+
+    if (!result.ok) {
+      return internalErrorResponse("Failed to delete prompt");
+    }
+
+    return NextResponse.json(
+      {
+        success: true,
+        deletedId: normalized.id,
+      },
+      {
+        headers: NO_STORE_HEADERS,
+      }
+    );
+  } catch (error) {
+    logSafeError("OpenLura prompts DELETE failed", error);
+    return internalErrorResponse("Failed to delete prompt");
+  }
 }
