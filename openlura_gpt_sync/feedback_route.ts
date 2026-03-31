@@ -571,6 +571,23 @@ function mapFeedbackRowToApi(row: Record<string, unknown>): CanonicalFeedbackEnt
 }
 
 function mapFeedbackEntryToDb(entry: CanonicalFeedbackEntry) {
+  const environment: "default" | "personal" =
+    entry.environment === "personal" ? "personal" : "default";
+
+  const userScope: "admin" | "guest" | "personal" =
+    entry.userScope === "admin" ||
+    entry.userScope === "guest" ||
+    entry.userScope === "personal"
+      ? entry.userScope
+      : environment === "personal"
+      ? "personal"
+      : "guest";
+
+  const user_id =
+    environment === "personal"
+      ? entry.user_id || "personal_feedback"
+      : null;
+
   return {
     chatId: entry.chatId,
     msgIndex: entry.msgIndex,
@@ -578,9 +595,9 @@ function mapFeedbackEntryToDb(entry: CanonicalFeedbackEntry) {
     message: entry.message,
     userMessage: entry.userMessage,
     source: entry.source,
-    userScope: entry.userScope,
-    user_id: entry.user_id,
-    environment: entry.environment,
+    userScope,
+    user_id,
+    environment,
     timestamp: entry.timestamp,
     workflowKey: entry.workflowKey,
     workflowStatus: entry.workflowStatus,
@@ -629,6 +646,7 @@ function buildCanonicalWorkflowAdminEntry(
     user_id: null,
     environment: "default",
     learningType: null,
+    workflowStatus: entry.workflowStatus,
   };
 }
 
@@ -1180,9 +1198,48 @@ export async function GET(req: Request) {
 
     const normalizedRows = Array.isArray(data)
       ? data
-          .map((row) => mapFeedbackRowToApi(row as Record<string, unknown>))
+          .map((row) => {
+            const mapped = mapFeedbackRowToApi(row as Record<string, unknown>);
+
+            const resolvedEnvironment =
+              mapped.environment === "personal" ? "personal" : "default";
+
+            const resolvedUserScope =
+              mapped.userScope === "admin" ||
+              mapped.userScope === "guest" ||
+              mapped.userScope === "personal"
+                ? mapped.userScope
+                : resolvedEnvironment === "personal"
+                ? "personal"
+                : "guest";
+
+            const resolvedType =
+              mapped.type === "workflow_status" ||
+              mapped.type === "up" ||
+              mapped.type === "down" ||
+              mapped.type === "improve" ||
+              mapped.type === "idea" ||
+              mapped.type === "auto_debug"
+                ? mapped.type
+                : null;
+
+            const resolvedUserId =
+              resolvedEnvironment === "personal"
+                ? typeof mapped.user_id === "string" && mapped.user_id
+                  ? mapped.user_id
+                  : "personal_feedback"
+                : mapped.user_id;
+
+            return {
+              ...mapped,
+              type: resolvedType,
+              environment: resolvedEnvironment,
+              userScope: resolvedUserScope,
+              user_id: resolvedUserId,
+            };
+          })
           .filter((row) => {
-            if (!row.type || !row.environment || !row.userScope) {
+            if (!row.type) {
               return false;
             }
 
@@ -1191,27 +1248,17 @@ export async function GET(req: Request) {
                 row.source === "analytics_workflow" &&
                 row.userScope === "admin" &&
                 row.environment === "default" &&
-                row.user_id === null &&
                 !!row.workflowKey &&
                 !!row.workflowStatus
               );
             }
 
             if (row.environment === "default") {
-              return row.userScope !== "personal";
+              return row.userScope === "admin" || row.userScope === "guest";
             }
 
-            return (
-              row.environment === "personal" &&
-              row.userScope === "personal" &&
-              typeof row.user_id === "string" &&
-              !!row.user_id
-            );
+            return row.environment === "personal" && row.userScope === "personal";
           })
-          .map((row) => ({
-            ...row,
-            user_id: row.environment === "personal" ? null : row.user_id,
-          }))
       : [];
 
 return NextResponse.json(normalizedRows, {

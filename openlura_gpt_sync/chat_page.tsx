@@ -849,6 +849,10 @@ const resizeComposerTextarea = () => {
   el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
 };
 
+const tokenizeMessageContent = (content: string) => content.split(/(\s+)/);
+
+const isUrlToken = (part: string) => /^https?:\/\/\S+$/i.test(part);
+
   useEffect(() => {
     const visibleChats = chats.filter(
       (chat: any) => !chat.archived && !chat.deleted
@@ -2532,7 +2536,7 @@ updated[index].messages[
               </div>
             ) : (
               <>
-                                                {activeMessages
+               {activeMessages
                   .map((msg: any, originalIndex: number) => ({
                     msg,
                     originalIndex,
@@ -2589,8 +2593,8 @@ updated[index].messages[
       </span>
     ) : (
       <>
-        {msg.content.split(/(\s+)/).map((part: string, idx: number) => {
-          const isUrl = /^https?:\/\/\S+$/i.test(part);
+        {tokenizeMessageContent(msg.content).map((part: string, idx: number) => {
+          const isUrl = isUrlToken(part);
 
           if (isUrl) {
             return (

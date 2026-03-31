@@ -754,9 +754,9 @@ const shouldSkipPersonalStateSync =
   }, []);
 
 const messageShellClass =
-  "w-full min-w-0 max-w-full overflow-hidden";
+  "flex w-full min-w-0 max-w-full overflow-hidden";
 const messageBubbleClass =
-  "min-w-0 max-w-full overflow-hidden break-words [overflow-wrap:anywhere] break-all";
+  "min-w-0 max-w-full overflow-hidden break-words [overflow-wrap:anywhere] leading-7 break-words";
 const composerInputClass =
   "w-full min-w-0 max-w-full resize-none overflow-x-hidden break-words [overflow-wrap:anywhere]";
 
@@ -2502,7 +2502,7 @@ updated[index].messages[
           <div
   ref={messagesRef}
   className={`${messageShellClass} flex-1 min-h-0 w-full overflow-x-hidden overflow-y-auto pb-[188px] md:pb-6 ${
-    activeMessages.length ? "space-y-4 p-4 pt-20 md:px-6 md:pt-6" : "flex items-center justify-center p-4 pt-20 md:px-6 md:pt-6"
+    activeMessages.length ? "flex-col gap-5 p-4 pt-20 md:px-6 md:pt-6" : "items-center justify-center p-4 pt-20 md:px-6 md:pt-6"
   }`}
 >
                         {activeMessages.length === 0 ? (
@@ -2552,18 +2552,18 @@ updated[index].messages[
 
                     return (
                       <div
-                        key={`${msg.role}-${originalIndex}-${msg.content || ""}`}
-                        className={`${messageShellClass} animate-[fadeInUp_0.22s_ease-out] transition-[opacity,transform] duration-200 ${
-                          msg.role === "user" ? "mb-2" : "mb-4"
-                        }`}
-                      >
-                                                <div
-                          className={`${messageBubbleClass} min-w-0 max-w-[78%] overflow-hidden whitespace-pre-line rounded-[24px] px-4 py-3.5 transition-[box-shadow,transform,background-color,border-color] duration-200 ${
-                            msg.role === "user"
-                              ? "ml-auto bg-gradient-to-r from-[#1d4ed8] to-[#2563eb] text-white shadow-[0_12px_24px_rgba(37,99,235,0.20)]"
-                              : "border border-white/8 bg-white/[0.042] text-white/90 backdrop-blur-xl shadow-[0_10px_22px_rgba(0,0,0,0.10)]"
-                          }`}
-                        >
+  key={`${msg.role}-${originalIndex}-${msg.content || ""}`}
+  className={`${messageShellClass} animate-[fadeInUp_0.22s_ease-out] transition-[opacity,transform] duration-200 ${
+    msg.role === "user" ? "justify-end" : "justify-start"
+  }`}
+>
+                        <div
+  className={`${messageBubbleClass} min-w-0 max-w-[88%] md:max-w-[78%] overflow-hidden whitespace-pre-line rounded-[24px] px-4 py-3.5 text-[15px] md:text-[16px] transition-[box-shadow,transform,background-color,border-color] duration-200 ${
+    msg.role === "user"
+      ? "ml-auto bg-gradient-to-r from-[#1d4ed8] to-[#2563eb] text-white shadow-[0_12px_24px_rgba(37,99,235,0.20)]"
+      : "border border-white/8 bg-white/[0.05] text-white/92 backdrop-blur-xl shadow-[0_10px_22px_rgba(0,0,0,0.10)]"
+  }`}
+>
                           {msg.image && (
                             <img
                               src={msg.image}
@@ -2574,8 +2574,8 @@ updated[index].messages[
 
                           {msg.content ? (
   <div
-    className={`${msg.image ? "mt-3 " : ""}${messageBubbleClass} min-w-0 max-w-full overflow-hidden`}
-  >
+  className={`${msg.image ? "mt-3 " : ""}${messageBubbleClass} min-w-0 max-w-full overflow-hidden text-[15px] leading-7 text-inherit select-text`}
+>
     {msg.isStreaming && msg.content === "…" ? (
       <span className="inline-flex items-center gap-2 text-white/56">
         <span className="flex items-center gap-1">
@@ -2641,7 +2641,7 @@ updated[index].messages[
                           msg.content !== "🤖 What can I improve?" &&
                           msg.content !== "🤖 Thanks for your feedback. I’ll use this to improve future answers." && (
                             <>
-                              <div className="mt-3 flex flex-wrap items-center gap-2 pl-1">
+                              <div className="mt-3 flex flex-wrap items-center gap-2 pl-1 md:pl-2">
                                 {!feedbackGiven[
                                   getFeedbackUiKey(renderedChatId, originalIndex)
                                 ] && (
@@ -2834,7 +2834,7 @@ updated[index].messages[
               </div>
             )}
 
-                        <textarea
+<textarea
   ref={inputRef}
   value={input}
   onFocus={() => {
@@ -2871,7 +2871,7 @@ updated[index].messages[
       sendMessage();
     }
   }}
-  className={`${composerInputClass} min-h-[52px] max-h-[140px] flex-1 rounded-2xl bg-transparent px-2 py-3 text-[16px] leading-6 text-white/95 outline-none placeholder:text-white/28`}
+  className={`${composerInputClass} min-h-[52px] max-h-[140px] flex-1 rounded-2xl bg-transparent px-2 py-3 text-[16px] leading-6 text-white/95 outline-none placeholder:text-white/28 focus:bg-white/[0.02]`}
   placeholder={activeMessages.length === 0 ? "Ask anything" : "Message OpenLura..."}
 enterKeyHint="send"
   rows={1}
@@ -2881,7 +2881,7 @@ enterKeyHint="send"
   type="button"
   disabled={!loading && !input.trim() && !image}
   onClick={loading ? stopStreaming : sendMessage}
-  className={`flex h-12 w-12 shrink-0 touch-manipulation items-center justify-center rounded-full text-xl ol-interactive transition-[transform,filter,background-color,color,box-shadow] duration-200 active:scale-95 ${
+  className={`flex h-12 w-12 shrink-0 touch-manipulation items-center justify-center rounded-full text-xl ol-interactive transition-[transform,filter,background-color,color,box-shadow] duration-200 active:scale-[0.97] ${
     loading
       ? "bg-red-500 text-white shadow-[0_10px_24px_rgba(239,68,68,0.30)]"
       : !input.trim() && !image
