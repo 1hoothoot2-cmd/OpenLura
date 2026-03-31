@@ -100,6 +100,12 @@ export default function Sidebar({
     setOpenChatMenuId(null);
   }, [activeChatId, setOpenChatMenuId]);
 
+  const sidebarActionButtonClass =
+    "rounded-full border border-[#3b82f6]/18 bg-[#3b82f6]/8 px-3 py-1 text-xs text-white/68 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/34 hover:bg-[#3b82f6]/12 hover:text-white hover:shadow-[0_6px_14px_rgba(59,130,246,0.12)] active:scale-95";
+
+  const emptyStateClass =
+    "rounded-2xl border border-dashed border-white/8 bg-white/[0.022] px-3 py-3 text-sm text-white/36";
+
   const renderChatRow = (chat: SidebarChat, isPinned: boolean) => {
   const isActive = activeChatId === chat.id;
   const isMenuOpen = openChatMenuId === chat.id;
@@ -107,7 +113,7 @@ export default function Sidebar({
   return (
     <div
       key={chat.id}
-      className={`group relative overflow-visible rounded-[22px] border transition-[transform,background-color,border-color,box-shadow,opacity] duration-200 ${
+      className={`group relative overflow-visible rounded-[20px] border transition-[transform,background-color,border-color,box-shadow,opacity] duration-200 ${
         isMenuOpen ? "z-[220]" : "z-0"
       } ${
         isActive
@@ -124,7 +130,7 @@ export default function Sidebar({
       {isActive && (
         <>
           <div className="pointer-events-none absolute inset-y-[7px] left-0 w-[3px] rounded-full bg-gradient-to-b from-[#eff6ff] via-[#93c5fd] to-[#3b82f6]" />
-          <div className="pointer-events-none absolute inset-[1px] rounded-[20px] bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.012))]" />
+          <div className="pointer-events-none absolute inset-[1px] rounded-[18px] bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.012))]" />
         </>
       )}
 
@@ -134,7 +140,7 @@ export default function Sidebar({
           activateChat(chat.id);
           setMobileMenu(false);
         }}
-        className={`relative w-full rounded-[22px] py-4 pl-4 pr-12 text-left text-sm transition-colors duration-200 focus-visible:outline-none ${
+        className={`relative w-full rounded-[20px] py-3.5 pl-4 pr-12 text-left text-sm transition-colors duration-200 focus-visible:outline-none ${
           isActive
             ? "text-white"
             : isPinned
@@ -189,7 +195,7 @@ export default function Sidebar({
         <div
           onClick={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
-          className="absolute right-2.5 top-[46px] z-[230] min-w-[182px] overflow-hidden rounded-2xl border border-white/10 bg-[#161b2a]/96 shadow-[0_20px_44px_rgba(0,0,0,0.40),0_2px_10px_rgba(0,0,0,0.18)] ring-1 ring-black/20 backdrop-blur-xl animate-[fadeInUp_0.18s_ease-out]"
+          className="absolute right-2.5 top-[44px] z-[230] min-w-[182px] overflow-hidden rounded-2xl border border-white/10 bg-[#161b2a]/96 shadow-[0_20px_44px_rgba(0,0,0,0.40),0_2px_10px_rgba(0,0,0,0.18)] ring-1 ring-black/20 backdrop-blur-xl animate-[fadeInUp_0.18s_ease-out]"
         >
           <button
             type="button"
@@ -267,7 +273,7 @@ export default function Sidebar({
               setOpenChatMenuId(null);
               setMobileMenu(false);
             }}
-            className="mb-3 w-full rounded-2xl border border-[#60a5fa]/18 bg-gradient-to-r from-[#1d4ed8] via-[#2563eb] to-[#3b82f6] px-3.5 py-2.5 text-sm font-medium text-white shadow-[0_12px_30px_rgba(59,130,246,0.26)] ol-interactive transition-[transform,filter,box-shadow,opacity] duration-200 hover:brightness-110 hover:shadow-[0_16px_36px_rgba(59,130,246,0.32)] active:scale-[0.985]"
+            className="mb-3 w-full rounded-2xl border border-[#60a5fa]/18 bg-gradient-to-r from-[#1d4ed8] via-[#2563eb] to-[#3b82f6] px-3.5 py-3 text-sm font-medium text-white shadow-[0_12px_30px_rgba(59,130,246,0.26)] ol-interactive transition-[transform,filter,box-shadow,opacity] duration-200 hover:brightness-110 hover:shadow-[0_16px_36px_rgba(59,130,246,0.32)] active:scale-[0.985]"
           >
             + New Chat
           </button>
@@ -280,7 +286,7 @@ export default function Sidebar({
 />
         </div>
 
-        <div className="mt-1 min-h-0 flex-1 space-y-7 overflow-x-visible overflow-y-auto pr-1 pb-4 pt-2">
+        <div className="mt-1 min-h-0 flex-1 space-y-6 overflow-x-visible overflow-y-auto pr-1 pb-4 pt-2">
           {searchedPinnedChats.length > 0 && (
             <div>
               <div className="mb-3.5 flex items-center justify-between px-1.5">
@@ -291,7 +297,7 @@ export default function Sidebar({
                   {searchedPinnedChats.length}
                 </span>
               </div>
-              <div className="space-y-3.5 overflow-visible">
+              <div className="space-y-2.5 overflow-visible">
                 {searchedPinnedChats.map((chat: SidebarChat) => renderChatRow(chat, true))}
               </div>
             </div>
@@ -306,11 +312,11 @@ export default function Sidebar({
                 {regularChats.length}
               </span>
             </div>
-            <div className="space-y-3.5 overflow-visible">
+            <div className="space-y-2.5 overflow-visible">
               {regularChats.length > 0 ? (
                 regularChats.map((chat: SidebarChat) => renderChatRow(chat, false))
               ) : (
-                <div className="rounded-2xl border border-dashed border-white/8 bg-white/[0.022] px-3 py-3 text-sm text-white/36">
+                <div className={emptyStateClass}>
   No chats found
 </div>
               )}
@@ -344,14 +350,14 @@ export default function Sidebar({
                         restoreArchivedChat(chat.id);
                         setMobileMenu(false);
                       }}
-                      className="rounded-full border border-[#3b82f6]/18 bg-[#3b82f6]/8 px-3 py-1 text-xs text-white/68 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/34 hover:bg-[#3b82f6]/12 hover:text-white hover:shadow-[0_6px_14px_rgba(59,130,246,0.12)] active:scale-95"
+                      className={sidebarActionButtonClass}
                     >
                       Restore
                     </button>
                   </div>
                 ))
               ) : (
-                <div className="rounded-2xl border border-dashed border-white/8 bg-white/[0.022] px-3 py-3 text-sm text-white/36">
+                <div className={emptyStateClass}>
   No chats found
 </div>
               )}
@@ -400,14 +406,14 @@ export default function Sidebar({
                         restoreDeletedChat(chat.id);
                         setMobileMenu(false);
                       }}
-                      className="rounded-full border border-[#3b82f6]/18 bg-[#3b82f6]/8 px-3 py-1 text-xs text-white/68 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/34 hover:bg-[#3b82f6]/12 hover:text-white hover:shadow-[0_6px_14px_rgba(59,130,246,0.12)] active:scale-95"
+                      className={sidebarActionButtonClass}
                     >
                       Restore
                     </button>
                   </div>
                 ))
               ) : (
-                <div className="rounded-2xl border border-dashed border-white/8 bg-white/[0.022] px-3 py-3 text-sm text-white/36">
+                <div className={emptyStateClass}>
   No deleted chats
 </div>
               )}
@@ -415,7 +421,7 @@ export default function Sidebar({
           </div>
         </div>
 
-        <div className="mt-5 shrink-0 space-y-2.5 border-t border-white/8 pt-5 pb-[max(env(safe-area-inset-bottom),2px)]">
+        <div className="mt-4 shrink-0 space-y-2.5 border-t border-white/8 pt-4 pb-[max(env(safe-area-inset-bottom),2px)]">
           <button
             type="button"
             onClick={() => {
