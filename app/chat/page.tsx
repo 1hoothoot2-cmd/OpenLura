@@ -28,15 +28,64 @@ export default function ChatPage() {
   const [chats, setChats] = useState<any[]>([]);
   const [activeChatId, setActiveChatId] = useState<number | null>(null);
   const [input, setInput] = useState("");
-const [prefillFromMessage, setPrefillFromMessage] = useState<string | null>(null);
+const [workflowPrefill, setWorkflowPrefill] = useState<{
+  value: string;
+  source: "prompt" | "result" | "message";
+  label: string;
+} | null>(null);
 
-const applyComposerInput = (nextContent: string) => {
+const clearWorkflowPrefill = () => {
+  setWorkflowPrefill(null);
+};
+
+const applyComposerInput = (
+  nextContent: string,
+  options?: {
+    source?: "prompt" | "result" | "message";
+    label?: string;
+    mode?: "replace" | "append";
+  }
+) => {
   const nextValue = String(nextContent || "").trim();
 
   if (!nextValue) return;
 
-  setInput(nextValue);
-  setPrefillFromMessage(nextValue);
+  const mode = options?.mode || "replace";
+
+  setInput((prev) => {
+    const previousValue = String(prev || "").trim();
+    const resolvedValue =
+      mode === "append" && previousValue
+        ? `${previousValue}\n\n${nextValue}`
+        : nextValue;
+
+    requestAnimationFrame(() => {
+      resizeComposerTextarea();
+      inputRef.current?.focus();
+
+      try {
+        inputRef.current?.setSelectionRange(
+          resolvedValue.length,
+          resolvedValue.length
+        );
+      } catch {}
+    });
+
+    return resolvedValue;
+  });
+
+  setWorkflowPrefill({
+    value: nextValue,
+    source: options?.source || "message",
+    label:
+      options?.label ||
+      (options?.source === "prompt"
+        ? "Prompt ready"
+        : options?.source === "result"
+        ? "Result ready"
+        : "Input ready"),
+  });
+
   setImage(null);
 
   if (savePromptSuccess) {
@@ -46,19 +95,14 @@ const applyComposerInput = (nextContent: string) => {
   if (savePromptError) {
     setSavePromptError("");
   }
-
-  requestAnimationFrame(() => {
-    resizeComposerTextarea();
-    inputRef.current?.focus();
-
-    try {
-      inputRef.current?.setSelectionRange(nextValue.length, nextValue.length);
-    } catch {}
-  });
 };
 
 const handleUseAsInput = (content: string) => {
-  applyComposerInput(content);
+  applyComposerInput(content, {
+    source: "message",
+    label: "Input ready",
+    mode: "replace",
+  });
 };
 const [savingPrompt, setSavingPrompt] = useState(false);
 const [savePromptSuccess, setSavePromptSuccess] = useState(false);
@@ -210,7 +254,7 @@ const [usage, setUsage] = useState<{
   const [initialStateReady, setInitialStateReady] = useState(false);
   const [openChatMenuId, setOpenChatMenuId] = useState<number | null>(null);
   const [openUserMessageMenuKey, setOpenUserMessageMenuKey] = useState<string | null>(null);
-const [openAiMessageMenuKey, setOpenAiMessageMenuKey] = useState<string | null>(null);
+  const [openAiMessageMenuKey, setOpenAiMessageMenuKey] = useState<string | null>(null);
 
   const hasBlockingOverlay =
     showFeedbackBox ||
@@ -614,6 +658,7 @@ const shouldSkipPersonalStateSync =
   useEffect(() => {
     setOpenChatMenuId(null);
     setOpenUserMessageMenuKey(null);
+    setOpenAiMessageMenuKey(null);
   }, [activeChatId]);
 
   useEffect(() => {
@@ -650,6 +695,11 @@ const shouldSkipPersonalStateSync =
         return;
       }
 
+      if (openAiMessageMenuKey !== null) {
+        setOpenAiMessageMenuKey(null);
+        return;
+      }
+
       if (openChatMenuId !== null) {
         setOpenChatMenuId(null);
         return;
@@ -669,6 +719,7 @@ const shouldSkipPersonalStateSync =
     mobileMenu,
     openChatMenuId,
     openUserMessageMenuKey,
+    openAiMessageMenuKey,
     showLoginBox,
     showFeedbackBox,
     showClearDeletedConfirm,
@@ -891,14 +942,19 @@ const shouldSkipPersonalStateSync =
         content?: string;
         promptId?: string;
         source?: string;
-        mode?: "replace";
+        mode?: "replace" | "append";
       }>;
 
       const nextContent = String(customEvent.detail?.content || "").trim();
 
       if (!nextContent) return;
 
-      applyComposerInput(nextContent);
+      applyComposerInput(nextContent, {
+        source: "prompt",
+        label: "Prompt ready",
+        mode: customEvent.detail?.mode || "replace",
+      });
+
       closeMobileSidebar();
     };
 
@@ -1022,7 +1078,11 @@ const handleUseResultAsInput = (
 
   if (!nextValue) return;
 
-  applyComposerInput(nextValue);
+  applyComposerInput(nextValue, {
+    source: "result",
+    label: "Result ready",
+    mode: "replace",
+  });
 
   const keyId = getFeedbackUiKey(chatId, msgIndex);
 
@@ -1980,6 +2040,7 @@ Do not mention that this is a new attempt.`,
 
       setChats([...updated]);
       setInput("");
+      clearWorkflowPrefill();
       setImage(null);
 
       setAwaitingImprovement((prev) => ({
@@ -2253,7 +2314,7 @@ IMPORTANT:
 
     setChats(updated);
     setInput("");
-    setPrefillFromMessage(null);
+    clearWorkflowPrefill();
     setImage(null);
     setLoading(true);
 
@@ -3175,6 +3236,8 @@ updated[index].messages[
                                     <button
   type="button"
   onClick={() => {
+    setOpenUserMessageMenuKey(null);
+    setOpenAiMessageMenuKey(null);
     handleUseResultAsInput(
       String(msg.content || ""),
       renderedChatId,
@@ -3401,11 +3464,19 @@ updated[index].messages[
               </div>
             )}
 
-{prefillFromMessage && !image && (
-  <div className="hidden md:flex shrink-0 items-center">
-    <span className="rounded-full border border-[#3b82f6]/18 bg-[#3b82f6]/8 px-3 py-1 text-[11px] text-[#bfdbfe]">
-      Workflow input ready
+{workflowPrefill && !image && (
+  <div className="flex shrink-0 items-center gap-2 max-w-full">
+    <span className="max-w-[180px] truncate rounded-full border border-[#3b82f6]/18 bg-[#3b82f6]/8 px-3 py-1 text-[11px] text-[#bfdbfe]">
+      {workflowPrefill.label}
     </span>
+
+    <button
+      type="button"
+      onClick={clearWorkflowPrefill}
+      className="shrink-0 rounded-full border border-white/8 bg-white/[0.04] px-2.5 py-1 text-[11px] text-white/62 ol-interactive transition-[background-color,border-color,color] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white"
+    >
+      Clear
+    </button>
   </div>
 )}
 
@@ -3430,7 +3501,12 @@ updated[index].messages[
     }
   }}
   onChange={(e) => {
-    setInput(e.target.value);
+    const nextValue = e.target.value;
+    setInput(nextValue);
+
+    if (!nextValue.trim() && workflowPrefill) {
+      clearWorkflowPrefill();
+    }
 
     if (savePromptSuccess) {
       setSavePromptSuccess(false);
