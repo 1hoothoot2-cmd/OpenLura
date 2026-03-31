@@ -2678,8 +2678,8 @@ updated[index].messages[
 
           <div
   ref={messagesRef}
-  className={`${messageShellClass} flex-1 min-h-0 w-full overflow-x-hidden overflow-y-auto pb-[188px] md:pb-6 ${
-    activeMessages.length ? "flex-col gap-5 p-4 pt-20 md:px-6 md:pt-6" : "items-center justify-center p-4 pt-20 md:px-6 md:pt-6"
+  className={`${messageShellClass} flex-1 min-h-0 w-full overflow-x-hidden overflow-y-auto pb-[260px] md:pb-6 ${
+    activeMessages.length ? "flex-col gap-5 px-4 pb-0 pt-20 md:px-6 md:pt-6" : "items-center justify-center p-4 pt-20 md:px-6 md:pt-6"
   }`}
 >
                         {activeMessages.length === 0 ? (
@@ -3048,7 +3048,7 @@ updated[index].messages[
   className={`${
     activeMessages.length === 0
       ? "mx-auto mt-6 w-full max-w-2xl px-3 md:px-4"
-      : "fixed bottom-0 left-1/2 z-[90] w-full max-w-2xl -translate-x-1/2 bg-[#050510]/95 px-3 pt-3 pb-[calc(env(safe-area-inset-bottom)+14px)] md:static md:left-auto md:z-auto md:mt-auto md:w-full md:max-w-none md:translate-x-0 md:border-0 md:bg-transparent md:px-0 md:pt-0 md:pb-0"
+      : "fixed bottom-0 left-1/2 z-[90] w-full max-w-2xl -translate-x-1/2 bg-[#050510]/95 px-3 pt-3 pb-[calc(env(safe-area-inset-bottom)+18px)] md:static md:left-auto md:z-auto md:mt-auto md:w-full md:max-w-none md:translate-x-0 md:border-0 md:bg-transparent md:px-0 md:pt-0 md:pb-0"
   } flex w-full min-w-0 max-w-full overflow-x-hidden items-end gap-2 rounded-[28px] border border-white/8 bg-white/[0.038] shadow-[0_16px_34px_rgba(0,0,0,0.18)] backdrop-blur-2xl md:rounded-b-[28px] md:rounded-t-[28px] md:border-x-0 md:border-b-0 md:border-t md:px-4 md:py-4 md:shadow-none`}
 >
 
