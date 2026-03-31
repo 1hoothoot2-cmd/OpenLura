@@ -28,6 +28,38 @@ export default function ChatPage() {
   const [chats, setChats] = useState<any[]>([]);
   const [activeChatId, setActiveChatId] = useState<number | null>(null);
   const [input, setInput] = useState("");
+const [prefillFromMessage, setPrefillFromMessage] = useState<string | null>(null);
+
+const applyComposerInput = (nextContent: string) => {
+  const nextValue = String(nextContent || "").trim();
+
+  if (!nextValue) return;
+
+  setInput(nextValue);
+  setPrefillFromMessage(nextValue);
+  setImage(null);
+
+  if (savePromptSuccess) {
+    setSavePromptSuccess(false);
+  }
+
+  if (savePromptError) {
+    setSavePromptError("");
+  }
+
+  requestAnimationFrame(() => {
+    resizeComposerTextarea();
+    inputRef.current?.focus();
+
+    try {
+      inputRef.current?.setSelectionRange(nextValue.length, nextValue.length);
+    } catch {}
+  });
+};
+
+const handleUseAsInput = (content: string) => {
+  applyComposerInput(content);
+};
 const [savingPrompt, setSavingPrompt] = useState(false);
 const [savePromptSuccess, setSavePromptSuccess] = useState(false);
 const [savePromptError, setSavePromptError] = useState("");
@@ -167,6 +199,7 @@ const [usage, setUsage] = useState<{
   const [initialStateReady, setInitialStateReady] = useState(false);
   const [openChatMenuId, setOpenChatMenuId] = useState<number | null>(null);
   const [openUserMessageMenuKey, setOpenUserMessageMenuKey] = useState<string | null>(null);
+const [openAiMessageMenuKey, setOpenAiMessageMenuKey] = useState<string | null>(null);
 
   const hasBlockingOverlay =
     (mobileMenu &&
@@ -845,14 +878,32 @@ const shouldSkipPersonalStateSync =
       }
     };
 
+    const handleUsePrompt = (event: Event) => {
+      const customEvent = event as CustomEvent<{
+        content?: string;
+        promptId?: string;
+        source?: string;
+        mode?: "replace";
+      }>;
+
+      const nextContent = String(customEvent.detail?.content || "").trim();
+
+      if (!nextContent) return;
+
+      applyComposerInput(nextContent);
+      closeMobileSidebar();
+    };
+
     window.addEventListener("paste", handlePaste);
     window.addEventListener("drop", handleWindowDrop);
     window.addEventListener("dragover", handleWindowDragOver);
+    window.addEventListener("openlura_use_prompt", handleUsePrompt as EventListener);
 
     return () => {
       window.removeEventListener("paste", handlePaste);
       window.removeEventListener("drop", handleWindowDrop);
       window.removeEventListener("dragover", handleWindowDragOver);
+      window.removeEventListener("openlura_use_prompt", handleUsePrompt as EventListener);
     };
   }, []);
 
@@ -952,6 +1003,33 @@ const resizeComposerTextarea = () => {
 
   el.style.height = "0px";
   el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
+};
+
+const handleUseResultAsInput = (
+  content: string,
+  chatId: number | null,
+  msgIndex: number
+) => {
+  const nextValue = String(content || "").trim();
+
+  if (!nextValue) return;
+
+  applyComposerInput(nextValue);
+
+  const keyId = getFeedbackUiKey(chatId, msgIndex);
+
+  setFeedbackUI((prev) => ({
+    ...prev,
+    [keyId]: "Added to input",
+  }));
+
+  window.setTimeout(() => {
+    setFeedbackUI((prev) => {
+      const copy = { ...prev };
+      delete copy[keyId];
+      return copy;
+    });
+  }, 1400);
 };
 
 const tokenizeMessageContent = (content: string) => content.split(/(\s+)/);
@@ -2167,6 +2245,7 @@ IMPORTANT:
 
     setChats(updated);
     setInput("");
+    setPrefillFromMessage(null);
     setImage(null);
     setLoading(true);
 
@@ -3087,6 +3166,35 @@ updated[index].messages[
 
                                     <button
   type="button"
+  onClick={() => {
+    handleUseResultAsInput(
+      String(msg.content || ""),
+      renderedChatId,
+      originalIndex
+    );
+  }}
+  disabled={!String(msg.content || "").trim() || msg.isStreaming}
+  aria-label="Use result as input"
+  title="Use result as input"
+  className={messageActionButtonClass}
+>
+  <svg
+    viewBox="0 0 24 24"
+    className="h-4 w-4"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.9"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M4 12h11" />
+    <path d="M11 5l7 7-7 7" />
+  </svg>
+</button>
+
+<button
+  type="button"
   onClick={async () => {
     try {
       await navigator.clipboard.writeText(
@@ -3284,6 +3392,14 @@ updated[index].messages[
                 </button>
               </div>
             )}
+
+{prefillFromMessage && !image && (
+  <div className="hidden md:flex shrink-0 items-center">
+    <span className="rounded-full border border-[#3b82f6]/18 bg-[#3b82f6]/8 px-3 py-1 text-[11px] text-[#bfdbfe]">
+      Workflow input ready
+    </span>
+  </div>
+)}
 
 <textarea
   ref={inputRef}

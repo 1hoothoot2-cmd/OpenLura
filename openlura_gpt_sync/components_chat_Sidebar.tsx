@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type SidebarChat = {
   id: number;
@@ -8,6 +8,16 @@ type SidebarChat = {
   pinned?: boolean;
   archived?: boolean;
   deleted?: boolean;
+};
+
+type SidebarPrompt = {
+  id: string;
+  name?: string | null;
+  description?: string | null;
+  content?: string | null;
+  tags?: string[] | null;
+  created_at?: string | null;
+  last_used_at?: string | null;
 };
 
 type Props = {
@@ -60,6 +70,80 @@ export default function Sidebar({
   setShowLoginBox
 }: Props) {
   const sidebarRef = useRef<HTMLDivElement | null>(null);
+const [prompts, setPrompts] = useState<SidebarPrompt[]>([]);
+const [loadingPrompts, setLoadingPrompts] = useState(false);
+const [deletingPromptId, setDeletingPromptId] = useState<string | null>(null);
+const [promptActionMessage, setPromptActionMessage] = useState("");
+
+  const getOrCreateOpenLuraUserId = () => {
+    if (typeof window === "undefined") return "";
+
+    const storageKey = "openlura_user_id";
+    const existing = localStorage.getItem(storageKey);
+
+    if (existing?.trim()) {
+      return existing.trim();
+    }
+
+    const newId =
+      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `openlura_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+
+    localStorage.setItem(storageKey, newId);
+    return newId;
+  };
+
+  const getPromptRequestHeaders = () => {
+    const headers: Record<string, string> = {};
+    const userId = getOrCreateOpenLuraUserId();
+
+    if (userId) {
+      headers["x-openlura-user-id"] = userId;
+    }
+
+    return headers;
+  };
+
+  const handleDeletePrompt = async (promptId: string) => {
+    if (!promptId || deletingPromptId) return;
+
+    try {
+      setDeletingPromptId(promptId);
+      setPromptActionMessage("");
+
+      const res = await fetch("/api/prompts", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          ...getPromptRequestHeaders(),
+        },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          id: promptId,
+        }),
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        console.error("OpenLura prompt delete failed:", text);
+        setPromptActionMessage("Failed to delete prompt");
+        return;
+      }
+
+      setPrompts((prev) => prev.filter((prompt) => prompt.id !== promptId));
+      setPromptActionMessage("Prompt deleted");
+
+      window.setTimeout(() => {
+        setPromptActionMessage("");
+      }, 1800);
+    } catch (error) {
+      console.error("OpenLura prompt delete failed:", error);
+      setPromptActionMessage("Failed to delete prompt");
+    } finally {
+      setDeletingPromptId(null);
+    }
+  };
 
   useEffect(() => {
     if (openChatMenuId === null) return;
@@ -99,6 +183,44 @@ export default function Sidebar({
   useEffect(() => {
     setOpenChatMenuId(null);
   }, [activeChatId, setOpenChatMenuId]);
+
+  useEffect(() => {
+    const loadPrompts = async () => {
+      try {
+        setLoadingPrompts(true);
+
+        const res = await fetch("/api/prompts", {
+          method: "GET",
+          headers: getPromptRequestHeaders(),
+          credentials: "same-origin",
+          cache: "no-store",
+        });
+
+        if (!res.ok) {
+          return;
+        }
+
+        const data = await res.json();
+        setPrompts(Array.isArray(data) ? data : []);
+      } catch (error) {
+        console.error("OpenLura prompts load failed:", error);
+      } finally {
+        setLoadingPrompts(false);
+      }
+    };
+
+    loadPrompts();
+
+    const handlePromptRefresh = () => {
+      loadPrompts();
+    };
+
+    window.addEventListener("openlura_prompts_refresh", handlePromptRefresh);
+
+    return () => {
+      window.removeEventListener("openlura_prompts_refresh", handlePromptRefresh);
+    };
+  }, []);
 
   const sidebarActionButtonClass =
     "rounded-full border border-[#3b82f6]/18 bg-[#3b82f6]/8 px-3 py-1 text-xs text-white/68 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/34 hover:bg-[#3b82f6]/12 hover:text-white hover:shadow-[0_6px_14px_rgba(59,130,246,0.12)] active:scale-95";
@@ -334,6 +456,85 @@ export default function Sidebar({
                 <div className={emptyStateClass}>
   No chats found
 </div>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-2.5 flex items-center justify-between px-1.5">
+              <span className="text-[11px] uppercase tracking-[0.18em] text-white/30">
+                Prompts
+              </span>
+              <span className="rounded-full border border-white/8 bg-white/[0.035] px-2 py-0.5 text-[10px] text-white/42">
+                {prompts.length}
+              </span>
+            </div>
+
+            {!!promptActionMessage && (
+              <div className="mb-2 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2 text-[11px] text-white/58">
+                {promptActionMessage}
+              </div>
+            )}
+
+            <div className="space-y-2">
+              {loadingPrompts ? (
+                <div className={emptyStateClass}>
+                  Loading prompts...
+                </div>
+              ) : prompts.length > 0 ? (
+                prompts.map((prompt: SidebarPrompt) => (
+                  <div
+                    key={prompt.id}
+                    className="group rounded-[18px] border border-white/8 bg-white/[0.02] px-3 py-2.5 transition-[background-color,border-color,box-shadow,transform] duration-200 hover:border-white/12 hover:bg-white/[0.045] hover:shadow-[0_8px_16px_rgba(0,0,0,0.10)]"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        window.dispatchEvent(
+                          new CustomEvent("openlura_use_prompt", {
+                            detail: {
+                              content: String(prompt.content || ""),
+                              promptId: prompt.id,
+                            },
+                          })
+                        );
+                        setMobileMenu(false);
+                      }}
+                      className="flex w-full min-w-0 items-start justify-between gap-3 text-left"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium text-white/86 group-hover:text-white">
+                          {prompt.name || "Untitled prompt"}
+                        </div>
+
+                        {!!String(prompt.content || "").trim() && (
+                          <div className="mt-1 line-clamp-1 text-[11px] leading-5 text-white/38 group-hover:text-white/52">
+                            {String(prompt.content || "")}
+                          </div>
+                        )}
+                      </div>
+
+                      <span className="shrink-0 text-[11px] text-white/26 group-hover:text-white/42">
+                        Use
+                      </span>
+                    </button>
+
+                    <div className="mt-2 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => handleDeletePrompt(prompt.id)}
+                        disabled={deletingPromptId === prompt.id}
+                        className="rounded-full border border-red-400/16 bg-transparent px-2.5 py-1 text-[10px] text-red-200/72 transition-[background-color,border-color,color,opacity] duration-200 hover:border-red-400/28 hover:bg-red-500/[0.06] hover:text-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {deletingPromptId === prompt.id ? "Deleting..." : "Delete"}
+                      </button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className={emptyStateClass}>
+                  No saved prompts
+                </div>
               )}
             </div>
           </div>

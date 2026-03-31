@@ -28,6 +28,84 @@ export default function ChatPage() {
   const [chats, setChats] = useState<any[]>([]);
   const [activeChatId, setActiveChatId] = useState<number | null>(null);
   const [input, setInput] = useState("");
+const [savingPrompt, setSavingPrompt] = useState(false);
+const [savePromptSuccess, setSavePromptSuccess] = useState(false);
+const [savePromptError, setSavePromptError] = useState("");
+
+const getLastUserPrompt = () => {
+  const activeChat = chats.find(c => c.id === activeChatId);
+  if (!activeChat) return "";
+
+  const reversed = [...(activeChat.messages || [])].reverse();
+  const lastUserMsg = reversed.find(m => m.role === "user");
+
+  return lastUserMsg?.content || "";
+};
+
+const handleSavePrompt = async (explicitContent?: string) => {
+  const content = explicitContent || input || getLastUserPrompt();
+  if (!content?.trim()) {
+    setSavePromptError("Nothing to save");
+    setSavePromptSuccess(false);
+    return;
+  }
+
+  try {
+    setSavingPrompt(true);
+    setSavePromptSuccess(false);
+    setSavePromptError("");
+
+    const res = await fetch("/api/prompts", {
+      method: "POST",
+      headers: getOpenLuraRequestHeaders(true, {
+        personalEnv: false,
+        includeUserId: true,
+      }),
+      credentials: "same-origin",
+      body: JSON.stringify({
+        name: content.trim().slice(0, 60),
+        description: "",
+        content: content.trim(),
+      }),
+    });
+
+    const responseText = await res.text();
+    let responseJson: any = null;
+
+    try {
+      responseJson = responseText ? JSON.parse(responseText) : null;
+    } catch {
+      responseJson = null;
+    }
+
+    if (!res.ok) {
+      const message =
+        responseJson?.error ||
+        responseJson?.message ||
+        `Save failed (${res.status})`;
+
+      setSavePromptError("Failed to save prompt");
+      console.error("OpenLura prompt save failed:", {
+        status: res.status,
+        body: responseJson || responseText,
+      });
+      return;
+    }
+
+    setSavePromptSuccess(true);
+    setSavePromptError("");
+    setOpenUserMessageMenuKey(null);
+
+    window.setTimeout(() => {
+      setSavePromptSuccess(false);
+    }, 2000);
+  } catch (e) {
+    setSavePromptError("Network error");
+    console.error("Save prompt failed", e);
+  } finally {
+    setSavingPrompt(false);
+  }
+};
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [streamController, setStreamController] = useState<AbortController | null>(null);
@@ -88,6 +166,7 @@ const [usage, setUsage] = useState<{
   const latestActiveChatIdRef = useRef<number | null>(null);
   const [initialStateReady, setInitialStateReady] = useState(false);
   const [openChatMenuId, setOpenChatMenuId] = useState<number | null>(null);
+  const [openUserMessageMenuKey, setOpenUserMessageMenuKey] = useState<string | null>(null);
 
   const hasBlockingOverlay =
     (mobileMenu &&
@@ -457,7 +536,10 @@ const shouldSkipPersonalStateSync =
       try {
         const res = await fetch("/api/personal-state", {
           method: "POST",
-          headers: getScopedRequestHeaders(true, isPersonalRoute),
+          headers: getOpenLuraRequestHeaders(true, {
+  personalEnv: false,
+  includeUserId: true,
+}),
           credentials: "same-origin",
           body: JSON.stringify({
             chats: safeChats,
@@ -490,6 +572,7 @@ const shouldSkipPersonalStateSync =
 
   useEffect(() => {
     setOpenChatMenuId(null);
+    setOpenUserMessageMenuKey(null);
   }, [activeChatId]);
 
   useEffect(() => {
@@ -521,6 +604,11 @@ const shouldSkipPersonalStateSync =
         return;
       }
 
+      if (openUserMessageMenuKey !== null) {
+        setOpenUserMessageMenuKey(null);
+        return;
+      }
+
       if (openChatMenuId !== null) {
         setOpenChatMenuId(null);
         return;
@@ -539,6 +627,7 @@ const shouldSkipPersonalStateSync =
   }, [
     mobileMenu,
     openChatMenuId,
+    openUserMessageMenuKey,
     showLoginBox,
     showFeedbackBox,
     showClearDeletedConfirm,
@@ -1552,7 +1641,10 @@ const restoreDeletedChat = (chatId: number) => {
     try {
       improveRes = await fetch("/api/chat", {
         method: "POST",
-        headers: getScopedRequestHeaders(true, isPersonalRoute),
+        headers: getOpenLuraRequestHeaders(true, {
+  personalEnv: false,
+  includeUserId: true,
+}),
         body: JSON.stringify({
           message: `The user wants you to answer the same question again.
 
@@ -1774,7 +1866,10 @@ Do not mention that this is a new attempt.`,
         try {
           const feedbackRes = await fetch("/api/feedback", {
             method: "POST",
-            headers: getScopedRequestHeaders(true, isPersonalRoute),
+            headers: getOpenLuraRequestHeaders(true, {
+  personalEnv: false,
+  includeUserId: true,
+}),
             body: JSON.stringify({
               chatId: String(currentChatId),
               msgIndex: pendingImprovement?.targetMsgIndex ?? null,
@@ -1816,7 +1911,10 @@ Do not mention that this is a new attempt.`,
       try {
         improveRes = await fetch("/api/chat", {
           method: "POST",
-          headers: getScopedRequestHeaders(true, isPersonalRoute),
+          headers: getOpenLuraRequestHeaders(true, {
+  personalEnv: false,
+  includeUserId: true,
+}),
           body: JSON.stringify({
             message: retryRequest
               ? `The user wants you to answer the same question again.
@@ -2134,7 +2232,10 @@ setChats([...updated]);
       res = await fetch("/api/chat", {
         method: "POST",
         signal: controller.signal,
-        headers: getScopedRequestHeaders(true, isPersonalRoute),
+        headers: getOpenLuraRequestHeaders(true, {
+  personalEnv: false,
+  includeUserId: true,
+}),
         body: JSON.stringify({
           message: inputToSend,
           image: imageToSend,
@@ -2642,12 +2743,12 @@ updated[index].messages[
             />
 
             <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  setShowFeedbackBox(false);
-                  setFeedbackText("");
-                  setFeedbackCategory("adjustment");
-                }}
+  <button
+    onClick={() => {
+      setShowFeedbackBox(false);
+      setFeedbackText("");
+      setFeedbackCategory("adjustment");
+    }}
                 className="flex-1 rounded-[20px] border border-white/8 bg-white/[0.04] p-3 text-white/88 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.99]"
               >
                 Cancel
@@ -2774,14 +2875,67 @@ updated[index].messages[
                     const originalIndex = entry.originalIndex;
 
                     return (
-                      <div
-  key={`${msg.role}-${originalIndex}-${msg.content || ""}`}
-  className={`${messageShellClass} flex-col gap-1.5 md:gap-2 animate-[fadeInUp_0.22s_ease-out] transition-[opacity,transform] duration-200 ${
-    msg.role === "user" ? "items-end" : "items-start"
-  }`}
->
-                        <div
-  className={`${messageBubbleClass} min-w-0 max-w-[90%] md:max-w-[78%] whitespace-pre-line rounded-[24px] px-4 py-3.5 text-[15px] md:px-5 md:py-4 md:text-[16px] transition-[box-shadow,transform,background-color,border-color] duration-200 ${
+  <div
+    key={`${msg.role}-${originalIndex}-${msg.content || ""}`}
+    className={`${messageShellClass} relative flex-col gap-1.5 md:gap-2 animate-[fadeInUp_0.22s_ease-out] transition-[opacity,transform] duration-200 ${
+      msg.role === "user" ? "items-end" : "items-start"
+    }`}
+  >
+    {msg.role === "user" &&
+      !msg.isStreaming &&
+      String(msg.content || "").trim() && (
+        <div className="mb-1 flex w-full max-w-[90%] justify-end md:max-w-[78%]">
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => {
+                const menuKey = `${renderedChatId}-${originalIndex}`;
+                setOpenUserMessageMenuKey(
+                  openUserMessageMenuKey === menuKey ? null : menuKey
+                );
+                setSavePromptSuccess(false);
+                setSavePromptError("");
+              }}
+              aria-label="Open message options"
+              title="Message options"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-white/56 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white active:scale-95"
+            >
+              <span className="translate-y-[-1px] text-[16px] leading-none">⋯</span>
+            </button>
+
+            {openUserMessageMenuKey === `${renderedChatId}-${originalIndex}` && (
+              <div className="absolute right-0 top-9 z-[90] min-w-[190px] overflow-hidden rounded-[16px] border border-white/8 bg-[#0c1120]/96 p-1.5 shadow-[0_18px_40px_rgba(0,0,0,0.28)] backdrop-blur-2xl">
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleSavePrompt(String(msg.content || ""));
+                  }}
+                  disabled={savingPrompt || !String(msg.content || "").trim()}
+                  className="flex w-full items-center justify-between rounded-[12px] px-3 py-2 text-left text-sm text-white/86 ol-interactive transition-[background-color,color] duration-200 hover:bg-white/[0.06] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <span>{savingPrompt ? "Saving..." : "Save as prompt"}</span>
+                  <span className="text-xs text-white/34">↗</span>
+                </button>
+
+                {savePromptSuccess && (
+                  <div className="px-3 pb-1 pt-1 text-xs text-green-400">
+                    Saved
+                  </div>
+                )}
+
+                {!!savePromptError && (
+                  <div className="px-3 pb-1 pt-1 text-xs text-red-400">
+  {savePromptError || "Failed to save prompt"}
+</div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+    <div
+      className={`${messageBubbleClass} min-w-0 max-w-[90%] md:max-w-[78%] whitespace-pre-line rounded-[24px] px-4 py-3.5 text-[15px] md:px-5 md:py-4 md:text-[16px] transition-[box-shadow,transform,background-color,border-color] duration-200 ${
     msg.role === "user"
       ? "ml-auto rounded-[26px] bg-gradient-to-r from-[#1d4ed8] to-[#2563eb] text-white shadow-[0_0_0_1px_rgba(96,165,250,0.14),0_0_28px_rgba(37,99,235,0.20),0_12px_24px_rgba(37,99,235,0.18)]"
       : "border border-white/8 bg-white/[0.045] text-white/90 backdrop-blur-xl shadow-[0_10px_22px_rgba(0,0,0,0.10)]"
@@ -3145,14 +3299,22 @@ updated[index].messages[
         });
 
         messagesRef.current?.scrollTo({
-  top: messagesRef.current.scrollHeight,
-  behavior: "auto",
-});
+          top: messagesRef.current.scrollHeight,
+          behavior: "auto",
+        });
       });
     }
   }}
   onChange={(e) => {
     setInput(e.target.value);
+
+    if (savePromptSuccess) {
+      setSavePromptSuccess(false);
+    }
+
+    if (savePromptError) {
+      setSavePromptError("");
+    }
   }}
   onKeyDown={(e) => {
     const nativeEvent = e.nativeEvent as KeyboardEvent & {
@@ -3175,11 +3337,11 @@ updated[index].messages[
   }}
   className={`${composerInputClass} min-h-[48px] max-h-[140px] flex-1 rounded-2xl bg-transparent px-2 py-2.5 text-[16px] leading-6 text-white/95 outline-none placeholder:text-white/28 focus:bg-white/[0.02] md:px-3`}
   placeholder={activeMessages.length === 0 ? "Ask anything" : "Message OpenLura..."}
-enterKeyHint="send"
+  enterKeyHint="send"
   rows={1}
 />
 
-                           <button
+<button
   type="button"
   disabled={!loading && !input.trim() && !image}
   onClick={loading ? stopStreaming : sendMessage}

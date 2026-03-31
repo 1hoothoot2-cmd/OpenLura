@@ -73,6 +73,7 @@ export default function Sidebar({
 const [prompts, setPrompts] = useState<SidebarPrompt[]>([]);
 const [loadingPrompts, setLoadingPrompts] = useState(false);
 const [deletingPromptId, setDeletingPromptId] = useState<string | null>(null);
+const [usingPromptId, setUsingPromptId] = useState<string | null>(null);
 const [promptActionMessage, setPromptActionMessage] = useState("");
 
   const getOrCreateOpenLuraUserId = () => {
@@ -104,6 +105,9 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
 
     return headers;
   };
+
+  const hasPromptContent = (prompt: SidebarPrompt) =>
+    !!String(prompt.content || "").trim();
 
   const handleDeletePrompt = async (promptId: string) => {
     if (!promptId || deletingPromptId) return;
@@ -143,6 +147,42 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
     } finally {
       setDeletingPromptId(null);
     }
+  };
+
+  const handleUsePrompt = (prompt: SidebarPrompt) => {
+    if (usingPromptId) return;
+
+    const content = String(prompt.content || "").trim();
+
+    if (!content) {
+      setPromptActionMessage("Prompt is empty");
+      window.setTimeout(() => {
+        setPromptActionMessage("");
+      }, 1800);
+      return;
+    }
+
+    setUsingPromptId(prompt.id);
+    setPromptActionMessage("");
+
+    window.dispatchEvent(
+      new CustomEvent("openlura_use_prompt", {
+        detail: {
+          content,
+          promptId: prompt.id,
+          source: "sidebar_prompt",
+          mode: "replace",
+        },
+      })
+    );
+
+    setPromptActionMessage("Prompt added to input");
+    setMobileMenu(false);
+
+    window.setTimeout(() => {
+      setUsingPromptId((current) => (current === prompt.id ? null : current));
+      setPromptActionMessage("");
+    }, 1600);
   };
 
   useEffect(() => {
@@ -489,18 +529,9 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
                   >
                     <button
                       type="button"
-                      onClick={() => {
-                        window.dispatchEvent(
-                          new CustomEvent("openlura_use_prompt", {
-                            detail: {
-                              content: String(prompt.content || ""),
-                              promptId: prompt.id,
-                            },
-                          })
-                        );
-                        setMobileMenu(false);
-                      }}
-                      className="flex w-full min-w-0 items-start justify-between gap-3 text-left"
+                      onClick={() => handleUsePrompt(prompt)}
+                      disabled={!hasPromptContent(prompt) || usingPromptId === prompt.id}
+                      className="flex w-full min-w-0 items-start justify-between gap-3 text-left disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-sm font-medium text-white/86 group-hover:text-white">
@@ -515,7 +546,11 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
                       </div>
 
                       <span className="shrink-0 text-[11px] text-white/26 group-hover:text-white/42">
-                        Use
+                        {usingPromptId === prompt.id
+                          ? "Added"
+                          : hasPromptContent(prompt)
+                          ? "Use in chat"
+                          : "Empty"}
                       </span>
                     </button>
 
