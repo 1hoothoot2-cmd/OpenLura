@@ -2658,62 +2658,6 @@ updated[index].messages[
       <div className="flex min-w-0 flex-1 items-stretch justify-start pt-0 md:h-screen md:p-4">
         <div className="mx-auto flex h-full w-full min-w-0 max-w-2xl flex-col border border-white/8 bg-white/[0.042] shadow-[0_20px_56px_rgba(0,0,0,0.20)] backdrop-blur-2xl md:min-h-0 md:rounded-[28px] xl:max-w-[920px]">
 
-          <div className="flex items-center justify-between gap-3 border-b border-white/8 px-4 py-3 md:px-6">
-            <div className="flex min-w-0 items-center gap-3">
-              <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-[#3b82f6]/18 bg-[radial-gradient(circle_at_30%_30%,rgba(96,165,250,0.22),rgba(29,78,216,0.08)_52%,transparent_78%)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03),0_10px_22px_rgba(29,78,216,0.14)]">
-                <svg
-                  viewBox="0 0 48 48"
-                  className="h-6 w-6"
-                  fill="none"
-                  aria-hidden="true"
-                >
-                  <defs>
-                    <linearGradient id="openluraChatLogo" x1="8" y1="8" x2="40" y2="40" gradientUnits="userSpaceOnUse">
-                      <stop stopColor="#60a5fa" />
-                      <stop offset="1" stopColor="#1d4ed8" />
-                    </linearGradient>
-                  </defs>
-                  <circle
-                    cx="24"
-                    cy="24"
-                    r="17"
-                    stroke="url(#openluraChatLogo)"
-                    strokeWidth="3"
-                  />
-                  <path
-                    d="M17.5 24.5c0-4.6 2.9-7.6 7.4-7.6 3.8 0 6.2 2.1 6.2 5.4 0 3.3-2.2 5.4-5.7 5.4h-4.2"
-                    stroke="url(#openluraChatLogo)"
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                  <path
-                    d="M22.2 24.7v.1c0 4.1 2.1 6.3 5.8 6.3 2.5 0 4.7-1 6.3-3.1"
-                    stroke="url(#openluraChatLogo)"
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </div>
-
-              <div className="min-w-0">
-                <div className="text-sm font-semibold tracking-[-0.02em] text-white/94">
-                  OpenLura
-                </div>
-                <div className="text-[10px] uppercase tracking-[0.18em] text-white/32">
-                  Adaptive AI workspace
-                </div>
-              </div>
-            </div>
-
-            <div className="hidden items-center gap-2 md:flex">
-              <span className="rounded-full border border-[#3b82f6]/16 bg-[#3b82f6]/8 px-3 py-1 text-[11px] font-medium text-[#bfdbfe]">
-                Chat
-              </span>
-            </div>
-          </div>
-
           {usage && usage.percentage >= 0.8 && !upgradeNotice.visible && (
             <div className="mx-4 mt-4 rounded-[24px] border border-yellow-300/12 bg-yellow-500/[0.065] px-4 py-3 text-sm text-yellow-100 shadow-[0_10px_22px_rgba(0,0,0,0.10)] backdrop-blur-xl">
               <div className="font-medium">
@@ -2738,8 +2682,8 @@ updated[index].messages[
   ref={messagesRef}
   className={`${messageShellClass} flex-1 min-h-0 w-full overflow-x-hidden overflow-y-auto pb-[260px] md:pb-6 ${
   activeMessages.length
-    ? "flex-col gap-6 px-4 pt-6 md:gap-7 md:px-6 md:pt-6"
-    : "items-center justify-center p-4 pt-6 md:px-6 md:pt-6"
+    ? "flex-col gap-6 px-4 pt-20 md:gap-7 md:px-6 md:pt-6"
+    : "items-center justify-center p-4 pt-20 md:px-6 md:pt-6"
 }`}
 >
                         {activeMessages.length === 0 ? (
