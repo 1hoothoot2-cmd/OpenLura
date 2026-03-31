@@ -23,14 +23,34 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+
+  line-height: 1.5;
+  letter-spacing: -0.01em;
 }
 
 :root {
   --ol-ease-out-premium: cubic-bezier(0.22, 1, 0.36, 1);
   --ol-ease-soft: cubic-bezier(0.25, 0.8, 0.25, 1);
+
   --ol-dur-fast: 140ms;
   --ol-dur-med: 200ms;
   --ol-dur-slow: 280ms;
+
+  /* ✅ spacing scale */
+  --ol-space-xs: 4px;
+  --ol-space-sm: 8px;
+  --ol-space-md: 12px;
+  --ol-space-lg: 16px;
+  --ol-space-xl: 24px;
+
+  /* ✅ radius system */
+  --ol-radius-sm: 10px;
+  --ol-radius-md: 16px;
+  --ol-radius-lg: 22px;
+
+  /* ✅ surface */
+  --ol-surface-bg: rgba(255,255,255,0.04);
+  --ol-surface-border: rgba(255,255,255,0.08);
 }
 
 .ol-interactive {
@@ -44,7 +64,27 @@ body {
     filter var(--ol-dur-med) var(--ol-ease-soft);
 }
 
+/* ✅ unified button feel */
+.ol-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  height: 44px;
+  padding: 0 var(--ol-space-lg);
+
+  border-radius: var(--ol-radius-md);
+  font-size: 14px;
+  font-weight: 500;
+
+  backdrop-filter: blur(10px);
+}
+
 .ol-surface {
+  background: var(--ol-surface-bg);
+  border: 1px solid var(--ol-surface-border);
+  border-radius: var(--ol-radius-lg);
+
   transition:
     background-color var(--ol-dur-med) var(--ol-ease-soft),
     border-color var(--ol-dur-med) var(--ol-ease-soft),
