@@ -134,7 +134,7 @@ export default function Sidebar({
           activateChat(chat.id);
           setMobileMenu(false);
         }}
-        className={`relative w-full rounded-[22px] py-3.5 pl-4 pr-12 text-left text-sm transition-colors duration-200 focus-visible:outline-none ${
+        className={`relative w-full rounded-[22px] py-4 pl-4 pr-12 text-left text-sm transition-colors duration-200 focus-visible:outline-none ${
           isActive
             ? "text-white"
             : isPinned
@@ -159,7 +159,7 @@ export default function Sidebar({
                   ? "font-semibold tracking-[-0.01em] text-white"
                   : isPinned
                   ? "font-medium text-white/92"
-                  : "font-normal text-white/72"
+                  : "font-normal text-white/78"
               }`}
             >
               {chat.title || "New Chat"}
@@ -176,7 +176,7 @@ export default function Sidebar({
           e.stopPropagation();
           setOpenChatMenuId(isMenuOpen ? null : chat.id);
         }}
-        className={`absolute right-2.5 top-2.5 flex h-8 w-8 items-center justify-center rounded-xl border transition-[transform,opacity,background-color,border-color,color,box-shadow] duration-200 focus-visible:outline-none active:scale-95 ${
+        className={`absolute right-2.5 top-2.5 flex h-8 w-8 items-center justify-center rounded-xl border transition-[transform,opacity,background-color,border-color,color,box-shadow] duration-200 focus-visible:outline-none active:scale-95 touch-manipulation ${
           isMenuOpen
             ? "border-white/12 bg-white/[0.09] text-white opacity-100 shadow-[0_8px_18px_rgba(0,0,0,0.18)]"
             : "border-transparent bg-transparent text-white/40 opacity-100 md:opacity-0 md:scale-95 group-hover:opacity-100 group-hover:scale-100 group-focus-within:opacity-100 group-focus-within:scale-100 hover:border-white/[0.08] hover:bg-white/[0.06] hover:text-white/88"
@@ -273,14 +273,14 @@ export default function Sidebar({
           </button>
 
           <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search chats..."
-            className="rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2.5 text-sm text-white/88 outline-none placeholder:text-white/28 ol-surface transition-[border-color,background-color,box-shadow] duration-200 focus:border-[#60a5fa]/28 focus:bg-white/[0.06] focus:shadow-[inset_0_0_0_1px_rgba(96,165,250,0.08)]"
-          />
+  value={search}
+  onChange={(e) => setSearch(e.target.value)}
+  placeholder="Search chats..."
+  className="w-full rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2.5 text-sm text-white/88 outline-none placeholder:text-white/28 ol-surface transition-[border-color,background-color,box-shadow] duration-200 focus:border-[#60a5fa]/28 focus:bg-white/[0.06] focus:shadow-[inset_0_0_0_1px_rgba(96,165,250,0.08)]"
+/>
         </div>
 
-        <div className="mt-1 min-h-0 flex-1 space-y-6 overflow-x-visible overflow-y-auto pr-1 pb-4 pt-1">
+        <div className="mt-1 min-h-0 flex-1 space-y-7 overflow-x-visible overflow-y-auto pr-1 pb-4 pt-2">
           {searchedPinnedChats.length > 0 && (
             <div>
               <div className="mb-3.5 flex items-center justify-between px-1.5">
@@ -306,13 +306,13 @@ export default function Sidebar({
                 {regularChats.length}
               </span>
             </div>
-            <div className="space-y-3 overflow-visible">
+            <div className="space-y-3.5 overflow-visible">
               {regularChats.length > 0 ? (
                 regularChats.map((chat: SidebarChat) => renderChatRow(chat, false))
               ) : (
-                <div className="rounded-2xl border border-white/8 bg-white/[0.022] px-3 py-2.5 text-sm text-white/32">
-                  No chats found
-                </div>
+                <div className="rounded-2xl border border-dashed border-white/8 bg-white/[0.022] px-3 py-3 text-sm text-white/36">
+  No chats found
+</div>
               )}
             </div>
           </div>
@@ -351,9 +351,9 @@ export default function Sidebar({
                   </div>
                 ))
               ) : (
-                <div className="rounded-2xl border border-white/8 bg-white/[0.022] px-3 py-2.5 text-sm text-white/32">
-                  No archived chats
-                </div>
+                <div className="rounded-2xl border border-dashed border-white/8 bg-white/[0.022] px-3 py-3 text-sm text-white/36">
+  No chats found
+</div>
               )}
             </div>
           </div>
@@ -407,15 +407,15 @@ export default function Sidebar({
                   </div>
                 ))
               ) : (
-                <div className="rounded-2xl border border-white/8 bg-white/[0.022] px-3 py-2.5 text-sm text-white/32">
-                  No deleted chats
-                </div>
+                <div className="rounded-2xl border border-dashed border-white/8 bg-white/[0.022] px-3 py-3 text-sm text-white/36">
+  No deleted chats
+</div>
               )}
             </div>
           </div>
         </div>
 
-        <div className="mt-5 shrink-0 space-y-2.5 border-t border-white/8 pt-4.5 pb-[max(env(safe-area-inset-bottom),2px)]">
+        <div className="mt-5 shrink-0 space-y-2.5 border-t border-white/8 pt-5 pb-[max(env(safe-area-inset-bottom),2px)]">
           <button
             type="button"
             onClick={() => {
