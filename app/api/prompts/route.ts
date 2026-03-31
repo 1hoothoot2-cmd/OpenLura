@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -321,8 +322,8 @@ export async function POST(req: Request) {
     });
 
     if (!insertResult.ok) {
-      return internalErrorResponse("Prompt opslaan mislukt");
-    }
+  return internalErrorResponse("Failed to save prompt");
+}
 
     return NextResponse.json(
       {
@@ -335,9 +336,9 @@ export async function POST(req: Request) {
       }
     );
   } catch (error) {
-    logSafeError("OpenLura prompts POST failed", error);
-    return internalErrorResponse("Prompt opslaan mislukt");
-  }
+  logSafeError("OpenLura prompts POST failed", error);
+  return internalErrorResponse("Failed to save prompt");
+}
 }
 
 export async function GET(req: Request) {
@@ -357,14 +358,14 @@ export async function GET(req: Request) {
     });
 
     if (!result.ok) {
-      return internalErrorResponse("Prompts ophalen mislukt");
-    }
+  return internalErrorResponse("Failed to fetch prompts");
+}
 
     return NextResponse.json(result.data, {
       headers: NO_STORE_HEADERS,
     });
   } catch (error) {
-    logSafeError("OpenLura prompts GET failed", error);
-    return internalErrorResponse("Prompts ophalen mislukt");
-  }
+  logSafeError("OpenLura prompts GET failed", error);
+  return internalErrorResponse("Failed to fetch prompts");
+}
 }
