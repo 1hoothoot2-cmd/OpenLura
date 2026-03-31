@@ -1495,6 +1495,183 @@ const restoreDeletedChat = (chatId: number) => {
     return resolveFeedbackTargetContext(messages, lastAiIndex);
   };
 
+  const resendAiAnswer = async (chatId: number, msgIndex: number) => {
+    if (loading) return;
+
+    const chat = chats.find((c) => c.id === chatId);
+    if (!chat) return;
+
+    const resolvedTarget = resolveFeedbackTargetContext(chat.messages || [], msgIndex);
+    const originalUserMessage = resolvedTarget.originalUserMessage || "";
+    const originalAiMessage = resolvedTarget.originalAiMessage || "";
+
+    if (!originalUserMessage.trim()) {
+      return;
+    }
+
+    let updated = [...chats];
+    const index = updated.findIndex((c) => c.id === chatId);
+
+    if (index === -1) {
+      return;
+    }
+
+    closeMobileSidebar();
+    setLoading(true);
+
+    updated[index].messages.push({
+      role: "ai",
+      content: "…",
+      isStreaming: true,
+    });
+
+    setChats([...updated]);
+
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => resolve());
+    });
+
+    let improveRes: Response;
+
+    try {
+      improveRes = await fetch("/api/chat", {
+        method: "POST",
+        headers: getScopedRequestHeaders(true, isPersonalRoute),
+        body: JSON.stringify({
+          message: `The user wants you to answer the same question again.
+
+Original question:
+${originalUserMessage}
+
+Your previous incomplete or rejected answer:
+${originalAiMessage}
+
+Now give a complete, good answer to the original question.
+Do not mention that this is a new attempt.`,
+          memory: memory
+            .filter((m) => m.weight > 0.6)
+            .map((m) => m.text)
+            .join(" | "),
+          feedback: {
+            likes: 0,
+            dislikes: 0,
+            issues: [],
+            recentIssues: [originalUserMessage],
+          },
+        }),
+      });
+    } catch (error) {
+      console.error("OpenLura resend request failed:", error);
+      updated[index].messages[updated[index].messages.length - 1] = {
+        ...updated[index].messages[updated[index].messages.length - 1],
+        content: "OpenLura could not fetch a better retry right now. Please try again.",
+        isStreaming: false,
+      };
+      setChats([...updated]);
+      setLoading(false);
+      setStreamController(null);
+      return;
+    }
+
+    if (improveRes.status === 429) {
+      const limitMessage = await getUsageLimitMessage(improveRes);
+      const usageTier = improveRes.headers.get("X-OpenLura-Usage-Tier") || "free";
+
+      setUpgradeNotice({
+        visible: true,
+        message: limitMessage,
+        tier: usageTier,
+      });
+
+      updated[index].messages[updated[index].messages.length - 1] = {
+        ...updated[index].messages[updated[index].messages.length - 1],
+        content: limitMessage,
+        isStreaming: false,
+        disableFeedback: true,
+      };
+      setChats([...updated]);
+      setLoading(false);
+      setStreamController(null);
+      return;
+    }
+
+    if (!improveRes.ok || !improveRes.body) {
+      updated[index].messages[updated[index].messages.length - 1] = {
+        ...updated[index].messages[updated[index].messages.length - 1],
+        content: "OpenLura kon nu geen nieuwe poging ophalen. Probeer het opnieuw.",
+        isStreaming: false,
+      };
+      setChats([...updated]);
+      setLoading(false);
+      setStreamController(null);
+      return;
+    }
+
+    const improveReader = improveRes.body.getReader();
+    const improveDecoder = new TextDecoder();
+    const improveVariant = improveRes.headers.get("X-OpenLura-Variant") || "unknown";
+    const improveSourcesHeader = improveRes.headers.get("X-OpenLura-Sources");
+    let improveSources: any[] = [];
+
+    try {
+      improveSources = improveSourcesHeader
+        ? JSON.parse(decodeURIComponent(improveSourcesHeader))
+        : [];
+    } catch {
+      improveSources = [];
+    }
+
+    updated[index].messages[updated[index].messages.length - 1] = {
+      ...updated[index].messages[updated[index].messages.length - 1],
+      variant: improveVariant,
+      sources: improveSources,
+    };
+
+    setChats([...updated]);
+
+    let improvedText = "";
+
+    try {
+      while (true) {
+        const { done, value } = await improveReader.read();
+        if (done) break;
+
+        let chunk = improveDecoder.decode(value);
+
+        chunk = chunk
+          .replace(/\(blank line\)/gi, "")
+          .replace(/\n{3,}/g, "\n\n")
+          .replace(/\n\s*\n/g, "\n\n");
+
+        improvedText += chunk;
+
+        updated[index].messages[updated[index].messages.length - 1] = {
+          ...updated[index].messages[updated[index].messages.length - 1],
+          content: improvedText || "…",
+          isStreaming: !improvedText.trim(),
+        };
+
+        setChats([...updated]);
+      }
+    } catch (error: any) {
+      if (error?.name !== "AbortError") {
+        console.error("OpenLura resend stream failed:", error);
+      }
+    }
+
+    updated[index].messages[updated[index].messages.length - 1] = {
+      ...updated[index].messages[updated[index].messages.length - 1],
+      content: improvedText.trim()
+        ? improvedText
+        : "OpenLura could not generate a better retry right now. Please try again.",
+      isStreaming: false,
+    };
+
+    setChats([...updated]);
+    setLoading(false);
+    setStreamController(null);
+  };
+
   const sendMessage = async () => {
     if (!input.trim() && !image) return;
 
@@ -2641,7 +2818,7 @@ updated[index].messages[
                           msg.content !== "🤖 What can I improve?" &&
                           msg.content !== "🤖 Thanks for your feedback. I’ll use this to improve future answers." && (
                             <>
-                              <div className="mt-3 flex w-full max-w-[88%] flex-wrap items-center gap-2 pl-1 md:max-w-[78%] md:pl-2">
+                              <div className="mt-3 flex w-full max-w-[88%] flex-wrap items-center gap-2 px-1 md:max-w-[78%] md:px-2">
                                 {!feedbackGiven[
                                   getFeedbackUiKey(renderedChatId, originalIndex)
                                 ] && (
@@ -2709,72 +2886,78 @@ updated[index].messages[
                                     </button>
 
                                     <button
-                                      type="button"
-                                      onClick={async () => {
-                                        try {
-                                          await navigator.clipboard.writeText(
-                                            String(msg.content || "")
-                                          );
+  type="button"
+  onClick={async () => {
+    try {
+      await navigator.clipboard.writeText(
+        String(msg.content || "")
+      );
 
-                                          const keyId = getFeedbackUiKey(
-                                            renderedChatId,
-                                            originalIndex
-                                          );
+      const keyId = getFeedbackUiKey(
+        renderedChatId,
+        originalIndex
+      );
 
-                                          setFeedbackUI((prev) => ({
-                                            ...prev,
-                                            [keyId]: "Copied"
-                                          }));
+      setFeedbackUI((prev) => ({
+        ...prev,
+        [keyId]: "Copied"
+      }));
 
-                                          setTimeout(() => {
-                                            setFeedbackUI((prev) => {
-                                              const copy = { ...prev };
-                                              delete copy[keyId];
-                                              return copy;
-                                            });
-                                          }, 1400);
-                                        } catch (error) {
-                                          console.error("OpenLura copy failed:", error);
-                                        }
-                                      }}
-                                      aria-label="Copy answer"
-                                      title="Copy answer"
-                                      className="inline-flex h-9 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] px-3 text-xs text-white/66 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/28 hover:bg-[#3b82f6]/8 hover:text-white hover:shadow-[0_8px_18px_rgba(59,130,246,0.12)] active:scale-95"
-                                    >
-                                      Copy
-                                    </button>
+      setTimeout(() => {
+        setFeedbackUI((prev) => {
+          const copy = { ...prev };
+          delete copy[keyId];
+          return copy;
+        });
+      }, 1400);
+    } catch (error) {
+      console.error("OpenLura copy failed:", error);
+    }
+  }}
+  aria-label="Copy answer"
+  title="Copy answer"
+  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-white/66 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/28 hover:bg-[#3b82f6]/8 hover:text-white hover:shadow-[0_8px_18px_rgba(59,130,246,0.12)] active:scale-95"
+>
+  <svg
+    viewBox="0 0 24 24"
+    className="h-4 w-4"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.9"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <rect x="9" y="9" width="11" height="11" rx="2" />
+    <rect x="4" y="4" width="11" height="11" rx="2" />
+  </svg>
+</button>
 
                                     <button
-                                      type="button"
-                                      onClick={() => {
-                                        const resolvedTarget = resolveFeedbackTargetContext(
-                                          activeMessages,
-                                          originalIndex
-                                        );
-
-                                        setAwaitingImprovement((prev) => ({
-                                          ...prev,
-                                          [renderedChatId]: {
-                                            targetMsgIndex: resolvedTarget.targetMsgIndex,
-                                            originalUserMessage:
-                                              resolvedTarget.originalUserMessage,
-                                            originalAiMessage:
-                                              resolvedTarget.originalAiMessage,
-                                          }
-                                        }));
-
-                                        setInput("retry");
-
-                                        requestAnimationFrame(() => {
-                                          inputRef.current?.focus();
-                                        });
-                                      }}
-                                      aria-label="Resend answer"
-                                      title="Resend answer"
-                                      className="inline-flex h-9 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] px-3 text-xs text-white/66 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/28 hover:bg-[#3b82f6]/8 hover:text-white hover:shadow-[0_8px_18px_rgba(59,130,246,0.12)] active:scale-95"
-                                    >
-                                      Resend
-                                    </button>
+  type="button"
+  onClick={() => {
+    if (renderedChatId !== null) {
+      resendAiAnswer(renderedChatId, originalIndex);
+    }
+  }}
+  aria-label="Resend answer"
+  title="Resend answer"
+  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-white/66 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/28 hover:bg-[#3b82f6]/8 hover:text-white hover:shadow-[0_8px_18px_rgba(59,130,246,0.12)] active:scale-95"
+>
+  <svg
+    viewBox="0 0 24 24"
+    className="h-4 w-4"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.9"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M21 12a9 9 0 1 1-3-6.7" />
+    <path d="M21 3v6h-6" />
+  </svg>
+</button>
                                   </>
                                 )}
 
@@ -2795,7 +2978,7 @@ updated[index].messages[
                               </div>
 
                 {Array.isArray(msg.sources) && msg.sources.length > 0 && (
-          <div className="mt-4 w-full max-w-[88%] space-y-2 md:max-w-[78%]">
+          <div className="mt-4 w-full max-w-[88%] space-y-2 px-1 md:max-w-[78%] md:px-2">
             <div className="flex items-center gap-2 px-0.5">
               <span className="text-[12px] text-white/30">🔎</span>
               <p className="text-[11px] uppercase tracking-[0.18em] text-white/32">

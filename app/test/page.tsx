@@ -754,9 +754,9 @@ const shouldSkipPersonalStateSync =
   }, []);
 
 const messageShellClass =
-  "w-full min-w-0 max-w-full overflow-hidden";
+  "flex w-full min-w-0 max-w-full overflow-hidden";
 const messageBubbleClass =
-  "min-w-0 max-w-full overflow-hidden break-words [overflow-wrap:anywhere] break-all";
+  "min-w-0 max-w-full overflow-hidden break-words [overflow-wrap:anywhere] leading-7 break-words";
 const composerInputClass =
   "w-full min-w-0 max-w-full resize-none overflow-x-hidden break-words [overflow-wrap:anywhere]";
 
@@ -1493,6 +1493,183 @@ const restoreDeletedChat = (chatId: number) => {
     }
 
     return resolveFeedbackTargetContext(messages, lastAiIndex);
+  };
+
+  const resendAiAnswer = async (chatId: number, msgIndex: number) => {
+    if (loading) return;
+
+    const chat = chats.find((c) => c.id === chatId);
+    if (!chat) return;
+
+    const resolvedTarget = resolveFeedbackTargetContext(chat.messages || [], msgIndex);
+    const originalUserMessage = resolvedTarget.originalUserMessage || "";
+    const originalAiMessage = resolvedTarget.originalAiMessage || "";
+
+    if (!originalUserMessage.trim()) {
+      return;
+    }
+
+    let updated = [...chats];
+    const index = updated.findIndex((c) => c.id === chatId);
+
+    if (index === -1) {
+      return;
+    }
+
+    closeMobileSidebar();
+    setLoading(true);
+
+    updated[index].messages.push({
+      role: "ai",
+      content: "…",
+      isStreaming: true,
+    });
+
+    setChats([...updated]);
+
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => resolve());
+    });
+
+    let improveRes: Response;
+
+    try {
+      improveRes = await fetch("/api/chat", {
+        method: "POST",
+        headers: getScopedRequestHeaders(true, isPersonalRoute),
+        body: JSON.stringify({
+          message: `The user wants you to answer the same question again.
+
+Original question:
+${originalUserMessage}
+
+Your previous incomplete or rejected answer:
+${originalAiMessage}
+
+Now give a complete, good answer to the original question.
+Do not mention that this is a new attempt.`,
+          memory: memory
+            .filter((m) => m.weight > 0.6)
+            .map((m) => m.text)
+            .join(" | "),
+          feedback: {
+            likes: 0,
+            dislikes: 0,
+            issues: [],
+            recentIssues: [originalUserMessage],
+          },
+        }),
+      });
+    } catch (error) {
+      console.error("OpenLura resend request failed:", error);
+      updated[index].messages[updated[index].messages.length - 1] = {
+        ...updated[index].messages[updated[index].messages.length - 1],
+        content: "OpenLura could not fetch a better retry right now. Please try again.",
+        isStreaming: false,
+      };
+      setChats([...updated]);
+      setLoading(false);
+      setStreamController(null);
+      return;
+    }
+
+    if (improveRes.status === 429) {
+      const limitMessage = await getUsageLimitMessage(improveRes);
+      const usageTier = improveRes.headers.get("X-OpenLura-Usage-Tier") || "free";
+
+      setUpgradeNotice({
+        visible: true,
+        message: limitMessage,
+        tier: usageTier,
+      });
+
+      updated[index].messages[updated[index].messages.length - 1] = {
+        ...updated[index].messages[updated[index].messages.length - 1],
+        content: limitMessage,
+        isStreaming: false,
+        disableFeedback: true,
+      };
+      setChats([...updated]);
+      setLoading(false);
+      setStreamController(null);
+      return;
+    }
+
+    if (!improveRes.ok || !improveRes.body) {
+      updated[index].messages[updated[index].messages.length - 1] = {
+        ...updated[index].messages[updated[index].messages.length - 1],
+        content: "OpenLura kon nu geen nieuwe poging ophalen. Probeer het opnieuw.",
+        isStreaming: false,
+      };
+      setChats([...updated]);
+      setLoading(false);
+      setStreamController(null);
+      return;
+    }
+
+    const improveReader = improveRes.body.getReader();
+    const improveDecoder = new TextDecoder();
+    const improveVariant = improveRes.headers.get("X-OpenLura-Variant") || "unknown";
+    const improveSourcesHeader = improveRes.headers.get("X-OpenLura-Sources");
+    let improveSources: any[] = [];
+
+    try {
+      improveSources = improveSourcesHeader
+        ? JSON.parse(decodeURIComponent(improveSourcesHeader))
+        : [];
+    } catch {
+      improveSources = [];
+    }
+
+    updated[index].messages[updated[index].messages.length - 1] = {
+      ...updated[index].messages[updated[index].messages.length - 1],
+      variant: improveVariant,
+      sources: improveSources,
+    };
+
+    setChats([...updated]);
+
+    let improvedText = "";
+
+    try {
+      while (true) {
+        const { done, value } = await improveReader.read();
+        if (done) break;
+
+        let chunk = improveDecoder.decode(value);
+
+        chunk = chunk
+          .replace(/\(blank line\)/gi, "")
+          .replace(/\n{3,}/g, "\n\n")
+          .replace(/\n\s*\n/g, "\n\n");
+
+        improvedText += chunk;
+
+        updated[index].messages[updated[index].messages.length - 1] = {
+          ...updated[index].messages[updated[index].messages.length - 1],
+          content: improvedText || "…",
+          isStreaming: !improvedText.trim(),
+        };
+
+        setChats([...updated]);
+      }
+    } catch (error: any) {
+      if (error?.name !== "AbortError") {
+        console.error("OpenLura resend stream failed:", error);
+      }
+    }
+
+    updated[index].messages[updated[index].messages.length - 1] = {
+      ...updated[index].messages[updated[index].messages.length - 1],
+      content: improvedText.trim()
+        ? improvedText
+        : "OpenLura could not generate a better retry right now. Please try again.",
+      isStreaming: false,
+    };
+
+    setChats([...updated]);
+    setLoading(false);
+    setStreamController(null);
   };
 
   const sendMessage = async () => {
@@ -2477,7 +2654,7 @@ updated[index].messages[
       )}
 
       <div className="flex min-w-0 flex-1 items-stretch justify-start pt-0 md:h-screen md:p-4">
-        <div className="mr-auto flex h-full w-full min-w-0 max-w-2xl flex-col border border-white/8 bg-white/[0.042] shadow-[0_20px_56px_rgba(0,0,0,0.20)] backdrop-blur-2xl md:ml-4 md:min-h-0 md:rounded-[28px] xl:ml-6 xl:max-w-[920px]">
+        <div className="mx-auto flex h-full w-full min-w-0 max-w-2xl flex-col border border-white/8 bg-white/[0.042] shadow-[0_20px_56px_rgba(0,0,0,0.20)] backdrop-blur-2xl md:min-h-0 md:rounded-[28px] xl:max-w-[920px]">
 
           {usage && usage.percentage >= 0.8 && !upgradeNotice.visible && (
             <div className="mx-4 mt-4 rounded-[24px] border border-yellow-300/12 bg-yellow-500/[0.065] px-4 py-3 text-sm text-yellow-100 shadow-[0_10px_22px_rgba(0,0,0,0.10)] backdrop-blur-xl">
@@ -2502,7 +2679,7 @@ updated[index].messages[
           <div
   ref={messagesRef}
   className={`${messageShellClass} flex-1 min-h-0 w-full overflow-x-hidden overflow-y-auto pb-[188px] md:pb-6 ${
-    activeMessages.length ? "space-y-4 p-4 pt-20 md:px-6 md:pt-6" : "flex items-center justify-center p-4 pt-20 md:px-6 md:pt-6"
+    activeMessages.length ? "flex-col gap-5 p-4 pt-20 md:px-6 md:pt-6" : "items-center justify-center p-4 pt-20 md:px-6 md:pt-6"
   }`}
 >
                         {activeMessages.length === 0 ? (
@@ -2552,18 +2729,18 @@ updated[index].messages[
 
                     return (
                       <div
-                        key={`${msg.role}-${originalIndex}-${msg.content || ""}`}
-                        className={`${messageShellClass} animate-[fadeInUp_0.22s_ease-out] transition-[opacity,transform] duration-200 ${
-                          msg.role === "user" ? "mb-2" : "mb-4"
-                        }`}
-                      >
-                                                <div
-                          className={`${messageBubbleClass} min-w-0 max-w-[78%] overflow-hidden whitespace-pre-line rounded-[24px] px-4 py-3.5 transition-[box-shadow,transform,background-color,border-color] duration-200 ${
-                            msg.role === "user"
-                              ? "ml-auto bg-gradient-to-r from-[#1d4ed8] to-[#2563eb] text-white shadow-[0_12px_24px_rgba(37,99,235,0.20)]"
-                              : "border border-white/8 bg-white/[0.042] text-white/90 backdrop-blur-xl shadow-[0_10px_22px_rgba(0,0,0,0.10)]"
-                          }`}
-                        >
+  key={`${msg.role}-${originalIndex}-${msg.content || ""}`}
+  className={`${messageShellClass} flex-col animate-[fadeInUp_0.22s_ease-out] transition-[opacity,transform] duration-200 ${
+    msg.role === "user" ? "items-end" : "items-start"
+  }`}
+>
+                        <div
+  className={`${messageBubbleClass} min-w-0 max-w-[88%] md:max-w-[78%] overflow-hidden whitespace-pre-line rounded-[24px] px-4 py-3.5 text-[15px] md:text-[16px] transition-[box-shadow,transform,background-color,border-color] duration-200 ${
+    msg.role === "user"
+      ? "ml-auto bg-gradient-to-r from-[#1d4ed8] to-[#2563eb] text-white shadow-[0_10px_20px_rgba(37,99,235,0.16)]"
+      : "border border-white/8 bg-white/[0.05] text-white/92 backdrop-blur-xl shadow-[0_10px_22px_rgba(0,0,0,0.10)]"
+  }`}
+>
                           {msg.image && (
                             <img
                               src={msg.image}
@@ -2574,8 +2751,8 @@ updated[index].messages[
 
                           {msg.content ? (
   <div
-    className={`${msg.image ? "mt-3 " : ""}${messageBubbleClass} min-w-0 max-w-full overflow-hidden`}
-  >
+  className={`${msg.image ? "mt-3 " : ""}${messageBubbleClass} min-w-0 max-w-full overflow-hidden text-[15px] leading-7 text-inherit select-text`}
+>
     {msg.isStreaming && msg.content === "…" ? (
       <span className="inline-flex items-center gap-2 text-white/56">
         <span className="flex items-center gap-1">
@@ -2641,7 +2818,7 @@ updated[index].messages[
                           msg.content !== "🤖 What can I improve?" &&
                           msg.content !== "🤖 Thanks for your feedback. I’ll use this to improve future answers." && (
                             <>
-                              <div className="mt-3 flex flex-wrap items-center gap-2 pl-1">
+                              <div className="mt-3 flex w-full max-w-[88%] flex-wrap items-center gap-2 px-1 md:max-w-[78%] md:px-2">
                                 {!feedbackGiven[
                                   getFeedbackUiKey(renderedChatId, originalIndex)
                                 ] && (
@@ -2707,6 +2884,80 @@ updated[index].messages[
                                         <path d="m10 18.5 1-5.5H5.8a2 2 0 0 1-2-2.4l1.1-5.5A2 2 0 0 1 6.9 4H17a2 2 0 0 1 2 2v5.5a2 2 0 0 1-.6 1.4l-5.7 5.6a1.5 1.5 0 0 1-2.7-1.3Z" />
                                       </svg>
                                     </button>
+
+                                    <button
+  type="button"
+  onClick={async () => {
+    try {
+      await navigator.clipboard.writeText(
+        String(msg.content || "")
+      );
+
+      const keyId = getFeedbackUiKey(
+        renderedChatId,
+        originalIndex
+      );
+
+      setFeedbackUI((prev) => ({
+        ...prev,
+        [keyId]: "Copied"
+      }));
+
+      setTimeout(() => {
+        setFeedbackUI((prev) => {
+          const copy = { ...prev };
+          delete copy[keyId];
+          return copy;
+        });
+      }, 1400);
+    } catch (error) {
+      console.error("OpenLura copy failed:", error);
+    }
+  }}
+  aria-label="Copy answer"
+  title="Copy answer"
+  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-white/66 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/28 hover:bg-[#3b82f6]/8 hover:text-white hover:shadow-[0_8px_18px_rgba(59,130,246,0.12)] active:scale-95"
+>
+  <svg
+    viewBox="0 0 24 24"
+    className="h-4 w-4"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.9"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <rect x="9" y="9" width="11" height="11" rx="2" />
+    <rect x="4" y="4" width="11" height="11" rx="2" />
+  </svg>
+</button>
+
+                                    <button
+  type="button"
+  onClick={() => {
+    if (renderedChatId !== null) {
+      resendAiAnswer(renderedChatId, originalIndex);
+    }
+  }}
+  aria-label="Resend answer"
+  title="Resend answer"
+  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-white/66 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/28 hover:bg-[#3b82f6]/8 hover:text-white hover:shadow-[0_8px_18px_rgba(59,130,246,0.12)] active:scale-95"
+>
+  <svg
+    viewBox="0 0 24 24"
+    className="h-4 w-4"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.9"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M21 12a9 9 0 1 1-3-6.7" />
+    <path d="M21 3v6h-6" />
+  </svg>
+</button>
                                   </>
                                 )}
 
@@ -2727,7 +2978,7 @@ updated[index].messages[
                               </div>
 
                 {Array.isArray(msg.sources) && msg.sources.length > 0 && (
-          <div className="mt-4 space-y-2">
+          <div className="mt-4 w-full max-w-[88%] space-y-2 px-1 md:max-w-[78%] md:px-2">
             <div className="flex items-center gap-2 px-0.5">
               <span className="text-[12px] text-white/30">🔎</span>
               <p className="text-[11px] uppercase tracking-[0.18em] text-white/32">
@@ -2797,8 +3048,8 @@ updated[index].messages[
   className={`${
     activeMessages.length === 0
       ? "mx-auto mt-6 w-full max-w-2xl px-3 md:px-4"
-      : "fixed bottom-0 left-1/2 z-[90] w-full max-w-2xl -translate-x-1/2 bg-[#050510]/95 px-3 pt-3 pb-[calc(env(safe-area-inset-bottom)+14px)] md:static md:left-auto md:z-auto md:mt-auto md:w-full md:max-w-none md:translate-x-0 md:border-0 md:bg-transparent md:p-0"
-  } flex w-full min-w-0 max-w-full overflow-x-hidden items-end gap-2 rounded-[28px] border border-white/8 bg-white/[0.038] shadow-[0_16px_34px_rgba(0,0,0,0.18)] backdrop-blur-2xl md:rounded-b-[32px] md:rounded-t-[28px] md:border-x-0 md:border-b-0 md:border-t md:px-4 md:py-4 md:shadow-none`}
+      : "fixed bottom-0 left-1/2 z-[90] w-full max-w-2xl -translate-x-1/2 bg-[#050510]/95 px-3 pt-3 pb-[calc(env(safe-area-inset-bottom)+14px)] md:static md:left-auto md:z-auto md:mt-auto md:w-full md:max-w-none md:translate-x-0 md:border-0 md:bg-transparent md:px-0 md:pt-0 md:pb-0"
+  } flex w-full min-w-0 max-w-full overflow-x-hidden items-end gap-2 rounded-[28px] border border-white/8 bg-white/[0.038] shadow-[0_16px_34px_rgba(0,0,0,0.18)] backdrop-blur-2xl md:rounded-b-[28px] md:rounded-t-[28px] md:border-x-0 md:border-b-0 md:border-t md:px-4 md:py-4 md:shadow-none`}
 >
 
                         <button
@@ -2834,7 +3085,7 @@ updated[index].messages[
               </div>
             )}
 
-                        <textarea
+<textarea
   ref={inputRef}
   value={input}
   onFocus={() => {
@@ -2871,7 +3122,7 @@ updated[index].messages[
       sendMessage();
     }
   }}
-  className={`${composerInputClass} min-h-[52px] max-h-[140px] flex-1 rounded-2xl bg-transparent px-2 py-3 text-[16px] leading-6 text-white/95 outline-none placeholder:text-white/28`}
+  className={`${composerInputClass} min-h-[52px] max-h-[140px] flex-1 rounded-2xl bg-transparent px-2 py-3 text-[16px] leading-6 text-white/95 outline-none placeholder:text-white/28 focus:bg-white/[0.02]`}
   placeholder={activeMessages.length === 0 ? "Ask anything" : "Message OpenLura..."}
 enterKeyHint="send"
   rows={1}
@@ -2881,7 +3132,7 @@ enterKeyHint="send"
   type="button"
   disabled={!loading && !input.trim() && !image}
   onClick={loading ? stopStreaming : sendMessage}
-  className={`flex h-12 w-12 shrink-0 touch-manipulation items-center justify-center rounded-full text-xl ol-interactive transition-[transform,filter,background-color,color,box-shadow] duration-200 active:scale-95 ${
+  className={`flex h-12 w-12 shrink-0 touch-manipulation items-center justify-center rounded-full text-xl ol-interactive transition-[transform,filter,background-color,color,box-shadow] duration-200 active:scale-[0.97] ${
     loading
       ? "bg-red-500 text-white shadow-[0_10px_24px_rgba(239,68,68,0.30)]"
       : !input.trim() && !image
