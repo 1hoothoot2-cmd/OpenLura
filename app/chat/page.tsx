@@ -2660,13 +2660,13 @@ updated[index].messages[
 
           <div className="flex items-center justify-between gap-3 border-b border-white/8 pl-16 pr-4 py-3 md:px-6">
             <div className="flex min-w-0 items-center gap-3">
-              <div className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-[#3b82f6]/18 bg-[radial-gradient(circle_at_30%_30%,rgba(96,165,250,0.22),rgba(29,78,216,0.08)_52%,transparent_78%)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03),0_10px_22px_rgba(29,78,216,0.14)]">
-                <img
-                  src="/openlura-logo.png"
-                  alt="OpenLura logo"
-                  className="h-full w-full object-contain p-[4px]"
-                />
-              </div>
+              <div className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-[#3b82f6]/18 bg-[radial-gradient(circle_at_30%_30%,rgba(96,165,250,0.16),rgba(29,78,216,0.06)_52%,transparent_78%)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03),0_10px_22px_rgba(29,78,216,0.12)]">
+  <img
+    src="/openlura-logo.png"
+    alt="OpenLura logo"
+    className="h-full w-full object-contain"
+  />
+</div>
 
               <div className="min-w-0">
                 <div className="text-sm font-semibold tracking-[-0.02em] text-white/94">
