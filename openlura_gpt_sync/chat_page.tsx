@@ -28,15 +28,64 @@ export default function ChatPage() {
   const [chats, setChats] = useState<any[]>([]);
   const [activeChatId, setActiveChatId] = useState<number | null>(null);
   const [input, setInput] = useState("");
-const [prefillFromMessage, setPrefillFromMessage] = useState<string | null>(null);
+const [workflowPrefill, setWorkflowPrefill] = useState<{
+  value: string;
+  source: "prompt" | "result" | "message";
+  label: string;
+} | null>(null);
 
-const applyComposerInput = (nextContent: string) => {
+const clearWorkflowPrefill = () => {
+  setWorkflowPrefill(null);
+};
+
+const applyComposerInput = (
+  nextContent: string,
+  options?: {
+    source?: "prompt" | "result" | "message";
+    label?: string;
+    mode?: "replace" | "append";
+  }
+) => {
   const nextValue = String(nextContent || "").trim();
 
   if (!nextValue) return;
 
-  setInput(nextValue);
-  setPrefillFromMessage(nextValue);
+  const mode = options?.mode || "replace";
+
+  setInput((prev) => {
+    const previousValue = String(prev || "").trim();
+    const resolvedValue =
+      mode === "append" && previousValue
+        ? `${previousValue}\n\n${nextValue}`
+        : nextValue;
+
+    requestAnimationFrame(() => {
+      resizeComposerTextarea();
+      inputRef.current?.focus();
+
+      try {
+        inputRef.current?.setSelectionRange(
+          resolvedValue.length,
+          resolvedValue.length
+        );
+      } catch {}
+    });
+
+    return resolvedValue;
+  });
+
+  setWorkflowPrefill({
+    value: nextValue,
+    source: options?.source || "message",
+    label:
+      options?.label ||
+      (options?.source === "prompt"
+        ? "Prompt ready"
+        : options?.source === "result"
+        ? "Result ready"
+        : "Input ready"),
+  });
+
   setImage(null);
 
   if (savePromptSuccess) {
@@ -46,19 +95,14 @@ const applyComposerInput = (nextContent: string) => {
   if (savePromptError) {
     setSavePromptError("");
   }
-
-  requestAnimationFrame(() => {
-    resizeComposerTextarea();
-    inputRef.current?.focus();
-
-    try {
-      inputRef.current?.setSelectionRange(nextValue.length, nextValue.length);
-    } catch {}
-  });
 };
 
 const handleUseAsInput = (content: string) => {
-  applyComposerInput(content);
+  applyComposerInput(content, {
+    source: "message",
+    label: "Input ready",
+    mode: "replace",
+  });
 };
 const [savingPrompt, setSavingPrompt] = useState(false);
 const [savePromptSuccess, setSavePromptSuccess] = useState(false);
@@ -194,6 +238,22 @@ const [usage, setUsage] = useState<{
   limit: number;
   percentage: number;
 } | null>(null);
+
+const settingsStorageKey = isPersonalRoute
+  ? "openlura_personal_settings"
+  : "openlura_settings";
+
+const [showSettingsBox, setShowSettingsBox] = useState(false);
+
+const [chatSettings, setChatSettings] = useState<{
+  tone: "default" | "friendly" | "direct" | "professional";
+  style: "default" | "concise" | "structured" | "detailed";
+  memoryEnabled: boolean;
+}>({
+  tone: "default",
+  style: "default",
+  memoryEnabled: true,
+});
   
   const fileRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -210,13 +270,14 @@ const [usage, setUsage] = useState<{
   const [initialStateReady, setInitialStateReady] = useState(false);
   const [openChatMenuId, setOpenChatMenuId] = useState<number | null>(null);
   const [openUserMessageMenuKey, setOpenUserMessageMenuKey] = useState<string | null>(null);
-const [openAiMessageMenuKey, setOpenAiMessageMenuKey] = useState<string | null>(null);
+  const [openAiMessageMenuKey, setOpenAiMessageMenuKey] = useState<string | null>(null);
 
   const hasBlockingOverlay =
     showFeedbackBox ||
     showClearDeletedConfirm ||
     deleteTargetChatId !== null ||
-    showLoginBox;
+    showLoginBox ||
+    showSettingsBox;
 
   const closeMobileSidebar = () => {
     if (typeof window !== "undefined" && window.innerWidth < 768) {
@@ -513,6 +574,48 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
   }, []);
 
   useEffect(() => {
+    try {
+      const saved = localStorage.getItem(settingsStorageKey);
+      const parsed = safeParseJson<{
+        tone?: "default" | "friendly" | "direct" | "professional";
+        style?: "default" | "concise" | "structured" | "detailed";
+        memoryEnabled?: boolean;
+      } | null>(saved, null);
+
+      if (!parsed) return;
+
+      setChatSettings({
+        tone:
+          parsed.tone === "friendly" ||
+          parsed.tone === "direct" ||
+          parsed.tone === "professional"
+            ? parsed.tone
+            : "default",
+        style:
+          parsed.style === "concise" ||
+          parsed.style === "structured" ||
+          parsed.style === "detailed"
+            ? parsed.style
+            : "default",
+        memoryEnabled:
+          typeof parsed.memoryEnabled === "boolean"
+            ? parsed.memoryEnabled
+            : true,
+      });
+    } catch (error) {
+      console.error("OpenLura settings load failed:", error);
+    }
+  }, [settingsStorageKey]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(settingsStorageKey, JSON.stringify(chatSettings));
+    } catch (error) {
+      console.error("OpenLura settings persistence failed:", error);
+    }
+  }, [chatSettings, settingsStorageKey]);
+
+  useEffect(() => {
     latestChatsRef.current = chats;
   }, [chats]);
 
@@ -614,6 +717,7 @@ const shouldSkipPersonalStateSync =
   useEffect(() => {
     setOpenChatMenuId(null);
     setOpenUserMessageMenuKey(null);
+    setOpenAiMessageMenuKey(null);
   }, [activeChatId]);
 
   useEffect(() => {
@@ -640,6 +744,11 @@ const shouldSkipPersonalStateSync =
         return;
       }
 
+      if (showSettingsBox) {
+        setShowSettingsBox(false);
+        return;
+      }
+
       if (deleteTargetChatId !== null) {
         setDeleteTargetChatId(null);
         return;
@@ -647,6 +756,11 @@ const shouldSkipPersonalStateSync =
 
       if (openUserMessageMenuKey !== null) {
         setOpenUserMessageMenuKey(null);
+        return;
+      }
+
+      if (openAiMessageMenuKey !== null) {
+        setOpenAiMessageMenuKey(null);
         return;
       }
 
@@ -669,9 +783,11 @@ const shouldSkipPersonalStateSync =
     mobileMenu,
     openChatMenuId,
     openUserMessageMenuKey,
+    openAiMessageMenuKey,
     showLoginBox,
     showFeedbackBox,
     showClearDeletedConfirm,
+    showSettingsBox,
     deleteTargetChatId
   ]);
 
@@ -891,14 +1007,19 @@ const shouldSkipPersonalStateSync =
         content?: string;
         promptId?: string;
         source?: string;
-        mode?: "replace";
+        mode?: "replace" | "append";
       }>;
 
       const nextContent = String(customEvent.detail?.content || "").trim();
 
       if (!nextContent) return;
 
-      applyComposerInput(nextContent);
+      applyComposerInput(nextContent, {
+        source: "prompt",
+        label: "Prompt ready",
+        mode: customEvent.detail?.mode || "replace",
+      });
+
       closeMobileSidebar();
     };
 
@@ -1022,7 +1143,11 @@ const handleUseResultAsInput = (
 
   if (!nextValue) return;
 
-  applyComposerInput(nextValue);
+  applyComposerInput(nextValue, {
+    source: "result",
+    label: "Result ready",
+    mode: "replace",
+  });
 
   const keyId = getFeedbackUiKey(chatId, msgIndex);
 
@@ -1742,10 +1867,15 @@ ${originalAiMessage}
 
 Now give a complete, good answer to the original question.
 Do not mention that this is a new attempt.`,
-          memory: memory
-            .filter((m) => m.weight > 0.6)
-            .map((m) => m.text)
-            .join(" | "),
+          memory: chatSettings.memoryEnabled
+            ? memory
+                .filter((m) => m.weight > 0.6)
+                .map((m) => m.text)
+                .join(" | ")
+            : "",
+          tone: chatSettings.tone,
+          style: chatSettings.style,
+          memoryEnabled: chatSettings.memoryEnabled,
           feedback: {
             likes: 0,
             dislikes: 0,
@@ -1980,6 +2110,7 @@ Do not mention that this is a new attempt.`,
 
       setChats([...updated]);
       setInput("");
+      clearWorkflowPrefill();
       setImage(null);
 
       setAwaitingImprovement((prev) => ({
@@ -2035,10 +2166,15 @@ IMPORTANT:
 
 Do not mention that this is an improved version.
 Only give the improved answer directly.`,
-            memory: memory
-              .filter((m) => m.weight > 0.6)
-              .map((m) => m.text)
-              .join(" | "),
+            memory: chatSettings.memoryEnabled
+              ? memory
+                  .filter((m) => m.weight > 0.6)
+                  .map((m) => m.text)
+                  .join(" | ")
+              : "",
+            tone: chatSettings.tone,
+            style: chatSettings.style,
+            memoryEnabled: chatSettings.memoryEnabled,
             feedback: retryRequest
               ? {
                   likes: 0,
@@ -2253,7 +2389,7 @@ IMPORTANT:
 
     setChats(updated);
     setInput("");
-    setPrefillFromMessage(null);
+    clearWorkflowPrefill();
     setImage(null);
     setLoading(true);
 
@@ -2308,10 +2444,12 @@ setChats([...updated]);
     const controller = new AbortController();
     setStreamController(controller);
 
-    const resolvedMemoryText = memory
-      .filter((m) => m.weight > 0.6)
-      .map((m) => m.text)
-      .join(" | ");
+    const resolvedMemoryText = chatSettings.memoryEnabled
+      ? memory
+          .filter((m) => m.weight > 0.6)
+          .map((m) => m.text)
+          .join(" | ")
+      : "";
 
     let res: Response;
 
@@ -2327,7 +2465,13 @@ setChats([...updated]);
           message: inputToSend,
           image: imageToSend,
           memory: resolvedMemoryText,
-          personalMemory: isPersonalRoute ? resolvedMemoryText : "",
+          personalMemory:
+            isPersonalRoute && chatSettings.memoryEnabled
+              ? resolvedMemoryText
+              : "",
+          tone: chatSettings.tone,
+          style: chatSettings.style,
+          memoryEnabled: chatSettings.memoryEnabled,
           feedback: feedbackSummary,
           recentMessages: (updated[index]?.messages || [])
             .filter(
@@ -2500,7 +2644,11 @@ updated[index].messages[
     setStreamController(null);
 
     // ✅ MEMORY SAVE
-    if (rawInputToSend.length < 60 && !isRefinementInstruction(rawInputToSend)) {
+    if (
+      chatSettings.memoryEnabled &&
+      rawInputToSend.length < 60 &&
+      !isRefinementInstruction(rawInputToSend)
+    ) {
       const existing = memory.find((m) => m.text === rawInputToSend);
 
       let newMemory;
@@ -2749,6 +2897,111 @@ updated[index].messages[
     className="fixed inset-0 z-30 bg-[#020308]/72 backdrop-blur-[3px] touch-none md:hidden"
   />
 )}
+
+{showSettingsBox && (
+  <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+    <div className="w-full max-w-[380px] rounded-[28px] border border-white/8 bg-[#0a0f1d]/95 p-6 shadow-[0_22px_60px_rgba(0,0,0,0.30)] backdrop-blur-2xl">
+      <div className="mb-4">
+        <h2 className="text-lg font-semibold text-white/95">Settings</h2>
+        <p className="mt-1 text-sm text-white/52">
+          Tone, style and memory behavior for this workspace.
+        </p>
+      </div>
+
+      <div className="space-y-4">
+        <div>
+          <label className="mb-2 block text-[11px] uppercase tracking-[0.16em] text-white/34">
+            Tone
+          </label>
+          <select
+            value={chatSettings.tone}
+            onChange={(e) =>
+              setChatSettings((prev) => ({
+                ...prev,
+                tone: e.target.value as
+                  | "default"
+                  | "friendly"
+                  | "direct"
+                  | "professional",
+              }))
+            }
+            className="w-full rounded-[18px] border border-white/8 bg-white/[0.04] px-3 py-3 text-sm text-white/90 outline-none ol-surface focus:border-white/14 focus:bg-white/[0.06]"
+          >
+            <option value="default">Default</option>
+            <option value="friendly">Friendly</option>
+            <option value="direct">Direct</option>
+            <option value="professional">Professional</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="mb-2 block text-[11px] uppercase tracking-[0.16em] text-white/34">
+            Style
+          </label>
+          <select
+            value={chatSettings.style}
+            onChange={(e) =>
+              setChatSettings((prev) => ({
+                ...prev,
+                style: e.target.value as
+                  | "default"
+                  | "concise"
+                  | "structured"
+                  | "detailed",
+              }))
+            }
+            className="w-full rounded-[18px] border border-white/8 bg-white/[0.04] px-3 py-3 text-sm text-white/90 outline-none ol-surface focus:border-white/14 focus:bg-white/[0.06]"
+          >
+            <option value="default">Default</option>
+            <option value="concise">Concise</option>
+            <option value="structured">Structured</option>
+            <option value="detailed">Detailed</option>
+          </select>
+        </div>
+
+        <div className="flex items-center justify-between rounded-[20px] border border-white/8 bg-white/[0.03] px-4 py-3">
+          <div>
+            <div className="text-sm font-medium text-white/88">Memory</div>
+            <div className="mt-1 text-xs text-white/42">
+              Use saved memory in new responses
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() =>
+              setChatSettings((prev) => ({
+                ...prev,
+                memoryEnabled: !prev.memoryEnabled,
+              }))
+            }
+            className={`relative inline-flex h-7 w-12 items-center rounded-full border transition-[background-color,border-color] duration-200 ${
+              chatSettings.memoryEnabled
+                ? "border-[#3b82f6]/30 bg-[#3b82f6]"
+                : "border-white/10 bg-white/[0.10]"
+            }`}
+          >
+            <span
+              className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ${
+                chatSettings.memoryEnabled ? "translate-x-6" : "translate-x-1"
+              }`}
+            />
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-5 flex gap-2">
+        <button
+          type="button"
+          onClick={() => setShowSettingsBox(false)}
+          className="flex-1 rounded-[20px] border border-white/8 bg-white/[0.04] p-3 text-white/88 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.99]"
+        >
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+)}
                      {showClearDeletedConfirm && (
         <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
           <div className="w-full max-w-[340px] rounded-[28px] border border-white/8 bg-[#0a0f1d]/95 p-6 shadow-[0_22px_60px_rgba(0,0,0,0.30)] backdrop-blur-2xl">
@@ -2884,6 +3137,14 @@ updated[index].messages[
               <span className="rounded-full border border-[#3b82f6]/16 bg-[#3b82f6]/8 px-3 py-1 text-[11px] font-medium text-[#bfdbfe]">
                 Chat
               </span>
+
+              <button
+                type="button"
+                onClick={() => setShowSettingsBox(true)}
+                className="rounded-full border border-white/8 bg-white/[0.04] px-3 py-1 text-[11px] font-medium text-white/74 ol-interactive transition-[background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white"
+              >
+                Settings
+              </button>
             </div>
           </div>
 
@@ -3175,6 +3436,8 @@ updated[index].messages[
                                     <button
   type="button"
   onClick={() => {
+    setOpenUserMessageMenuKey(null);
+    setOpenAiMessageMenuKey(null);
     handleUseResultAsInput(
       String(msg.content || ""),
       renderedChatId,
@@ -3401,11 +3664,19 @@ updated[index].messages[
               </div>
             )}
 
-{prefillFromMessage && !image && (
-  <div className="hidden md:flex shrink-0 items-center">
-    <span className="rounded-full border border-[#3b82f6]/18 bg-[#3b82f6]/8 px-3 py-1 text-[11px] text-[#bfdbfe]">
-      Workflow input ready
+{workflowPrefill && !image && (
+  <div className="flex shrink-0 items-center gap-2 max-w-full">
+    <span className="max-w-[180px] truncate rounded-full border border-[#3b82f6]/18 bg-[#3b82f6]/8 px-3 py-1 text-[11px] text-[#bfdbfe]">
+      {workflowPrefill.label}
     </span>
+
+    <button
+      type="button"
+      onClick={clearWorkflowPrefill}
+      className="shrink-0 rounded-full border border-white/8 bg-white/[0.04] px-2.5 py-1 text-[11px] text-white/62 ol-interactive transition-[background-color,border-color,color] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white"
+    >
+      Clear
+    </button>
   </div>
 )}
 
@@ -3430,7 +3701,12 @@ updated[index].messages[
     }
   }}
   onChange={(e) => {
-    setInput(e.target.value);
+    const nextValue = e.target.value;
+    setInput(nextValue);
+
+    if (!nextValue.trim() && workflowPrefill) {
+      clearWorkflowPrefill();
+    }
 
     if (savePromptSuccess) {
       setSavePromptSuccess(false);

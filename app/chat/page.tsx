@@ -104,6 +104,113 @@ const handleUseAsInput = (content: string) => {
     mode: "replace",
   });
 };
+
+// =============================
+// EXPORT HELPERS
+// =============================
+
+const getActiveChat = () => {
+  return chats.find((c) => c.id === activeChatId) || null;
+};
+
+const buildMarkdownExport = (chat: any) => {
+  if (!chat) return "";
+
+  const title = String(chat.title || "Chat").trim() || "Chat";
+  const exportableMessages = (chat.messages || []).filter((msg: any) => {
+    const content = String(msg?.content || "").trim();
+
+    if (!msg) return false;
+    if (msg.disableFeedback && content === "🤖 What can I improve?") return false;
+    if (content === "🤖 Thanks for your feedback. I’ll use this to improve future answers.") {
+      return false;
+    }
+    if (msg.isStreaming && content === "…") return false;
+    if (!content && !msg.image) return false;
+
+    return true;
+  });
+
+  const lines: string[] = [`# ${title}`, ""];
+
+  for (const msg of exportableMessages) {
+    if (msg.role === "user") {
+      lines.push("## You");
+    } else if (msg.role === "ai") {
+      lines.push("## OpenLura");
+    } else {
+      lines.push("## Message");
+    }
+
+    if (msg.image) {
+      lines.push("_[Image attached]_");
+    }
+
+    const content = String(msg.content || "").trim();
+    if (content) {
+      lines.push(content);
+    }
+
+    lines.push("");
+  }
+
+  return lines.join("\n").trim();
+};
+
+const copyChatToClipboard = async () => {
+  const chat = getActiveChat();
+  if (!chat) return;
+
+  const markdown = buildMarkdownExport(chat);
+  if (!markdown.trim()) return;
+
+  try {
+    await navigator.clipboard.writeText(markdown);
+    setFeedbackUI((prev) => ({
+      ...prev,
+      __chat_export__: "Chat copied",
+    }));
+
+    window.setTimeout(() => {
+      setFeedbackUI((prev) => {
+        const copy = { ...prev };
+        delete copy.__chat_export__;
+        return copy;
+      });
+    }, 1400);
+  } catch (error) {
+    console.error("OpenLura chat export copy failed:", error);
+  }
+};
+
+const downloadMarkdown = () => {
+  const chat = getActiveChat();
+  if (!chat) return;
+
+  const markdown = buildMarkdownExport(chat);
+  if (!markdown.trim()) return;
+
+  const fileName = `${String(chat.title || "chat")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "") || "chat"}.md`;
+
+  const blob = new Blob([markdown], {
+    type: "text/markdown;charset=utf-8;",
+  });
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
 const [savingPrompt, setSavingPrompt] = useState(false);
 const [savePromptSuccess, setSavePromptSuccess] = useState(false);
 const [savePromptError, setSavePromptError] = useState("");
@@ -244,6 +351,9 @@ const settingsStorageKey = isPersonalRoute
   : "openlura_settings";
 
 const [showSettingsBox, setShowSettingsBox] = useState(false);
+
+// EXPORT UI STATE
+const [showExportMenu, setShowExportMenu] = useState(false);
 
 const [chatSettings, setChatSettings] = useState<{
   tone: "default" | "friendly" | "direct" | "professional";
@@ -723,6 +833,34 @@ const shouldSkipPersonalStateSync =
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
+        useEffect(() => {
+    if (!showExportMenu) return;
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+
+      const exportTrigger = document.querySelector("[data-openlura-export-trigger]");
+      const exportMenu = document.querySelector("[data-openlura-export-menu]");
+
+      if (exportTrigger?.contains(target) || exportMenu?.contains(target)) {
+        return;
+      }
+
+      setShowExportMenu(false);
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+    };
+  }, [showExportMenu]);
+
+      if (showExportMenu) {
+        setShowExportMenu(false);
+        return;
+      }
 
       if (showLoginBox) {
         setShowLoginBox(false);
@@ -788,6 +926,7 @@ const shouldSkipPersonalStateSync =
     showFeedbackBox,
     showClearDeletedConfirm,
     showSettingsBox,
+    showExportMenu,
     deleteTargetChatId
   ]);
 
@@ -2889,6 +3028,8 @@ updated[index].messages[
   isPersonalRoute={isPersonalRoute}
   setShowFeedbackBox={setShowFeedbackBox}
   setShowLoginBox={setShowLoginBox}
+  onCopyActiveChatMarkdown={copyChatToClipboard}
+  onDownloadActiveChatMarkdown={downloadMarkdown}
 />
 
 {mobileMenu && (
@@ -3133,10 +3274,19 @@ updated[index].messages[
               </div>
             </div>
 
-            <div className="hidden items-center gap-2 md:flex">
+            <div className="relative hidden items-center gap-2 md:flex">
               <span className="rounded-full border border-[#3b82f6]/16 bg-[#3b82f6]/8 px-3 py-1 text-[11px] font-medium text-[#bfdbfe]">
                 Chat
               </span>
+
+              <button
+                type="button"
+                data-openlura-export-trigger
+                onClick={() => setShowExportMenu((prev) => !prev)}
+                className="rounded-full border border-white/8 bg-white/[0.04] px-3 py-1 text-[11px] font-medium text-white/74 ol-interactive transition-[background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white"
+              >
+                Export
+              </button>
 
               <button
                 type="button"
@@ -3145,6 +3295,39 @@ updated[index].messages[
               >
                 Settings
               </button>
+
+              {showExportMenu && (
+                <div
+                  data-openlura-export-menu
+                  className="absolute right-0 top-10 z-[120] flex min-w-[180px] flex-col gap-1 rounded-[16px] border border-white/8 bg-[#0c1120]/96 p-1.5 shadow-[0_18px_40px_rgba(0,0,0,0.28)] backdrop-blur-2xl"
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      copyChatToClipboard();
+                      setShowExportMenu(false);
+                    }}
+                    disabled={!activeChat}
+                    className="flex w-full items-center justify-between rounded-[12px] px-3 py-2 text-left text-sm text-white/86 ol-interactive transition-[background-color,color] duration-200 hover:bg-white/[0.06] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <span>Copy as Markdown</span>
+                    <span className="text-xs text-white/34">⌘</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      downloadMarkdown();
+                      setShowExportMenu(false);
+                    }}
+                    disabled={!activeChat}
+                    className="flex w-full items-center justify-between rounded-[12px] px-3 py-2 text-left text-sm text-white/86 ol-interactive transition-[background-color,color] duration-200 hover:bg-white/[0.06] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <span>Download .md</span>
+                    <span className="text-xs text-white/34">↓</span>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 

@@ -2036,6 +2036,9 @@ type ChatRequestBody = {
   image: string | null;
   memory: string;
   location: unknown;
+  tone: "default" | "friendly" | "direct" | "professional";
+  style: "default" | "concise" | "structured" | "detailed";
+  memoryEnabled: boolean;
   feedback: {
     likes?: number;
     dislikes?: number;
@@ -2115,11 +2118,31 @@ function parseChatRequestBody(body: unknown): ChatRequestBody | null {
     return null;
   }
 
+  const tone =
+    body.tone === "friendly" ||
+    body.tone === "direct" ||
+    body.tone === "professional"
+      ? body.tone
+      : "default";
+
+  const style =
+    body.style === "concise" ||
+    body.style === "structured" ||
+    body.style === "detailed"
+      ? body.style
+      : "default";
+
+  const memoryEnabled =
+    typeof body.memoryEnabled === "boolean" ? body.memoryEnabled : true;
+
   return {
     message: normalizeOptionalString(body.message, MAX_MESSAGE_LENGTH),
     image: normalizeOptionalNullableString(body.image, MAX_IMAGE_URL_LENGTH),
     memory: normalizeOptionalString(body.memory, MAX_MEMORY_LENGTH),
     location: body.location ?? null,
+    tone,
+    style,
+    memoryEnabled,
     feedback: isPlainObject(body.feedback)
       ? {
           likes:
@@ -2226,6 +2249,9 @@ export async function POST(req: Request) {
     image,
     memory,
     location,
+    tone,
+    style,
+    memoryEnabled,
     feedback,
     recentMessages,
   } = body;
@@ -2418,10 +2444,12 @@ export async function POST(req: Request) {
   const personalLayer = isPersonalEnvironment ? personalLearningFeedback : [];
   const userLayer: OpenLuraFeedbackRow[] = userRuntimeFeedback;
 
-  const runtimePersonalMemory = rebalancePersonalMemoryFromFeedback({
-    personalMemory: resolvedPersonalMemory,
-    feedbackRows: [...personalLayer, ...userLayer],
-  });
+  const runtimePersonalMemory = memoryEnabled
+    ? rebalancePersonalMemoryFromFeedback({
+        personalMemory: resolvedPersonalMemory,
+        feedbackRows: [...personalLayer, ...userLayer],
+      })
+    : "";
 
   const shouldPersistRuntimeMemory =
     isPersonalEnvironment &&
@@ -2973,7 +3001,7 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
       });
     }
 
-    const responseStyleProfile = buildResponseStyleProfile({
+    const responseStyleProfileBase = buildResponseStyleProfile({
       isCasualChatRequest,
       shouldUseWebSearch,
       isSimpleImageAnalysis,
@@ -2981,6 +3009,36 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
       cappedLearningStrength,
       activeLearningRules: resolvedActiveLearningRules,
     });
+
+    const responseStyleProfile = {
+      ...responseStyleProfileBase,
+      tone:
+        tone === "friendly"
+          ? "casual_balanced"
+          : tone === "direct"
+          ? "practical_grounded"
+          : tone === "professional"
+          ? "default_premium"
+          : responseStyleProfileBase.tone,
+      brevity:
+        style === "concise"
+          ? "tight"
+          : responseStyleProfileBase.brevity,
+      structure:
+        style === "structured"
+          ? "structured"
+          : responseStyleProfileBase.structure,
+      depth:
+        style === "detailed"
+          ? "expanded"
+          : style === "concise"
+          ? "concise"
+          : responseStyleProfileBase.depth,
+      clarity:
+        tone === "direct" || style === "structured"
+          ? "high"
+          : responseStyleProfileBase.clarity,
+    };
 
     const sharedStyleInstructionBlock = buildSharedStyleInstructionBlock({
       responseStyleProfile,
@@ -2991,7 +3049,7 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
     const personalOverrideProfile = buildPersonalOverrideProfile({
       isPersonalEnvironment,
       personalFeedbackRows: personalLearningFeedback,
-      personalMemory: runtimePersonalMemory,
+      personalMemory: memoryEnabled ? runtimePersonalMemory : "",
     });
 
     if ((shouldPersistRuntimeMemory || shouldPersistUsageStats) && personalUserId && accessToken) {
@@ -3097,13 +3155,19 @@ Keep short prompts fast, natural, and direct.
 Do not use long structure for greetings or tiny prompts.
 Keep the answer useful but compact.
 
+Explicit workspace settings:
+- tone: ${tone}
+- style: ${style}
+- memory enabled: ${memoryEnabled ? "yes" : "no"}
+
 ${sharedStyleInstructionBlock}
 
 Fast-path runtime learning:
 - personal environment active: ${isPersonalEnvironment ? "yes" : "no"}
 - learning scope: ${learningScope}
-- personal memory: ${runtimePersonalMemory || "none"}
+- personal memory: ${memoryEnabled ? runtimePersonalMemory || "none" : "disabled"}
 - memory priority rule: when personal memory exists, follow higher-priority memory items before weaker global style hints unless the current user request conflicts
+- memory enabled: ${memoryEnabled ? "yes" : "no"}
 
 Runtime override block:
 ${runtimeOverrideInstructionBlock}
@@ -3612,7 +3676,7 @@ CONTEXT:
 Recent conversation:
 ${recentConversationTranscript || "none"}
 
-Personal user memory: ${runtimePersonalMemory || "none"}
+Personal user memory: ${memoryEnabled ? runtimePersonalMemory || "none" : "disabled"}
 User location: ${location ? JSON.stringify(location) : "unknown"}
 
 BAD OUTPUT:
