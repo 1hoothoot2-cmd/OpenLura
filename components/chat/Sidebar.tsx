@@ -537,6 +537,9 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
   return (
     <div
       ref={sidebarRef}
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      onTouchStart={(e) => e.stopPropagation()}
       className={`fixed top-0 left-0 z-50 h-[100dvh] w-[88vw] max-w-[280px] transform overflow-hidden border-r border-white/8 bg-[linear-gradient(180deg,rgba(10,15,29,0.98),rgba(11,18,35,0.95))] p-3 pb-[max(env(safe-area-inset-bottom),12px)] shadow-[0_24px_64px_rgba(0,0,0,0.36)] backdrop-blur-2xl transition-transform duration-300 md:relative md:top-auto md:left-auto md:z-auto md:h-full md:w-[292px] md:max-w-none md:translate-x-0 md:rounded-[28px] md:border md:border-white/8 md:p-3 md:shadow-[0_18px_42px_rgba(0,0,0,0.22)] ${
         mobileMenu ? "translate-x-0" : "-translate-x-full"
       }`}
@@ -666,9 +669,18 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
                       className="group rounded-[18px] border border-white/8 bg-white/[0.02] px-3 py-2.5 transition-[background-color,border-color,box-shadow,transform] duration-200 hover:border-white/12 hover:bg-white/[0.045] hover:shadow-[0_8px_16px_rgba(0,0,0,0.10)]"
                     >
                       {isEditing ? (
-                        <div className="space-y-2.5">
+                        <div
+                          className="space-y-2.5"
+                          onClick={(e) => e.stopPropagation()}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onTouchStart={(e) => e.stopPropagation()}
+                        >
                           <input
                             value={promptDraft.name}
+                            onClick={(e) => e.stopPropagation()}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onTouchStart={(e) => e.stopPropagation()}
+                            onFocus={(e) => e.stopPropagation()}
                             onChange={(e) =>
                               setPromptDraft((prev) => ({
                                 ...prev,
@@ -681,6 +693,10 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
 
                           <input
                             value={promptDraft.description}
+                            onClick={(e) => e.stopPropagation()}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onTouchStart={(e) => e.stopPropagation()}
+                            onFocus={(e) => e.stopPropagation()}
                             onChange={(e) =>
                               setPromptDraft((prev) => ({
                                 ...prev,
@@ -693,6 +709,10 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
 
                           <textarea
                             value={promptDraft.content}
+                            onClick={(e) => e.stopPropagation()}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onTouchStart={(e) => e.stopPropagation()}
+                            onFocus={(e) => e.stopPropagation()}
                             onChange={(e) =>
                               setPromptDraft((prev) => ({
                                 ...prev,
