@@ -63,7 +63,6 @@ const handleUseAsInput = (content: string) => {
 const [savingPrompt, setSavingPrompt] = useState(false);
 const [savePromptSuccess, setSavePromptSuccess] = useState(false);
 const [savePromptError, setSavePromptError] = useState("");
-const [sidebarPromptsVersion, setSidebarPromptsVersion] = useState(0);
 
 const getLastUserPrompt = () => {
   const activeChat = chats.find(c => c.id === activeChatId);
@@ -137,9 +136,8 @@ const handleSavePrompt = async (explicitContent?: string) => {
 setSavePromptSuccess(true);
 setSavePromptError("");
 setOpenUserMessageMenuKey(null);
-setSidebarPromptsVersion((prev) => prev + 1);
 
-// 🔥 notify sidebar
+// notify sidebar immediately after successful save
 window.dispatchEvent(new Event("openlura_prompts_refresh"));
 window.dispatchEvent(new Event("openlura_prompts_update"));
 
@@ -507,6 +505,7 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
       if (window.innerWidth >= 768) {
         setMobileMenu(true);
       } else {
+        setMobileMenu(false);
         setOpenChatMenuId(null);
       }
     };
@@ -2725,7 +2724,6 @@ updated[index].messages[
 </button>
 
 <Sidebar
-  key={`sidebar-prompts-${sidebarPromptsVersion}`}
   mobileMenu={mobileMenu}
   setMobileMenu={setMobileMenu}
   createNewChat={createNewChat}
