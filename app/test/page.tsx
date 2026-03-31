@@ -2679,8 +2679,8 @@ updated[index].messages[
           <div
   ref={messagesRef}
   className={`${messageShellClass} flex-1 min-h-0 w-full overflow-x-hidden overflow-y-auto pb-[260px] md:pb-6 ${
-    activeMessages.length ? "flex-col gap-5 px-4 pb-0 pt-20 md:px-6 md:pt-6" : "items-center justify-center p-4 pt-20 md:px-6 md:pt-6"
-  }`}
+  activeMessages.length ? "flex-col gap-5 px-4 pt-20 md:px-6 md:pt-6" : "items-center justify-center p-4 pt-20 md:px-6 md:pt-6"
+}`}
 >
                         {activeMessages.length === 0 ? (
               <div className="flex h-full w-full max-w-2xl -mt-20 flex-col items-center justify-center px-4 md:px-6 text-center">
@@ -2818,7 +2818,7 @@ updated[index].messages[
                           msg.content !== "🤖 What can I improve?" &&
                           msg.content !== "🤖 Thanks for your feedback. I’ll use this to improve future answers." && (
                             <>
-                              <div className="mt-3 flex w-full max-w-[88%] flex-wrap items-center gap-2 px-1 md:max-w-[78%] md:px-2">
+                              <div className="mt-2.5 flex w-full max-w-[84%] flex-wrap items-center gap-2 px-0.5 md:mt-3 md:max-w-[78%] md:px-2">
                                 {!feedbackGiven[
                                   getFeedbackUiKey(renderedChatId, originalIndex)
                                 ] && (
@@ -2978,7 +2978,7 @@ updated[index].messages[
                               </div>
 
                 {Array.isArray(msg.sources) && msg.sources.length > 0 && (
-          <div className="mt-4 w-full max-w-[88%] space-y-2 px-1 md:max-w-[78%] md:px-2">
+          <div className="mt-3.5 w-full max-w-[84%] space-y-2 px-0.5 md:mt-4 md:max-w-[78%] md:px-2">
             <div className="flex items-center gap-2 px-0.5">
               <span className="text-[12px] text-white/30">🔎</span>
               <p className="text-[11px] uppercase tracking-[0.18em] text-white/32">
