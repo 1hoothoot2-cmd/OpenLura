@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 type SidebarChat = {
   id: number;
@@ -70,6 +70,7 @@ export default function Sidebar({
   setShowLoginBox
 }: Props) {
   const sidebarRef = useRef<HTMLDivElement | null>(null);
+const promptMessageTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 const [prompts, setPrompts] = useState<SidebarPrompt[]>([]);
 const [loadingPrompts, setLoadingPrompts] = useState(false);
 const [deletingPromptId, setDeletingPromptId] = useState<string | null>(null);
@@ -120,6 +121,43 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
   const hasPromptContent = (prompt: SidebarPrompt) =>
     !!String(prompt.content || "").trim();
 
+  const showPromptMessage = useCallback((message: string, duration = 1800) => {
+    setPromptActionMessage(message);
+
+    if (promptMessageTimeoutRef.current) {
+      clearTimeout(promptMessageTimeoutRef.current);
+    }
+
+    promptMessageTimeoutRef.current = setTimeout(() => {
+      setPromptActionMessage("");
+      promptMessageTimeoutRef.current = null;
+    }, duration);
+  }, []);
+
+  const fetchPrompts = useCallback(async () => {
+    try {
+      setLoadingPrompts(true);
+
+      const res = await fetch("/api/prompts", {
+        method: "GET",
+        headers: getPromptRequestHeaders(),
+        credentials: "same-origin",
+        cache: "no-store",
+      });
+
+      if (!res.ok) {
+        return;
+      }
+
+      const data = await res.json();
+      setPrompts(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("OpenLura prompts load failed:", error);
+    } finally {
+      setLoadingPrompts(false);
+    }
+  }, []);
+
   const resetPromptEditor = () => {
     setEditingPromptId(null);
     setSavingPromptId(null);
@@ -148,10 +186,7 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
     if (!promptId || savingPromptId) return;
 
     if (!trimmedContent) {
-      setPromptActionMessage("Prompt content is required");
-      window.setTimeout(() => {
-        setPromptActionMessage("");
-      }, 1800);
+      showPromptMessage("Prompt content is required");
       return;
     }
 
@@ -187,42 +222,19 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
 
       if (!res.ok) {
         console.error("OpenLura prompt update failed:", responseJson || responseText);
-        setPromptActionMessage(
-          responseJson?.error || "Failed to update prompt"
-        );
+        showPromptMessage(responseJson?.error || "Failed to update prompt");
         return;
       }
 
-      const updatedPrompt = responseJson?.prompt;
-
-      setPrompts((prev) =>
-        prev.map((prompt) =>
-          prompt.id === promptId
-            ? {
-                ...prompt,
-                ...(updatedPrompt && typeof updatedPrompt === "object"
-                  ? updatedPrompt
-                  : {
-                      name: trimmedName || trimmedContent.slice(0, 60),
-                      description: trimmedDescription,
-                      content: trimmedContent,
-                    }),
-              }
-            : prompt
-        )
-      );
-
+      await fetchPrompts();
       resetPromptEditor();
-      setPromptActionMessage("Prompt updated");
+      showPromptMessage("Prompt updated");
 
       window.dispatchEvent(new Event("openlura_prompts_refresh"));
-
-      window.setTimeout(() => {
-        setPromptActionMessage("");
-      }, 1800);
+      window.dispatchEvent(new Event("openlura_prompts_update"));
     } catch (error) {
       console.error("OpenLura prompt update failed:", error);
-      setPromptActionMessage("Failed to update prompt");
+      showPromptMessage("Failed to update prompt");
     } finally {
       setSavingPromptId(null);
     }
@@ -250,39 +262,34 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
       if (!res.ok) {
         const text = await res.text();
         console.error("OpenLura prompt delete failed:", text);
-        setPromptActionMessage("Failed to delete prompt");
+        showPromptMessage("Failed to delete prompt");
         return;
       }
-
-      setPrompts((prev) => prev.filter((prompt) => prompt.id !== promptId));
 
       if (editingPromptId === promptId) {
         resetPromptEditor();
       }
 
-      setPromptActionMessage("Prompt deleted");
+      await fetchPrompts();
+      showPromptMessage("Prompt deleted");
 
-      window.setTimeout(() => {
-        setPromptActionMessage("");
-      }, 1800);
+      window.dispatchEvent(new Event("openlura_prompts_refresh"));
+      window.dispatchEvent(new Event("openlura_prompts_update"));
     } catch (error) {
       console.error("OpenLura prompt delete failed:", error);
-      setPromptActionMessage("Failed to delete prompt");
+      showPromptMessage("Failed to delete prompt");
     } finally {
       setDeletingPromptId(null);
     }
   };
 
-  const handleUsePrompt = (prompt: SidebarPrompt) => {
+  const handleUsePrompt = async (prompt: SidebarPrompt) => {
     if (usingPromptId || savingPromptId || editingPromptId === prompt.id) return;
 
     const content = String(prompt.content || "").trim();
 
     if (!content) {
-      setPromptActionMessage("Prompt is empty");
-      window.setTimeout(() => {
-        setPromptActionMessage("");
-      }, 1800);
+      showPromptMessage("Prompt is empty");
       return;
     }
 
@@ -300,12 +307,22 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
       })
     );
 
-    setPromptActionMessage("Prompt added to input");
+    setPrompts((prev) =>
+      prev.map((item) =>
+        item.id === prompt.id
+          ? {
+              ...item,
+              last_used_at: new Date().toISOString(),
+            }
+          : item
+      )
+    );
+
+    showPromptMessage("Prompt added to input", 1600);
     setMobileMenu(false);
 
     window.setTimeout(() => {
       setUsingPromptId((current) => (current === prompt.id ? null : current));
-      setPromptActionMessage("");
     }, 1600);
   };
 
@@ -356,34 +373,10 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
   }, [activeChatId, setOpenChatMenuId]);
 
   useEffect(() => {
-    const loadPrompts = async () => {
-      try {
-        setLoadingPrompts(true);
-
-        const res = await fetch("/api/prompts", {
-          method: "GET",
-          headers: getPromptRequestHeaders(),
-          credentials: "same-origin",
-          cache: "no-store",
-        });
-
-        if (!res.ok) {
-          return;
-        }
-
-        const data = await res.json();
-        setPrompts(Array.isArray(data) ? data : []);
-      } catch (error) {
-        console.error("OpenLura prompts load failed:", error);
-      } finally {
-        setLoadingPrompts(false);
-      }
-    };
-
-    loadPrompts();
+    fetchPrompts();
 
     const handlePromptRefresh = () => {
-      loadPrompts();
+      fetchPrompts();
     };
 
     window.addEventListener("openlura_prompts_refresh", handlePromptRefresh);
@@ -392,6 +385,14 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
     return () => {
       window.removeEventListener("openlura_prompts_refresh", handlePromptRefresh);
       window.removeEventListener("openlura_prompts_update", handlePromptRefresh);
+    };
+  }, [fetchPrompts]);
+
+  useEffect(() => {
+    return () => {
+      if (promptMessageTimeoutRef.current) {
+        clearTimeout(promptMessageTimeoutRef.current);
+      }
     };
   }, []);
 

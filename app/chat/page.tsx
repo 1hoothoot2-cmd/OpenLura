@@ -133,17 +133,15 @@ const handleSavePrompt = async (explicitContent?: string) => {
       return;
     }
 
-setSavePromptSuccess(true);
-setSavePromptError("");
-setOpenUserMessageMenuKey(null);
+    setSavePromptSuccess(true);
+    setSavePromptError("");
+    setOpenUserMessageMenuKey(null);
 
-// notify sidebar immediately after successful save
-window.dispatchEvent(new Event("openlura_prompts_refresh"));
-window.dispatchEvent(new Event("openlura_prompts_update"));
+    window.dispatchEvent(new Event("openlura_prompts_refresh"));
 
-window.setTimeout(() => {
-  setSavePromptSuccess(false);
-}, 2000);
+    window.setTimeout(() => {
+      setSavePromptSuccess(false);
+    }, 2000);
   } catch (e) {
     setSavePromptError("Network error");
     console.error("Save prompt failed", e);
