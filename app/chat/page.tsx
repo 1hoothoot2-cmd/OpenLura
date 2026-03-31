@@ -213,9 +213,6 @@ const [usage, setUsage] = useState<{
 const [openAiMessageMenuKey, setOpenAiMessageMenuKey] = useState<string | null>(null);
 
   const hasBlockingOverlay =
-    (mobileMenu &&
-      typeof window !== "undefined" &&
-      window.innerWidth < 768) ||
     showFeedbackBox ||
     showClearDeletedConfirm ||
     deleteTargetChatId !== null ||
@@ -502,10 +499,10 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
 
       if (window.innerWidth >= 768) {
         setMobileMenu(true);
-      } else {
-        setMobileMenu(false);
-        setOpenChatMenuId(null);
+        return;
       }
+
+      setOpenChatMenuId(null);
     };
 
     window.addEventListener("resize", handleResize);
