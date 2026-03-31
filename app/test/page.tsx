@@ -2655,18 +2655,18 @@ updated[index].messages[
         </div>
       )}
 
-      <div className="flex min-w-0 flex-1 items-stretch justify-start pt-0 md:h-screen md:p-4">
-        <div className="mx-auto flex h-full w-full min-w-0 max-w-2xl flex-col border border-white/8 bg-white/[0.042] shadow-[0_20px_56px_rgba(0,0,0,0.20)] backdrop-blur-2xl md:min-h-0 md:rounded-[28px] xl:max-w-[920px]">
+      <div className="flex min-w-0 min-h-0 flex-1 items-stretch justify-start pt-0 md:h-screen md:p-4">
+        <div className="mx-auto flex h-full min-h-0 w-full min-w-0 max-w-2xl flex-col border border-white/8 bg-white/[0.042] shadow-[0_20px_56px_rgba(0,0,0,0.20)] backdrop-blur-2xl md:min-h-0 md:rounded-[28px] xl:max-w-[920px]">
 
           <div className="flex items-center justify-between gap-3 border-b border-white/8 pl-16 pr-4 py-3 md:px-6">
             <div className="flex min-w-0 items-center gap-3">
-              <div className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-[#3b82f6]/18 bg-[radial-gradient(circle_at_30%_30%,rgba(96,165,250,0.22),rgba(29,78,216,0.08)_52%,transparent_78%)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03),0_10px_22px_rgba(29,78,216,0.14)]">
-                <img
-                  src="/openlura-logo.png"
-                  alt="OpenLura logo"
-                  className="h-full w-full object-contain p-[4px]"
-                />
-              </div>
+              <div className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-[#3b82f6]/18 bg-[radial-gradient(circle_at_30%_30%,rgba(96,165,250,0.16),rgba(29,78,216,0.06)_52%,transparent_78%)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03),0_10px_22px_rgba(29,78,216,0.12)]">
+  <img
+    src="/openlura-logo.png"
+    alt="OpenLura logo"
+    className="h-full w-full object-contain"
+  />
+</div>
 
               <div className="min-w-0">
                 <div className="text-sm font-semibold tracking-[-0.02em] text-white/94">
@@ -2707,7 +2707,7 @@ updated[index].messages[
 
           <div
   ref={messagesRef}
-  className={`${messageShellClass} flex-1 min-h-0 w-full overflow-x-hidden overflow-y-auto pb-[260px] md:pb-6 ${
+  className={`${messageShellClass} flex-1 min-h-0 w-full overflow-x-hidden overflow-y-auto pb-5 md:pb-6 ${
   activeMessages.length
     ? "flex-col gap-6 px-4 pt-6 md:gap-7 md:px-6 md:pt-6"
     : "items-center justify-center p-4 pt-6 md:px-6 md:pt-6"
@@ -3079,8 +3079,8 @@ updated[index].messages[
   className={`${
     activeMessages.length === 0
       ? "mx-auto mt-6 w-full max-w-2xl px-3 md:px-4"
-      : "fixed bottom-0 left-1/2 z-[90] w-full max-w-2xl -translate-x-1/2 bg-[#050510]/96 px-3 pt-3 pb-[calc(env(safe-area-inset-bottom)+18px)] md:static md:left-auto md:z-auto md:mt-auto md:w-full md:max-w-none md:translate-x-0 md:border-0 md:bg-transparent md:px-0 md:pt-0 md:pb-0"
-  } flex w-full min-w-0 max-w-full overflow-x-hidden items-end gap-2 rounded-[28px] border border-white/8 bg-white/[0.04] shadow-[0_16px_34px_rgba(0,0,0,0.18)] backdrop-blur-2xl md:rounded-b-[28px] md:rounded-t-[28px] md:border-x-0 md:border-b-0 md:border-t md:px-4 md:py-4 md:shadow-none`}
+      : "sticky bottom-0 z-[40] mt-auto w-full max-w-2xl bg-[#050510]/[0.985] px-3 pt-3 pb-[calc(env(safe-area-inset-bottom)+18px)] shadow-[0_-14px_36px_rgba(5,5,16,0.42)] md:static md:z-auto md:w-full md:max-w-none md:border-0 md:bg-transparent md:px-0 md:pt-0 md:pb-0 md:shadow-none"
+  } flex w-full min-w-0 max-w-full overflow-x-hidden items-end gap-2 rounded-[28px] border border-white/10 bg-[#0b1020]/88 shadow-[0_16px_34px_rgba(0,0,0,0.22)] backdrop-blur-2xl md:rounded-b-[28px] md:rounded-t-[28px] md:border-x-0 md:border-b-0 md:border-t md:border-white/8 md:bg-white/[0.04] md:px-4 md:py-4`}
 >
 
                         <button
@@ -3126,6 +3126,11 @@ updated[index].messages[
       requestAnimationFrame(() => {
         inputRef.current?.scrollIntoView({
           block: "nearest",
+          behavior: "smooth",
+        });
+
+        messagesRef.current?.scrollTo({
+          top: messagesRef.current.scrollHeight,
           behavior: "smooth",
         });
       });
