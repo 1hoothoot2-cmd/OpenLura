@@ -30,6 +30,7 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
 const [savingPrompt, setSavingPrompt] = useState(false);
 const [savePromptSuccess, setSavePromptSuccess] = useState(false);
+const [savePromptError, setSavePromptError] = useState("");
 
 const getLastUserPrompt = () => {
   const activeChat = chats.find(c => c.id === activeChatId);
@@ -43,31 +44,62 @@ const getLastUserPrompt = () => {
 
 const handleSavePrompt = async () => {
   const content = input || getLastUserPrompt();
-  if (!content?.trim()) return;
+  if (!content?.trim()) {
+    setSavePromptError("Nothing to save");
+    setSavePromptSuccess(false);
+    return;
+  }
 
   try {
     setSavingPrompt(true);
     setSavePromptSuccess(false);
+    setSavePromptError("");
 
     const res = await fetch("/api/prompts", {
-  method: "POST",
-  headers: getOpenLuraRequestHeaders(true, {
-  personalEnv: false,
-  includeUserId: true,
-}),
-  credentials: "same-origin",
-  body: JSON.stringify({
-    name: content.trim().slice(0, 60),
-    description: "",
-    content,
-  }),
-});
+      method: "POST",
+      headers: getOpenLuraRequestHeaders(true, {
+        personalEnv: false,
+        includeUserId: true,
+      }),
+      credentials: "same-origin",
+      body: JSON.stringify({
+        name: content.trim().slice(0, 60),
+        description: "",
+        content: content.trim(),
+      }),
+    });
 
-    if (res.ok) {
-      setSavePromptSuccess(true);
-      setTimeout(() => setSavePromptSuccess(false), 2000);
+    const responseText = await res.text();
+    let responseJson: any = null;
+
+    try {
+      responseJson = responseText ? JSON.parse(responseText) : null;
+    } catch {
+      responseJson = null;
     }
+
+    if (!res.ok) {
+      const message =
+        responseJson?.error ||
+        responseJson?.message ||
+        `Save failed (${res.status})`;
+
+      setSavePromptError(message);
+      console.error("OpenLura prompt save failed:", {
+        status: res.status,
+        body: responseJson || responseText,
+      });
+      return;
+    }
+
+    setSavePromptSuccess(true);
+    setSavePromptError("");
+
+    window.setTimeout(() => {
+      setSavePromptSuccess(false);
+    }, 2000);
   } catch (e) {
+    setSavePromptError("Network error");
     console.error("Save prompt failed", e);
   } finally {
     setSavingPrompt(false);
@@ -3213,8 +3245,16 @@ HANGE:
     }
   }}
   onChange={(e) => {
-    setInput(e.target.value);
-  }}
+  setInput(e.target.value);
+
+  if (savePromptSuccess) {
+    setSavePromptSuccess(false);
+  }
+
+  if (savePromptError) {
+    setSavePromptError("");
+  }
+}}
   onKeyDown={(e) => {
     const nativeEvent = e.nativeEvent as KeyboardEvent & {
       isComposing?: boolean;
@@ -3251,10 +3291,16 @@ HANGE:
   </button>
 
   {savePromptSuccess && (
-    <span className="text-[11px] text-green-400">
-      Saved
-    </span>
-  )}
+  <span className="text-[11px] text-green-400">
+    Saved
+  </span>
+)}
+
+{!!savePromptError && (
+  <span className="max-w-[88px] text-center text-[10px] leading-4 text-red-400">
+    {savePromptError}
+  </span>
+)}
 
   <button
     type="button"
