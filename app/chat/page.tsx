@@ -754,9 +754,9 @@ const shouldSkipPersonalStateSync =
   }, []);
 
 const messageShellClass =
-  "flex w-full min-w-0 max-w-full overflow-hidden";
+  "flex w-full min-w-0 max-w-full";
 const messageBubbleClass =
-  "min-w-0 max-w-full overflow-hidden break-words [overflow-wrap:anywhere] leading-7 tracking-[-0.01em]";
+  "min-w-0 max-w-full break-words [overflow-wrap:anywhere] leading-7 tracking-[-0.01em]";
 const composerInputClass =
   "w-full min-w-0 max-w-full resize-none overflow-x-hidden break-words [overflow-wrap:anywhere]";
 const messageActionButtonClass =
@@ -2739,7 +2739,7 @@ updated[index].messages[
   }`}
 >
                         <div
-  className={`${messageBubbleClass} min-w-0 max-w-[90%] md:max-w-[78%] overflow-hidden whitespace-pre-line rounded-[24px] px-4 py-3.5 text-[15px] md:px-5 md:py-4 md:text-[16px] transition-[box-shadow,transform,background-color,border-color] duration-200 ${
+  className={`${messageBubbleClass} min-w-0 max-w-[90%] md:max-w-[78%] whitespace-pre-line rounded-[24px] px-4 py-3.5 text-[15px] md:px-5 md:py-4 md:text-[16px] transition-[box-shadow,transform,background-color,border-color] duration-200 ${
     msg.role === "user"
       ? "ml-auto bg-gradient-to-r from-[#1d4ed8] to-[#2563eb] text-white shadow-[0_10px_20px_rgba(37,99,235,0.16)]"
       : "border border-white/8 bg-white/[0.045] text-white/90 backdrop-blur-xl shadow-[0_10px_22px_rgba(0,0,0,0.10)]"
@@ -2755,7 +2755,7 @@ updated[index].messages[
 
                           {msg.content ? (
   <div
-  className={`${msg.image ? "mt-3 " : ""}${messageBubbleClass} min-w-0 max-w-full overflow-hidden text-[15px] leading-7 text-inherit select-text md:text-[16px]`}
+  className={`${msg.image ? "mt-3 " : ""}${messageBubbleClass} min-w-0 max-w-full text-[15px] leading-7 text-inherit select-text md:text-[16px]`}
 >
     {msg.isStreaming && msg.content === "…" ? (
       <span className="inline-flex items-center gap-2 text-white/56">
@@ -3008,7 +3008,7 @@ updated[index].messages[
                     href={source.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block w-full min-w-0 max-w-full overflow-hidden rounded-[20px] border border-white/8 bg-white/[0.035] p-3.5 shadow-[0_10px_18px_rgba(0,0,0,0.07)] ol-interactive transition-[transform,background-color,border-color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.05] hover:-translate-y-[1px] hover:shadow-[0_12px_24px_rgba(0,0,0,0.10)]"
+                    className="block w-full min-w-0 max-w-full rounded-[20px] border border-white/8 bg-white/[0.035] p-3.5 shadow-[0_10px_18px_rgba(0,0,0,0.07)] ol-interactive transition-[transform,background-color,border-color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.05] hover:-translate-y-[1px] hover:shadow-[0_12px_24px_rgba(0,0,0,0.10)]"
                     title={source.title || source.url}
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -3020,7 +3020,7 @@ updated[index].messages[
                           {title}
                         </p>
                         <p
-                          className="mt-1 text-xs text-white/42 break-all max-w-full overflow-hidden"
+                          className="mt-1 max-w-full break-all text-xs text-white/42"
                           style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
                         >
                           {domain}
