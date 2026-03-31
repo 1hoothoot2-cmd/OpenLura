@@ -813,7 +813,6 @@ export default function HomePage() {
                       Ready to try OpenLura
                     </div>
                   </div>
-
                   <h2 className="mt-4 text-2xl font-semibold text-white/95 sm:text-3xl">
                     Start where the value is strongest: the chat.
                   </h2>

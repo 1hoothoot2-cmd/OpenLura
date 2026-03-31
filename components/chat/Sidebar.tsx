@@ -247,10 +247,54 @@ export default function Sidebar({
       }`}
     >
             <div className="flex h-full min-h-0 flex-col">
-        <div className="sticky top-0 z-20 -mx-3 mb-2 border-b border-white/8 bg-[linear-gradient(180deg,rgba(10,15,29,0.98),rgba(10,15,29,0.92))] px-3 pb-3 pt-[max(env(safe-area-inset-top),12px)] backdrop-blur-2xl md:mx-0 md:border-b-0 md:bg-transparent md:px-0 md:pb-0 md:pt-0">
-          <div className="mb-3 flex items-center justify-between md:hidden">
-            <div className="px-1 text-[11px] font-medium uppercase tracking-[0.18em] text-white/34">
-              OpenLura
+        <div className="sticky top-0 z-20 -mx-3 mb-3 border-b border-white/8 bg-[linear-gradient(180deg,rgba(10,15,29,0.98),rgba(10,15,29,0.92))] px-3 pb-3 pt-[max(env(safe-area-inset-top),12px)] backdrop-blur-2xl md:mx-0 md:border-b-0 md:bg-transparent md:px-0 md:pb-1 md:pt-0">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="flex min-w-0 items-center gap-3 px-1">
+              <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-[#3b82f6]/18 bg-[radial-gradient(circle_at_30%_30%,rgba(96,165,250,0.22),rgba(29,78,216,0.08)_52%,transparent_78%)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03),0_10px_22px_rgba(29,78,216,0.14)]">
+                <svg
+                  viewBox="0 0 48 48"
+                  className="h-6 w-6"
+                  fill="none"
+                  aria-hidden="true"
+                >
+                  <defs>
+                    <linearGradient id="openluraSidebarLogo" x1="8" y1="8" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+                      <stop stopColor="#60a5fa" />
+                      <stop offset="1" stopColor="#1d4ed8" />
+                    </linearGradient>
+                  </defs>
+                  <circle
+                    cx="24"
+                    cy="24"
+                    r="17"
+                    stroke="url(#openluraSidebarLogo)"
+                    strokeWidth="3"
+                  />
+                  <path
+                    d="M17.5 24.5c0-4.6 2.9-7.6 7.4-7.6 3.8 0 6.2 2.1 6.2 5.4 0 3.3-2.2 5.4-5.7 5.4h-4.2"
+                    stroke="url(#openluraSidebarLogo)"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M22.2 24.7v.1c0 4.1 2.1 6.3 5.8 6.3 2.5 0 4.7-1 6.3-3.1"
+                    stroke="url(#openluraSidebarLogo)"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </div>
+
+              <div className="min-w-0">
+                <div className="text-sm font-semibold tracking-[-0.02em] text-white/94">
+                  OpenLura
+                </div>
+                <div className="text-[10px] uppercase tracking-[0.18em] text-white/32">
+                  Adaptive AI workspace
+                </div>
+              </div>
             </div>
 
             <button
@@ -260,7 +304,7 @@ export default function Sidebar({
                 setOpenChatMenuId(null);
                 setMobileMenu(false);
               }}
-              className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/8 bg-white/[0.04] text-white/72 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-95"
+              className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/8 bg-white/[0.04] text-white/72 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-95 md:hidden"
             >
               ×
             </button>

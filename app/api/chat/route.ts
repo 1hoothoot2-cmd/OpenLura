@@ -3046,18 +3046,19 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
     const shouldUseFastTextRoute =
       !conversationDependentFollowUp &&
       shouldUseAdaptiveSpeedMode(fastRouteDecisionInput) &&
-      !shouldBypassFastTextPath(fastRouteDecisionInput);
+      !shouldBypassFastTextPath(fastRouteDecisionInput) &&
+      !shouldUseWebSearch;
 
     const resolvedRouteType: "fast_text" | "fast_image" | "search" | "default" =
-      shouldUseFastTextRoute
+      shouldUseWebSearch
+        ? "search"
+        : shouldUseFastTextRoute
         ? "fast_text"
         : isSimpleImageAnalysis && image
         ? "fast_image"
-        : shouldUseWebSearch
-        ? "search"
         : "default"; 
 
-        if (shouldUseFastTextRoute) {
+        if (shouldUseFastTextRoute && !shouldUseWebSearch) {
       const cacheKey = isRefinementInstruction(message || "")
           ? ""
           : buildCacheKey({
@@ -3156,15 +3157,17 @@ Fast-path rules:
               controller.enqueue(encoder.encode(text));
             }
 
-            const cacheKey = buildCacheKey({
-              message: message || "",
-              personalMemory: runtimePersonalMemory,
-              learningScope,
-              isPersonalEnvironment,
-              personalUserId,
-            });
+            const cacheKey = !isPersonalEnvironment
+  ? buildCacheKey({
+      message: message || "",
+      personalMemory: runtimePersonalMemory,
+      learningScope,
+      isPersonalEnvironment,
+      personalUserId,
+    })
+  : "";
 
-            if (cacheKey && fullText.trim()) {
+            if (cacheKey && fullText.trim() && !isPersonalEnvironment) {
               responseCache.set(cacheKey, {
                 text: fullText,
                 sources: [],
@@ -3186,7 +3189,7 @@ Fast-path rules:
           headers: buildNoStoreTextHeaders({
             "X-OpenLura-Variant": responseVariant,
             "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
-            "X-OpenLura-Speed": "fast_image",
+            "X-OpenLura-Speed": "fast_text",
             ...buildRateLimitHeaders(rateLimit),
             ...buildUsageHeaders(usageLimitSnapshot),
           }),
@@ -3194,7 +3197,7 @@ Fast-path rules:
       );
     }
 
-        if (isSimpleImageAnalysis && image) {
+        if (isSimpleImageAnalysis && image && !shouldUseWebSearch) {
       const fastImageStream = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         stream: true,
@@ -3247,7 +3250,7 @@ Do not use web search for this path.`,
           headers: buildNoStoreTextHeaders({
             "X-OpenLura-Variant": responseVariant,
             "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
-            "X-OpenLura-Speed": "fast_image",
+            "X-OpenLura-Speed": "fast_text",
             ...buildRateLimitHeaders(rateLimit),
             ...buildUsageHeaders(usageLimitSnapshot),
           }),
@@ -3261,9 +3264,10 @@ Do not use web search for this path.`,
       !conversationDependentFollowUp &&
       !isRefinementInstruction(normalizedMessageForRouting) &&
       !!normalizedMessageForRouting &&
-      normalizedMessageForRouting.length <= 120;
+      normalizedMessageForRouting.length <= 120 &&
+      !isPersonalEnvironment;
 
-      const cacheKey = canUseCache
+      const cacheKey = canUseCache && !isPersonalEnvironment
     ? buildCacheKey({
         message: normalizedMessageForRouting,
         personalMemory: runtimePersonalMemory,
@@ -3295,6 +3299,7 @@ Do not use web search for this path.`,
         const isLightPrompt =
       !image &&
       !shouldUseWebSearch &&
+      !conversationDependentFollowUp &&
       !!normalizedMessageForRouting &&
       normalizedMessageForRouting.length <= 120;
 
@@ -3786,7 +3791,7 @@ ${aiText}`,
     });
   }
 
-  if (canUseCache && aiText) {
+  if (canUseCache && aiText && !isPersonalEnvironment) {
     responseCache.set(cacheKey, {
       text: aiText,
       sources,
