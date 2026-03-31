@@ -41,6 +41,14 @@ type DeletePromptBody = {
   id?: unknown;
 };
 
+type UpdatePromptBody = {
+  id?: unknown;
+  name?: unknown;
+  description?: unknown;
+  content?: unknown;
+  tags?: unknown;
+};
+
 
 
 function unauthorizedResponse() {
@@ -218,6 +226,47 @@ function normalizeDeletePromptBody(body: unknown) {
   return { id };
 }
 
+function normalizeUpdatePromptBody(body: unknown) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return null;
+  }
+
+  const candidate = body as UpdatePromptBody;
+
+  const id = typeof candidate.id === "string" ? candidate.id.trim() : "";
+  const rawName =
+    typeof candidate.name === "string" ? candidate.name.trim() : "";
+  const rawDescription =
+    typeof candidate.description === "string"
+      ? candidate.description.trim()
+      : "";
+  const rawContent =
+    typeof candidate.content === "string" ? candidate.content.trim() : "";
+  const tags = normalizeTags(candidate.tags);
+
+  if (!id || id.length > 200 || /[\r\n]/.test(id)) {
+    return null;
+  }
+
+  if (!rawContent) {
+    return null;
+  }
+
+  const safeName = (rawName || rawContent.slice(0, 60)).slice(0, MAX_NAME_LENGTH);
+
+  if (!safeName) {
+    return null;
+  }
+
+  return {
+    id,
+    name: safeName,
+    description: rawDescription.slice(0, MAX_DESCRIPTION_LENGTH),
+    content: rawContent.slice(0, MAX_CONTENT_LENGTH),
+    tags,
+  };
+}
+
 async function insertPrompt(input: {
   promptsTableUrl: string;
   supabaseServiceRoleKey: string;
@@ -339,6 +388,64 @@ async function deletePrompt(input: {
   };
 }
 
+async function updatePrompt(input: {
+  promptsTableUrl: string;
+  supabaseServiceRoleKey: string;
+  userId: string;
+  promptId: string;
+  updates: {
+    name: string;
+    description: string;
+    content: string;
+    tags: string[];
+  };
+}) {
+  const query =
+    "select=id,name,description,content,tags,last_used_at,created_at" +
+    `&id=eq.${encodeURIComponent(input.promptId)}` +
+    `&user_id=eq.${encodeURIComponent(input.userId)}`;
+
+  const headers = new Headers();
+  headers.set("apikey", input.supabaseServiceRoleKey);
+  headers.set("Authorization", `Bearer ${input.supabaseServiceRoleKey}`);
+  headers.set("Accept", "application/json");
+  headers.set("Content-Type", "application/json");
+  headers.set("Prefer", "return=representation");
+
+  const res = await fetch(`${input.promptsTableUrl}?${query}`, {
+    method: "PATCH",
+    headers,
+    cache: "no-store",
+    body: JSON.stringify({
+      name: input.updates.name,
+      description: input.updates.description,
+      content: input.updates.content,
+      tags: input.updates.tags,
+    }),
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+
+    logSafeError("OpenLura prompt update failed", new Error(errorText), {
+      status: res.status,
+      promptId: input.promptId,
+    });
+
+    return {
+      ok: false as const,
+      data: null,
+    };
+  }
+
+  const data = (await res.json()) as PromptRow[];
+
+  return {
+    ok: true as const,
+    data: Array.isArray(data) ? data[0] ?? null : null,
+  };
+}
+
 export async function POST(req: Request) {
   try {
     const contentLength = getContentLength(req);
@@ -427,6 +534,68 @@ export async function GET(req: Request) {
   } catch (error) {
     logSafeError("OpenLura prompts GET failed", error);
     return internalErrorResponse("Failed to fetch prompts");
+  }
+}
+
+export async function PUT(req: Request) {
+  try {
+    const contentLength = getContentLength(req);
+
+    if (contentLength !== null && contentLength > MAX_REQUEST_BYTES) {
+      return badRequestResponse("Request too large");
+    }
+
+    const userId = getRequestUserId(req);
+
+    if (!userId) {
+      return unauthorizedResponse();
+    }
+
+    const parsed = await readJsonBodyWithinLimit(req, MAX_REQUEST_BYTES);
+
+    if (!parsed.ok) {
+      return badRequestResponse(
+        parsed.reason === "too_large" ? "Request too large" : "Invalid JSON"
+      );
+    }
+
+    const normalized = normalizeUpdatePromptBody(parsed.body);
+
+    if (!normalized) {
+      return badRequestResponse("Invalid prompt update payload");
+    }
+
+    const { promptsTableUrl, supabaseServiceRoleKey } = getSupabaseConfig();
+
+    const result = await updatePrompt({
+      promptsTableUrl,
+      supabaseServiceRoleKey,
+      userId,
+      promptId: normalized.id,
+      updates: {
+        name: normalized.name,
+        description: normalized.description,
+        content: normalized.content,
+        tags: normalized.tags,
+      },
+    });
+
+    if (!result.ok) {
+      return internalErrorResponse("Failed to update prompt");
+    }
+
+    return NextResponse.json(
+      {
+        success: true,
+        prompt: result.data,
+      },
+      {
+        headers: NO_STORE_HEADERS,
+      }
+    );
+  } catch (error) {
+    logSafeError("OpenLura prompts PUT failed", error);
+    return internalErrorResponse("Failed to update prompt");
   }
 }
 

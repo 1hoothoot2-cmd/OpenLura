@@ -74,6 +74,17 @@ const [prompts, setPrompts] = useState<SidebarPrompt[]>([]);
 const [loadingPrompts, setLoadingPrompts] = useState(false);
 const [deletingPromptId, setDeletingPromptId] = useState<string | null>(null);
 const [usingPromptId, setUsingPromptId] = useState<string | null>(null);
+const [editingPromptId, setEditingPromptId] = useState<string | null>(null);
+const [savingPromptId, setSavingPromptId] = useState<string | null>(null);
+const [promptDraft, setPromptDraft] = useState<{
+  name: string;
+  description: string;
+  content: string;
+}>({
+  name: "",
+  description: "",
+  content: "",
+});
 const [promptActionMessage, setPromptActionMessage] = useState("");
 
   const getOrCreateOpenLuraUserId = () => {
@@ -109,8 +120,116 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
   const hasPromptContent = (prompt: SidebarPrompt) =>
     !!String(prompt.content || "").trim();
 
+  const resetPromptEditor = () => {
+    setEditingPromptId(null);
+    setSavingPromptId(null);
+    setPromptDraft({
+      name: "",
+      description: "",
+      content: "",
+    });
+  };
+
+  const startEditingPrompt = (prompt: SidebarPrompt) => {
+    setEditingPromptId(prompt.id);
+    setPromptDraft({
+      name: String(prompt.name || "").trim(),
+      description: String(prompt.description || "").trim(),
+      content: String(prompt.content || ""),
+    });
+    setPromptActionMessage("");
+  };
+
+  const handleSavePromptEdit = async (promptId: string) => {
+    const trimmedContent = String(promptDraft.content || "").trim();
+    const trimmedName = String(promptDraft.name || "").trim();
+    const trimmedDescription = String(promptDraft.description || "").trim();
+
+    if (!promptId || savingPromptId) return;
+
+    if (!trimmedContent) {
+      setPromptActionMessage("Prompt content is required");
+      window.setTimeout(() => {
+        setPromptActionMessage("");
+      }, 1800);
+      return;
+    }
+
+    try {
+      setSavingPromptId(promptId);
+      setPromptActionMessage("");
+
+      const res = await fetch("/api/prompts", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...getPromptRequestHeaders(),
+        },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          id: promptId,
+          name: trimmedName,
+          description: trimmedDescription,
+          content: trimmedContent,
+          tags:
+            prompts.find((prompt) => prompt.id === promptId)?.tags || [],
+        }),
+      });
+
+      const responseText = await res.text();
+      let responseJson: any = null;
+
+      try {
+        responseJson = responseText ? JSON.parse(responseText) : null;
+      } catch {
+        responseJson = null;
+      }
+
+      if (!res.ok) {
+        console.error("OpenLura prompt update failed:", responseJson || responseText);
+        setPromptActionMessage(
+          responseJson?.error || "Failed to update prompt"
+        );
+        return;
+      }
+
+      const updatedPrompt = responseJson?.prompt;
+
+      setPrompts((prev) =>
+        prev.map((prompt) =>
+          prompt.id === promptId
+            ? {
+                ...prompt,
+                ...(updatedPrompt && typeof updatedPrompt === "object"
+                  ? updatedPrompt
+                  : {
+                      name: trimmedName || trimmedContent.slice(0, 60),
+                      description: trimmedDescription,
+                      content: trimmedContent,
+                    }),
+              }
+            : prompt
+        )
+      );
+
+      resetPromptEditor();
+      setPromptActionMessage("Prompt updated");
+
+      window.dispatchEvent(new Event("openlura_prompts_refresh"));
+
+      window.setTimeout(() => {
+        setPromptActionMessage("");
+      }, 1800);
+    } catch (error) {
+      console.error("OpenLura prompt update failed:", error);
+      setPromptActionMessage("Failed to update prompt");
+    } finally {
+      setSavingPromptId(null);
+    }
+  };
+
   const handleDeletePrompt = async (promptId: string) => {
-    if (!promptId || deletingPromptId) return;
+    if (!promptId || deletingPromptId || savingPromptId) return;
 
     try {
       setDeletingPromptId(promptId);
@@ -136,6 +255,11 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
       }
 
       setPrompts((prev) => prev.filter((prompt) => prompt.id !== promptId));
+
+      if (editingPromptId === promptId) {
+        resetPromptEditor();
+      }
+
       setPromptActionMessage("Prompt deleted");
 
       window.setTimeout(() => {
@@ -150,7 +274,7 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
   };
 
   const handleUsePrompt = (prompt: SidebarPrompt) => {
-    if (usingPromptId) return;
+    if (usingPromptId || savingPromptId || editingPromptId === prompt.id) return;
 
     const content = String(prompt.content || "").trim();
 
@@ -221,7 +345,14 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
   }, [mobileMenu, setOpenChatMenuId]);
 
   useEffect(() => {
+    if (editingPromptId && !prompts.some((prompt) => prompt.id === editingPromptId)) {
+      resetPromptEditor();
+    }
+  }, [editingPromptId, prompts]);
+
+  useEffect(() => {
     setOpenChatMenuId(null);
+    resetPromptEditor();
   }, [activeChatId, setOpenChatMenuId]);
 
   useEffect(() => {
@@ -256,9 +387,11 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
     };
 
     window.addEventListener("openlura_prompts_refresh", handlePromptRefresh);
+    window.addEventListener("openlura_prompts_update", handlePromptRefresh);
 
     return () => {
       window.removeEventListener("openlura_prompts_refresh", handlePromptRefresh);
+      window.removeEventListener("openlura_prompts_update", handlePromptRefresh);
     };
   }, []);
 
@@ -522,50 +655,134 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
                   Loading prompts...
                 </div>
               ) : prompts.length > 0 ? (
-                prompts.map((prompt: SidebarPrompt) => (
-                  <div
-                    key={prompt.id}
-                    className="group rounded-[18px] border border-white/8 bg-white/[0.02] px-3 py-2.5 transition-[background-color,border-color,box-shadow,transform] duration-200 hover:border-white/12 hover:bg-white/[0.045] hover:shadow-[0_8px_16px_rgba(0,0,0,0.10)]"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => handleUsePrompt(prompt)}
-                      disabled={!hasPromptContent(prompt) || usingPromptId === prompt.id}
-                      className="flex w-full min-w-0 items-start justify-between gap-3 text-left disabled:cursor-not-allowed disabled:opacity-50"
+                prompts.map((prompt: SidebarPrompt) => {
+                  const isEditing = editingPromptId === prompt.id;
+                  const isSaving = savingPromptId === prompt.id;
+                  const isDeleting = deletingPromptId === prompt.id;
+
+                  return (
+                    <div
+                      key={prompt.id}
+                      className="group rounded-[18px] border border-white/8 bg-white/[0.02] px-3 py-2.5 transition-[background-color,border-color,box-shadow,transform] duration-200 hover:border-white/12 hover:bg-white/[0.045] hover:shadow-[0_8px_16px_rgba(0,0,0,0.10)]"
                     >
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-medium text-white/86 group-hover:text-white">
-                          {prompt.name || "Untitled prompt"}
-                        </div>
+                      {isEditing ? (
+                        <div className="space-y-2.5">
+                          <input
+                            value={promptDraft.name}
+                            onChange={(e) =>
+                              setPromptDraft((prev) => ({
+                                ...prev,
+                                name: e.target.value,
+                              }))
+                            }
+                            placeholder="Prompt name"
+                            className="w-full rounded-xl border border-white/8 bg-white/[0.04] px-3 py-2 text-sm text-white/88 outline-none placeholder:text-white/28"
+                          />
 
-                        {!!String(prompt.content || "").trim() && (
-                          <div className="mt-1 line-clamp-1 text-[11px] leading-5 text-white/38 group-hover:text-white/52">
-                            {String(prompt.content || "")}
+                          <input
+                            value={promptDraft.description}
+                            onChange={(e) =>
+                              setPromptDraft((prev) => ({
+                                ...prev,
+                                description: e.target.value,
+                              }))
+                            }
+                            placeholder="Description"
+                            className="w-full rounded-xl border border-white/8 bg-white/[0.04] px-3 py-2 text-sm text-white/88 outline-none placeholder:text-white/28"
+                          />
+
+                          <textarea
+                            value={promptDraft.content}
+                            onChange={(e) =>
+                              setPromptDraft((prev) => ({
+                                ...prev,
+                                content: e.target.value,
+                              }))
+                            }
+                            placeholder="Prompt content"
+                            rows={4}
+                            className="w-full resize-none rounded-xl border border-white/8 bg-white/[0.04] px-3 py-2 text-sm text-white/88 outline-none placeholder:text-white/28"
+                          />
+
+                          <div className="flex justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={resetPromptEditor}
+                              disabled={isSaving}
+                              className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[11px] text-white/72 transition-[background-color,border-color,color,opacity] duration-200 hover:border-white/16 hover:bg-white/[0.05] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              Cancel
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleSavePromptEdit(prompt.id)}
+                              disabled={isSaving}
+                              className="rounded-full border border-[#3b82f6]/16 bg-[#3b82f6]/10 px-3 py-1.5 text-[11px] text-[#bfdbfe] transition-[background-color,border-color,color,opacity] duration-200 hover:border-[#3b82f6]/28 hover:bg-[#3b82f6]/16 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {isSaving ? "Saving..." : "Save"}
+                            </button>
                           </div>
-                        )}
-                      </div>
+                        </div>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleUsePrompt(prompt)}
+                            disabled={!hasPromptContent(prompt) || usingPromptId === prompt.id}
+                            className="flex w-full min-w-0 items-start justify-between gap-3 text-left disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <div className="truncate text-sm font-medium text-white/86 group-hover:text-white">
+                                {prompt.name || "Untitled prompt"}
+                              </div>
 
-                      <span className="shrink-0 text-[11px] text-white/26 group-hover:text-white/42">
-                        {usingPromptId === prompt.id
-                          ? "Added"
-                          : hasPromptContent(prompt)
-                          ? "Use in chat"
-                          : "Empty"}
-                      </span>
-                    </button>
+                              {!!String(prompt.description || "").trim() && (
+                                <div className="mt-1 line-clamp-1 text-[11px] leading-5 text-white/32 group-hover:text-white/46">
+                                  {String(prompt.description || "")}
+                                </div>
+                              )}
 
-                    <div className="mt-2 flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() => handleDeletePrompt(prompt.id)}
-                        disabled={deletingPromptId === prompt.id}
-                        className="rounded-full border border-red-400/16 bg-transparent px-2.5 py-1 text-[10px] text-red-200/72 transition-[background-color,border-color,color,opacity] duration-200 hover:border-red-400/28 hover:bg-red-500/[0.06] hover:text-red-100 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {deletingPromptId === prompt.id ? "Deleting..." : "Delete"}
-                      </button>
+                              {!!String(prompt.content || "").trim() && (
+                                <div className="mt-1 line-clamp-1 text-[11px] leading-5 text-white/38 group-hover:text-white/52">
+                                  {String(prompt.content || "")}
+                                </div>
+                              )}
+                            </div>
+
+                            <span className="shrink-0 text-[11px] text-white/26 group-hover:text-white/42">
+                              {usingPromptId === prompt.id
+                                ? "Added"
+                                : hasPromptContent(prompt)
+                                ? "Use in chat"
+                                : "Empty"}
+                            </span>
+                          </button>
+
+                          <div className="mt-2 flex justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => startEditingPrompt(prompt)}
+                              disabled={isDeleting}
+                              className="rounded-full border border-white/10 bg-transparent px-2.5 py-1 text-[10px] text-white/64 transition-[background-color,border-color,color,opacity] duration-200 hover:border-white/18 hover:bg-white/[0.05] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              Edit
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleDeletePrompt(prompt.id)}
+                              disabled={isDeleting}
+                              className="rounded-full border border-red-400/16 bg-transparent px-2.5 py-1 text-[10px] text-red-200/72 transition-[background-color,border-color,color,opacity] duration-200 hover:border-red-400/28 hover:bg-red-500/[0.06] hover:text-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {isDeleting ? "Deleting..." : "Delete"}
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </div>
-                  </div>
-                ))
+                  );
+                })
               ) : (
                 <div className={emptyStateClass}>
                   No saved prompts

@@ -11,11 +11,13 @@ $filesToSync = @(
     @{ Source = "app\layout.tsx"; Destination = "layout.tsx" },
     @{ Source = "app\globals.css"; Destination = "globals.css" },
     @{ Source = "app\chat\page.tsx"; Destination = "chat_page.tsx" },
+    
     # ROUTES
     @{ Source = "app\api\chat\route.ts"; Destination = "chat_route.ts" },
     @{ Source = "app\api\feedback\route.ts"; Destination = "feedback_route.ts" },
     @{ Source = "app\api\auth\route.ts"; Destination = "auth_route.ts" },
     @{ Source = "app\api\personal-state\route.ts"; Destination = "personal_state_route.ts" },
+    @{ Source = "app\api\prompts\route.ts"; Destination = "prompts_route.ts" },
 
     # PAGES
     @{ Source = "app\analytics\page.tsx"; Destination = "analytics_page.tsx" },
