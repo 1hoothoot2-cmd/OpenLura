@@ -51,39 +51,54 @@ export default function HomePage() {
       id="top"
       className="min-h-screen overflow-x-hidden bg-[#050510] text-white"
     >
-      <div className="mx-auto w-full max-w-6xl px-6 py-16 sm:px-8 lg:px-10">
+      <div className="mx-auto w-full max-w-6xl px-6 py-14 sm:px-8 sm:py-16 lg:px-10 lg:py-20">
         <div className="w-full">
-          <div className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-white/50">
-            OpenLura
+          <div className="flex items-center gap-3">
+            <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[18px] border border-[#3b82f6]/18 bg-[radial-gradient(circle_at_30%_30%,rgba(96,165,250,0.16),rgba(29,78,216,0.06)_52%,transparent_78%)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03),0_10px_22px_rgba(29,78,216,0.12)]">
+  <img
+    src="/openlura-logo.png"
+    alt="OpenLura logo"
+    className="h-full w-full object-contain"
+  />
+</div>
+
+            <div className="min-w-0">
+              <div className="text-base font-semibold tracking-[-0.02em] text-white/94 sm:text-lg">
+                OpenLura
+              </div>
+              <div className="text-[10px] uppercase tracking-[0.18em] text-white/36 sm:text-[11px]">
+                Adaptive AI workspace
+              </div>
+            </div>
           </div>
 
-          <h1 className="mt-6 max-w-4xl bg-gradient-to-r from-white via-white to-white/68 bg-clip-text text-4xl font-semibold tracking-tight text-transparent sm:text-5xl lg:text-6xl">
+          <h1 className="mt-5 max-w-4xl bg-gradient-to-r from-white via-white to-white/68 bg-clip-text text-4xl font-semibold tracking-tight text-transparent sm:mt-6 sm:text-5xl lg:text-6xl">
             AI that learns how you work.
           </h1>
 
-          <p className="mt-5 max-w-2xl text-base leading-7 text-white/62 sm:text-lg">
+          <p className="mt-4 max-w-2xl text-base leading-7 text-white/62 sm:mt-5 sm:text-lg">
             OpenLura is your adaptive AI workspace. It remembers useful context,
             improves through feedback, and helps you move faster with less noise.
           </p>
 
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             <Link
               href="/chat"
-              className="inline-flex h-12 items-center justify-center rounded-[18px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-6 text-sm font-medium text-white shadow-[0_12px_28px_rgba(59,130,246,0.24)] ol-interactive transition-[transform,filter,box-shadow] duration-200 hover:brightness-110 hover:shadow-[0_14px_32px_rgba(59,130,246,0.28)] active:scale-[0.99]"
+              className="inline-flex h-12 w-full items-center justify-center rounded-[18px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-6 text-sm font-medium text-white shadow-[0_12px_28px_rgba(59,130,246,0.24)] ol-interactive transition-[transform,filter,box-shadow] duration-200 hover:brightness-110 hover:shadow-[0_14px_32px_rgba(59,130,246,0.28)] active:scale-[0.99] sm:w-auto"
             >
               Start chat
             </Link>
 
             <Link
               href="/auth"
-              className="inline-flex h-12 items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.04] px-6 text-sm font-medium text-white/88 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/30 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.99]"
+              className="inline-flex h-12 w-full items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.04] px-6 text-sm font-medium text-white/88 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/30 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.99] sm:w-auto"
             >
               Log in
             </Link>
 
             <Link
               href="#how-it-works"
-              className="inline-flex h-12 items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.04] px-6 text-sm font-medium text-white/88 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/30 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.99]"
+              className="inline-flex h-12 w-full items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.04] px-6 text-sm font-medium text-white/88 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/30 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.99] sm:w-auto"
             >
               See how it works
             </Link>
@@ -112,10 +127,10 @@ export default function HomePage() {
           </div>
         </div>
 
-                    <div className="mt-10 grid w-full max-w-4xl gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    <div className="mt-10 grid w-full max-w-4xl gap-3.5 sm:grid-cols-2 xl:grid-cols-3">
             <Link
               href="/chat"
-              className="rounded-[20px] border border-white/10 bg-white/[0.03] px-4 py-4 text-left backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-white/14 hover:bg-white/[0.05] hover:shadow-[0_10px_24px_rgba(0,0,0,0.12)]"
+              className="rounded-[22px] border border-white/10 bg-white/[0.03] px-4 py-4.5 text-left backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-white/14 hover:bg-white/[0.05] hover:shadow-[0_12px_28px_rgba(0,0,0,0.14)]"
             >
               <div className="text-sm font-medium text-white">Start chat</div>
               <div className="mt-1 text-sm leading-6 text-white/46">
@@ -144,12 +159,12 @@ export default function HomePage() {
             </Link>
           </div>
 
-          <div className="mt-16 h-px w-full max-w-5xl bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+          <div className="mt-14 h-px w-full max-w-5xl bg-gradient-to-r from-transparent via-white/10 to-transparent sm:mt-16" />
 
           {/* PRODUCT OVERVIEW */}
           <section
             id="how-it-works"
-            className="section-panel scroll-mt-24 mt-16 w-full max-w-4xl"
+            className="section-panel scroll-mt-24 mt-14 w-full max-w-4xl sm:mt-16"
           >
             <div className="mb-6">
               <h2 className="text-xl font-semibold text-white/92">
@@ -161,7 +176,7 @@ export default function HomePage() {
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              <div className="min-w-0 rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+              <div className="min-w-0 rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
                 <div className="text-sm font-medium text-white">
                   Learns from context
                 </div>
@@ -170,7 +185,7 @@ export default function HomePage() {
                 </p>
               </div>
 
-              <div className="min-w-0 rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+              <div className="min-w-0 rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
                 <div className="text-sm font-medium text-white">
                   Improves with feedback
                 </div>
@@ -179,7 +194,7 @@ export default function HomePage() {
                 </p>
               </div>
 
-              <div className="min-w-0 rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+              <div className="min-w-0 rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
                 <div className="text-sm font-medium text-white">
                   Personal by design
                 </div>
@@ -194,7 +209,7 @@ export default function HomePage() {
           {/* ROADMAP */}
           <section
             id="roadmap"
-            className="section-panel scroll-mt-24 mt-16 w-full max-w-5xl"
+            className="section-panel scroll-mt-24 mt-14 w-full max-w-5xl sm:mt-16"
           >
             <div className="mb-6">
               <h2 className="text-xl font-semibold text-white/92">
@@ -206,7 +221,7 @@ export default function HomePage() {
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              <div className="rounded-[22px] border border-emerald-400/14 bg-white/[0.03] p-5 backdrop-blur-xl">
+              <div className="rounded-[22px] border border-emerald-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-sm font-medium text-white">Foundation</div>
                   <span className="inline-flex items-center rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
@@ -218,7 +233,7 @@ export default function HomePage() {
                 </p>
               </div>
 
-              <div className="rounded-[22px] border border-emerald-400/14 bg-white/[0.03] p-5 backdrop-blur-xl">
+              <div className="rounded-[22px] border border-emerald-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-sm font-medium text-white">Smarter AI</div>
                   <span className="inline-flex items-center rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
@@ -230,7 +245,7 @@ export default function HomePage() {
                 </p>
               </div>
 
-              <div className="rounded-[22px] border border-emerald-400/14 bg-white/[0.03] p-5 backdrop-blur-xl">
+              <div className="rounded-[22px] border border-emerald-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-sm font-medium text-white">Secure by Design</div>
                   <span className="inline-flex items-center rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
@@ -242,7 +257,7 @@ export default function HomePage() {
                 </p>
               </div>
 
-              <div className="rounded-[22px] border border-amber-400/14 bg-white/[0.03] p-5 backdrop-blur-xl">
+              <div className="rounded-[22px] border border-amber-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-sm font-medium text-white">Experience</div>
                   <span className="inline-flex items-center rounded-full border border-amber-400/20 bg-amber-400/10 px-2.5 py-1 text-[11px] font-medium text-amber-300">
@@ -254,7 +269,7 @@ export default function HomePage() {
                 </p>
               </div>
 
-              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+              <div className="rounded-[22px] border border-amber-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-sm font-medium text-white">Personal AI</div>
                   <span className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[11px] font-medium text-white/60">
@@ -266,7 +281,7 @@ export default function HomePage() {
                 </p>
               </div>
 
-              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+              <div className="rounded-[22px] border border-amber-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-sm font-medium text-white">Expansion</div>
                   <span className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[11px] font-medium text-white/60">
@@ -284,7 +299,7 @@ export default function HomePage() {
           {/* SYSTEM STATUS */}
           <section
             id="system-status"
-            className="section-panel scroll-mt-24 mt-16 w-full max-w-5xl"
+            className="section-panel scroll-mt-24 mt-14 w-full max-w-5xl sm:mt-16"
           >
             <div className="mb-6">
               <h2 className="text-xl font-semibold text-white/92">
@@ -296,7 +311,7 @@ export default function HomePage() {
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              <div className="rounded-[22px] border border-emerald-400/14 bg-white/[0.03] p-5 backdrop-blur-xl">
+              <div className="rounded-[22px] border border-emerald-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-sm font-medium text-white">Chat workspace</div>
                   <span className="inline-flex items-center rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
@@ -308,7 +323,7 @@ export default function HomePage() {
                 </p>
               </div>
 
-              <div className="rounded-[22px] border border-emerald-400/14 bg-white/[0.03] p-5 backdrop-blur-xl">
+              <div className="rounded-[22px] border border-emerald-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-sm font-medium text-white">Learning systems</div>
                   <span className="inline-flex items-center rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
@@ -320,7 +335,7 @@ export default function HomePage() {
                 </p>
               </div>
 
-              <div className="rounded-[22px] border border-amber-400/14 bg-white/[0.03] p-5 backdrop-blur-xl">
+              <div className="rounded-[22px] border border-amber-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-sm font-medium text-white">Feedback intake</div>
                   <span className="inline-flex items-center rounded-full border border-amber-400/20 bg-amber-400/10 px-2.5 py-1 text-[11px] font-medium text-amber-300">
@@ -338,7 +353,7 @@ export default function HomePage() {
           {/* USE CASES */}
           <section
             id="use-cases"
-            className="section-panel scroll-mt-24 mt-16 w-full max-w-5xl"
+            className="section-panel scroll-mt-24 mt-14 w-full max-w-5xl sm:mt-16"
           >
             <div className="mb-6">
               <h2 className="text-xl font-semibold text-white/92">
@@ -350,42 +365,42 @@ export default function HomePage() {
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+              <div className="rounded-[22px] border border-amber-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
                 <div className="text-sm font-medium text-white">Writing and rewriting</div>
                 <p className="mt-2 text-sm leading-6 text-white/46">
                   Draft ideas faster, improve clarity, and refine content without losing your tone.
                 </p>
               </div>
 
-              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+              <div className="rounded-[22px] border border-amber-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
                 <div className="text-sm font-medium text-white">Research support</div>
                 <p className="mt-2 text-sm leading-6 text-white/46">
                   Break down topics, organize findings, and turn scattered notes into direction.
                 </p>
               </div>
 
-              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+              <div className="rounded-[22px] border border-amber-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
                 <div className="text-sm font-medium text-white">Workflow thinking</div>
                 <p className="mt-2 text-sm leading-6 text-white/46">
                   Use OpenLura to structure tasks, plan next steps, and reduce decision friction.
                 </p>
               </div>
 
-              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+              <div className="rounded-[22px] border border-amber-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
                 <div className="text-sm font-medium text-white">Idea development</div>
                 <p className="mt-2 text-sm leading-6 text-white/46">
                   Explore concepts, test directions, and expand rough thoughts into usable output.
                 </p>
               </div>
 
-              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+              <div className="rounded-[22px] border border-amber-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
                 <div className="text-sm font-medium text-white">Learning as you go</div>
                 <p className="mt-2 text-sm leading-6 text-white/46">
                   Get help understanding topics while building context over time through interaction.
                 </p>
               </div>
 
-              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+              <div className="rounded-[22px] border border-amber-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
                 <div className="text-sm font-medium text-white">Daily AI workspace</div>
                 <p className="mt-2 text-sm leading-6 text-white/46">
                   Keep one consistent place for asking, refining, planning, and moving work forward.
@@ -398,7 +413,7 @@ export default function HomePage() {
           {/* WHY OPENLURA */}
           <section
             id="why-openlura"
-            className="section-panel scroll-mt-24 mt-16 w-full max-w-5xl"
+            className="section-panel scroll-mt-24 mt-14 w-full max-w-5xl sm:mt-16"
           >
             <div className="mb-6">
               <h2 className="text-xl font-semibold text-white/92">
@@ -410,28 +425,28 @@ export default function HomePage() {
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+              <div className="rounded-[22px] border border-amber-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
                 <div className="text-sm font-medium text-white">Less noise</div>
                 <p className="mt-2 text-sm leading-6 text-white/46">
                   Focused help without unnecessary complexity or distracting product clutter.
                 </p>
               </div>
 
-              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+              <div className="rounded-[22px] border border-amber-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
                 <div className="text-sm font-medium text-white">Context that carries forward</div>
                 <p className="mt-2 text-sm leading-6 text-white/46">
                   Conversations become more useful as context builds across continued use.
                 </p>
               </div>
 
-              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+              <div className="rounded-[22px] border border-amber-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
                 <div className="text-sm font-medium text-white">Improves through feedback</div>
                 <p className="mt-2 text-sm leading-6 text-white/46">
                   Feedback helps shape a sharper, more aligned experience over time.
                 </p>
               </div>
 
-              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+              <div className="rounded-[22px] border border-amber-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
                 <div className="text-sm font-medium text-white">Designed for real work</div>
                 <p className="mt-2 text-sm leading-6 text-white/46">
                   Made to support thinking, writing, planning, and everyday execution.
@@ -444,7 +459,7 @@ export default function HomePage() {
           {/* PLANS */}
           <section
             id="plans"
-            className="section-panel scroll-mt-24 mt-16 w-full max-w-5xl"
+            className="section-panel scroll-mt-24 mt-14 w-full max-w-5xl sm:mt-16"
           >
             <div className="mb-6">
               <h2 className="text-xl font-semibold text-white/92">
@@ -456,7 +471,7 @@ export default function HomePage() {
             </div>
 
             <div className="grid gap-4 lg:grid-cols-2">
-              <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-6 backdrop-blur-xl sm:p-7">
+              <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-6 backdrop-blur-xl ol-surface sm:p-7">
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <div className="text-lg font-semibold text-white">Free</div>
@@ -501,7 +516,7 @@ export default function HomePage() {
                 </div>
               </div>
 
-              <div className="rounded-[24px] border border-blue-400/16 bg-gradient-to-b from-[#0d1733] to-[#0a1022] p-6 shadow-[0_18px_40px_rgba(29,78,216,0.12)] backdrop-blur-xl sm:p-7">
+              <div className="rounded-[24px] border border-blue-400/16 bg-gradient-to-b from-[#0d1733] to-[#0a1022] p-6 shadow-[0_18px_40px_rgba(29,78,216,0.12)] backdrop-blur-xl ol-surface sm:p-7">
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <div className="text-lg font-semibold text-white">Go</div>
@@ -552,7 +567,7 @@ export default function HomePage() {
           {/* SECURITY */}
           <section
             id="security"
-            className="section-panel scroll-mt-24 mt-16 w-full max-w-5xl"
+            className="section-panel scroll-mt-24 mt-14 w-full max-w-5xl sm:mt-16"
           >
             <div className="mb-6">
               <h2 className="text-xl font-semibold text-white/92">
@@ -564,28 +579,28 @@ export default function HomePage() {
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+              <div className="rounded-[22px] border border-amber-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
                 <div className="text-sm font-medium text-white">Private by default</div>
                 <p className="mt-2 text-sm leading-6 text-white/46">
                   Core product flows are designed to keep user interactions scoped and protected.
                 </p>
               </div>
 
-              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+              <div className="rounded-[22px] border border-amber-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
                 <div className="text-sm font-medium text-white">Separated environments</div>
                 <p className="mt-2 text-sm leading-6 text-white/46">
                   Clear boundaries help keep users, data, and product contexts properly separated.
                 </p>
               </div>
 
-              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+              <div className="rounded-[22px] border border-amber-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
                 <div className="text-sm font-medium text-white">Access-aware design</div>
                 <p className="mt-2 text-sm leading-6 text-white/46">
                   Sensitive flows are approached with controlled access and product safety in mind.
                 </p>
               </div>
 
-              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+              <div className="rounded-[22px] border border-amber-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
                 <div className="text-sm font-medium text-white">Security-first foundation</div>
                 <p className="mt-2 text-sm leading-6 text-white/46">
                   Protection is built into the product foundation rather than added later.
@@ -598,7 +613,7 @@ export default function HomePage() {
           {/* ACCOUNT FLOW */}
           <section
             id="account-flow"
-            className="section-panel scroll-mt-24 mt-16 w-full max-w-5xl"
+            className="section-panel scroll-mt-24 mt-14 w-full max-w-5xl sm:mt-16"
           >
             <div className="mb-6">
               <h2 className="text-xl font-semibold text-white/92">
@@ -610,7 +625,7 @@ export default function HomePage() {
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+              <div className="rounded-[22px] border border-amber-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
                 <div className="mb-3 inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-sm font-medium text-white/78">
                   1
                 </div>
@@ -620,7 +635,7 @@ export default function HomePage() {
                 </p>
               </div>
 
-              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+              <div className="rounded-[22px] border border-amber-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
                 <div className="mb-3 inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-sm font-medium text-white/78">
                   2
                 </div>
@@ -630,7 +645,7 @@ export default function HomePage() {
                 </p>
               </div>
 
-              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+              <div className="rounded-[22px] border border-amber-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
                 <div className="mb-3 inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-sm font-medium text-white/78">
                   3
                 </div>
@@ -640,7 +655,7 @@ export default function HomePage() {
                 </p>
               </div>
 
-              <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl">
+              <div className="rounded-[22px] border border-amber-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
                 <div className="mb-3 inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-sm font-medium text-white/78">
                   4
                 </div>
@@ -656,7 +671,7 @@ export default function HomePage() {
           {/* CHANGELOG */}
           <section
             id="changelog"
-            className="section-panel scroll-mt-24 mt-16 w-full max-w-5xl"
+            className="section-panel scroll-mt-24 mt-14 w-full max-w-5xl sm:mt-16"
           >
             <div className="mb-6">
               <h2 className="text-xl font-semibold text-white/92">
@@ -668,7 +683,7 @@ export default function HomePage() {
             </div>
 
             <div className="grid gap-4">
-              <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-6 backdrop-blur-xl sm:p-7">
+              <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-6 backdrop-blur-xl ol-surface sm:p-7">
                 <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
                   <div className="max-w-3xl">
                     <div className="inline-flex items-center rounded-full border border-emerald-400/16 bg-emerald-400/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.14em] text-emerald-300">
@@ -723,14 +738,23 @@ export default function HomePage() {
             <SectionFooter />
           </section>
 
-          <div className="mt-20 w-full max-w-5xl">
+          <div className="mt-16 w-full max-w-5xl sm:mt-20">
             <div className="overflow-hidden rounded-[28px] border border-[#3b82f6]/14 bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.16),transparent_38%),rgba(255,255,255,0.03)] p-6 shadow-[0_20px_48px_rgba(0,0,0,0.18)] backdrop-blur-xl sm:p-7">
               <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
                 <div className="max-w-2xl">
-                  <div className="inline-flex items-center rounded-full border border-[#3b82f6]/18 bg-[#3b82f6]/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.16em] text-blue-300">
-                    Ready to try OpenLura
-                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[18px] border border-[#3b82f6]/18 bg-[radial-gradient(circle_at_30%_30%,rgba(96,165,250,0.16),rgba(29,78,216,0.06)_52%,transparent_78%)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03),0_10px_22px_rgba(29,78,216,0.12)]">
+  <img
+    src="/openlura-logo.png"
+    alt="OpenLura logo"
+    className="h-full w-full object-contain"
+  />
+</div>
 
+                    <div className="inline-flex items-center rounded-full border border-[#3b82f6]/18 bg-[#3b82f6]/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.16em] text-blue-300">
+                      Ready to try OpenLura
+                    </div>
+                  </div>
                   <h2 className="mt-4 text-2xl font-semibold text-white/95 sm:text-3xl">
                     Start where the value is strongest: the chat.
                   </h2>
@@ -741,17 +765,17 @@ export default function HomePage() {
                   </p>
                 </div>
 
-                <div className="flex flex-col gap-3 sm:flex-row">
+                <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
                   <Link
                     href="/chat"
-                    className="inline-flex h-12 items-center justify-center rounded-[18px] bg-gradient-to-r from-[#1d4ed8] via-[#2563eb] to-[#3b82f6] px-6 text-sm font-medium text-white shadow-[0_14px_34px_rgba(59,130,246,0.28)] ol-interactive transition-[transform,filter,box-shadow] duration-200 hover:-translate-y-[1px] hover:brightness-110 hover:shadow-[0_18px_40px_rgba(59,130,246,0.34)] active:scale-[0.99]"
+                    className="inline-flex h-12 w-full items-center justify-center rounded-[18px] bg-gradient-to-r from-[#1d4ed8] via-[#2563eb] to-[#3b82f6] px-6 text-sm font-medium text-white shadow-[0_14px_34px_rgba(59,130,246,0.28)] ol-interactive transition-[transform,filter,box-shadow] duration-200 hover:-translate-y-[1px] hover:brightness-110 hover:shadow-[0_18px_40px_rgba(59,130,246,0.34)] active:scale-[0.99] sm:w-auto"
                   >
                     Open chat
                   </Link>
 
                   <Link
                     href="/auth"
-                    className="inline-flex h-12 items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.04] px-6 text-sm font-medium text-white/86 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/14 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.10)] active:scale-[0.99]"
+                    className="inline-flex h-12 w-full items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.04] px-6 text-sm font-medium text-white/86 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/14 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.10)] active:scale-[0.99] sm:w-auto"
                   >
                     Log in
                   </Link>
@@ -759,14 +783,14 @@ export default function HomePage() {
                   <button
                     type="button"
                     onClick={() => setIsFeedbackOpen(true)}
-                    className="inline-flex h-12 items-center justify-center rounded-[18px] border border-amber-400/16 bg-amber-400/10 px-6 text-sm font-medium text-amber-200 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-amber-400/24 hover:bg-amber-400/14 hover:text-amber-100 hover:shadow-[0_10px_24px_rgba(251,191,36,0.12)] active:scale-[0.99]"
+                    className="inline-flex h-12 w-full items-center justify-center rounded-[18px] border border-amber-400/16 bg-amber-400/10 px-6 text-sm font-medium text-amber-200 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-amber-400/24 hover:bg-amber-400/14 hover:text-amber-100 hover:shadow-[0_10px_24px_rgba(251,191,36,0.12)] active:scale-[0.99] sm:w-auto"
                   >
                     Give feedback
                   </button>
 
                   <a
                     href="#top"
-                    className="inline-flex h-12 items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.04] px-6 text-sm font-medium text-white/86 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/14 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.10)] active:scale-[0.99]"
+                    className="inline-flex h-12 w-full items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.04] px-6 text-sm font-medium text-white/86 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/14 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.10)] active:scale-[0.99] sm:w-auto"
                   >
                     Back to top
                   </a>
@@ -818,7 +842,7 @@ export default function HomePage() {
                   <input
                     type="text"
                     placeholder="Bug, feedback, or idea"
-                    className="w-full rounded-[18px] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none placeholder:text-white/30 transition-colors duration-200 focus:border-white/20"
+                    className="w-full rounded-[18px] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none placeholder:text-white/30 ol-surface transition-colors duration-200 focus:border-white/20"
                   />
                 </div>
 
@@ -829,7 +853,7 @@ export default function HomePage() {
                   <textarea
                     rows={5}
                     placeholder="Tell us what happened or what could be improved"
-                    className="w-full rounded-[18px] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none placeholder:text-white/30 transition-colors duration-200 focus:border-white/20"
+                    className="w-full rounded-[18px] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none placeholder:text-white/30 ol-surface transition-colors duration-200 focus:border-white/20"
                   />
                 </div>
 

@@ -28,6 +28,48 @@ export default function ChatPage() {
   const [chats, setChats] = useState<any[]>([]);
   const [activeChatId, setActiveChatId] = useState<number | null>(null);
   const [input, setInput] = useState("");
+const [savingPrompt, setSavingPrompt] = useState(false);
+const [savePromptSuccess, setSavePromptSuccess] = useState(false);
+
+const getLastUserPrompt = () => {
+  const activeChat = chats.find(c => c.id === activeChatId);
+  if (!activeChat) return "";
+
+  const reversed = [...(activeChat.messages || [])].reverse();
+  const lastUserMsg = reversed.find(m => m.role === "user");
+
+  return lastUserMsg?.content || "";
+};
+
+const handleSavePrompt = async () => {
+  const content = input || getLastUserPrompt();
+  if (!content?.trim()) return;
+
+  try {
+    setSavingPrompt(true);
+    setSavePromptSuccess(false);
+
+    const res = await fetch("/api/prompts", {
+  method: "POST",
+  headers: getScopedRequestHeaders(true, isPersonalRoute),
+  credentials: "same-origin",
+  body: JSON.stringify({
+    name: content.trim().slice(0, 60),
+    description: "",
+    content,
+  }),
+});
+
+    if (res.ok) {
+      setSavePromptSuccess(true);
+      setTimeout(() => setSavePromptSuccess(false), 2000);
+    }
+  } catch (e) {
+    console.error("Save prompt failed", e);
+  } finally {
+    setSavingPrompt(false);
+  }
+};
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [streamController, setStreamController] = useState<AbortController | null>(null);
@@ -549,6 +591,17 @@ const shouldSkipPersonalStateSync =
   const el = messagesRef.current;
   if (!el) return;
 
+  const handleViewportResize = () => {
+    requestAnimationFrame(() => {
+      el.scrollTo({
+        top: el.scrollHeight,
+        behavior: "auto",
+      });
+    });
+  };
+
+  window.addEventListener("resize", handleViewportResize);
+
   const visibleChats = chats.filter(
     (chat: any) => !chat.archived && !chat.deleted
   );
@@ -569,6 +622,9 @@ const shouldSkipPersonalStateSync =
       behavior: lastMessage?.isStreaming ? "auto" : "smooth",
     });
   });
+  return () => {
+    window.removeEventListener("resize", handleViewportResize);
+  };
 }, [activeChatId, chats, loading]);
 
   useEffect(() => {
@@ -760,7 +816,7 @@ const messageBubbleClass =
 const composerInputClass =
   "w-full min-w-0 max-w-full resize-none overflow-x-hidden break-words [overflow-wrap:anywhere]";
 const messageActionButtonClass =
-  "inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-white/66 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/28 hover:bg-[#3b82f6]/8 hover:text-white hover:shadow-[0_8px_18px_rgba(59,130,246,0.12)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-40";
+  "inline-flex h-8 w-8 md:h-9 md:w-9 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-white/66 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/28 hover:bg-[#3b82f6]/8 hover:text-white hover:shadow-[0_8px_18px_rgba(59,130,246,0.12)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-40";
 
 const getOrCreateOpenLuraUserId = () => {
   if (typeof window === "undefined") return "";
@@ -2628,12 +2684,12 @@ updated[index].messages[
             />
 
             <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  setShowFeedbackBox(false);
-                  setFeedbackText("");
-                  setFeedbackCategory("adjustment");
-                }}
+  <button
+    onClick={() => {
+      setShowFeedbackBox(false);
+      setFeedbackText("");
+      setFeedbackCategory("adjustment");
+    }}
                 className="flex-1 rounded-[20px] border border-white/8 bg-white/[0.04] p-3 text-white/88 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.99]"
               >
                 Cancel
@@ -2707,6 +2763,7 @@ updated[index].messages[
 
           <div
   ref={messagesRef}
+  style={{ overscrollBehavior: "contain" }}
   className={`${messageShellClass} flex-1 min-h-0 w-full overflow-x-hidden overflow-y-auto pb-5 md:pb-6 ${
   activeMessages.length
     ? "flex-col gap-6 px-4 pt-6 md:gap-7 md:px-6 md:pt-6"
@@ -2761,14 +2818,14 @@ updated[index].messages[
                     return (
                       <div
   key={`${msg.role}-${originalIndex}-${msg.content || ""}`}
-  className={`${messageShellClass} flex-col gap-2 animate-[fadeInUp_0.22s_ease-out] transition-[opacity,transform] duration-200 ${
+  className={`${messageShellClass} flex-col gap-1.5 md:gap-2 animate-[fadeInUp_0.22s_ease-out] transition-[opacity,transform] duration-200 ${
     msg.role === "user" ? "items-end" : "items-start"
   }`}
 >
                         <div
   className={`${messageBubbleClass} min-w-0 max-w-[90%] md:max-w-[78%] whitespace-pre-line rounded-[24px] px-4 py-3.5 text-[15px] md:px-5 md:py-4 md:text-[16px] transition-[box-shadow,transform,background-color,border-color] duration-200 ${
     msg.role === "user"
-      ? "ml-auto bg-gradient-to-r from-[#1d4ed8] to-[#2563eb] text-white shadow-[0_10px_20px_rgba(37,99,235,0.16)]"
+      ? "ml-auto rounded-[26px] bg-gradient-to-r from-[#1d4ed8] to-[#2563eb] text-white shadow-[0_0_0_1px_rgba(96,165,250,0.14),0_0_28px_rgba(37,99,235,0.20),0_12px_24px_rgba(37,99,235,0.18)]"
       : "border border-white/8 bg-white/[0.045] text-white/90 backdrop-blur-xl shadow-[0_10px_22px_rgba(0,0,0,0.10)]"
   }`}
 >
@@ -2849,7 +2906,7 @@ updated[index].messages[
                           msg.content !== "🤖 What can I improve?" &&
                           msg.content !== "🤖 Thanks for your feedback. I’ll use this to improve future answers." && (
                             <>
-                              <div className="mt-1 flex w-full max-w-[90%] flex-wrap items-center gap-2 px-0.5 md:mt-1.5 md:max-w-[78%] md:px-2">
+                              <div className="mt-1 flex w-full max-w-[90%] flex-wrap items-center gap-1.5 px-0.5 md:mt-1.5 md:max-w-[78%] md:gap-2 md:px-2">
                                 {!feedbackGiven[
                                   getFeedbackUiKey(renderedChatId, originalIndex)
                                 ] && (
@@ -3009,7 +3066,7 @@ updated[index].messages[
                               </div>
 
                 {Array.isArray(msg.sources) && msg.sources.length > 0 && (
-          <div className="mt-2.5 w-full max-w-[90%] space-y-2.5 px-0.5 md:mt-3 md:max-w-[78%] md:px-2">
+          <div className="mt-2 w-full max-w-[90%] space-y-2.5 px-0.5 md:mt-3 md:max-w-[78%] md:px-2">
             <div className="flex items-center gap-2 px-0.5">
               <span className="text-[12px] text-white/30">🔎</span>
               <p className="text-[11px] uppercase tracking-[0.18em] text-white/32">
@@ -3080,7 +3137,7 @@ updated[index].messages[
     activeMessages.length === 0
       ? "mx-auto mt-6 w-full max-w-2xl px-3 md:px-4"
       : "sticky bottom-0 z-[40] mt-auto w-full max-w-2xl bg-[#050510]/[0.985] px-3 pt-3 pb-[calc(env(safe-area-inset-bottom)+18px)] shadow-[0_-14px_36px_rgba(5,5,16,0.42)] md:static md:z-auto md:w-full md:max-w-none md:border-0 md:bg-transparent md:px-0 md:pt-0 md:pb-0 md:shadow-none"
-  } flex w-full min-w-0 max-w-full overflow-x-hidden items-end gap-2 rounded-[28px] border border-white/10 bg-[#0b1020]/88 shadow-[0_16px_34px_rgba(0,0,0,0.22)] backdrop-blur-2xl md:rounded-b-[28px] md:rounded-t-[28px] md:border-x-0 md:border-b-0 md:border-t md:border-white/8 md:bg-white/[0.04] md:px-4 md:py-4`}
+  } flex w-full min-w-0 max-w-full overflow-x-hidden items-center gap-2 rounded-[28px] border border-white/10 bg-[#0b1020]/88 shadow-[0_16px_34px_rgba(0,0,0,0.22)] backdrop-blur-2xl md:rounded-b-[28px] md:rounded-t-[28px] md:border-x-0 md:border-b-0 md:border-t md:border-white/8 md:bg-white/[0.04] md:px-4 md:py-4`}
 >
 
                         <button
@@ -3116,6 +3173,7 @@ updated[index].messages[
               </div>
             )}
 
+HANGE:
 <textarea
   ref={inputRef}
   value={input}
@@ -3131,7 +3189,7 @@ updated[index].messages[
 
         messagesRef.current?.scrollTo({
           top: messagesRef.current.scrollHeight,
-          behavior: "smooth",
+          behavior: "auto",
         });
       });
     }
@@ -3158,26 +3216,43 @@ updated[index].messages[
       sendMessage();
     }
   }}
-  className={`${composerInputClass} min-h-[52px] max-h-[140px] flex-1 rounded-2xl bg-transparent px-2 py-3 text-[16px] leading-6 text-white/95 outline-none placeholder:text-white/28 focus:bg-white/[0.02] md:px-3`}
+  className={`${composerInputClass} min-h-[48px] max-h-[140px] flex-1 rounded-2xl bg-transparent px-2 py-2.5 text-[16px] leading-6 text-white/95 outline-none placeholder:text-white/28 focus:bg-white/[0.02] md:px-3`}
   placeholder={activeMessages.length === 0 ? "Ask anything" : "Message OpenLura..."}
-enterKeyHint="send"
+  enterKeyHint="send"
   rows={1}
 />
 
-                           <button
-  type="button"
-  disabled={!loading && !input.trim() && !image}
-  onClick={loading ? stopStreaming : sendMessage}
-  className={`flex h-12 w-12 shrink-0 touch-manipulation items-center justify-center rounded-full text-xl ol-interactive transition-[transform,filter,background-color,color,box-shadow,opacity] duration-200 active:scale-[0.97] disabled:cursor-not-allowed ${
-    loading
-      ? "bg-red-500 text-white shadow-[0_10px_24px_rgba(239,68,68,0.30)]"
-      : !input.trim() && !image
-      ? "bg-white/[0.07] text-white/24 shadow-none"
-      : "bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] text-white shadow-[0_12px_24px_rgba(59,130,246,0.26)] hover:brightness-110"
-  }`}
->
-  {loading ? "■" : "↑"}
-</button>
+<div className="flex shrink-0 flex-col items-center gap-1.5">
+  <button
+    type="button"
+    onClick={handleSavePrompt}
+    disabled={savingPrompt || (!input.trim() && !getLastUserPrompt().trim())}
+    className="inline-flex min-h-[32px] items-center justify-center rounded-full border border-white/8 bg-white/[0.035] px-3 text-[11px] text-white/68 ol-interactive transition-[transform,background-color,border-color,color,box-shadow,opacity] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+  >
+    {savingPrompt ? "Saving..." : "Save"}
+  </button>
+
+  {savePromptSuccess && (
+    <span className="text-[11px] text-green-400">
+      Saved
+    </span>
+  )}
+
+  <button
+    type="button"
+    disabled={!loading && !input.trim() && !image}
+    onClick={loading ? stopStreaming : sendMessage}
+    className={`flex h-11 w-11 touch-manipulation items-center justify-center rounded-full text-xl ol-interactive transition-[transform,filter,background-color,color,box-shadow,opacity] duration-200 active:scale-[0.97] disabled:cursor-not-allowed ${
+      loading
+        ? "bg-red-500 text-white shadow-[0_10px_24px_rgba(239,68,68,0.30)]"
+        : !input.trim() && !image
+        ? "bg-white/[0.07] text-white/24 shadow-none"
+        : "bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] text-white shadow-[0_12px_24px_rgba(59,130,246,0.26)] hover:brightness-110"
+    }`}
+  >
+    {loading ? "■" : "↑"}
+  </button>
+</div>
           </div>
 
         </div>
@@ -3279,6 +3354,30 @@ enterKeyHint="send"
       )}
 
     <style jsx global>{`
+      /* === SCROLLBAR FIX === */
+      *::-webkit-scrollbar {
+        width: 8px;
+      }
+
+      *::-webkit-scrollbar-track {
+        background: transparent;
+      }
+
+      *::-webkit-scrollbar-thumb {
+        background: rgba(59, 130, 246, 0.25);
+        border-radius: 999px;
+      }
+
+      *::-webkit-scrollbar-thumb:hover {
+        background: rgba(59, 130, 246, 0.45);
+      }
+
+      /* Firefox */
+      * {
+        scrollbar-width: thin;
+        scrollbar-color: rgba(59,130,246,0.25) transparent;
+      }
+
       @keyframes fadeInUp {
         from {
           opacity: 0;
