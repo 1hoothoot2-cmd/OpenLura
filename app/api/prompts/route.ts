@@ -1,11 +1,9 @@
 import { NextResponse } from "next/server";
-import { requireOpenLuraIdentity } from "@/lib/auth/requestIdentity";
 
 export const dynamic = "force-dynamic";
 
 const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseAnonKey =
-  process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const promptsTable = process.env.OPENLURA_PROMPTS_TABLE || "prompts";
 
 const NO_STORE_HEADERS = {
@@ -13,6 +11,7 @@ const NO_STORE_HEADERS = {
 };
 
 const MAX_REQUEST_BYTES = 32 * 1024;
+const MAX_USER_ID_LENGTH = 200;
 const MAX_NAME_LENGTH = 120;
 const MAX_DESCRIPTION_LENGTH = 300;
 const MAX_CONTENT_LENGTH = 12000;
@@ -26,8 +25,8 @@ type PromptRow = {
   description: string;
   content: string;
   tags?: string[] | null;
-  last_used_at?: string | null;
   created_at?: string;
+  last_used_at?: string | null;
 };
 
 type CreatePromptBody = {
@@ -36,30 +35,6 @@ type CreatePromptBody = {
   content?: unknown;
   tags?: unknown;
 };
-
-function toSafeErrorMeta(error: unknown) {
-  if (error instanceof Error) {
-    return {
-      name: error.name,
-      message: error.message,
-    };
-  }
-
-  return {
-    message: "Unknown error",
-  };
-}
-
-function logSafeError(
-  label: string,
-  error: unknown,
-  extra?: Record<string, unknown>
-) {
-  console.error(label, {
-    ...extra,
-    ...toSafeErrorMeta(error),
-  });
-}
 
 function unauthorizedResponse() {
   return NextResponse.json(
@@ -91,15 +66,49 @@ function internalErrorResponse(message: string) {
   );
 }
 
+function toSafeErrorMeta(error: unknown) {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+    };
+  }
+
+  return {
+    message: "Unknown error",
+  };
+}
+
+function logSafeError(
+  label: string,
+  error: unknown,
+  extra?: Record<string, unknown>
+) {
+  console.error(label, {
+    ...extra,
+    ...toSafeErrorMeta(error),
+  });
+}
+
 function getSupabaseConfig() {
-  if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error("Missing SUPABASE_URL or SUPABASE_ANON_KEY");
+  if (!supabaseUrl || !supabaseServiceRoleKey) {
+    throw new Error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
   }
 
   return {
     promptsTableUrl: `${supabaseUrl}/rest/v1/${promptsTable}`,
-    supabaseAnonKey,
+    supabaseServiceRoleKey,
   };
+}
+
+function getRequestUserId(req: Request) {
+  const raw = req.headers.get("x-openlura-user-id")?.trim() || "";
+
+  if (!raw) return null;
+  if (raw.length > MAX_USER_ID_LENGTH) return null;
+  if (/[\r\n]/.test(raw)) return null;
+
+  return raw;
 }
 
 function getContentLength(req: Request) {
@@ -187,35 +196,14 @@ function normalizeCreatePromptBody(body: unknown) {
   };
 }
 
-async function resolveAuthenticatedIdentity(req: Request) {
-  const result = await requireOpenLuraIdentity(req);
-
-  if (!result.ok) {
-    if (result.reason === "misconfigured") {
-      logSafeError(
-        "OpenLura prompts identity misconfigured",
-        new Error("Identity enforcement misconfigured")
-      );
-    }
-
-    return null;
-  }
-
-  return {
-    accessToken: result.identity.accessToken,
-    userId: result.identity.userId,
-  };
-}
-
 async function insertPrompt(input: {
   promptsTableUrl: string;
-  supabaseAnonKey: string;
-  accessToken: string;
+  supabaseServiceRoleKey: string;
   row: PromptRow;
 }) {
   const headers = new Headers();
-  headers.set("apikey", input.supabaseAnonKey);
-  headers.set("Authorization", `Bearer ${input.accessToken}`);
+  headers.set("apikey", input.supabaseServiceRoleKey);
+  headers.set("Authorization", `Bearer ${input.supabaseServiceRoleKey}`);
   headers.set("Content-Type", "application/json");
   headers.set("Prefer", "return=representation");
   headers.set("Accept", "application/json");
@@ -227,14 +215,6 @@ async function insertPrompt(input: {
     body: JSON.stringify(input.row),
   });
 
-  if (res.status === 401 || res.status === 403) {
-    return {
-      ok: false as const,
-      reason: "unauthorized" as const,
-      data: null,
-    };
-  }
-
   if (!res.ok) {
     const errorText = await res.text();
 
@@ -244,7 +224,6 @@ async function insertPrompt(input: {
 
     return {
       ok: false as const,
-      reason: "error" as const,
       data: null,
     };
   }
@@ -253,15 +232,13 @@ async function insertPrompt(input: {
 
   return {
     ok: true as const,
-    reason: null,
     data: Array.isArray(data) ? data[0] ?? null : null,
   };
 }
 
 async function fetchPrompts(input: {
   promptsTableUrl: string;
-  supabaseAnonKey: string;
-  accessToken: string;
+  supabaseServiceRoleKey: string;
   userId: string;
 }) {
   const query =
@@ -270,8 +247,8 @@ async function fetchPrompts(input: {
     "&order=created_at.desc.nullslast";
 
   const headers = new Headers();
-  headers.set("apikey", input.supabaseAnonKey);
-  headers.set("Authorization", `Bearer ${input.accessToken}`);
+  headers.set("apikey", input.supabaseServiceRoleKey);
+  headers.set("Authorization", `Bearer ${input.supabaseServiceRoleKey}`);
   headers.set("Accept", "application/json");
 
   const res = await fetch(`${input.promptsTableUrl}?${query}`, {
@@ -279,14 +256,6 @@ async function fetchPrompts(input: {
     headers,
     cache: "no-store",
   });
-
-  if (res.status === 401 || res.status === 403) {
-    return {
-      ok: false as const,
-      reason: "unauthorized" as const,
-      data: null,
-    };
-  }
 
   if (!res.ok) {
     const errorText = await res.text();
@@ -297,7 +266,6 @@ async function fetchPrompts(input: {
 
     return {
       ok: false as const,
-      reason: "error" as const,
       data: null,
     };
   }
@@ -306,7 +274,6 @@ async function fetchPrompts(input: {
 
   return {
     ok: true as const,
-    reason: null,
     data: Array.isArray(data) ? data : [],
   };
 }
@@ -319,9 +286,9 @@ export async function POST(req: Request) {
       return badRequestResponse("Request too large");
     }
 
-    const identity = await resolveAuthenticatedIdentity(req);
+    const userId = getRequestUserId(req);
 
-    if (!identity) {
+    if (!userId) {
       return unauthorizedResponse();
     }
 
@@ -339,14 +306,13 @@ export async function POST(req: Request) {
       return badRequestResponse("Invalid prompt payload");
     }
 
-    const { promptsTableUrl, supabaseAnonKey } = getSupabaseConfig();
+    const { promptsTableUrl, supabaseServiceRoleKey } = getSupabaseConfig();
 
     const insertResult = await insertPrompt({
       promptsTableUrl,
-      supabaseAnonKey,
-      accessToken: identity.accessToken,
+      supabaseServiceRoleKey,
       row: {
-        user_id: identity.userId,
+        user_id: userId,
         name: normalized.name,
         description: normalized.description,
         content: normalized.content,
@@ -355,10 +321,6 @@ export async function POST(req: Request) {
     });
 
     if (!insertResult.ok) {
-      if (insertResult.reason === "unauthorized") {
-        return unauthorizedResponse();
-      }
-
       return internalErrorResponse("Prompt opslaan mislukt");
     }
 
@@ -380,26 +342,21 @@ export async function POST(req: Request) {
 
 export async function GET(req: Request) {
   try {
-    const identity = await resolveAuthenticatedIdentity(req);
+    const userId = getRequestUserId(req);
 
-    if (!identity) {
+    if (!userId) {
       return unauthorizedResponse();
     }
 
-    const { promptsTableUrl, supabaseAnonKey } = getSupabaseConfig();
+    const { promptsTableUrl, supabaseServiceRoleKey } = getSupabaseConfig();
 
     const result = await fetchPrompts({
       promptsTableUrl,
-      supabaseAnonKey,
-      accessToken: identity.accessToken,
-      userId: identity.userId,
+      supabaseServiceRoleKey,
+      userId,
     });
 
     if (!result.ok) {
-      if (result.reason === "unauthorized") {
-        return unauthorizedResponse();
-      }
-
       return internalErrorResponse("Prompts ophalen mislukt");
     }
 

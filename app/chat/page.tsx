@@ -51,7 +51,10 @@ const handleSavePrompt = async () => {
 
     const res = await fetch("/api/prompts", {
   method: "POST",
-  headers: getScopedRequestHeaders(true, isPersonalRoute),
+  headers: getOpenLuraRequestHeaders(true, {
+  personalEnv: false,
+  includeUserId: true,
+}),
   credentials: "same-origin",
   body: JSON.stringify({
     name: content.trim().slice(0, 60),
@@ -499,7 +502,10 @@ const shouldSkipPersonalStateSync =
       try {
         const res = await fetch("/api/personal-state", {
           method: "POST",
-          headers: getScopedRequestHeaders(true, isPersonalRoute),
+          headers: getOpenLuraRequestHeaders(true, {
+  personalEnv: false,
+  includeUserId: true,
+}),
           credentials: "same-origin",
           body: JSON.stringify({
             chats: safeChats,
@@ -1594,7 +1600,10 @@ const restoreDeletedChat = (chatId: number) => {
     try {
       improveRes = await fetch("/api/chat", {
         method: "POST",
-        headers: getScopedRequestHeaders(true, isPersonalRoute),
+        headers: getOpenLuraRequestHeaders(true, {
+  personalEnv: false,
+  includeUserId: true,
+}),
         body: JSON.stringify({
           message: `The user wants you to answer the same question again.
 
@@ -1816,7 +1825,10 @@ Do not mention that this is a new attempt.`,
         try {
           const feedbackRes = await fetch("/api/feedback", {
             method: "POST",
-            headers: getScopedRequestHeaders(true, isPersonalRoute),
+            headers: getOpenLuraRequestHeaders(true, {
+  personalEnv: false,
+  includeUserId: true,
+}),
             body: JSON.stringify({
               chatId: String(currentChatId),
               msgIndex: pendingImprovement?.targetMsgIndex ?? null,
@@ -1858,7 +1870,10 @@ Do not mention that this is a new attempt.`,
       try {
         improveRes = await fetch("/api/chat", {
           method: "POST",
-          headers: getScopedRequestHeaders(true, isPersonalRoute),
+          headers: getOpenLuraRequestHeaders(true, {
+  personalEnv: false,
+  includeUserId: true,
+}),
           body: JSON.stringify({
             message: retryRequest
               ? `The user wants you to answer the same question again.
@@ -2176,7 +2191,10 @@ setChats([...updated]);
       res = await fetch("/api/chat", {
         method: "POST",
         signal: controller.signal,
-        headers: getScopedRequestHeaders(true, isPersonalRoute),
+        headers: getOpenLuraRequestHeaders(true, {
+  personalEnv: false,
+  includeUserId: true,
+}),
         body: JSON.stringify({
           message: inputToSend,
           image: imageToSend,
