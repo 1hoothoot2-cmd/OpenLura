@@ -754,11 +754,13 @@ const shouldSkipPersonalStateSync =
   }, []);
 
 const messageShellClass =
-  "flex w-full min-w-0 max-w-full overflow-hidden";
+  "flex w-full min-w-0 max-w-full";
 const messageBubbleClass =
-  "min-w-0 max-w-full overflow-hidden break-words [overflow-wrap:anywhere] leading-7 break-words";
+  "min-w-0 max-w-full break-words [overflow-wrap:anywhere] leading-7 tracking-[-0.01em]";
 const composerInputClass =
   "w-full min-w-0 max-w-full resize-none overflow-x-hidden break-words [overflow-wrap:anywhere]";
+const messageActionButtonClass =
+  "inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-white/66 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/28 hover:bg-[#3b82f6]/8 hover:text-white hover:shadow-[0_8px_18px_rgba(59,130,246,0.12)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-40";
 
 const getOrCreateOpenLuraUserId = () => {
   if (typeof window === "undefined") return "";
@@ -2679,7 +2681,9 @@ updated[index].messages[
           <div
   ref={messagesRef}
   className={`${messageShellClass} flex-1 min-h-0 w-full overflow-x-hidden overflow-y-auto pb-[260px] md:pb-6 ${
-  activeMessages.length ? "flex-col gap-5 px-4 pt-20 md:px-6 md:pt-6" : "items-center justify-center p-4 pt-20 md:px-6 md:pt-6"
+  activeMessages.length
+    ? "flex-col gap-6 px-4 pt-20 md:gap-7 md:px-6 md:pt-6"
+    : "items-center justify-center p-4 pt-20 md:px-6 md:pt-6"
 }`}
 >
                         {activeMessages.length === 0 ? (
@@ -2730,15 +2734,15 @@ updated[index].messages[
                     return (
                       <div
   key={`${msg.role}-${originalIndex}-${msg.content || ""}`}
-  className={`${messageShellClass} flex-col animate-[fadeInUp_0.22s_ease-out] transition-[opacity,transform] duration-200 ${
+  className={`${messageShellClass} flex-col gap-2 animate-[fadeInUp_0.22s_ease-out] transition-[opacity,transform] duration-200 ${
     msg.role === "user" ? "items-end" : "items-start"
   }`}
 >
                         <div
-  className={`${messageBubbleClass} min-w-0 max-w-[88%] md:max-w-[78%] overflow-hidden whitespace-pre-line rounded-[24px] px-4 py-3.5 text-[15px] md:text-[16px] transition-[box-shadow,transform,background-color,border-color] duration-200 ${
+  className={`${messageBubbleClass} min-w-0 max-w-[90%] md:max-w-[78%] whitespace-pre-line rounded-[24px] px-4 py-3.5 text-[15px] md:px-5 md:py-4 md:text-[16px] transition-[box-shadow,transform,background-color,border-color] duration-200 ${
     msg.role === "user"
       ? "ml-auto bg-gradient-to-r from-[#1d4ed8] to-[#2563eb] text-white shadow-[0_10px_20px_rgba(37,99,235,0.16)]"
-      : "border border-white/8 bg-white/[0.05] text-white/92 backdrop-blur-xl shadow-[0_10px_22px_rgba(0,0,0,0.10)]"
+      : "border border-white/8 bg-white/[0.045] text-white/90 backdrop-blur-xl shadow-[0_10px_22px_rgba(0,0,0,0.10)]"
   }`}
 >
                           {msg.image && (
@@ -2751,7 +2755,7 @@ updated[index].messages[
 
                           {msg.content ? (
   <div
-  className={`${msg.image ? "mt-3 " : ""}${messageBubbleClass} min-w-0 max-w-full overflow-hidden text-[15px] leading-7 text-inherit select-text`}
+  className={`${msg.image ? "mt-3 " : ""}${messageBubbleClass} min-w-0 max-w-full text-[15px] leading-7 text-inherit select-text md:text-[16px]`}
 >
     {msg.isStreaming && msg.content === "…" ? (
       <span className="inline-flex items-center gap-2 text-white/56">
@@ -2818,7 +2822,7 @@ updated[index].messages[
                           msg.content !== "🤖 What can I improve?" &&
                           msg.content !== "🤖 Thanks for your feedback. I’ll use this to improve future answers." && (
                             <>
-                              <div className="mt-2.5 flex w-full max-w-[84%] flex-wrap items-center gap-2 px-0.5 md:mt-3 md:max-w-[78%] md:px-2">
+                              <div className="mt-1 flex w-full max-w-[90%] flex-wrap items-center gap-2 px-0.5 md:mt-1.5 md:max-w-[78%] md:px-2">
                                 {!feedbackGiven[
                                   getFeedbackUiKey(renderedChatId, originalIndex)
                                 ] && (
@@ -2837,7 +2841,7 @@ updated[index].messages[
                                       }}
                                       aria-label="Good answer"
                                       title="Good answer"
-                                      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-white/66 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/28 hover:bg-[#3b82f6]/8 hover:text-white hover:shadow-[0_8px_18px_rgba(59,130,246,0.12)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+                                      className={messageActionButtonClass}
                                     >
                                       <svg
                                         viewBox="0 0 24 24"
@@ -2868,7 +2872,7 @@ updated[index].messages[
                                       }}
                                       aria-label="Needs improvement"
                                       title="Needs improvement"
-                                      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-white/66 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/28 hover:bg-[#3b82f6]/8 hover:text-white hover:shadow-[0_8px_18px_rgba(59,130,246,0.12)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+                                      className={messageActionButtonClass}
                                     >
                                       <svg
                                         viewBox="0 0 24 24"
@@ -2916,7 +2920,7 @@ updated[index].messages[
   }}
   aria-label="Copy answer"
   title="Copy answer"
-  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-white/66 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/28 hover:bg-[#3b82f6]/8 hover:text-white hover:shadow-[0_8px_18px_rgba(59,130,246,0.12)] active:scale-95"
+  className={messageActionButtonClass}
 >
   <svg
     viewBox="0 0 24 24"
@@ -2942,7 +2946,7 @@ updated[index].messages[
   }}
   aria-label="Resend answer"
   title="Resend answer"
-  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-white/66 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/28 hover:bg-[#3b82f6]/8 hover:text-white hover:shadow-[0_8px_18px_rgba(59,130,246,0.12)] active:scale-95"
+  className={messageActionButtonClass}
 >
   <svg
     viewBox="0 0 24 24"
@@ -2978,7 +2982,7 @@ updated[index].messages[
                               </div>
 
                 {Array.isArray(msg.sources) && msg.sources.length > 0 && (
-          <div className="mt-3.5 w-full max-w-[84%] space-y-2 px-0.5 md:mt-4 md:max-w-[78%] md:px-2">
+          <div className="mt-2.5 w-full max-w-[90%] space-y-2.5 px-0.5 md:mt-3 md:max-w-[78%] md:px-2">
             <div className="flex items-center gap-2 px-0.5">
               <span className="text-[12px] text-white/30">🔎</span>
               <p className="text-[11px] uppercase tracking-[0.18em] text-white/32">
@@ -3004,7 +3008,7 @@ updated[index].messages[
                     href={source.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block w-full min-w-0 max-w-full overflow-hidden rounded-[20px] border border-white/8 bg-white/[0.03] p-3.5 shadow-[0_10px_18px_rgba(0,0,0,0.07)] ol-interactive transition-[transform,background-color,border-color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.045] hover:-translate-y-[1px] hover:shadow-[0_12px_24px_rgba(0,0,0,0.10)]"
+                    className="block w-full min-w-0 max-w-full rounded-[20px] border border-white/8 bg-white/[0.035] p-3.5 shadow-[0_10px_18px_rgba(0,0,0,0.07)] ol-interactive transition-[transform,background-color,border-color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.05] hover:-translate-y-[1px] hover:shadow-[0_12px_24px_rgba(0,0,0,0.10)]"
                     title={source.title || source.url}
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -3016,7 +3020,7 @@ updated[index].messages[
                           {title}
                         </p>
                         <p
-                          className="mt-1 text-xs text-white/42 break-all max-w-full overflow-hidden"
+                          className="mt-1 max-w-full break-all text-xs text-white/42"
                           style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
                         >
                           {domain}
@@ -3048,8 +3052,8 @@ updated[index].messages[
   className={`${
     activeMessages.length === 0
       ? "mx-auto mt-6 w-full max-w-2xl px-3 md:px-4"
-      : "fixed bottom-0 left-1/2 z-[90] w-full max-w-2xl -translate-x-1/2 bg-[#050510]/95 px-3 pt-3 pb-[calc(env(safe-area-inset-bottom)+18px)] md:static md:left-auto md:z-auto md:mt-auto md:w-full md:max-w-none md:translate-x-0 md:border-0 md:bg-transparent md:px-0 md:pt-0 md:pb-0"
-  } flex w-full min-w-0 max-w-full overflow-x-hidden items-end gap-2 rounded-[28px] border border-white/8 bg-white/[0.038] shadow-[0_16px_34px_rgba(0,0,0,0.18)] backdrop-blur-2xl md:rounded-b-[28px] md:rounded-t-[28px] md:border-x-0 md:border-b-0 md:border-t md:px-4 md:py-4 md:shadow-none`}
+      : "fixed bottom-0 left-1/2 z-[90] w-full max-w-2xl -translate-x-1/2 bg-[#050510]/96 px-3 pt-3 pb-[calc(env(safe-area-inset-bottom)+18px)] md:static md:left-auto md:z-auto md:mt-auto md:w-full md:max-w-none md:translate-x-0 md:border-0 md:bg-transparent md:px-0 md:pt-0 md:pb-0"
+  } flex w-full min-w-0 max-w-full overflow-x-hidden items-end gap-2 rounded-[28px] border border-white/8 bg-white/[0.04] shadow-[0_16px_34px_rgba(0,0,0,0.18)] backdrop-blur-2xl md:rounded-b-[28px] md:rounded-t-[28px] md:border-x-0 md:border-b-0 md:border-t md:px-4 md:py-4 md:shadow-none`}
 >
 
                         <button
@@ -3122,7 +3126,7 @@ updated[index].messages[
       sendMessage();
     }
   }}
-  className={`${composerInputClass} min-h-[52px] max-h-[140px] flex-1 rounded-2xl bg-transparent px-2 py-3 text-[16px] leading-6 text-white/95 outline-none placeholder:text-white/28 focus:bg-white/[0.02]`}
+  className={`${composerInputClass} min-h-[52px] max-h-[140px] flex-1 rounded-2xl bg-transparent px-2 py-3 text-[16px] leading-6 text-white/95 outline-none placeholder:text-white/28 focus:bg-white/[0.02] md:px-3`}
   placeholder={activeMessages.length === 0 ? "Ask anything" : "Message OpenLura..."}
 enterKeyHint="send"
   rows={1}
@@ -3132,7 +3136,7 @@ enterKeyHint="send"
   type="button"
   disabled={!loading && !input.trim() && !image}
   onClick={loading ? stopStreaming : sendMessage}
-  className={`flex h-12 w-12 shrink-0 touch-manipulation items-center justify-center rounded-full text-xl ol-interactive transition-[transform,filter,background-color,color,box-shadow] duration-200 active:scale-[0.97] ${
+  className={`flex h-12 w-12 shrink-0 touch-manipulation items-center justify-center rounded-full text-xl ol-interactive transition-[transform,filter,background-color,color,box-shadow,opacity] duration-200 active:scale-[0.97] disabled:cursor-not-allowed ${
     loading
       ? "bg-red-500 text-white shadow-[0_10px_24px_rgba(239,68,68,0.30)]"
       : !input.trim() && !image
