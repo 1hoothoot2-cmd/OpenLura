@@ -54,42 +54,13 @@ export default function HomePage() {
       <div className="mx-auto w-full max-w-6xl px-6 py-14 sm:px-8 sm:py-16 lg:px-10 lg:py-20">
         <div className="w-full">
           <div className="flex items-center gap-3">
-            <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] border border-[#3b82f6]/18 bg-[radial-gradient(circle_at_30%_30%,rgba(96,165,250,0.22),rgba(29,78,216,0.08)_52%,transparent_78%)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03),0_10px_22px_rgba(29,78,216,0.14)]">
-              <svg
-                viewBox="0 0 48 48"
-                className="h-7 w-7"
-                fill="none"
-                aria-hidden="true"
-              >
-                <defs>
-                  <linearGradient id="openluraHeroLogo" x1="8" y1="8" x2="40" y2="40" gradientUnits="userSpaceOnUse">
-                    <stop stopColor="#60a5fa" />
-                    <stop offset="1" stopColor="#1d4ed8" />
-                  </linearGradient>
-                </defs>
-                <circle
-                  cx="24"
-                  cy="24"
-                  r="17"
-                  stroke="url(#openluraHeroLogo)"
-                  strokeWidth="3"
-                />
-                <path
-                  d="M17.5 24.5c0-4.6 2.9-7.6 7.4-7.6 3.8 0 6.2 2.1 6.2 5.4 0 3.3-2.2 5.4-5.7 5.4h-4.2"
-                  stroke="url(#openluraHeroLogo)"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-                <path
-                  d="M22.2 24.7v.1c0 4.1 2.1 6.3 5.8 6.3 2.5 0 4.7-1 6.3-3.1"
-                  stroke="url(#openluraHeroLogo)"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </div>
+            <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[18px] border border-[#3b82f6]/18 bg-[radial-gradient(circle_at_30%_30%,rgba(96,165,250,0.16),rgba(29,78,216,0.06)_52%,transparent_78%)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03),0_10px_22px_rgba(29,78,216,0.12)]">
+  <img
+    src="/openlura-logo.png"
+    alt="OpenLura logo"
+    className="h-full w-full object-contain"
+  />
+</div>
 
             <div className="min-w-0">
               <div className="text-base font-semibold tracking-[-0.02em] text-white/94 sm:text-lg">
@@ -772,42 +743,13 @@ export default function HomePage() {
               <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
                 <div className="max-w-2xl">
                   <div className="flex items-center gap-3">
-                    <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-[18px] border border-[#3b82f6]/18 bg-[radial-gradient(circle_at_30%_30%,rgba(96,165,250,0.22),rgba(29,78,216,0.08)_52%,transparent_78%)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03),0_10px_22px_rgba(29,78,216,0.14)]">
-                      <svg
-                        viewBox="0 0 48 48"
-                        className="h-6 w-6"
-                        fill="none"
-                        aria-hidden="true"
-                      >
-                        <defs>
-                          <linearGradient id="openluraCtaLogo" x1="8" y1="8" x2="40" y2="40" gradientUnits="userSpaceOnUse">
-                            <stop stopColor="#60a5fa" />
-                            <stop offset="1" stopColor="#1d4ed8" />
-                          </linearGradient>
-                        </defs>
-                        <circle
-                          cx="24"
-                          cy="24"
-                          r="17"
-                          stroke="url(#openluraCtaLogo)"
-                          strokeWidth="3"
-                        />
-                        <path
-                          d="M17.5 24.5c0-4.6 2.9-7.6 7.4-7.6 3.8 0 6.2 2.1 6.2 5.4 0 3.3-2.2 5.4-5.7 5.4h-4.2"
-                          stroke="url(#openluraCtaLogo)"
-                          strokeWidth="3"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                        <path
-                          d="M22.2 24.7v.1c0 4.1 2.1 6.3 5.8 6.3 2.5 0 4.7-1 6.3-3.1"
-                          stroke="url(#openluraCtaLogo)"
-                          strokeWidth="3"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    </div>
+                    <div className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[18px] border border-[#3b82f6]/18 bg-[radial-gradient(circle_at_30%_30%,rgba(96,165,250,0.16),rgba(29,78,216,0.06)_52%,transparent_78%)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03),0_10px_22px_rgba(29,78,216,0.12)]">
+  <img
+    src="/openlura-logo.png"
+    alt="OpenLura logo"
+    className="h-full w-full object-contain"
+  />
+</div>
 
                     <div className="inline-flex items-center rounded-full border border-[#3b82f6]/18 bg-[#3b82f6]/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.16em] text-blue-300">
                       Ready to try OpenLura
