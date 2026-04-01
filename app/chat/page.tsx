@@ -3013,8 +3013,6 @@ updated[index].messages[
   ☰
 </button>
 
- deel 1 
-
 <Sidebar
   mobileMenu={mobileMenu}
   setMobileMenu={setMobileMenu}
