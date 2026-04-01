@@ -13,7 +13,7 @@ function safeParseJson<T>(raw: string | null, fallback: T): T {
 }
 
 const PERSONAL_ENV_WELCOME_MESSAGE =
-  "👋 Welcome to your personal environment. Here we test private memory, improvement feedback, and training of your AI behavior.";
+  "👋 Welkom in je persoonlijke omgeving. Hier testen we privé memory, verbeterpunten en training van jouw AI-gedrag.";
 
 export default function ChatPage() {
   const pathname = usePathname();
@@ -420,6 +420,7 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
 
   if (!chatExists) return;
 
+  closeMobileSidebar();
   hasManualChatSelectionRef.current = true;
   pendingActiveChatIdRef.current = chatId;
   preferredActiveChatIdRef.current = chatId;
@@ -427,7 +428,8 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
 
   setActiveChatId(chatId);
   setOpenChatMenuId(null);
-  closeMobileSidebar();
+  setOpenUserMessageMenuKey(null);
+  setOpenAiMessageMenuKey(null);
 };
 
     const createNewChat = (
@@ -449,6 +451,8 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
     preferredActiveChatIdRef.current = newChatId;
     forcedActiveChatIdRef.current = newChatId;
     setOpenChatMenuId(null);
+    setOpenUserMessageMenuKey(null);
+    setOpenAiMessageMenuKey(null);
 
     setChats((prev) => {
       const existingTitles = prev.map((chat: any) =>
@@ -487,6 +491,16 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
         let loadedFromServer = false;
 
         if (isPersonalRoute) {
+          setPersonalStateLoaded(false);
+          setChats([]);
+          setMemory([]);
+          setActiveChatId(null);
+          preferredActiveChatIdRef.current = null;
+          pendingActiveChatIdRef.current = null;
+          forcedActiveChatIdRef.current = null;
+        }
+
+        if (isPersonalRoute) {
           try {
             const res = await fetch("/api/personal-state", {
               method: "GET",
@@ -512,6 +526,13 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
             }
 
             if (!res.ok) {
+              preferredActiveChatIdRef.current = null;
+              pendingActiveChatIdRef.current = null;
+              forcedActiveChatIdRef.current = null;
+
+              setChats([]);
+              setMemory([]);
+              setActiveChatId(null);
               setPersonalStateLoaded(true);
               loadedFromServer = true;
               return;
@@ -673,9 +694,13 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
         return;
       }
 
+      setMobileMenu(false);
       setOpenChatMenuId(null);
+      setOpenUserMessageMenuKey(null);
+      setOpenAiMessageMenuKey(null);
     };
 
+    handleResize();
     window.addEventListener("resize", handleResize);
 
     return () => {
@@ -791,9 +816,9 @@ const shouldSkipPersonalStateSync =
         const res = await fetch("/api/personal-state", {
           method: "POST",
           headers: getOpenLuraRequestHeaders(true, {
-  personalEnv: false,
-  includeUserId: true,
-}),
+            personalEnv: true,
+            includeUserId: false,
+          }),
           credentials: "same-origin",
           body: JSON.stringify({
             chats: safeChats,
@@ -1011,6 +1036,13 @@ const shouldSkipPersonalStateSync =
         }
 
         if (!res.ok) {
+          preferredActiveChatIdRef.current = null;
+          pendingActiveChatIdRef.current = null;
+          forcedActiveChatIdRef.current = null;
+          setActiveChatId(null);
+          setChats([]);
+          setMemory([]);
+          setPersonalStateLoaded(true);
           return;
         }
 
@@ -2150,12 +2182,24 @@ Do not mention that this is a new attempt.`,
 
     try {
 
-      const currentChatId = activeChatId ?? activeChat?.id ?? null;
+      let currentChatId = activeChatId ?? activeChat?.id ?? null;
 
-    if (currentChatId === null) {
-      setLoading(false);
-      return;
-    }
+      if (currentChatId === null) {
+        const fallbackChat = buildFallbackChat({
+          title: isPersonalRoute ? "Persoonlijke chat" : "New Chat",
+          messages: [],
+        });
+
+        currentChatId = fallbackChat.id;
+
+        hasManualChatSelectionRef.current = true;
+        pendingActiveChatIdRef.current = currentChatId;
+        preferredActiveChatIdRef.current = currentChatId;
+        forcedActiveChatIdRef.current = currentChatId;
+
+        setChats((prev) => [fallbackChat, ...prev]);
+        setActiveChatId(currentChatId);
+      }
 
     const pendingImprovement = awaitingImprovement[currentChatId];
     const isImprovementReply = !!pendingImprovement && !!input.trim();
@@ -2229,10 +2273,7 @@ Do not mention that this is a new attempt.`,
         try {
           const feedbackRes = await fetch("/api/feedback", {
             method: "POST",
-            headers: getOpenLuraRequestHeaders(true, {
-  personalEnv: false,
-  includeUserId: true,
-}),
+            headers: getScopedRequestHeaders(true, isPersonalEnvironment),
             body: JSON.stringify({
               chatId: String(currentChatId),
               msgIndex: pendingImprovement?.targetMsgIndex ?? null,
@@ -2275,10 +2316,7 @@ Do not mention that this is a new attempt.`,
       try {
         improveRes = await fetch("/api/chat", {
           method: "POST",
-          headers: getOpenLuraRequestHeaders(true, {
-  personalEnv: false,
-  includeUserId: true,
-}),
+          headers: getScopedRequestHeaders(true, isPersonalEnvironment),
           body: JSON.stringify({
             message: retryRequest
               ? `The user wants you to answer the same question again.
@@ -2475,6 +2513,7 @@ Only give the improved answer directly.`,
 
     if (index === -1) {
       const fallbackChat = buildFallbackChat({
+        id: currentChatId,
         title: isPersonalRoute ? "Persoonlijke chat" : "New Chat",
         messages: [],
       });
@@ -2604,10 +2643,7 @@ setChats([...updated]);
       res = await fetch("/api/chat", {
         method: "POST",
         signal: controller.signal,
-        headers: getOpenLuraRequestHeaders(true, {
-  personalEnv: false,
-  includeUserId: true,
-}),
+        headers: getScopedRequestHeaders(true, isPersonalEnvironment),
         body: JSON.stringify({
           message: inputToSend,
           image: imageToSend,
