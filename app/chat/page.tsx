@@ -3076,10 +3076,10 @@ updated[index].messages[
             }
             className="w-full rounded-[18px] border border-white/8 bg-white/[0.04] px-3 py-3 text-sm text-white/90 outline-none ol-surface focus:border-white/14 focus:bg-white/[0.06]"
           >
-            <option value="default">Default</option>
-            <option value="friendly">Friendly</option>
-            <option value="direct">Direct</option>
-            <option value="professional">Professional</option>
+            <option value="default" className="bg-[#0b1020] text-white">Default</option>
+            <option value="friendly" className="bg-[#0b1020] text-white">Friendly</option>
+            <option value="direct" className="bg-[#0b1020] text-white">Direct</option>
+            <option value="professional" className="bg-[#0b1020] text-white">Professional</option>
           </select>
         </div>
 
@@ -3101,10 +3101,10 @@ updated[index].messages[
             }
             className="w-full rounded-[18px] border border-white/8 bg-white/[0.04] px-3 py-3 text-sm text-white/90 outline-none ol-surface focus:border-white/14 focus:bg-white/[0.06]"
           >
-            <option value="default">Default</option>
-            <option value="concise">Concise</option>
-            <option value="structured">Structured</option>
-            <option value="detailed">Detailed</option>
+            <option value="default" className="bg-[#0b1020] text-white">Default</option>
+            <option value="concise" className="bg-[#0b1020] text-white">Concise</option>
+            <option value="structured" className="bg-[#0b1020] text-white">Structured</option>
+            <option value="detailed" className="bg-[#0b1020] text-white">Detailed</option>
           </select>
         </div>
 
