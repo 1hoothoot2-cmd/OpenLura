@@ -831,31 +831,33 @@ const shouldSkipPersonalStateSync =
   }, [activeChatId]);
 
   useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-        useEffect(() => {
-    if (!showExportMenu) return;
+    // ✅ FIXED: export menu outside escape handler
+useEffect(() => {
+  if (!showExportMenu) return;
 
-    const handlePointerDown = (event: MouseEvent) => {
-      const target = event.target as Node | null;
-      if (!target) return;
+  const handlePointerDown = (event: MouseEvent) => {
+    const target = event.target as Node | null;
+    if (!target) return;
 
-      const exportTrigger = document.querySelector("[data-openlura-export-trigger]");
-      const exportMenu = document.querySelector("[data-openlura-export-menu]");
+    const exportTrigger = document.querySelector("[data-openlura-export-trigger]");
+    const exportMenu = document.querySelector("[data-openlura-export-menu]");
 
-      if (exportTrigger?.contains(target) || exportMenu?.contains(target)) {
-        return;
-      }
+    if (exportTrigger?.contains(target) || exportMenu?.contains(target)) {
+      return;
+    }
 
-      setShowExportMenu(false);
-    };
+    setShowExportMenu(false);
+  };
 
-    document.addEventListener("mousedown", handlePointerDown);
+  document.addEventListener("mousedown", handlePointerDown);
 
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-    };
-  }, [showExportMenu]);
+  return () => {
+    document.removeEventListener("mousedown", handlePointerDown);
+  };
+}, [showExportMenu]);
+
+const handleEscape = (e: KeyboardEvent) => {
+  if (e.key !== "Escape") return;
 
       if (showExportMenu) {
         setShowExportMenu(false);
@@ -1997,7 +1999,6 @@ const restoreDeletedChat = (chatId: number) => {
 }),
         body: JSON.stringify({
           message: `The user wants you to answer the same question again.
-
 Original question:
 ${originalUserMessage}
 
@@ -3005,6 +3006,8 @@ updated[index].messages[
   ☰
 </button>
 
+ deel 1 
+
 <Sidebar
   mobileMenu={mobileMenu}
   setMobileMenu={setMobileMenu}
@@ -3274,7 +3277,7 @@ updated[index].messages[
               </div>
             </div>
 
-            <div className="relative hidden items-center gap-2 md:flex">
+            <div className="relative flex items-center gap-2">
               <span className="rounded-full border border-[#3b82f6]/16 bg-[#3b82f6]/8 px-3 py-1 text-[11px] font-medium text-[#bfdbfe]">
                 Chat
               </span>
