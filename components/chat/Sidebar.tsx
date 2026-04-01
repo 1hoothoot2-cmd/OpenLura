@@ -43,8 +43,8 @@ type Props = {
   isPersonalRoute: boolean;
   setShowFeedbackBox: (v: boolean) => void;
   setShowLoginBox: (v: boolean) => void;
-  onCopyActiveChatMarkdown: () => void;
-  onDownloadActiveChatMarkdown: () => void;
+  onCopyActiveChatMarkdown?: () => void;
+  onDownloadActiveChatMarkdown?: () => void;
 };
 
 export default function Sidebar({
@@ -1004,10 +1004,10 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
                 type="button"
                 onClick={() => {
                   setOpenChatMenuId(null);
-                  onCopyActiveChatMarkdown();
+                  onCopyActiveChatMarkdown?.();
                   setMobileMenu(false);
                 }}
-                disabled={!hasActiveChat}
+                disabled={!hasActiveChat || !onCopyActiveChatMarkdown}
                 className="rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2.5 text-left text-sm text-white/82 ol-interactive transition-[background-color,border-color,color,box-shadow,opacity] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Copy .md
@@ -1017,10 +1017,10 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
                 type="button"
                 onClick={() => {
                   setOpenChatMenuId(null);
-                  onDownloadActiveChatMarkdown();
+                  onDownloadActiveChatMarkdown?.();
                   setMobileMenu(false);
                 }}
-                disabled={!hasActiveChat}
+                disabled={!hasActiveChat || !onCopyActiveChatMarkdown}
                 className="rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2.5 text-left text-sm text-white/82 ol-interactive transition-[background-color,border-color,color,box-shadow,opacity] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Download .md
