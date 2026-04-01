@@ -43,6 +43,8 @@ type Props = {
   isPersonalRoute: boolean;
   setShowFeedbackBox: (v: boolean) => void;
   setShowLoginBox: (v: boolean) => void;
+  onCopyActiveChatMarkdown: () => void;
+  onDownloadActiveChatMarkdown: () => void;
 };
 
 export default function Sidebar({
@@ -67,7 +69,9 @@ export default function Sidebar({
   clearDeletedChats,
   isPersonalRoute,
   setShowFeedbackBox,
-  setShowLoginBox
+  setShowLoginBox,
+  onCopyActiveChatMarkdown,
+  onDownloadActiveChatMarkdown
 }: Props) {
   const sidebarRef = useRef<HTMLDivElement | null>(null);
 const promptMessageTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -425,6 +429,10 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
 
   const emptyStateClass =
     "rounded-2xl border border-dashed border-white/8 bg-white/[0.022] px-3 py-3 text-sm text-white/36";
+
+  const hasActiveChat =
+    activeChatId !== null &&
+    [...searchedPinnedChats, ...regularChats].some((chat) => chat.id === activeChatId);
 
   const renderChatRow = (chat: SidebarChat, isPinned: boolean) => {
   const isActive = activeChatId === chat.id;
@@ -808,7 +816,7 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
                             type="button"
                             onClick={() => handleUsePrompt(prompt)}
                             disabled={!hasPromptContent(prompt) || usingPromptId === prompt.id}
-                            className="flex w-full min-w-0 items-start justify-between gap-3 text-left disabled:cursor-not-allowed disabled:opacity-50"
+                            className="flex w-full min-w-0 items-start justify-between gap-3 text-left cursor-pointer active:scale-[0.99] transition-transform duration-100"
                           >
                             <div className="min-w-0 flex-1">
                               <div className="truncate text-sm font-medium text-white/86 group-hover:text-white">
@@ -822,14 +830,14 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
                               )}
 
                               {!!String(prompt.content || "").trim() && (
-                                <div className="mt-1 line-clamp-2 text-[11px] leading-5 text-white/38 group-hover:text-white/52">
+                                <div className="mt-1 line-clamp-1 text-[11px] leading-5 text-white/34 group-hover:text-white/50">
                                   {String(prompt.content || "")}
                                 </div>
                               )}
 
                               {!!prompt.tags?.length && (
                                 <div className="mt-2 flex flex-wrap gap-1.5">
-                                  {prompt.tags.slice(0, 3).map((tag) => (
+                                  {prompt.tags.slice(0, 2).map((tag) => (
                                     <span
                                       key={`${prompt.id}-${tag}`}
                                       className="rounded-full border border-white/8 bg-white/[0.04] px-2 py-0.5 text-[10px] text-white/50"
@@ -855,7 +863,7 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
                             </span>
                           </button>
 
-                          <div className="mt-2 flex justify-end gap-2">
+                          <div className="mt-2 flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
                             <button
                               type="button"
                               onClick={() => startEditingPrompt(prompt)}
@@ -986,6 +994,40 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
         </div>
 
         <div className="mt-4 shrink-0 space-y-2.5 border-t border-white/8 pt-4 pb-[max(env(safe-area-inset-bottom),2px)]">
+          <div className="rounded-[20px] border border-white/8 bg-white/[0.03] p-2">
+            <div className="mb-2 px-1 text-[11px] uppercase tracking-[0.18em] text-white/30">
+              Export
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setOpenChatMenuId(null);
+                  onCopyActiveChatMarkdown();
+                  setMobileMenu(false);
+                }}
+                disabled={!hasActiveChat}
+                className="rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2.5 text-left text-sm text-white/82 ol-interactive transition-[background-color,border-color,color,box-shadow,opacity] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Copy .md
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setOpenChatMenuId(null);
+                  onDownloadActiveChatMarkdown();
+                  setMobileMenu(false);
+                }}
+                disabled={!hasActiveChat}
+                className="rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2.5 text-left text-sm text-white/82 ol-interactive transition-[background-color,border-color,color,box-shadow,opacity] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Download .md
+              </button>
+            </div>
+          </div>
+
           <button
             type="button"
             onClick={() => {
