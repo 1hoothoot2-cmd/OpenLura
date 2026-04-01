@@ -21,9 +21,17 @@ const MAX_CHAT_MESSAGES_PER_CHAT = 500;
 const MAX_CHAT_TITLE_LENGTH = 300;
 const MAX_MESSAGE_ROLE_LENGTH = 20;
 
+type OpenLuraPersonalProfile = {
+  tone: "default" | "friendly" | "direct" | "professional";
+  style: "default" | "concise" | "structured" | "detailed";
+  memoryEnabled: boolean;
+  preferences: string[];
+};
+
 type PersonalStateBody = {
   chats: unknown[];
   memory: unknown[];
+  profile: OpenLuraPersonalProfile;
 };
 
 type AuthenticatedIdentity = {
@@ -34,7 +42,12 @@ type AuthenticatedIdentity = {
 type FetchPersonalStateResult =
   | {
       ok: true;
-      row: { chats?: unknown; memory?: unknown; updated_at?: unknown } | null;
+      row: {
+        chats?: unknown;
+        memory?: unknown;
+        profile?: unknown;
+        updated_at?: unknown;
+      } | null;
     }
   | {
       ok: false;
@@ -169,6 +182,44 @@ function normalizePersonalMemory(memory: unknown[]) {
   return normalizedMemory;
 }
 
+function normalizePersonalProfile(profile: unknown): OpenLuraPersonalProfile {
+  const candidate = isPlainObject(profile) ? profile : {};
+
+  const tone =
+    candidate.tone === "friendly" ||
+    candidate.tone === "direct" ||
+    candidate.tone === "professional"
+      ? candidate.tone
+      : "default";
+
+  const style =
+    candidate.style === "concise" ||
+    candidate.style === "structured" ||
+    candidate.style === "detailed"
+      ? candidate.style
+      : "default";
+
+  const memoryEnabled =
+    typeof candidate.memoryEnabled === "boolean"
+      ? candidate.memoryEnabled
+      : true;
+
+  const preferences = Array.isArray(candidate.preferences)
+    ? candidate.preferences
+        .filter((item) => typeof item === "string")
+        .map((item) => item.trim().slice(0, 300))
+        .filter(Boolean)
+        .slice(0, 30)
+    : [];
+
+  return {
+    tone,
+    style,
+    memoryEnabled,
+    preferences,
+  };
+}
+
 function normalizePersonalChats(chats: unknown[]) {
   const normalizedChats = chats
     .filter((chat) => isPlainObject(chat))
@@ -251,10 +302,12 @@ function validatePersonalStateBody(body: unknown): PersonalStateBody | null {
   const candidate = body as {
     chats?: unknown;
     memory?: unknown;
+    profile?: unknown;
   };
 
   const chats = Array.isArray(candidate.chats) ? candidate.chats : null;
   const memory = Array.isArray(candidate.memory) ? candidate.memory : null;
+  const profile = normalizePersonalProfile(candidate.profile);
 
   if (!chats || !memory) {
     return null;
@@ -274,6 +327,7 @@ function validatePersonalStateBody(body: unknown): PersonalStateBody | null {
   return {
     chats: normalizePersonalChats(chats),
     memory: normalizePersonalMemory(memory),
+    profile,
   };
 }
 
@@ -343,7 +397,7 @@ async function fetchPersonalStateRow(input: {
   userId: string;
 }): Promise<FetchPersonalStateResult> {
   const query =
-    `select=chats,memory,updated_at` +
+    `select=chats,memory,profile,updated_at` +
     `&user_id=eq.${encodeURIComponent(input.userId)}` +
     `&order=updated_at.desc.nullslast` +
     `&limit=2`;
@@ -416,7 +470,16 @@ async function fetchPersonalStateRow(input: {
 
     return {
       ok: true,
-      row: (firstRow as { chats?: unknown; memory?: unknown; updated_at?: unknown } | undefined) ?? null,
+      row: (
+        firstRow as
+          | {
+              chats?: unknown;
+              memory?: unknown;
+              profile?: unknown;
+              updated_at?: unknown;
+            }
+          | undefined
+      ) ?? null,
     };
   } catch (error) {
     logSafeError("OpenLura personal state fetch failed", error);
@@ -459,11 +522,13 @@ export async function GET(req: Request) {
     const normalizedMemory = Array.isArray(row?.memory)
       ? normalizePersonalMemory(row.memory)
       : [];
+    const normalizedProfile = normalizePersonalProfile(row?.profile);
 
     return NextResponse.json(
       {
         chats: normalizedChats,
         memory: normalizedMemory,
+        profile: normalizedProfile,
       },
       {
         headers: NO_STORE_HEADERS,
@@ -522,6 +587,7 @@ export async function POST(req: Request) {
       user_id: identity.userId,
       chats: body.chats,
       memory: body.memory,
+      profile: body.profile,
       updated_at: new Date().toISOString(),
     };
 
@@ -565,6 +631,7 @@ export async function POST(req: Request) {
         memory: Array.isArray(savedRow?.memory)
           ? normalizePersonalMemory(savedRow.memory)
           : body.memory,
+        profile: normalizePersonalProfile(savedRow?.profile ?? body.profile),
       },
       {
         headers: NO_STORE_HEADERS,

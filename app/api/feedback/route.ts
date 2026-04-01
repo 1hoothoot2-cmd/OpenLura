@@ -67,7 +67,7 @@ type CanonicalFeedbackEntry = {
   message: string | null;
   userMessage: string | null;
   source: string | null;
-  userScope: "admin" | "guest" | "personal";
+  userScope: "admin" | "guest" | "personal" | "user";
   user_id: string | null;
   environment: "default" | "personal";
   timestamp: string;
@@ -507,8 +507,11 @@ async function fetchAllFeedbackEntries(input: {
 
 function normalizeFeedbackUserScope(
   value: unknown
-): "admin" | "guest" | "personal" | null {
-  return value === "admin" || value === "guest" || value === "personal"
+): "admin" | "guest" | "personal" | "user" | null {
+  return value === "admin" ||
+    value === "guest" ||
+    value === "personal" ||
+    value === "user"
     ? value
     : null;
 }
@@ -534,7 +537,7 @@ function mapFeedbackRowToApi(row: Record<string, unknown>): CanonicalFeedbackEnt
   message: string | null;
   userMessage: string | null;
   source: string | null;
-  userScope: "admin" | "guest" | "personal" | null;
+  userScope: "admin" | "guest" | "personal" | "user" | null;
   user_id: string | null;
   environment: "default" | "personal" | null;
   timestamp: string | null;
@@ -574,18 +577,19 @@ function mapFeedbackEntryToDb(entry: CanonicalFeedbackEntry) {
   const environment: "default" | "personal" =
     entry.environment === "personal" ? "personal" : "default";
 
-  const userScope: "admin" | "guest" | "personal" =
+  const userScope: "admin" | "guest" | "personal" | "user" =
     entry.userScope === "admin" ||
     entry.userScope === "guest" ||
-    entry.userScope === "personal"
+    entry.userScope === "personal" ||
+    entry.userScope === "user"
       ? entry.userScope
       : environment === "personal"
       ? "personal"
       : "guest";
 
   const user_id =
-    environment === "personal"
-      ? entry.user_id || "personal_feedback"
+    environment === "personal" || userScope === "user"
+      ? entry.user_id || null
       : null;
 
   return {
@@ -662,16 +666,21 @@ function buildCanonicalFeedbackEntry(input: {
   const timestamp = new Date().toISOString();
   const environment: "default" | "personal" = input.canonicalEnvironment;
 
-  const userScope: "admin" | "guest" | "personal" = input.isAnalyticsWorkflowUpdate
-    ? "admin"
-    : environment === "personal"
+  const userScope: "admin" | "guest" | "personal" | "user" =
+    input.isAnalyticsWorkflowUpdate
+      ? "admin"
+      : environment === "personal"
       ? "personal"
+      : input.identity.isAuthenticatedPersonalUser && input.identity.userId
+      ? "user"
       : "guest";
 
   const user_id =
     !input.isAnalyticsWorkflowUpdate &&
-    environment === "personal" &&
-    input.identity.isAuthenticatedPersonalUser &&
+    (
+      (environment === "personal" && input.identity.isAuthenticatedPersonalUser) ||
+      userScope === "user"
+    ) &&
     input.identity.userId
       ? input.identity.userId
       : null;
@@ -1207,7 +1216,8 @@ export async function GET(req: Request) {
             const resolvedUserScope =
               mapped.userScope === "admin" ||
               mapped.userScope === "guest" ||
-              mapped.userScope === "personal"
+              mapped.userScope === "personal" ||
+              mapped.userScope === "user"
                 ? mapped.userScope
                 : resolvedEnvironment === "personal"
                 ? "personal"
@@ -1224,10 +1234,10 @@ export async function GET(req: Request) {
                 : null;
 
             const resolvedUserId =
-              resolvedEnvironment === "personal"
+              resolvedEnvironment === "personal" || resolvedUserScope === "user"
                 ? typeof mapped.user_id === "string" && mapped.user_id
                   ? mapped.user_id
-                  : "personal_feedback"
+                  : null
                 : mapped.user_id;
 
             return {
@@ -1254,7 +1264,11 @@ export async function GET(req: Request) {
             }
 
             if (row.environment === "default") {
-              return row.userScope === "admin" || row.userScope === "guest";
+              return (
+                row.userScope === "admin" ||
+                row.userScope === "guest" ||
+                row.userScope === "user"
+              );
             }
 
             return row.environment === "personal" && row.userScope === "personal";
