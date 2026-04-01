@@ -3951,49 +3951,6 @@ updated[index].messages[
         </div>
       </div>
 
-      <button
-        type="button"
-        data-openlura-export-trigger
-        onClick={() => setShowExportMenu((prev) => !prev)}
-        className="fixed bottom-[calc(env(safe-area-inset-bottom)+18px)] right-4 z-[130] inline-flex items-center gap-2 rounded-full border border-[#3b82f6]/22 bg-[#0c1120]/94 px-4 py-3 text-sm font-semibold text-[#bfdbfe] shadow-[0_18px_40px_rgba(0,0,0,0.30),0_0_0_1px_rgba(59,130,246,0.12)] backdrop-blur-2xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/34 hover:bg-[#11182d]/96 hover:text-white hover:shadow-[0_22px_44px_rgba(0,0,0,0.34)] active:scale-95"
-      >
-        <span className="text-base leading-none">↓</span>
-        <span>Export chat</span>
-      </button>
-
-      {showExportMenu && (
-        <div
-          data-openlura-export-menu
-          className="fixed bottom-[calc(env(safe-area-inset-bottom)+74px)] right-4 z-[131] flex min-w-[210px] flex-col gap-1 rounded-[18px] border border-white/8 bg-[#0c1120]/96 p-1.5 shadow-[0_18px_40px_rgba(0,0,0,0.28)] backdrop-blur-2xl"
-        >
-          <button
-            type="button"
-            onClick={() => {
-              copyChatToClipboard();
-              setShowExportMenu(false);
-            }}
-            disabled={!activeChat}
-            className="flex w-full items-center justify-between rounded-[12px] px-3 py-2 text-left text-sm text-white/86 ol-interactive transition-[background-color,color] duration-200 hover:bg-white/[0.06] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <span>Copy as Markdown</span>
-            <span className="text-xs text-white/34">⌘</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              downloadMarkdown();
-              setShowExportMenu(false);
-            }}
-            disabled={!activeChat}
-            className="flex w-full items-center justify-between rounded-[12px] px-3 py-2 text-left text-sm text-white/86 ol-interactive transition-[background-color,color] duration-200 hover:bg-white/[0.06] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <span>Download .md</span>
-            <span className="text-xs text-white/34">↓</span>
-          </button>
-        </div>
-      )}
-
       {isPersonalRoute ? (
         <button
           type="button"
