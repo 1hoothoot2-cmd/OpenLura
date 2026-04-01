@@ -831,33 +831,36 @@ const shouldSkipPersonalStateSync =
   }, [activeChatId]);
 
   useEffect(() => {
-    // ✅ FIXED: export menu outside escape handler
-useEffect(() => {
-  if (!showExportMenu) return;
+    if (!showExportMenu) return;
 
-  const handlePointerDown = (event: MouseEvent) => {
-    const target = event.target as Node | null;
-    if (!target) return;
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
 
-    const exportTrigger = document.querySelector("[data-openlura-export-trigger]");
-    const exportMenu = document.querySelector("[data-openlura-export-menu]");
+      const exportTrigger = document.querySelector(
+        "[data-openlura-export-trigger]"
+      );
+      const exportMenu = document.querySelector(
+        "[data-openlura-export-menu]"
+      );
 
-    if (exportTrigger?.contains(target) || exportMenu?.contains(target)) {
-      return;
-    }
+      if (exportTrigger?.contains(target) || exportMenu?.contains(target)) {
+        return;
+      }
 
-    setShowExportMenu(false);
-  };
+      setShowExportMenu(false);
+    };
 
-  document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("mousedown", handlePointerDown);
 
-  return () => {
-    document.removeEventListener("mousedown", handlePointerDown);
-  };
-}, [showExportMenu]);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+    };
+  }, [showExportMenu]);
 
-const handleEscape = (e: KeyboardEvent) => {
-  if (e.key !== "Escape") return;
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
 
       if (showExportMenu) {
         setShowExportMenu(false);
@@ -909,7 +912,11 @@ const handleEscape = (e: KeyboardEvent) => {
         return;
       }
 
-      if (mobileMenu && typeof window !== "undefined" && window.innerWidth < 768) {
+      if (
+        mobileMenu &&
+        typeof window !== "undefined" &&
+        window.innerWidth < 768
+      ) {
         setMobileMenu(false);
       }
     };
@@ -929,7 +936,7 @@ const handleEscape = (e: KeyboardEvent) => {
     showClearDeletedConfirm,
     showSettingsBox,
     showExportMenu,
-    deleteTargetChatId
+    deleteTargetChatId,
   ]);
 
   useEffect(() => {
@@ -4080,3 +4087,4 @@ updated[index].messages[
     </main>
   );
 }
+
