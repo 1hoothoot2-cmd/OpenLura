@@ -3402,6 +3402,16 @@ TEST:
                   credentials: "same-origin",
                   headers: { "Content-Type": "application/json", "x-openlura-personal-env": "true" },
                   body: JSON.stringify({
+                    chats: chats.map((chat: any) => ({
+                      ...chat,
+                      messages: (chat.messages || []).map((msg: any) => ({
+                        ...msg,
+                        image: typeof msg.image === "string" && msg.image.startsWith("data:")
+                          ? "[image-uploaded]"
+                          : msg.image ?? null,
+                      })),
+                    })),
+                    memory,
                     profile: {
                       tone: chatSettings.tone,
                       style: chatSettings.style,

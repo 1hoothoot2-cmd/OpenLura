@@ -366,6 +366,11 @@ const ideasStorageKey = isPersonalRoute
   : makeUserBoundStorageKey("openlura_ideas");
 
 const [showSettingsBox, setShowSettingsBox] = useState(false);
+const [settingsPreferences, setSettingsPreferences] = useState<string[]>([]);
+const [settingsSaving, setSettingsSaving] = useState(false);
+const [settingsSaved, setSettingsSaved] = useState(false);
+const [settingsError, setSettingsError] = useState<string | null>(null);
+const [settingsNewPref, setSettingsNewPref] = useState("");
 
 // EXPORT UI STATE
 const [showExportMenu, setShowExportMenu] = useState(false);
@@ -589,6 +594,25 @@ const isReplaceableStarterChat = (chat: any) => {
             const data = await res.json();
             const serverChats = Array.isArray(data?.chats) ? data.chats : [];
             const serverMemory = Array.isArray(data?.memory) ? data.memory : [];
+
+            // Sync persisted profile to chatSettings
+            if (data?.profile) {
+              const p = data.profile;
+              setChatSettings((prev) => ({
+                tone:
+                  p.tone === "friendly" || p.tone === "direct" || p.tone === "professional"
+                    ? p.tone
+                    : prev.tone,
+                style:
+                  p.style === "concise" || p.style === "structured" || p.style === "detailed"
+                    ? p.style
+                    : prev.style,
+                memoryEnabled: typeof p.memoryEnabled === "boolean" ? p.memoryEnabled : prev.memoryEnabled,
+              }));
+              if (Array.isArray(p.preferences)) {
+                setSettingsPreferences(p.preferences);
+              }
+            }
 
             const normalizedChats = serverChats.map((chat: any) => ({
               ...chat,
@@ -3190,9 +3214,29 @@ updated[index].messages[
   isPersonalRoute={isPersonalRoute}
   setShowFeedbackBox={setShowFeedbackBox}
   setShowLoginBox={setShowLoginBox}
+  onOpenSettings={() => setShowSettingsBox(true)}
   onCopyActiveChatMarkdown={copyChatToClipboard}
   onDownloadActiveChatMarkdown={downloadMarkdown}
 />
+```
+
+EXTERNAL: none
+
+---
+
+TEST:
+```
+1. Ga naar /persoonlijke-omgeving (ingelogd)
+2. Open sidebar → onderaan "Instellingen" knop zichtbaar
+3. Klik → settings panel opent
+4. Groen badge "Persoonlijk actief" zichtbaar
+5. Selecteer Tone = "Direct", Style = "Kort"
+6. Voeg een voorkeur toe → klik +
+7. Klik "Opslaan" → "✓ Opgeslagen" verschijnt
+8. Herlaad de pagina
+9. Open settings opnieuw → waarden zijn hersteld
+10. Stuur een chat → gedrag past aan (toon/stijl)
+11. Ga naar /chat (niet personal) → "Log in" knop zichtbaar, settings box toont globale badge
 
 {mobileMenu && (
   <div
@@ -3202,105 +3246,194 @@ updated[index].messages[
 )}
 
 {showSettingsBox && (
-  <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-    <div className="w-full max-w-[380px] rounded-[28px] border border-white/8 bg-[#0a0f1d]/95 p-6 shadow-[0_22px_60px_rgba(0,0,0,0.30)] backdrop-blur-2xl">
-      <div className="mb-4">
-        <h2 className="text-lg font-semibold text-white/95">Settings</h2>
-        <p className="mt-1 text-sm text-white/52">
-          Tone, style and memory behavior for this workspace.
-        </p>
+  <div className="fixed inset-0 z-[160] flex items-end justify-center sm:items-center bg-black/60 p-4 backdrop-blur-sm">
+    <div className="w-full max-w-[420px] rounded-t-3xl sm:rounded-[28px] border border-white/10 bg-[#0a0f1d]/98 shadow-[0_22px_60px_rgba(0,0,0,0.40)] backdrop-blur-2xl overflow-hidden">
+
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-white/8 px-5 py-4">
+        <div>
+          <h2 className="text-sm font-medium text-white/90">Instellingen</h2>
+          <p className="text-[11px] text-white/36 mt-0.5">
+            {isPersonalRoute ? "Persoonlijke omgeving — opgeslagen per account" : "Globaal voor deze sessie"}
+          </p>
+        </div>
+        <button type="button" onClick={() => setShowSettingsBox(false)} className="rounded-full p-1.5 text-white/36 hover:bg-white/8 hover:text-white/70 transition-colors">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 2l10 10M12 2L2 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+        </button>
       </div>
 
-      <div className="space-y-4">
-        <div>
-          <label className="mb-2 block text-[11px] uppercase tracking-[0.16em] text-white/34">
-            Tone
-          </label>
-          <select
-            value={chatSettings.tone}
-            onChange={(e) =>
-              setChatSettings((prev) => ({
-                ...prev,
-                tone: e.target.value as
-                  | "default"
-                  | "friendly"
-                  | "direct"
-                  | "professional",
-              }))
-            }
-            className="w-full rounded-[18px] border border-white/8 bg-white/[0.04] px-3 py-3 text-sm text-white/90 outline-none ol-surface focus:border-white/14 focus:bg-white/[0.06]"
-          >
-            <option value="default" className="bg-[#0b1020] text-white">Default</option>
-            <option value="friendly" className="bg-[#0b1020] text-white">Friendly</option>
-            <option value="direct" className="bg-[#0b1020] text-white">Direct</option>
-            <option value="professional" className="bg-[#0b1020] text-white">Professional</option>
-          </select>
+      <div className="max-h-[72vh] overflow-y-auto px-5 py-4 space-y-5">
+
+        {/* Personal vs global badge */}
+        <div className={`rounded-2xl border px-4 py-3 ${isPersonalRoute ? "border-emerald-500/20 bg-emerald-500/[0.05]" : "border-white/8 bg-white/[0.03]"}`}>
+          <div className="flex items-center gap-2 mb-1">
+            <span className={`h-1.5 w-1.5 rounded-full ${isPersonalRoute ? "bg-emerald-400/80" : "bg-white/30"}`} />
+            <span className="text-[11px] uppercase tracking-[0.14em] text-white/40">
+              {isPersonalRoute ? "Persoonlijk actief" : "Globale sessie"}
+            </span>
+          </div>
+          <p className="text-[12px] text-white/44 leading-relaxed">
+            {isPersonalRoute
+              ? "Instellingen worden opgeslagen in je account en gebruikt bij elke chat."
+              : "Instellingen gelden alleen voor deze sessie en worden niet opgeslagen."}
+          </p>
         </div>
 
+        {/* Tone */}
         <div>
-          <label className="mb-2 block text-[11px] uppercase tracking-[0.16em] text-white/34">
-            Style
-          </label>
-          <select
-            value={chatSettings.style}
-            onChange={(e) =>
-              setChatSettings((prev) => ({
-                ...prev,
-                style: e.target.value as
-                  | "default"
-                  | "concise"
-                  | "structured"
-                  | "detailed",
-              }))
-            }
-            className="w-full rounded-[18px] border border-white/8 bg-white/[0.04] px-3 py-3 text-sm text-white/90 outline-none ol-surface focus:border-white/14 focus:bg-white/[0.06]"
-          >
-            <option value="default" className="bg-[#0b1020] text-white">Default</option>
-            <option value="concise" className="bg-[#0b1020] text-white">Concise</option>
-            <option value="structured" className="bg-[#0b1020] text-white">Structured</option>
-            <option value="detailed" className="bg-[#0b1020] text-white">Detailed</option>
-          </select>
+          <div className="mb-2.5 text-[11px] uppercase tracking-[0.14em] text-white/34">Toon</div>
+          <div className="grid grid-cols-2 gap-2">
+            {(["default", "friendly", "direct", "professional"] as const).map((opt) => (
+              <button key={opt} type="button"
+                onClick={() => setChatSettings((prev) => ({ ...prev, tone: opt }))}
+                className={`rounded-2xl border px-3 py-2.5 text-left transition-all duration-150 ${
+                  chatSettings.tone === opt
+                    ? "border-white/20 bg-white/[0.08] text-white"
+                    : "border-white/8 bg-white/[0.03] text-white/50 hover:border-white/12 hover:bg-white/[0.05] hover:text-white/70"
+                }`}
+              >
+                <div className="text-sm font-medium capitalize">{opt === "default" ? "Default" : opt === "friendly" ? "Vriendelijk" : opt === "direct" ? "Direct" : "Professioneel"}</div>
+                <div className="text-[11px] text-white/32 mt-0.5">{opt === "default" ? "Gebalanceerd" : opt === "friendly" ? "Warm & informeel" : opt === "direct" ? "To the point" : "Formeel & helder"}</div>
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div className="flex items-center justify-between rounded-[20px] border border-white/8 bg-white/[0.03] px-4 py-3">
+        {/* Style */}
+        <div>
+          <div className="mb-2.5 text-[11px] uppercase tracking-[0.14em] text-white/34">Antwoordstijl</div>
+          <div className="grid grid-cols-2 gap-2">
+            {(["default", "concise", "structured", "detailed"] as const).map((opt) => (
+              <button key={opt} type="button"
+                onClick={() => setChatSettings((prev) => ({ ...prev, style: opt }))}
+                className={`rounded-2xl border px-3 py-2.5 text-left transition-all duration-150 ${
+                  chatSettings.style === opt
+                    ? "border-white/20 bg-white/[0.08] text-white"
+                    : "border-white/8 bg-white/[0.03] text-white/50 hover:border-white/12 hover:bg-white/[0.05] hover:text-white/70"
+                }`}
+              >
+                <div className="text-sm font-medium">{opt === "default" ? "Default" : opt === "concise" ? "Kort" : opt === "structured" ? "Gestructureerd" : "Uitgebreid"}</div>
+                <div className="text-[11px] text-white/32 mt-0.5">{opt === "default" ? "Gebalanceerd" : opt === "concise" ? "Zo compact mogelijk" : opt === "structured" ? "Met duidelijke opbouw" : "Meer context & diepte"}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Memory toggle */}
+        <button type="button"
+          onClick={() => setChatSettings((prev) => ({ ...prev, memoryEnabled: !prev.memoryEnabled }))}
+          className={`w-full flex items-center justify-between rounded-2xl border px-4 py-3 transition-all duration-150 ${
+            chatSettings.memoryEnabled ? "border-white/16 bg-white/[0.06] text-white" : "border-white/8 bg-white/[0.03] text-white/50"
+          }`}
+        >
+          <div className="text-left">
+            <div className="text-sm font-medium">Geheugen</div>
+            <div className="text-[11px] text-white/36 mt-0.5">{chatSettings.memoryEnabled ? "Actief — antwoorden leren van jou" : "Uitgeschakeld"}</div>
+          </div>
+          <div className={`h-5 w-9 rounded-full border transition-all duration-200 ${chatSettings.memoryEnabled ? "border-emerald-400/40 bg-emerald-500/30" : "border-white/12 bg-white/[0.04]"}`}>
+            <div className={`mt-[2px] h-3.5 w-3.5 rounded-full bg-white/80 shadow transition-all duration-200 ${chatSettings.memoryEnabled ? "translate-x-[18px]" : "translate-x-[2px]"}`} />
+          </div>
+        </button>
+
+        {/* Preferences — only personal route */}
+        {isPersonalRoute && (
           <div>
-            <div className="text-sm font-medium text-white/88">Memory</div>
-            <div className="mt-1 text-xs text-white/42">
-              Use saved memory in new responses
+            <div className="mb-2.5 text-[11px] uppercase tracking-[0.14em] text-white/34">Extra voorkeuren</div>
+            {settingsPreferences.length > 0 && (
+              <div className="mb-2 flex flex-wrap gap-1.5">
+                {settingsPreferences.map((pref) => (
+                  <span key={pref} className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[12px] text-white/70">
+                    {pref}
+                    <button type="button" onClick={() => setSettingsPreferences((prev) => prev.filter((x) => x !== pref))} className="text-white/30 hover:text-white/70">×</button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={settingsNewPref}
+                onChange={(e) => setSettingsNewPref(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    const t = settingsNewPref.trim();
+                    if (t && !settingsPreferences.includes(t)) {
+                      setSettingsPreferences((prev) => [...prev, t]);
+                      setSettingsNewPref("");
+                    }
+                  }
+                }}
+                placeholder="Bijv. gebruik altijd bullet points"
+                className="flex-1 rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white/80 placeholder-white/24 outline-none focus:border-white/18 focus:bg-white/[0.06]"
+                maxLength={120}
+              />
+              <button type="button"
+                onClick={() => {
+                  const t = settingsNewPref.trim();
+                  if (t && !settingsPreferences.includes(t)) {
+                    setSettingsPreferences((prev) => [...prev, t]);
+                    setSettingsNewPref("");
+                  }
+                }}
+                className="rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white/60 hover:bg-white/[0.08] hover:text-white/80 transition-colors"
+              >+</button>
             </div>
           </div>
-
-          <button
-            type="button"
-            onClick={() =>
-              setChatSettings((prev) => ({
-                ...prev,
-                memoryEnabled: !prev.memoryEnabled,
-              }))
-            }
-            className={`relative inline-flex h-7 w-12 items-center rounded-full border transition-[background-color,border-color] duration-200 ${
-              chatSettings.memoryEnabled
-                ? "border-[#3b82f6]/30 bg-[#3b82f6]"
-                : "border-white/10 bg-white/[0.10]"
-            }`}
-          >
-            <span
-              className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ${
-                chatSettings.memoryEnabled ? "translate-x-6" : "translate-x-1"
-              }`}
-            />
-          </button>
-        </div>
+        )}
       </div>
 
-      <div className="mt-5 flex gap-2">
-        <button
-          type="button"
-          onClick={() => setShowSettingsBox(false)}
-          className="flex-1 rounded-[20px] border border-white/8 bg-white/[0.04] p-3 text-white/88 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.99]"
-        >
-          Close
-        </button>
+      {/* Footer */}
+      <div className="border-t border-white/8 px-5 py-4 flex items-center gap-3">
+        {settingsError && <span className="text-[12px] text-red-300/80 flex-1">{settingsError}</span>}
+        {!settingsError && <span className="text-[12px] text-white/26 flex-1">
+          {isPersonalRoute ? "Wijzigingen gelden direct" : "Niet opgeslagen"}
+        </span>}
+        <button type="button" onClick={() => setShowSettingsBox(false)}
+          className="rounded-2xl border border-white/8 bg-white/[0.04] px-4 py-2 text-sm text-white/60 hover:text-white/80 transition-colors"
+        >Sluiten</button>
+        {isPersonalRoute && (
+          <button type="button" disabled={settingsSaving}
+            onClick={async () => {
+              setSettingsSaving(true);
+              setSettingsError(null);
+              try {
+                const res = await fetch("/api/personal-state", {
+                  method: "POST",
+                  credentials: "same-origin",
+                  headers: { "Content-Type": "application/json", "x-openlura-personal-env": "true" },
+                  body: JSON.stringify({
+                    chats: chats.map((chat: any) => ({
+                      ...chat,
+                      messages: (chat.messages || []).map((msg: any) => ({
+                        ...msg,
+                        image: typeof msg.image === "string" && msg.image.startsWith("data:")
+                          ? "[image-uploaded]"
+                          : msg.image ?? null,
+                      })),
+                    })),
+                    memory,
+                    profile: {
+                      tone: chatSettings.tone,
+                      style: chatSettings.style,
+                      memoryEnabled: chatSettings.memoryEnabled,
+                      preferences: settingsPreferences,
+                    },
+                  }),
+                });
+                if (!res.ok) throw new Error();
+                setSettingsSaved(true);
+                setTimeout(() => setSettingsSaved(false), 2000);
+              } catch {
+                setSettingsError("Opslaan mislukt");
+              } finally {
+                setSettingsSaving(false);
+              }
+            }}
+            className="rounded-2xl border border-white/14 bg-white/[0.08] px-5 py-2 text-sm text-white/90 hover:bg-white/[0.12] hover:text-white disabled:opacity-50 transition-all"
+          >
+            {settingsSaving ? "Opslaan..." : settingsSaved ? "✓ Opgeslagen" : "Opslaan"}
+          </button>
+        )}
       </div>
     </div>
   </div>
