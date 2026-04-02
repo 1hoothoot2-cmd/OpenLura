@@ -932,7 +932,7 @@ const shouldSkipPersonalStateSync =
                 tone: chatSettings.tone,
                 style: chatSettings.style,
                 memoryEnabled: chatSettings.memoryEnabled,
-                preferences: [],
+                preferences: settingsPreferences,
               },
             }),
           });
@@ -3181,17 +3181,7 @@ updated[index].messages[
 
   return (
     <main className="fixed inset-0 flex overflow-hidden bg-[#050510] text-white">
-      <button
-  onClick={() => setMobileMenu(!mobileMenu)}
-  aria-label={mobileMenu ? "Close menu" : "Open menu"}
-  className={`fixed left-4 top-[max(env(safe-area-inset-top),16px)] z-[70] flex h-11 w-11 items-center justify-center rounded-full border border-white/8 bg-white/[0.055] text-white/82 shadow-[0_12px_32px_rgba(0,0,0,0.24)] backdrop-blur-2xl ol-interactive transition-[opacity,transform,background-color,border-color] duration-200 hover:border-white/12 hover:bg-white/[0.085] hover:text-white active:scale-95 md:hidden ${
-    mobileMenu ? "pointer-events-none scale-95 opacity-0" : "opacity-100"
-  }`}
->
-  ☰
-</button>
-
-<Sidebar
+      <Sidebar
   mobileMenu={mobileMenu}
   setMobileMenu={setMobileMenu}
   createNewChat={createNewChat}
@@ -3218,25 +3208,16 @@ updated[index].messages[
   onCopyActiveChatMarkdown={copyChatToClipboard}
   onDownloadActiveChatMarkdown={downloadMarkdown}
 />
+      <button
+  onClick={() => setMobileMenu(!mobileMenu)}
+  aria-label={mobileMenu ? "Close menu" : "Open menu"}
+  className={`fixed left-4 top-[max(env(safe-area-inset-top),16px)] z-[70] flex h-11 w-11 items-center justify-center rounded-full border border-white/8 bg-white/[0.055] text-white/82 shadow-[0_12px_32px_rgba(0,0,0,0.24)] backdrop-blur-2xl ol-interactive transition-[opacity,transform,background-color,border-color] duration-200 hover:border-white/12 hover:bg-white/[0.085] hover:text-white active:scale-95 md:hidden ${
+    mobileMenu ? "pointer-events-none scale-95 opacity-0" : "opacity-100"
+  }`}
+>
+  ☰
+</button>
 ```
-
-EXTERNAL: none
-
----
-
-TEST:
-```
-1. Ga naar /persoonlijke-omgeving (ingelogd)
-2. Open sidebar → onderaan "Instellingen" knop zichtbaar
-3. Klik → settings panel opent
-4. Groen badge "Persoonlijk actief" zichtbaar
-5. Selecteer Tone = "Direct", Style = "Kort"
-6. Voeg een voorkeur toe → klik +
-7. Klik "Opslaan" → "✓ Opgeslagen" verschijnt
-8. Herlaad de pagina
-9. Open settings opnieuw → waarden zijn hersteld
-10. Stuur een chat → gedrag past aan (toon/stijl)
-11. Ga naar /chat (niet personal) → "Log in" knop zichtbaar, settings box toont globale badge
 
 {mobileMenu && (
   <div

@@ -3219,24 +3219,6 @@ updated[index].messages[
 </button>
 ```
 
-EXTERNAL: none
-
----
-
-TEST:
-```
-1. Ga naar /persoonlijke-omgeving (ingelogd)
-2. Open sidebar → onderaan "Instellingen" knop zichtbaar
-3. Klik → settings panel opent
-4. Groen badge "Persoonlijk actief" zichtbaar
-5. Selecteer Tone = "Direct", Style = "Kort"
-6. Voeg een voorkeur toe → klik +
-7. Klik "Opslaan" → "✓ Opgeslagen" verschijnt
-8. Herlaad de pagina
-9. Open settings opnieuw → waarden zijn hersteld
-10. Stuur een chat → gedrag past aan (toon/stijl)
-11. Ga naar /chat (niet personal) → "Log in" knop zichtbaar, settings box toont globale badge
-
 {mobileMenu && (
   <div
     onClick={() => setMobileMenu(false)}
