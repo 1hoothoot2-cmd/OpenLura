@@ -11,7 +11,15 @@ const personalStateTable =
 
 const NO_STORE_HEADERS = {
   "Cache-Control": "no-store",
+  Vary: "Authorization, Cookie, X-OpenLura-Personal-Env",
 };
+
+function buildNoStoreHeaders(extra?: Record<string, string>) {
+  return {
+    ...NO_STORE_HEADERS,
+    ...(extra ?? {}),
+  };
+}
 
 const MAX_ITEMS_PER_COLLECTION = 500;
 const MAX_REQUEST_BYTES = 1024 * 1024;
@@ -43,9 +51,12 @@ type FetchPersonalStateResult =
   | {
       ok: true;
       row: {
+        user_id?: unknown;
         chats?: unknown;
         memory?: unknown;
         profile?: unknown;
+        style_profile?: unknown;
+        usage_stats?: unknown;
         updated_at?: unknown;
       } | null;
     }
@@ -59,7 +70,7 @@ function unauthorizedResponse() {
     { error: "Unauthorized" },
     {
       status: 401,
-      headers: NO_STORE_HEADERS,
+      headers: buildNoStoreHeaders(),
     }
   );
 }
@@ -69,17 +80,25 @@ function badRequestResponse(message: string) {
     { success: false, error: message },
     {
       status: 400,
-      headers: NO_STORE_HEADERS,
+      headers: buildNoStoreHeaders(),
     }
   );
 }
 
 function internalErrorResponse(message: string) {
   return NextResponse.json(
-    { success: false, error: message },
+    {
+      success: false,
+      error: message,
+      chats: [],
+      memory: [],
+      profile: normalizePersonalProfile(null),
+      styleProfile: null,
+      usageStats: null,
+    },
     {
       status: 500,
-      headers: NO_STORE_HEADERS,
+      headers: buildNoStoreHeaders(),
     }
   );
 }
@@ -113,6 +132,23 @@ function getSupabaseConfig() {
     personalStateTableUrl: `${supabaseUrl}/rest/v1/${personalStateTable}`,
     supabaseAnonKey,
   };
+}
+
+function isPersonalEnvironmentRequest(req: Request) {
+  return req.headers.get("x-openlura-personal-env") === "true";
+}
+
+function personalEnvironmentRequiredResponse() {
+  return NextResponse.json(
+    {
+      success: false,
+      error: "Personal environment required",
+    },
+    {
+      status: 403,
+      headers: buildNoStoreHeaders(),
+    }
+  );
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -397,7 +433,7 @@ async function fetchPersonalStateRow(input: {
   userId: string;
 }): Promise<FetchPersonalStateResult> {
   const query =
-    `select=chats,memory,profile,updated_at` +
+    `select=user_id,chats,memory,profile,style_profile,usage_stats,updated_at` +
     `&user_id=eq.${encodeURIComponent(input.userId)}` +
     `&order=updated_at.desc.nullslast` +
     `&limit=2`;
@@ -452,11 +488,6 @@ async function fetchPersonalStateRow(input: {
           userIdPresent: !!input.userId,
         }
       );
-
-      return {
-        ok: false,
-        reason: "error",
-      };
     }
 
     const firstRow = rows[0];
@@ -468,18 +499,44 @@ async function fetchPersonalStateRow(input: {
       };
     }
 
-    return {
-      ok: true,
-      row: (
+    const normalizedRow =
+      (
         firstRow as
           | {
+              user_id?: unknown;
               chats?: unknown;
               memory?: unknown;
               profile?: unknown;
+              style_profile?: unknown;
+              usage_stats?: unknown;
               updated_at?: unknown;
             }
           | undefined
-      ) ?? null,
+      ) ?? null;
+
+    if (
+      normalizedRow &&
+      typeof normalizedRow.user_id === "string" &&
+      normalizedRow.user_id !== input.userId
+    ) {
+      logSafeError(
+        "OpenLura personal state ownership mismatch on fetch",
+        new Error("Fetched row user_id mismatch"),
+        {
+          requestedUserIdPresent: !!input.userId,
+          returnedUserIdPresent: !!normalizedRow.user_id,
+        }
+      );
+
+      return {
+        ok: false,
+        reason: "unauthorized",
+      };
+    }
+
+    return {
+      ok: true,
+      row: normalizedRow,
     };
   } catch (error) {
     logSafeError("OpenLura personal state fetch failed", error);
@@ -492,6 +549,10 @@ async function fetchPersonalStateRow(input: {
 
 export async function GET(req: Request) {
   try {
+    if (!isPersonalEnvironmentRequest(req)) {
+      return personalEnvironmentRequiredResponse();
+    }
+
     const identity = await resolveAuthenticatedIdentity(req);
 
     if (!identity) {
@@ -529,19 +590,33 @@ export async function GET(req: Request) {
         chats: normalizedChats,
         memory: normalizedMemory,
         profile: normalizedProfile,
+        styleProfile:
+          isPlainObject(row?.style_profile) ? row?.style_profile : null,
+        usageStats:
+          isPlainObject(row?.usage_stats) ? row?.usage_stats : null,
       },
       {
-        headers: NO_STORE_HEADERS,
+        headers: buildNoStoreHeaders({
+          "X-OpenLura-User-Scope": "personal",
+          "X-OpenLura-Owner": "self",
+        }),
       }
     );
   } catch (error) {
     logSafeError("OpenLura personal state GET failed", error);
 
     return NextResponse.json(
-      { error: "Load failed" },
+      {
+        error: "Load failed",
+        chats: [],
+        memory: [],
+        profile: normalizePersonalProfile(null),
+        styleProfile: null,
+        usageStats: null,
+      },
       {
         status: 500,
-        headers: NO_STORE_HEADERS,
+        headers: buildNoStoreHeaders(),
       }
     );
   }
@@ -549,6 +624,10 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
+    if (!isPersonalEnvironmentRequest(req)) {
+      return personalEnvironmentRequiredResponse();
+    }
+
     const identity = await resolveAuthenticatedIdentity(req);
 
     if (!identity) {
@@ -597,12 +676,15 @@ export async function POST(req: Request) {
     headers.set("Authorization", `Bearer ${identity.accessToken}`);
     headers.set("Prefer", "resolution=merge-duplicates,return=representation");
 
-    const res = await fetch(`${personalStateTableUrl}?on_conflict=user_id`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(payload),
-      cache: "no-store",
-    });
+    const res = await fetch(
+      `${personalStateTableUrl}?on_conflict=user_id&select=user_id,chats,memory,profile,style_profile,usage_stats,updated_at`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify(payload),
+        cache: "no-store",
+      }
+    );
 
     if (res.status === 401 || res.status === 403) {
       return unauthorizedResponse();
@@ -622,19 +704,49 @@ export async function POST(req: Request) {
     const savedRow =
       Array.isArray(savedRows) && isPlainObject(savedRows[0]) ? savedRows[0] : null;
 
+    if (
+      savedRow &&
+      typeof savedRow.user_id === "string" &&
+      savedRow.user_id !== identity.userId
+    ) {
+      logSafeError(
+        "OpenLura personal state ownership mismatch on save",
+        new Error("Saved row user_id mismatch"),
+        {
+          requestedUserIdPresent: !!identity.userId,
+          returnedUserIdPresent: !!savedRow.user_id,
+        }
+      );
+
+      return unauthorizedResponse();
+    }
+
+    const responseChats = Array.isArray(savedRow?.chats)
+      ? normalizePersonalChats(savedRow.chats)
+      : body.chats;
+
+    const responseMemory = Array.isArray(savedRow?.memory)
+      ? normalizePersonalMemory(savedRow.memory)
+      : body.memory;
+
+    const responseProfile = normalizePersonalProfile(savedRow?.profile ?? body.profile);
+
     return NextResponse.json(
       {
         success: true,
-        chats: Array.isArray(savedRow?.chats)
-          ? normalizePersonalChats(savedRow.chats)
-          : body.chats,
-        memory: Array.isArray(savedRow?.memory)
-          ? normalizePersonalMemory(savedRow.memory)
-          : body.memory,
-        profile: normalizePersonalProfile(savedRow?.profile ?? body.profile),
+        chats: responseChats,
+        memory: responseMemory,
+        profile: responseProfile,
+        styleProfile:
+          isPlainObject(savedRow?.style_profile) ? savedRow?.style_profile : null,
+        usageStats:
+          isPlainObject(savedRow?.usage_stats) ? savedRow?.usage_stats : null,
       },
       {
-        headers: NO_STORE_HEADERS,
+        headers: buildNoStoreHeaders({
+          "X-OpenLura-User-Scope": "personal",
+          "X-OpenLura-Owner": "self",
+        }),
       }
     );
   } catch (error) {
@@ -644,7 +756,7 @@ export async function POST(req: Request) {
       { error: "Save failed" },
       {
         status: 500,
-        headers: NO_STORE_HEADERS,
+        headers: buildNoStoreHeaders(),
       }
     );
   }

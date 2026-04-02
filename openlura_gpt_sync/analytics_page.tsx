@@ -164,7 +164,8 @@ export default function AnalyticsPage() {
     const hasValidUserScope =
       f.userScope === "admin" ||
       f.userScope === "guest" ||
-      f.userScope === "personal";
+      f.userScope === "personal" ||
+      f.userScope === "user";
 
     if (!hasValidType || !hasValidEnvironment || !hasValidUserScope) {
       return false;
@@ -178,19 +179,28 @@ export default function AnalyticsPage() {
       return false;
     }
 
+    if (f.userScope === "user" && !f.user_id) {
+      return false;
+    }
+
     return true;
   };
     const getUserScope = (f: any) => {
     if (
       f.userScope === "admin" ||
       f.userScope === "guest" ||
-      f.userScope === "personal"
+      f.userScope === "personal" ||
+      f.userScope === "user"
     ) {
       return f.userScope;
     }
 
     if (f.environment === "personal" && f.user_id) {
       return "personal";
+    }
+
+    if (f.environment === "default" && f.user_id) {
+      return "user";
     }
 
     return "guest";
@@ -777,10 +787,13 @@ useEffect(() => {
         const resolvedUserScope =
           item.userScope === "admin" ||
           item.userScope === "guest" ||
-          item.userScope === "personal"
+          item.userScope === "personal" ||
+          item.userScope === "user"
             ? item.userScope
             : resolvedEnvironment === "personal"
             ? "personal"
+            : item.user_id
+            ? "user"
             : "guest";
 
         const resolvedUserId =
@@ -891,10 +904,13 @@ useEffect(() => {
     const resolvedUserScope =
       item.userScope === "admin" ||
       item.userScope === "guest" ||
-      item.userScope === "personal"
+      item.userScope === "personal" ||
+      item.userScope === "user"
         ? item.userScope
         : resolvedEnvironment === "personal" && item.user_id
         ? "personal"
+        : item.user_id
+        ? "user"
         : "guest";
 
     return {
@@ -1318,6 +1334,11 @@ return () => {
   <div className="p-4 bg-white/10 rounded-2xl">
     <p className="text-xs opacity-60">Admin items</p>
     <p className="text-xl">{feedback.filter((f) => getUserScope(f) === "admin").length}</p>
+  </div>
+
+  <div className="p-4 bg-white/10 rounded-2xl">
+    <p className="text-xs opacity-60">User items</p>
+    <p className="text-xl">{feedback.filter((f) => getUserScope(f) === "user").length}</p>
   </div>
 
   <div className="p-4 bg-white/10 rounded-2xl">
@@ -1839,7 +1860,7 @@ return () => {
       <p className="text-lg">{learningPool.length}</p>
     </div>
     <div className="p-3 rounded-xl bg-white/5">
-      <p className="text-xs opacity-60 mb-1">Global learning</p>
+      <p className="text-xs opacity-60 mb-1">Global + user learning</p>
       <p className="text-lg">{globalLearningPool.length}</p>
     </div>
     <div className="p-3 rounded-xl bg-white/5">
@@ -1864,7 +1885,7 @@ return () => {
     <div className="p-3 rounded-xl bg-white/5">
       <p className="text-xs opacity-60 mb-2">Globaal actief in alle chats</p>
       {globalActiveLearningRules.length === 0 ? (
-        <p className="opacity-60">Nog geen globale learning rules.</p>
+        <p className="opacity-60">Nog geen globale/user learning rules.</p>
       ) : (
         <div className="space-y-2">
           {globalActiveLearningRules.map((rule, i) => (

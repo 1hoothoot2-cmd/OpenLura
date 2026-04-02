@@ -8,6 +8,7 @@ import {
   getCookieValue,
   isValidAdminSession,
 } from "@/lib/auth/adminSession";
+import { resolveOpenLuraRequestIdentity } from "@/lib/auth/requestIdentity";
 
 export const dynamic = "force-dynamic";
 
@@ -322,45 +323,45 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!adminUsername || !adminPasswordHash) {
-      logSafeError("OpenLura admin auth missing env", new Error("Admin auth not configured"), {
-        hasAdminUsername: !!adminUsername,
-        hasAdminPasswordHash: !!adminPasswordHash,
-        hasAdminSessionSecret: !!process.env.ADMIN_SESSION_SECRET,
-      });
+    const isAdminLogin =
+      !!adminUsername &&
+      parsedBody.username.toLowerCase() === adminUsername.toLowerCase();
 
-      return NextResponse.json(
-        { success: false, error: "Admin auth not configured" },
-        {
-          status: 500,
-          headers: buildHeaders(rateLimit),
-        }
+    if (isAdminLogin) {
+      if (!adminPasswordHash) {
+        logSafeError(
+          "OpenLura admin auth missing env",
+          new Error("Admin auth not configured"),
+          {
+            hasAdminUsername: !!adminUsername,
+            hasAdminPasswordHash: !!adminPasswordHash,
+            hasAdminSessionSecret: !!process.env.ADMIN_SESSION_SECRET,
+          }
+        );
+
+        return NextResponse.json(
+          { success: false, error: "Admin auth not configured" },
+          {
+            status: 500,
+            headers: buildHeaders(rateLimit),
+          }
+        );
+      }
+
+      const validPassword = await bcrypt.compare(
+        parsedBody.password,
+        adminPasswordHash
       );
-    }
 
-    if (parsedBody.username !== adminUsername) {
-      return NextResponse.json(
-        { success: false, error: "Invalid credentials" },
-        {
-          status: 401,
-          headers: buildHeaders(rateLimit),
-        }
-      );
-    }
-
-    const validPassword = await bcrypt.compare(
-      parsedBody.password,
-      adminPasswordHash
-    );
-
-    if (!validPassword) {
-      return NextResponse.json(
-        { success: false, error: "Invalid credentials" },
-        {
-          status: 401,
-          headers: buildHeaders(rateLimit),
-        }
-      );
+      if (!validPassword) {
+        return NextResponse.json(
+          { success: false, error: "Invalid credentials" },
+          {
+            status: 401,
+            headers: buildHeaders(rateLimit),
+          }
+        );
+      }
     }
 
     const supabaseSession = await fetchSupabasePasswordSession({
@@ -369,22 +370,8 @@ export async function POST(req: Request) {
     });
 
     if (!supabaseSession?.accessToken || !supabaseSession.userId) {
-      logSafeError(
-        "OpenLura personal auth missing matching Supabase identity",
-        new Error("No Supabase password session for authenticated admin user"),
-        {
-          username: parsedBody.username,
-          hasSupabaseUrl: !!supabaseUrl,
-          hasSupabaseAnonKey: !!supabaseAnonKey,
-        }
-      );
-
       return NextResponse.json(
-        {
-          success: false,
-          error:
-            "Persoonlijke omgeving wordt momenteel voorbereid. Inloggen en persoonlijke accounts worden later geactiveerd."
-        },
+        { success: false, error: "Invalid credentials" },
         {
           status: 401,
           headers: buildHeaders(rateLimit),
@@ -397,7 +384,7 @@ export async function POST(req: Request) {
         success: true,
         runtime: {
           authenticated: true,
-          sessionType: "personal_admin",
+          sessionType: isAdminLogin ? "personal_admin" : "user",
           userId: supabaseSession.userId,
         },
       },
@@ -406,11 +393,13 @@ export async function POST(req: Request) {
       }
     );
 
-    response.cookies.set(
-      ADMIN_COOKIE_NAME,
-      createAdminSessionValue(),
-      getAdminSessionCookieOptions()
-    );
+    if (isAdminLogin) {
+      response.cookies.set(
+        ADMIN_COOKIE_NAME,
+        createAdminSessionValue(),
+        getAdminSessionCookieOptions()
+      );
+    }
 
     response.cookies.set(
       "sb-access-token",
@@ -449,18 +438,36 @@ export async function POST(req: Request) {
 export async function GET(req: Request) {
   try {
     const sessionCookie = getCookieValue(req, ADMIN_COOKIE_NAME);
+    const hasAdminSession = isValidAdminSession(sessionCookie);
+    const identity = await resolveOpenLuraRequestIdentity(req);
 
-    if (!isValidAdminSession(sessionCookie)) {
+    if (hasAdminSession) {
       return NextResponse.json(
         {
-          authenticated: false,
+          authenticated: true,
           runtime: {
             sessionType: "admin",
-            authenticated: false,
+            authenticated: true,
+            userId: identity.userId || null,
           },
         },
         {
-          status: 401,
+          headers: NO_STORE_HEADERS,
+        }
+      );
+    }
+
+    if (identity.isAuthenticated && identity.userId) {
+      return NextResponse.json(
+        {
+          authenticated: true,
+          runtime: {
+            sessionType: "user",
+            authenticated: true,
+            userId: identity.userId,
+          },
+        },
+        {
           headers: NO_STORE_HEADERS,
         }
       );
@@ -468,13 +475,15 @@ export async function GET(req: Request) {
 
     return NextResponse.json(
       {
-        authenticated: true,
+        authenticated: false,
         runtime: {
-          sessionType: "admin",
-          authenticated: true,
+          sessionType: "guest",
+          authenticated: false,
+          userId: null,
         },
       },
       {
+        status: 401,
         headers: NO_STORE_HEADERS,
       }
     );

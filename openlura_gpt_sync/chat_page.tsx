@@ -13,7 +13,7 @@ function safeParseJson<T>(raw: string | null, fallback: T): T {
 }
 
 const PERSONAL_ENV_WELCOME_MESSAGE =
-  "👋 Welcome to your personal environment. Here we test private memory, improvement feedback, and training of your AI behavior.";
+  "👋 Welkom in je persoonlijke omgeving. Hier testen we privé memory, verbeterpunten en training van jouw AI-gedrag.";
 
 export default function ChatPage() {
   const pathname = usePathname();
@@ -413,6 +413,24 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
   ...overrides,
 });
 
+const isReplaceableStarterChat = (chat: any) => {
+  if (!chat || chat.pinned || chat.archived || chat.deleted) return false;
+
+  const title = String(chat.title || "").trim();
+  const messages = Array.isArray(chat.messages) ? chat.messages : [];
+
+  if (isPersonalRoute) {
+    return (
+      title === "Persoonlijke omgeving" &&
+      messages.length === 1 &&
+      messages[0]?.role === "ai" &&
+      messages[0]?.content === PERSONAL_ENV_WELCOME_MESSAGE
+    );
+  }
+
+  return title === "New Chat" && messages.length === 0;
+};
+
   const activateChat = (chatId: number) => {
   const chatExists = chats.some(
     (c) => c.id === chatId && !c.deleted
@@ -420,6 +438,8 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
 
   if (!chatExists) return;
 
+  closeMobileSidebar();
+  isBootstrappingChatRef.current = false;
   hasManualChatSelectionRef.current = true;
   pendingActiveChatIdRef.current = chatId;
   preferredActiveChatIdRef.current = chatId;
@@ -427,7 +447,8 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
 
   setActiveChatId(chatId);
   setOpenChatMenuId(null);
-  closeMobileSidebar();
+  setOpenUserMessageMenuKey(null);
+  setOpenAiMessageMenuKey(null);
 };
 
     const createNewChat = (
@@ -449,11 +470,17 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
     preferredActiveChatIdRef.current = newChatId;
     forcedActiveChatIdRef.current = newChatId;
     setOpenChatMenuId(null);
+    setOpenUserMessageMenuKey(null);
+    setOpenAiMessageMenuKey(null);
 
     setChats((prev) => {
-      const existingTitles = prev.map((chat: any) =>
-        String(chat.title || "").trim()
+      const replaceableStarterIndex = prev.findIndex((chat: any) =>
+        isReplaceableStarterChat(chat)
       );
+
+      const existingTitles = prev
+        .filter((_: any, index: number) => index !== replaceableStarterIndex)
+        .map((chat: any) => String(chat.title || "").trim());
 
       const buildUniqueTitle = (rawBaseTitle: string) => {
         if (!existingTitles.includes(rawBaseTitle)) return rawBaseTitle;
@@ -475,6 +502,12 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
         deleted: false,
       };
 
+      if (replaceableStarterIndex !== -1) {
+        const nextChats = [...prev];
+        nextChats[replaceableStarterIndex] = newChat;
+        return nextChats;
+      }
+
       return [newChat, ...prev];
     });
 
@@ -485,6 +518,16 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
     const loadState = async () => {
       try {
         let loadedFromServer = false;
+
+        if (isPersonalRoute) {
+          setPersonalStateLoaded(false);
+          setChats([]);
+          setMemory([]);
+          setActiveChatId(null);
+          preferredActiveChatIdRef.current = null;
+          pendingActiveChatIdRef.current = null;
+          forcedActiveChatIdRef.current = null;
+        }
 
         if (isPersonalRoute) {
           try {
@@ -512,6 +555,13 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
             }
 
             if (!res.ok) {
+              preferredActiveChatIdRef.current = null;
+              pendingActiveChatIdRef.current = null;
+              forcedActiveChatIdRef.current = null;
+
+              setChats([]);
+              setMemory([]);
+              setActiveChatId(null);
               setPersonalStateLoaded(true);
               loadedFromServer = true;
               return;
@@ -541,7 +591,19 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
               if (hasServerChats) {
                 setChats(normalizedChats);
 
+                const preferredVisibleChatId =
+                  preferredActiveChatIdRef.current !== null &&
+                  normalizedChats.some(
+                    (chat: any) =>
+                      chat.id === preferredActiveChatIdRef.current &&
+                      !chat.archived &&
+                      !chat.deleted
+                  )
+                    ? preferredActiveChatIdRef.current
+                    : null;
+
                 const nextActiveChatId =
+                  preferredVisibleChatId ??
                   normalizedChats.find((chat: any) => !chat.archived && !chat.deleted)?.id ??
                   normalizedChats.find((chat: any) => !chat.deleted)?.id ??
                   null;
@@ -598,7 +660,19 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
           if (!hasManualChatSelectionRef.current) {
             setChats(normalizedChats);
 
+            const preferredVisibleChatId =
+              preferredActiveChatIdRef.current !== null &&
+              normalizedChats.some(
+                (chat: any) =>
+                  chat.id === preferredActiveChatIdRef.current &&
+                  !chat.archived &&
+                  !chat.deleted
+              )
+                ? preferredActiveChatIdRef.current
+                : null;
+
             const nextActiveChatId =
+              preferredVisibleChatId ??
               normalizedChats.find((chat: any) => !chat.archived && !chat.deleted)?.id ??
               normalizedChats.find((chat: any) => !chat.deleted)?.id ??
               null;
@@ -673,9 +747,13 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
         return;
       }
 
+      setMobileMenu(false);
       setOpenChatMenuId(null);
+      setOpenUserMessageMenuKey(null);
+      setOpenAiMessageMenuKey(null);
     };
 
+    handleResize();
     window.addEventListener("resize", handleResize);
 
     return () => {
@@ -791,9 +869,9 @@ const shouldSkipPersonalStateSync =
         const res = await fetch("/api/personal-state", {
           method: "POST",
           headers: getOpenLuraRequestHeaders(true, {
-  personalEnv: false,
-  includeUserId: true,
-}),
+            personalEnv: true,
+            includeUserId: false,
+          }),
           credentials: "same-origin",
           body: JSON.stringify({
             chats: safeChats,
@@ -831,17 +909,18 @@ const shouldSkipPersonalStateSync =
   }, [activeChatId]);
 
   useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-        useEffect(() => {
     if (!showExportMenu) return;
 
     const handlePointerDown = (event: MouseEvent) => {
       const target = event.target as Node | null;
       if (!target) return;
 
-      const exportTrigger = document.querySelector("[data-openlura-export-trigger]");
-      const exportMenu = document.querySelector("[data-openlura-export-menu]");
+      const exportTrigger = document.querySelector(
+        "[data-openlura-export-trigger]"
+      );
+      const exportMenu = document.querySelector(
+        "[data-openlura-export-menu]"
+      );
 
       if (exportTrigger?.contains(target) || exportMenu?.contains(target)) {
         return;
@@ -856,6 +935,10 @@ const shouldSkipPersonalStateSync =
       document.removeEventListener("mousedown", handlePointerDown);
     };
   }, [showExportMenu]);
+
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
 
       if (showExportMenu) {
         setShowExportMenu(false);
@@ -907,7 +990,11 @@ const shouldSkipPersonalStateSync =
         return;
       }
 
-      if (mobileMenu && typeof window !== "undefined" && window.innerWidth < 768) {
+      if (
+        mobileMenu &&
+        typeof window !== "undefined" &&
+        window.innerWidth < 768
+      ) {
         setMobileMenu(false);
       }
     };
@@ -927,7 +1014,7 @@ const shouldSkipPersonalStateSync =
     showClearDeletedConfirm,
     showSettingsBox,
     showExportMenu,
-    deleteTargetChatId
+    deleteTargetChatId,
   ]);
 
   useEffect(() => {
@@ -1002,6 +1089,13 @@ const shouldSkipPersonalStateSync =
         }
 
         if (!res.ok) {
+          preferredActiveChatIdRef.current = null;
+          pendingActiveChatIdRef.current = null;
+          forcedActiveChatIdRef.current = null;
+          setActiveChatId(null);
+          setChats([]);
+          setMemory([]);
+          setPersonalStateLoaded(true);
           return;
         }
 
@@ -1053,13 +1147,25 @@ const shouldSkipPersonalStateSync =
                 chat.id === latestActiveChatId && !chat.archived && !chat.deleted
             );
 
+          const preferredVisibleChatId =
+            preferredActiveChatIdRef.current !== null &&
+            normalizedChats.some(
+              (chat: any) =>
+                chat.id === preferredActiveChatIdRef.current &&
+                !chat.archived &&
+                !chat.deleted
+            )
+              ? preferredActiveChatIdRef.current
+              : null;
+
           const nextActiveChatId =
             hasServerChats
-              ? currentStillExists
-                ? latestActiveChatId
-                : normalizedChats.find((chat: any) => !chat.archived && !chat.deleted)?.id ??
-                  normalizedChats.find((chat: any) => !chat.deleted)?.id ??
-                  null
+              ? preferredVisibleChatId ??
+                (currentStillExists
+                  ? latestActiveChatId
+                  : normalizedChats.find((chat: any) => !chat.archived && !chat.deleted)?.id ??
+                    normalizedChats.find((chat: any) => !chat.deleted)?.id ??
+                    null)
               : null;
 
           preferredActiveChatIdRef.current = nextActiveChatId;
@@ -1997,7 +2103,6 @@ const restoreDeletedChat = (chatId: number) => {
 }),
         body: JSON.stringify({
           message: `The user wants you to answer the same question again.
-
 Original question:
 ${originalUserMessage}
 
@@ -2142,12 +2247,24 @@ Do not mention that this is a new attempt.`,
 
     try {
 
-      const currentChatId = activeChatId ?? activeChat?.id ?? null;
+      let currentChatId = activeChatId ?? activeChat?.id ?? null;
 
-    if (currentChatId === null) {
-      setLoading(false);
-      return;
-    }
+      if (currentChatId === null) {
+        const fallbackChat = buildFallbackChat({
+          title: isPersonalRoute ? "Persoonlijke chat" : "New Chat",
+          messages: [],
+        });
+
+        currentChatId = fallbackChat.id;
+
+        hasManualChatSelectionRef.current = true;
+        pendingActiveChatIdRef.current = currentChatId;
+        preferredActiveChatIdRef.current = currentChatId;
+        forcedActiveChatIdRef.current = currentChatId;
+
+        setChats((prev) => [fallbackChat, ...prev]);
+        setActiveChatId(currentChatId);
+      }
 
     const pendingImprovement = awaitingImprovement[currentChatId];
     const isImprovementReply = !!pendingImprovement && !!input.trim();
@@ -2221,10 +2338,7 @@ Do not mention that this is a new attempt.`,
         try {
           const feedbackRes = await fetch("/api/feedback", {
             method: "POST",
-            headers: getOpenLuraRequestHeaders(true, {
-  personalEnv: false,
-  includeUserId: true,
-}),
+            headers: getScopedRequestHeaders(true, isPersonalEnvironment),
             body: JSON.stringify({
               chatId: String(currentChatId),
               msgIndex: pendingImprovement?.targetMsgIndex ?? null,
@@ -2267,10 +2381,7 @@ Do not mention that this is a new attempt.`,
       try {
         improveRes = await fetch("/api/chat", {
           method: "POST",
-          headers: getOpenLuraRequestHeaders(true, {
-  personalEnv: false,
-  includeUserId: true,
-}),
+          headers: getScopedRequestHeaders(true, isPersonalEnvironment),
           body: JSON.stringify({
             message: retryRequest
               ? `The user wants you to answer the same question again.
@@ -2467,6 +2578,7 @@ Only give the improved answer directly.`,
 
     if (index === -1) {
       const fallbackChat = buildFallbackChat({
+        id: currentChatId,
         title: isPersonalRoute ? "Persoonlijke chat" : "New Chat",
         messages: [],
       });
@@ -2596,10 +2708,7 @@ setChats([...updated]);
       res = await fetch("/api/chat", {
         method: "POST",
         signal: controller.signal,
-        headers: getOpenLuraRequestHeaders(true, {
-  personalEnv: false,
-  includeUserId: true,
-}),
+        headers: getScopedRequestHeaders(true, isPersonalEnvironment),
         body: JSON.stringify({
           message: inputToSend,
           image: imageToSend,
@@ -3068,10 +3177,10 @@ updated[index].messages[
             }
             className="w-full rounded-[18px] border border-white/8 bg-white/[0.04] px-3 py-3 text-sm text-white/90 outline-none ol-surface focus:border-white/14 focus:bg-white/[0.06]"
           >
-            <option value="default">Default</option>
-            <option value="friendly">Friendly</option>
-            <option value="direct">Direct</option>
-            <option value="professional">Professional</option>
+            <option value="default" className="bg-[#0b1020] text-white">Default</option>
+            <option value="friendly" className="bg-[#0b1020] text-white">Friendly</option>
+            <option value="direct" className="bg-[#0b1020] text-white">Direct</option>
+            <option value="professional" className="bg-[#0b1020] text-white">Professional</option>
           </select>
         </div>
 
@@ -3093,10 +3202,10 @@ updated[index].messages[
             }
             className="w-full rounded-[18px] border border-white/8 bg-white/[0.04] px-3 py-3 text-sm text-white/90 outline-none ol-surface focus:border-white/14 focus:bg-white/[0.06]"
           >
-            <option value="default">Default</option>
-            <option value="concise">Concise</option>
-            <option value="structured">Structured</option>
-            <option value="detailed">Detailed</option>
+            <option value="default" className="bg-[#0b1020] text-white">Default</option>
+            <option value="concise" className="bg-[#0b1020] text-white">Concise</option>
+            <option value="structured" className="bg-[#0b1020] text-white">Structured</option>
+            <option value="detailed" className="bg-[#0b1020] text-white">Detailed</option>
           </select>
         </div>
 
@@ -3274,7 +3383,7 @@ updated[index].messages[
               </div>
             </div>
 
-            <div className="relative hidden items-center gap-2 md:flex">
+            <div className="relative flex items-center gap-2">
               <span className="rounded-full border border-[#3b82f6]/16 bg-[#3b82f6]/8 px-3 py-1 text-[11px] font-medium text-[#bfdbfe]">
                 Chat
               </span>
@@ -3283,9 +3392,9 @@ updated[index].messages[
                 type="button"
                 data-openlura-export-trigger
                 onClick={() => setShowExportMenu((prev) => !prev)}
-                className="rounded-full border border-white/8 bg-white/[0.04] px-3 py-1 text-[11px] font-medium text-white/74 ol-interactive transition-[background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white"
+                className="rounded-full border border-[#3b82f6]/20 bg-[#3b82f6]/10 px-3 py-1 text-[11px] font-semibold text-[#bfdbfe] shadow-[0_8px_18px_rgba(59,130,246,0.12)] ol-interactive transition-[background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/30 hover:bg-[#3b82f6]/16 hover:text-white"
               >
-                Export
+                Export chat
               </button>
 
               <button
@@ -4077,3 +4186,4 @@ updated[index].messages[
     </main>
   );
 }
+
