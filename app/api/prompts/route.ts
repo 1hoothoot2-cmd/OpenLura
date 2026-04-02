@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { resolveOpenLuraUserId } from "@/lib/auth/requestIdentity";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -116,9 +117,11 @@ function getSupabaseConfig() {
   };
 }
 
-function getRequestUserId(req: Request) {
-  const raw = req.headers.get("x-openlura-user-id")?.trim() || "";
+async function getRequestUserId(req: Request) {
+  const sessionUserId = await resolveOpenLuraUserId(req);
+  if (sessionUserId) return sessionUserId;
 
+  const raw = req.headers.get("x-openlura-user-id")?.trim() || "";
   if (!raw) return null;
   if (raw.length > MAX_USER_ID_LENGTH) return null;
   if (/[\r\n]/.test(raw)) return null;
@@ -486,7 +489,7 @@ export async function POST(req: Request) {
       return badRequestResponse("Request too large");
     }
 
-    const userId = getRequestUserId(req);
+    const userId = await getRequestUserId(req);
 
     if (!userId) {
       return unauthorizedResponse();
@@ -542,7 +545,7 @@ export async function POST(req: Request) {
 
 export async function GET(req: Request) {
   try {
-    const userId = getRequestUserId(req);
+    const userId = await getRequestUserId(req);
 
     if (!userId) {
       return unauthorizedResponse();
@@ -577,7 +580,7 @@ export async function PUT(req: Request) {
       return badRequestResponse("Request too large");
     }
 
-    const userId = getRequestUserId(req);
+    const userId = await getRequestUserId(req);
 
     if (!userId) {
       return unauthorizedResponse();
@@ -639,7 +642,7 @@ export async function DELETE(req: Request) {
       return badRequestResponse("Request too large");
     }
 
-    const userId = getRequestUserId(req);
+    const userId = await getRequestUserId(req);
 
     if (!userId) {
       return unauthorizedResponse();
