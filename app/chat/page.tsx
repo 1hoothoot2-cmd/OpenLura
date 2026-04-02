@@ -3859,9 +3859,7 @@ updated[index].messages[
                     {isPersonalRoute ? "Limiet bereikt" : "Gratis berichten op"}
                   </div>
                   <div className="mt-1 text-[12px] text-blue-200/80 leading-5">
-                    {isPersonalRoute
-                      ? upgradeNotice.message
-                      : "Je hebt je gratis berichten gebruikt. Meld je aan voor meer."}
+                    {upgradeNotice.message}
                   </div>
                 </div>
                 {isPersonalRoute ? (
