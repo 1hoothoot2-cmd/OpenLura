@@ -366,6 +366,11 @@ const ideasStorageKey = isPersonalRoute
   : makeUserBoundStorageKey("openlura_ideas");
 
 const [showSettingsBox, setShowSettingsBox] = useState(false);
+const [showDashboard, setShowDashboard] = useState(false);
+const [dashboardData, setDashboardData] = useState<{
+  usageStats: Record<string, unknown> | null;
+} | null>(null);
+const [dashboardLoading, setDashboardLoading] = useState(false);
 const [settingsPreferences, setSettingsPreferences] = useState<string[]>([]);
 const [settingsSaving, setSettingsSaving] = useState(false);
 const [settingsSaved, setSettingsSaved] = useState(false);
@@ -407,7 +412,8 @@ const [chatSettings, setChatSettings] = useState<{
     showClearDeletedConfirm ||
     deleteTargetChatId !== null ||
     showLoginBox ||
-    showSettingsBox;
+    showSettingsBox ||
+    showDashboard;
 
   const closeMobileSidebar = () => {
     if (typeof window !== "undefined" && window.innerWidth < 768) {
@@ -1040,6 +1046,11 @@ const shouldSkipPersonalStateSync =
         return;
       }
 
+      if (showDashboard) {
+        setShowDashboard(false);
+        return;
+      }
+
       if (deleteTargetChatId !== null) {
         setDeleteTargetChatId(null);
         return;
@@ -1083,6 +1094,7 @@ const shouldSkipPersonalStateSync =
     showFeedbackBox,
     showClearDeletedConfirm,
     showSettingsBox,
+    showDashboard,
     showExportMenu,
     deleteTargetChatId,
   ]);
@@ -3205,6 +3217,23 @@ updated[index].messages[
   setShowFeedbackBox={setShowFeedbackBox}
   setShowLoginBox={setShowLoginBox}
   onOpenSettings={() => setShowSettingsBox(true)}
+  onOpenDashboard={async () => {
+    setShowDashboard(true);
+    setDashboardLoading(true);
+    try {
+      const res = await fetch("/api/personal-state", {
+        method: "GET",
+        credentials: "same-origin",
+        headers: { "x-openlura-personal-env": "true" },
+        cache: "no-store",
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setDashboardData({ usageStats: data?.usageStats ?? null });
+      }
+    } catch {}
+    setDashboardLoading(false);
+  }}
   onCopyActiveChatMarkdown={copyChatToClipboard}
   onDownloadActiveChatMarkdown={downloadMarkdown}
 />
@@ -3217,10 +3246,122 @@ updated[index].messages[
 >
   ☰
 </button>
-```
+
+{showDashboard && (
+  <div className="fixed inset-0 z-[160] flex items-end justify-center sm:items-center bg-black/60 p-4 backdrop-blur-sm">
+    <div className="w-full max-w-[420px] rounded-t-3xl sm:rounded-[28px] border border-white/10 bg-[#0a0f1d]/98 shadow-[0_22px_60px_rgba(0,0,0,0.40)] backdrop-blur-2xl overflow-hidden">
+
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-white/8 px-5 py-4">
+        <div>
+          <h2 className="text-sm font-medium text-white/90">Mijn profiel</h2>
+          <p className="text-[11px] text-white/36 mt-0.5">Persoonlijke omgeving overzicht</p>
+        </div>
+        <button type="button" onClick={() => setShowDashboard(false)} className="rounded-full p-1.5 text-white/36 hover:bg-white/8 hover:text-white/70 transition-colors">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 2l10 10M12 2L2 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+        </button>
+      </div>
+
+      <div className="max-h-[72vh] overflow-y-auto px-5 py-4 space-y-4">
+        {dashboardLoading ? (
+          <div className="py-8 text-center text-sm text-white/36">Laden...</div>
+        ) : (
+          <>
+            {/* Profiel instellingen */}
+            <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 space-y-2">
+              <div className="text-[11px] uppercase tracking-[0.14em] text-white/36 mb-2">Instellingen</div>
+              <div className="flex items-center justify-between">
+                <span className="text-[13px] text-white/54">Toon</span>
+                <span className="text-[13px] text-white/80 capitalize">{chatSettings.tone === "default" ? "Default" : chatSettings.tone === "friendly" ? "Vriendelijk" : chatSettings.tone === "direct" ? "Direct" : "Professioneel"}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[13px] text-white/54">Stijl</span>
+                <span className="text-[13px] text-white/80">{chatSettings.style === "default" ? "Default" : chatSettings.style === "concise" ? "Kort" : chatSettings.style === "structured" ? "Gestructureerd" : "Uitgebreid"}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[13px] text-white/54">Geheugen</span>
+                <span className={`text-[13px] ${chatSettings.memoryEnabled ? "text-emerald-400/80" : "text-white/40"}`}>{chatSettings.memoryEnabled ? "Actief" : "Uit"}</span>
+              </div>
+            </div>
+
+            {/* Chat overzicht */}
+            <div className="grid grid-cols-3 gap-2">
+              <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-3 py-3 text-center">
+                <div className="text-xl font-semibold text-white/90">{chats.filter((c: any) => !c.deleted).length}</div>
+                <div className="text-[11px] text-white/36 mt-0.5">Chats</div>
+              </div>
+              <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-3 py-3 text-center">
+                <div className="text-xl font-semibold text-white/90">{memory.length}</div>
+                <div className="text-[11px] text-white/36 mt-0.5">Geheugen</div>
+              </div>
+              <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-3 py-3 text-center">
+                <div className="text-xl font-semibold text-white/90">{settingsPreferences.length}</div>
+                <div className="text-[11px] text-white/36 mt-0.5">Voorkeuren</div>
+              </div>
+            </div>
+
+            {/* Usage */}
+            {usage && usage.limit > 0 && (
+              <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3">
+                <div className="text-[11px] uppercase tracking-[0.14em] text-white/36 mb-2">Gebruik deze maand</div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[13px] text-white/54">{usage.used} / {usage.limit} berichten</span>
+                  <span className={`text-[13px] font-medium ${usage.percentage >= 0.8 ? "text-amber-400/80" : "text-white/60"}`}>{Math.round(usage.percentage * 100)}%</span>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-white/8 overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-500 ${usage.percentage >= 0.8 ? "bg-amber-400/60" : "bg-emerald-400/60"}`}
+                    style={{ width: `${Math.min(usage.percentage * 100, 100)}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Memory items */}
+            {memory.length > 0 && (
+              <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3">
+                <div className="text-[11px] uppercase tracking-[0.14em] text-white/36 mb-2">Geheugen items</div>
+                <div className="space-y-1.5">
+                  {memory.slice(0, 5).map((m: any, i: number) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <span className="h-1 w-1 rounded-full bg-white/20 shrink-0" />
+                      <span className="text-[12px] text-white/54 truncate">{m.text}</span>
+                    </div>
+                  ))}
+                  {memory.length > 5 && (
+                    <div className="text-[11px] text-white/30 mt-1">+{memory.length - 5} meer</div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Lege state */}
+            {memory.length === 0 && chats.filter((c: any) => !c.deleted).length === 0 && (
+              <div className="rounded-2xl border border-dashed border-white/8 px-4 py-6 text-center">
+                <p className="text-sm text-white/36">Nog geen activiteit. Start een chat om te beginnen.</p>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      <div className="border-t border-white/8 px-5 py-4 flex justify-between items-center">
+        <button type="button" onClick={() => { setShowDashboard(false); setShowSettingsBox(true); }}
+          className="text-[12px] text-white/42 hover:text-white/70 transition-colors">
+          Naar instellingen →
+        </button>
+        <button type="button" onClick={() => setShowDashboard(false)}
+          className="rounded-2xl border border-white/8 bg-white/[0.04] px-4 py-2 text-sm text-white/60 hover:text-white/80 transition-colors">
+          Sluiten
+        </button>
+      </div>
+    </div>
+  </div>
+)}
 
 {showSettingsBox && (
   <div className="fixed inset-0 z-[160] flex items-end justify-center sm:items-center bg-black/60 p-4 backdrop-blur-sm">
+
     <div className="w-full max-w-[420px] rounded-t-3xl sm:rounded-[28px] border border-white/10 bg-[#0a0f1d]/98 shadow-[0_22px_60px_rgba(0,0,0,0.40)] backdrop-blur-2xl overflow-hidden">
 
       {/* Header */}
