@@ -3905,28 +3905,32 @@ updated[index].messages[
 
             {openUserMessageMenuKey === `${renderedChatId}-${originalIndex}` && (
               <div className="absolute right-0 top-9 z-[90] min-w-[190px] overflow-hidden rounded-[16px] border border-white/8 bg-[#0c1120]/96 p-1.5 shadow-[0_18px_40px_rgba(0,0,0,0.28)] backdrop-blur-2xl">
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleSavePrompt(String(msg.content || ""));
-                  }}
-                  disabled={savingPrompt || !String(msg.content || "").trim()}
-                  className="flex w-full items-center justify-between rounded-[12px] px-3 py-2 text-left text-sm text-white/86 ol-interactive transition-[background-color,color] duration-200 hover:bg-white/[0.06] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  <span>{savingPrompt ? "Saving..." : "Save as prompt"}</span>
-                  <span className="text-xs text-white/34">↗</span>
-                </button>
+                {isPersonalRoute && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleSavePrompt(String(msg.content || ""));
+                      }}
+                      disabled={savingPrompt || !String(msg.content || "").trim()}
+                      className="flex w-full items-center justify-between rounded-[12px] px-3 py-2 text-left text-sm text-white/86 ol-interactive transition-[background-color,color] duration-200 hover:bg-white/[0.06] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      <span>{savingPrompt ? "Saving..." : "Save as prompt"}</span>
+                      <span className="text-xs text-white/34">↗</span>
+                    </button>
 
-                {savePromptSuccess && (
-                  <div className="px-3 pb-1 pt-1 text-xs text-green-400">
-                    Saved
-                  </div>
-                )}
+                    {savePromptSuccess && (
+                      <div className="px-3 pb-1 pt-1 text-xs text-green-400">
+                        Saved
+                      </div>
+                    )}
 
-                {!!savePromptError && (
-                  <div className="px-3 pb-1 pt-1 text-xs text-red-400">
-  {savePromptError || "Failed to save prompt"}
-</div>
+                    {!!savePromptError && (
+                      <div className="px-3 pb-1 pt-1 text-xs text-red-400">
+                        {savePromptError || "Failed to save prompt"}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}
@@ -4285,7 +4289,13 @@ updated[index].messages[
 
                         <button
               type="button"
-              onClick={() => fileRef.current?.click()}
+              onClick={() => {
+                if (!isPersonalRoute) {
+                  setShowLoginBox(true);
+                  return;
+                }
+                fileRef.current?.click();
+              }}
               className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/8 bg-white/[0.035] text-lg text-white/74 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_10px_22px_rgba(0,0,0,0.10)] active:scale-95"
             >
               +

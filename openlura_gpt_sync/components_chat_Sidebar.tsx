@@ -673,7 +673,7 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
             </div>
           </div>
 
-          <div>
+          {isPersonalRoute && <div>
             <div className="mb-2.5 flex items-center justify-between px-1.5">
               <span className="text-[11px] uppercase tracking-[0.18em] text-white/30">
                 Prompts
@@ -897,7 +897,21 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
                 </div>
               )}
             </div>
-          </div>
+          </div>}
+
+          {!isPersonalRoute && (
+            <div className="rounded-[20px] border border-[#3b82f6]/14 bg-[#3b82f6]/[0.04] px-3 py-3">
+              <div className="text-[11px] font-medium text-[#bfdbfe] mb-1">✨ Persoonlijke omgeving</div>
+              <p className="text-[11px] text-white/46 leading-5 mb-2.5">Meld je aan voor opgeslagen prompts, cross-device geheugen en meer.</p>
+              <button
+                type="button"
+                onClick={() => { setMobileMenu(false); window.location.href = "/login"; }}
+                className="w-full rounded-xl bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-3 py-2 text-[12px] font-medium text-white"
+              >
+                Aanmelden →
+              </button>
+            </div>
+          )}
 
           <div>
             <div className="mb-2.5 flex items-center justify-between px-1.5">
@@ -998,39 +1012,41 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
         </div>
 
         <div className="mt-4 shrink-0 space-y-2.5 border-t border-white/8 pt-4 pb-[max(env(safe-area-inset-bottom),2px)]">
-          <div className="rounded-[20px] border border-white/8 bg-white/[0.03] p-2">
-            <div className="mb-2 px-1 text-[11px] uppercase tracking-[0.18em] text-white/30">
-              Export
-            </div>
+          {isPersonalRoute && (
+            <div className="rounded-[20px] border border-white/8 bg-white/[0.03] p-2">
+              <div className="mb-2 px-1 text-[11px] uppercase tracking-[0.18em] text-white/30">
+                Export
+              </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setOpenChatMenuId(null);
-                  onCopyActiveChatMarkdown?.();
-                  setMobileMenu(false);
-                }}
-                disabled={!hasActiveChat || !onCopyActiveChatMarkdown}
-                className="rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2.5 text-left text-sm text-white/82 ol-interactive transition-[background-color,border-color,color,box-shadow,opacity] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                Copy .md
-              </button>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpenChatMenuId(null);
+                    onCopyActiveChatMarkdown?.();
+                    setMobileMenu(false);
+                  }}
+                  disabled={!hasActiveChat || !onCopyActiveChatMarkdown}
+                  className="rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2.5 text-left text-sm text-white/82 ol-interactive transition-[background-color,border-color,color,box-shadow,opacity] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Copy .md
+                </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setOpenChatMenuId(null);
-                  onDownloadActiveChatMarkdown?.();
-                  setMobileMenu(false);
-                }}
-                disabled={!hasActiveChat || !onCopyActiveChatMarkdown}
-                className="rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2.5 text-left text-sm text-white/82 ol-interactive transition-[background-color,border-color,color,box-shadow,opacity] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                Download .md
-              </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpenChatMenuId(null);
+                    onDownloadActiveChatMarkdown?.();
+                    setMobileMenu(false);
+                  }}
+                  disabled={!hasActiveChat || !onCopyActiveChatMarkdown}
+                  className="rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2.5 text-left text-sm text-white/82 ol-interactive transition-[background-color,border-color,color,box-shadow,opacity] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Download .md
+                </button>
+              </div>
             </div>
-          </div>
+          )}
 
           <button
             type="button"

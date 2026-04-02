@@ -1246,7 +1246,7 @@ function getUsageLimitSnapshot(input: {
       ? { monthlyRequests: Infinity, monthlyWebSearches: Infinity, windowRequests: Infinity }
       : tier === "pro"
       ? { monthlyRequests: 500, monthlyWebSearches: Infinity, windowRequests: Infinity }
-      : { monthlyRequests: 150, monthlyWebSearches: 50, windowRequests: 2
+      : { monthlyRequests: 150, monthlyWebSearches: 50, windowRequests: 10
        };
 
   const requestCount = input.usageStats?.requestCount || 0;
@@ -3549,9 +3549,10 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
           "X-OpenLura-Variant": responseVariant,
           "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
           ...buildUsageHeaders(usageLimitSnapshot),
-            "X-OpenLura-RateLimit-Limit": String(RATE_LIMIT_MAX_REQUESTS),
-            "X-OpenLura-RateLimit-Remaining": String(rateLimit.remaining),
-          "Retry-After": "86400",
+          "X-OpenLura-RateLimit-Limit": String(RATE_LIMIT_MAX_REQUESTS),
+          "X-OpenLura-RateLimit-Remaining": String(rateLimit.remaining),
+          "X-OpenLura-Limit-Type": usageLimitSnapshot.windowExceeded ? "window" : "monthly",
+          "Retry-After": usageLimitSnapshot.windowExceeded ? "10800" : "86400",
         }),
       });
     }
