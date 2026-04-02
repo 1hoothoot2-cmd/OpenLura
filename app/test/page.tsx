@@ -348,10 +348,12 @@ const handleSavePrompt = async (explicitContent?: string) => {
   visible: boolean;
   message: string;
   tier: string;
+  limitType?: string;
 }>({
   visible: false,
   message: "",
   tier: "",
+  limitType: "monthly",
 });
 
 const [usage, setUsage] = useState<{
@@ -2268,11 +2270,13 @@ Do not mention that this is a new attempt.`,
     if (improveRes.status === 429) {
       const limitMessage = await getUsageLimitMessage(improveRes);
       const usageTier = improveRes.headers.get("X-OpenLura-Usage-Tier") || "free";
+      const limitType = improveRes.headers.get("X-OpenLura-Limit-Type") || "monthly";
 
       setUpgradeNotice({
         visible: true,
         message: limitMessage,
         tier: usageTier,
+        limitType,
       });
 
       updated[index].messages[updated[index].messages.length - 1] = {
@@ -2576,11 +2580,13 @@ Only give the improved answer directly.`,
       if (improveRes.status === 429) {
         const limitMessage = await getUsageLimitMessage(improveRes);
         const usageTier = improveRes.headers.get("X-OpenLura-Usage-Tier") || "free";
+        const limitType = improveRes.headers.get("X-OpenLura-Limit-Type") || "monthly";
 
         setUpgradeNotice({
           visible: true,
           message: limitMessage,
           tier: usageTier,
+          limitType,
         });
 
         updated[index].messages.push({
@@ -2878,11 +2884,13 @@ setChats([...updated]);
     if (res.status === 429) {
       const limitMessage = await getUsageLimitMessage(res);
       const usageTier = res.headers.get("X-OpenLura-Usage-Tier") || "free";
+      const limitType = res.headers.get("X-OpenLura-Limit-Type") || "monthly";
 
       setUpgradeNotice({
         visible: true,
         message: limitMessage,
         tier: usageTier,
+        limitType,
       });
 
       updated[index].messages[
@@ -3801,9 +3809,7 @@ updated[index].messages[
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="font-semibold text-red-100">
-                {upgradeNotice.tier === "free" && upgradeNotice.message.includes("3 uur") 
-                  ? "Even pauzeren ☕" 
-                  : "Limiet bereikt"}
+                {upgradeNotice.limitType === "window" ? "Even pauzeren ☕" : "Daglimiet bereikt"}
               </div>
                   <div className="mt-1 text-[12px] text-red-200/80 leading-5">{upgradeNotice.message}</div>
                 </div>

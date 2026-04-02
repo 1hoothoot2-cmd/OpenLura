@@ -348,10 +348,12 @@ const handleSavePrompt = async (explicitContent?: string) => {
   visible: boolean;
   message: string;
   tier: string;
+  limitType?: string;
 }>({
   visible: false,
   message: "",
   tier: "",
+  limitType: "monthly",
 });
 
 const [usage, setUsage] = useState<{
@@ -2268,11 +2270,13 @@ Do not mention that this is a new attempt.`,
     if (improveRes.status === 429) {
       const limitMessage = await getUsageLimitMessage(improveRes);
       const usageTier = improveRes.headers.get("X-OpenLura-Usage-Tier") || "free";
+      const limitType = improveRes.headers.get("X-OpenLura-Limit-Type") || "monthly";
 
       setUpgradeNotice({
         visible: true,
         message: limitMessage,
         tier: usageTier,
+        limitType,
       });
 
       updated[index].messages[updated[index].messages.length - 1] = {
@@ -2576,11 +2580,13 @@ Only give the improved answer directly.`,
       if (improveRes.status === 429) {
         const limitMessage = await getUsageLimitMessage(improveRes);
         const usageTier = improveRes.headers.get("X-OpenLura-Usage-Tier") || "free";
+        const limitType = improveRes.headers.get("X-OpenLura-Limit-Type") || "monthly";
 
         setUpgradeNotice({
           visible: true,
           message: limitMessage,
           tier: usageTier,
+          limitType,
         });
 
         updated[index].messages.push({
@@ -2878,11 +2884,13 @@ setChats([...updated]);
     if (res.status === 429) {
       const limitMessage = await getUsageLimitMessage(res);
       const usageTier = res.headers.get("X-OpenLura-Usage-Tier") || "free";
+      const limitType = res.headers.get("X-OpenLura-Limit-Type") || "monthly";
 
       setUpgradeNotice({
         visible: true,
         message: limitMessage,
         tier: usageTier,
+        limitType,
       });
 
       updated[index].messages[
@@ -3800,7 +3808,9 @@ updated[index].messages[
             <div className="mx-4 mt-4 rounded-[24px] border border-red-400/14 bg-red-500/[0.07] px-4 py-4 text-sm text-red-100 shadow-[0_10px_22px_rgba(0,0,0,0.10)] backdrop-blur-xl">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="font-semibold text-red-100">Maandlimiet bereikt</div>
+                  <div className="font-semibold text-red-100">
+                {upgradeNotice.limitType === "window" ? "Even pauzeren ☕" : "Daglimiet bereikt"}
+              </div>
                   <div className="mt-1 text-[12px] text-red-200/80 leading-5">{upgradeNotice.message}</div>
                 </div>
                 <a href="/login" className="shrink-0 rounded-full border border-red-300/20 bg-red-400/10 px-3 py-1.5 text-[11px] font-medium text-red-200 transition-colors hover:bg-red-400/16 hover:text-white">
