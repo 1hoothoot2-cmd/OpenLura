@@ -39,5 +39,5 @@ export default function PersoonlijkeOmgevingPage() {
     );
   }
 
-  import Home from "@/app/page";
+  return <Home />;
 }
