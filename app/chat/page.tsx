@@ -333,10 +333,17 @@ const handleSavePrompt = async (explicitContent?: string) => {
     } | null;
   }>({});
   const [showLoginBox, setShowLoginBox] = useState(false);
+  const [loginTab, setLoginTab] = useState<"login" | "register">("login");
   const [loginUsername, setLoginUsername] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
+  const [registerEmail, setRegisterEmail] = useState("");
+  const [registerPassword, setRegisterPassword] = useState("");
+  const [registerPasswordConfirm, setRegisterPasswordConfirm] = useState("");
+  const [registerError, setRegisterError] = useState("");
+  const [registerSuccess, setRegisterSuccess] = useState("");
+  const [registerLoading, setRegisterLoading] = useState(false);
   const [upgradeNotice, setUpgradeNotice] = useState<{
   visible: boolean;
   message: string;
@@ -2023,6 +2030,31 @@ const restoreDeletedChat = (chatId: number) => {
     } finally {
       setLoginLoading(false);
     }
+  };
+
+  const handleRegister = async () => {
+    setRegisterError("");
+    setRegisterSuccess("");
+    if (!registerEmail.trim()) { setRegisterError("Vul een e-mailadres in"); return; }
+    if (!registerPassword) { setRegisterError("Vul een wachtwoord in"); return; }
+    if (registerPassword.length < 6) { setRegisterError("Wachtwoord moet minimaal 6 tekens zijn"); return; }
+    if (registerPassword !== registerPasswordConfirm) { setRegisterError("Wachtwoorden komen niet overeen"); return; }
+    setRegisterLoading(true);
+    try {
+      const res = await fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ action: "signup", email: registerEmail.trim(), password: registerPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) { setRegisterError(data?.error || "Registratie mislukt"); return; }
+      if (data.requiresConfirmation) { setRegisterSuccess("Controleer je e-mail om je account te bevestigen."); return; }
+      setShowLoginBox(false);
+      setRegisterEmail(""); setRegisterPassword(""); setRegisterPasswordConfirm("");
+      window.location.href = "/persoonlijke-omgeving";
+    } catch { setRegisterError("Registratie mislukt"); }
+    finally { setRegisterLoading(false); }
   };
 
   const handlePersonalLogout = async () => {
@@ -4389,67 +4421,74 @@ updated[index].messages[
 
       {showLoginBox && !isPersonalRoute && (
         <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-[28px] border border-white/8 bg-[#0b1020]/95 p-6 shadow-[0_22px_60px_rgba(0,0,0,0.32)] backdrop-blur-2xl">
-            <div className="mb-5 rounded-[24px] border border-white/8 bg-white/[0.03] px-4 py-4">
-              <p className="text-[11px] uppercase tracking-[0.16em] text-white/38">
-                Secure access
-              </p>
-              <h2 className="mt-2 text-[22px] font-semibold tracking-tight text-white/95">
-                Log in
-              </h2>
-              <p className="mt-2 text-sm leading-6 text-white/56">
-                Sign in to open your personal environment.
-              </p>
+          <div className="w-full max-w-md rounded-[28px] border border-white/8 bg-[#0b1020]/95 shadow-[0_22px_60px_rgba(0,0,0,0.32)] backdrop-blur-2xl overflow-hidden">
+            <div className="flex border-b border-white/8">
+              <button type="button"
+                onClick={() => { setLoginTab("login"); setLoginError(""); setRegisterError(""); setRegisterSuccess(""); }}
+                className={`flex-1 py-4 text-sm font-medium transition-colors duration-150 ${loginTab === "login" ? "text-white border-b-2 border-[#3b82f6]" : "text-white/40 hover:text-white/70"}`}
+              >Inloggen</button>
+              <button type="button"
+                onClick={() => { setLoginTab("register"); setLoginError(""); setRegisterError(""); setRegisterSuccess(""); }}
+                className={`flex-1 py-4 text-sm font-medium transition-colors duration-150 ${loginTab === "register" ? "text-white border-b-2 border-[#3b82f6]" : "text-white/40 hover:text-white/70"}`}
+              >Registreren</button>
             </div>
-
-            <div className="space-y-3">
-              <input
-                value={loginUsername}
-                onChange={(e) => setLoginUsername(e.target.value)}
-                placeholder="Username"
-                className="w-full rounded-[22px] border border-white/8 bg-white/[0.04] px-4 py-3 text-white/95 outline-none placeholder:text-white/30 ol-surface transition-[border-color,background-color,box-shadow] duration-200 focus:border-white/14 focus:bg-white/[0.06] focus:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)]"
-              />
-
-              <input
-                type="password"
-                value={loginPassword}
-                onChange={(e) => setLoginPassword(e.target.value)}
-                placeholder="Password"
-                className="w-full rounded-[22px] border border-white/8 bg-white/[0.04] px-4 py-3 text-white/95 outline-none placeholder:text-white/30 ol-surface transition-[border-color,background-color,box-shadow] duration-200 focus:border-white/14 focus:bg-white/[0.06] focus:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)]"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !loginLoading) {
-                    handlePersonalLogin();
-                  }
-                }}
-              />
-
-              {loginError && (
-                <p className="rounded-2xl border border-red-400/16 bg-red-500/[0.08] px-3 py-2 text-sm text-red-300">
-                  {loginError}
-                </p>
+            <div className="p-6">
+              {loginTab === "login" ? (
+                <>
+                  <div className="mb-5 rounded-[20px] border border-white/8 bg-white/[0.03] px-4 py-4">
+                    <p className="text-[11px] uppercase tracking-[0.16em] text-white/38">Persoonlijke omgeving</p>
+                    <h2 className="mt-1.5 text-xl font-semibold tracking-tight text-white/95">Welkom terug</h2>
+                    <p className="mt-1.5 text-sm text-white/50">Log in om je persoonlijke workspace te openen.</p>
+                  </div>
+                  <div className="space-y-3">
+                    <input value={loginUsername} onChange={(e) => setLoginUsername(e.target.value)} placeholder="E-mailadres"
+                      className="w-full rounded-[18px] border border-white/8 bg-white/[0.04] px-4 py-3 text-white/95 outline-none placeholder:text-white/30 transition-[border-color,background-color] duration-200 focus:border-white/14 focus:bg-white/[0.06]" />
+                    <input type="password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} placeholder="Wachtwoord"
+                      className="w-full rounded-[18px] border border-white/8 bg-white/[0.04] px-4 py-3 text-white/95 outline-none placeholder:text-white/30 transition-[border-color,background-color] duration-200 focus:border-white/14 focus:bg-white/[0.06]"
+                      onKeyDown={(e) => { if (e.key === "Enter" && !loginLoading) handlePersonalLogin(); }} />
+                    {loginError && <p className="rounded-xl border border-red-400/16 bg-red-500/[0.08] px-3 py-2 text-sm text-red-300">{loginError}</p>}
+                  </div>
+                  <div className="mt-5 flex gap-2">
+                    <button type="button" onClick={() => { setShowLoginBox(false); setLoginError(""); setLoginUsername(""); setLoginPassword(""); }}
+                      className="flex-1 rounded-[18px] border border-white/8 bg-white/[0.04] p-3 text-white/80 transition-colors hover:bg-white/[0.06] hover:text-white">Annuleren</button>
+                    <button type="button" onClick={handlePersonalLogin} disabled={loginLoading}
+                      className="flex-1 rounded-[18px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] p-3 text-white shadow-[0_10px_24px_rgba(59,130,246,0.24)] transition-[filter,opacity] hover:brightness-110 disabled:opacity-60">
+                      {loginLoading ? "Inloggen..." : "Inloggen"}</button>
+                  </div>
+                  <p className="mt-4 text-center text-[12px] text-white/36">Nog geen account?{" "}
+                    <button type="button" onClick={() => setLoginTab("register")} className="text-[#93c5fd] hover:text-white transition-colors">Registreren</button>
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div className="mb-5 rounded-[20px] border border-white/8 bg-white/[0.03] px-4 py-4">
+                    <p className="text-[11px] uppercase tracking-[0.16em] text-white/38">Nieuw account</p>
+                    <h2 className="mt-1.5 text-xl font-semibold tracking-tight text-white/95">Account aanmaken</h2>
+                    <p className="mt-1.5 text-sm text-white/50">Maak een account voor je persoonlijke AI workspace.</p>
+                  </div>
+                  <div className="space-y-3">
+                    <input value={registerEmail} onChange={(e) => setRegisterEmail(e.target.value)} placeholder="E-mailadres" type="email"
+                      className="w-full rounded-[18px] border border-white/8 bg-white/[0.04] px-4 py-3 text-white/95 outline-none placeholder:text-white/30 transition-[border-color,background-color] duration-200 focus:border-white/14 focus:bg-white/[0.06]" />
+                    <input type="password" value={registerPassword} onChange={(e) => setRegisterPassword(e.target.value)} placeholder="Wachtwoord (min. 6 tekens)"
+                      className="w-full rounded-[18px] border border-white/8 bg-white/[0.04] px-4 py-3 text-white/95 outline-none placeholder:text-white/30 transition-[border-color,background-color] duration-200 focus:border-white/14 focus:bg-white/[0.06]" />
+                    <input type="password" value={registerPasswordConfirm} onChange={(e) => setRegisterPasswordConfirm(e.target.value)} placeholder="Herhaal wachtwoord"
+                      className="w-full rounded-[18px] border border-white/8 bg-white/[0.04] px-4 py-3 text-white/95 outline-none placeholder:text-white/30 transition-[border-color,background-color] duration-200 focus:border-white/14 focus:bg-white/[0.06]"
+                      onKeyDown={(e) => { if (e.key === "Enter" && !registerLoading) handleRegister(); }} />
+                    {registerError && <p className="rounded-xl border border-red-400/16 bg-red-500/[0.08] px-3 py-2 text-sm text-red-300">{registerError}</p>}
+                    {registerSuccess && <p className="rounded-xl border border-emerald-400/16 bg-emerald-500/[0.08] px-3 py-2 text-sm text-emerald-300">{registerSuccess}</p>}
+                  </div>
+                  <div className="mt-5 flex gap-2">
+                    <button type="button" onClick={() => { setShowLoginBox(false); setRegisterEmail(""); setRegisterPassword(""); setRegisterPasswordConfirm(""); setRegisterError(""); setRegisterSuccess(""); }}
+                      className="flex-1 rounded-[18px] border border-white/8 bg-white/[0.04] p-3 text-white/80 transition-colors hover:bg-white/[0.06] hover:text-white">Annuleren</button>
+                    <button type="button" onClick={handleRegister} disabled={registerLoading || !!registerSuccess}
+                      className="flex-1 rounded-[18px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] p-3 text-white shadow-[0_10px_24px_rgba(59,130,246,0.24)] transition-[filter,opacity] hover:brightness-110 disabled:opacity-60">
+                      {registerLoading ? "Account aanmaken..." : "Account aanmaken"}</button>
+                  </div>
+                  <p className="mt-4 text-center text-[12px] text-white/36">Al een account?{" "}
+                    <button type="button" onClick={() => setLoginTab("login")} className="text-[#93c5fd] hover:text-white transition-colors">Inloggen</button>
+                  </p>
+                </>
               )}
-            </div>
-
-            <div className="mt-5 flex gap-2">
-              <button
-                onClick={() => {
-                  setShowLoginBox(false);
-                  setLoginError("");
-                  setLoginUsername("");
-                  setLoginPassword("");
-                }}
-                className="flex-1 rounded-[22px] border border-white/8 bg-white/[0.04] p-3 text-white/90 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.99]"
-              >
-                Cancel
-              </button>
-
-              <button
-                onClick={handlePersonalLogin}
-                disabled={loginLoading}
-                className="flex-1 rounded-[22px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] p-3 text-white shadow-[0_12px_28px_rgba(59,130,246,0.24)] ol-interactive transition-[transform,filter,box-shadow,opacity] duration-200 hover:brightness-110 hover:shadow-[0_14px_32px_rgba(59,130,246,0.28)] active:scale-[0.99] disabled:opacity-60"
-              >
-              {loginLoading ? "Signing in..." : "Log in"}
-              </button>
             </div>
           </div>
         </div>
