@@ -737,6 +737,8 @@ type OpenLuraUsageStats = {
   lastRequestAt?: string | null;
   periodKey?: string | null;
   tier?: "free" | "pro" | "admin";
+  windowRequestCount?: number;
+  windowStartAt?: string | null;
 };
 
 type OpenLuraPersonalProfile = {
@@ -1213,6 +1215,12 @@ function buildUpdatedUsageStats(input: {
         }),
       };
 
+  const WINDOW_DURATION_MS = 3 * 60 * 60 * 1000; // 3 uur
+  const windowStartAt = existing?.windowStartAt ? new Date(existing.windowStartAt) : null;
+  const windowExpired = !windowStartAt || (now.getTime() - windowStartAt.getTime()) >= WINDOW_DURATION_MS;
+  const windowRequestCount = windowExpired ? 1 : (existing?.windowRequestCount || 0) + 1;
+  const newWindowStartAt = windowExpired ? now.toISOString() : (existing?.windowStartAt || now.toISOString());
+
   return {
     ...base,
     requestCount: (base.requestCount || 0) + 1,
@@ -1223,6 +1231,8 @@ function buildUpdatedUsageStats(input: {
     webSearchCount:
       (base.webSearchCount || 0) + (input.usedWebSearch ? 1 : 0),
     lastRequestAt: now.toISOString(),
+    windowRequestCount,
+    windowStartAt: newWindowStartAt,
   } satisfies OpenLuraUsageStats;
 }
 
@@ -1233,20 +1243,32 @@ function getUsageLimitSnapshot(input: {
 
   const limits =
     tier === "admin"
-      ? { monthlyRequests: Infinity, monthlyWebSearches: Infinity }
+      ? { monthlyRequests: Infinity, monthlyWebSearches: Infinity, windowRequests: Infinity }
       : tier === "pro"
-      ? { monthlyRequests: 5000, monthlyWebSearches: 1500 }
-      : { monthlyRequests: 3, monthlyWebSearches: 150 };
+      ? { monthlyRequests: 500, monthlyWebSearches: Infinity, windowRequests: Infinity }
+      : { monthlyRequests: 150, monthlyWebSearches: 50, windowRequests: 2
+       };
 
   const requestCount = input.usageStats?.requestCount || 0;
   const webSearchCount = input.usageStats?.webSearchCount || 0;
+  const windowRequestCount = input.usageStats?.windowRequestCount || 0;
+
+  const windowExceeded =
+    limits.windowRequests !== Infinity &&
+    windowRequestCount > limits.windowRequests;
+
+  const monthlyExceeded =
+    (limits.monthlyRequests !== Infinity && requestCount >= limits.monthlyRequests) ||
+    (limits.monthlyWebSearches !== Infinity && webSearchCount >= limits.monthlyWebSearches);
 
   return {
     tier,
     requestCount,
     webSearchCount,
+    windowRequestCount,
     monthlyRequests: limits.monthlyRequests,
     monthlyWebSearches: limits.monthlyWebSearches,
+    windowRequests: limits.windowRequests,
     requestsRemaining:
       limits.monthlyRequests === Infinity
         ? Infinity
@@ -1255,11 +1277,13 @@ function getUsageLimitSnapshot(input: {
       limits.monthlyWebSearches === Infinity
         ? Infinity
         : Math.max(0, limits.monthlyWebSearches - webSearchCount),
-    exceeded:
-      (limits.monthlyRequests !== Infinity &&
-        requestCount >= limits.monthlyRequests) ||
-      (limits.monthlyWebSearches !== Infinity &&
-        webSearchCount >= limits.monthlyWebSearches),
+    windowRequestsRemaining:
+      limits.windowRequests === Infinity
+        ? Infinity
+        : Math.max(0, limits.windowRequests - windowRequestCount),
+    exceeded: monthlyExceeded || windowExceeded,
+    windowExceeded,
+    monthlyExceeded,
   };
 }
 
@@ -3513,8 +3537,10 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
       }
 
       const limitMessage =
-        usageLimitSnapshot.tier === "free"
-          ? "Je hebt je maandelijkse limiet bereikt voor je huidige plan. Upgrade nodig om door te gaan met je persoonlijke AI."
+        usageLimitSnapshot.windowExceeded
+          ? "Je hebt je limiet van 10 berichten per 3 uur bereikt. Wacht even of upgrade naar Go voor onbeperkt gebruik."
+          : usageLimitSnapshot.tier === "free"
+          ? "Je hebt je maandelijkse limiet van 150 berichten bereikt. Upgrade naar Go (€4,99/maand) om door te gaan."
           : "Je huidige gebruikslimiet is bereikt. Controleer je plan of verhoog je limiet.";
 
       return new Response(limitMessage, {
