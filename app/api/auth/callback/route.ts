@@ -6,8 +6,10 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
 
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://openlura.ai";
+
   if (!code) {
-    return NextResponse.redirect(new URL("/chat", req.url));
+    return NextResponse.redirect(new URL("/chat", appUrl));
   }
 
   const supabaseUrl = process.env.SUPABASE_URL!;
@@ -24,7 +26,7 @@ export async function GET(req: Request) {
     });
 
     if (!res.ok) {
-      return NextResponse.redirect(new URL("/chat", req.url));
+      return NextResponse.redirect(new URL("/chat", appUrl));
     }
 
     const data = await res.json();
@@ -32,11 +34,10 @@ export async function GET(req: Request) {
     const refreshToken = data?.refresh_token;
 
     if (!accessToken) {
-      return NextResponse.redirect(new URL("/chat", req.url));
+      return NextResponse.redirect(new URL("/chat", appUrl));
     }
 
-    // Sync tokens via auth route
-    const syncRes = await fetch(new URL("/api/auth", req.url), {
+    await fetch(new URL("/api/auth", appUrl), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -46,9 +47,8 @@ export async function GET(req: Request) {
       }),
     });
 
-    const response = NextResponse.redirect(new URL("/persoonlijke-omgeving", req.url));
+    const response = NextResponse.redirect(new URL("/persoonlijke-omgeving", appUrl));
 
-    // Set cookies directly as fallback
     const cookieOptions = {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
@@ -64,6 +64,6 @@ export async function GET(req: Request) {
 
     return response;
   } catch {
-    return NextResponse.redirect(new URL("/chat", req.url));
+    return NextResponse.redirect(new URL("/chat", appUrl));
   }
 }
