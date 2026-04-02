@@ -3219,13 +3219,6 @@ updated[index].messages[
 </button>
 ```
 
-{mobileMenu && (
-  <div
-    onClick={() => setMobileMenu(false)}
-    className="fixed inset-0 z-30 bg-[#020308]/72 backdrop-blur-[3px] touch-none md:hidden"
-  />
-)}
-
 {showSettingsBox && (
   <div className="fixed inset-0 z-[160] flex items-end justify-center sm:items-center bg-black/60 p-4 backdrop-blur-sm">
     <div className="w-full max-w-[420px] rounded-t-3xl sm:rounded-[28px] border border-white/10 bg-[#0a0f1d]/98 shadow-[0_22px_60px_rgba(0,0,0,0.40)] backdrop-blur-2xl overflow-hidden">
