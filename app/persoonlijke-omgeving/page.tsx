@@ -44,9 +44,12 @@ export default function PersoonlijkeOmgevingPage() {
   }
 
   if (!auth.authenticated) {
+    if (typeof window !== "undefined") {
+      window.location.replace("/login");
+    }
     return (
-      <div className="p-6 text-white">
-        🔒 Je moet ingelogd zijn voor de persoonlijke omgeving
+      <div className="fixed inset-0 flex items-center justify-center bg-[#050510]">
+        <p className="text-sm text-white/40">Doorsturen naar login...</p>
       </div>
     );
   }
