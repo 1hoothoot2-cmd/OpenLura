@@ -356,6 +356,34 @@ const handleSavePrompt = async (explicitContent?: string) => {
   limitType: "monthly",
 });
 
+const ANON_MSG_LIMIT = 3;
+const ANON_STORAGE_KEY = "openlura_anon_usage";
+const ANON_WINDOW_MS = 5 * 60 * 60 * 1000; // 5 uur
+
+const getAnonUsage = (): { count: number; resetAt: number } => {
+  try {
+    const raw = localStorage.getItem(ANON_STORAGE_KEY);
+    if (!raw) return { count: 0, resetAt: 0 };
+    const parsed = JSON.parse(raw);
+    const now = Date.now();
+    if (!parsed.resetAt || parsed.resetAt <= now) {
+      return { count: 0, resetAt: 0 };
+    }
+    return { count: parsed.count || 0, resetAt: parsed.resetAt };
+  } catch { return { count: 0, resetAt: 0 }; }
+};
+
+const incrementAnonUsage = (): { count: number; resetAt: number } => {
+  try {
+    const now = Date.now();
+    const existing = getAnonUsage();
+    const resetAt = existing.resetAt > now ? existing.resetAt : now + ANON_WINDOW_MS;
+    const next = { count: existing.count + 1, resetAt };
+    localStorage.setItem(ANON_STORAGE_KEY, JSON.stringify(next));
+    return next;
+  } catch { return { count: 0, resetAt: 0 }; }
+};
+
 const [usage, setUsage] = useState<{
   used: number;
   limit: number;
@@ -2371,6 +2399,22 @@ Do not mention that this is a new attempt.`,
   const sendMessage = async () => {
     if (!input.trim() && !image) return;
 
+    if (!isPersonalRoute) {
+      const usage = getAnonUsage();
+      if (usage.count >= ANON_MSG_LIMIT) {
+        const resetTime = new Date(usage.resetAt);
+        const resetLabel = resetTime.toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" });
+        setUpgradeNotice({
+          visible: true,
+          message: `Je kunt weer chatten om ${resetLabel}, of meld je aan voor onbeperkt chatten.`,
+          tier: "free",
+          limitType: "anon_window",
+        });
+        return;
+      }
+      incrementAnonUsage();
+    }
+
     closeMobileSidebar();
 
     try {
@@ -3736,6 +3780,7 @@ updated[index].messages[
                 Chat
               </span>
 
+              {isPersonalRoute && (
               <button
                 type="button"
                 data-openlura-export-trigger
@@ -3744,6 +3789,7 @@ updated[index].messages[
               >
                 Export chat
               </button>
+              )}
 
               <button
                 type="button"
@@ -3805,17 +3851,31 @@ updated[index].messages[
           )}
 
           {upgradeNotice.visible && (
-            <div className="mx-4 mt-4 rounded-[24px] border border-red-400/14 bg-red-500/[0.07] px-4 py-4 text-sm text-red-100 shadow-[0_10px_22px_rgba(0,0,0,0.10)] backdrop-blur-xl">
+            <div className="mx-4 mt-4 rounded-[24px] border border-blue-400/18 bg-blue-500/[0.07] px-4 py-4 text-sm text-blue-100 shadow-[0_10px_22px_rgba(0,0,0,0.10)] backdrop-blur-xl">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="font-semibold text-red-100">
-                {upgradeNotice.limitType === "window" ? "Even pauzeren ☕" : "Daglimiet bereikt"}
-              </div>
-                  <div className="mt-1 text-[12px] text-red-200/80 leading-5">{upgradeNotice.message}</div>
+                  <div className="font-semibold text-blue-100">
+                    {isPersonalRoute ? "Limiet bereikt" : "Gratis berichten op"}
+                  </div>
+                  <div className="mt-1 text-[12px] text-blue-200/80 leading-5">
+                    {isPersonalRoute
+                      ? upgradeNotice.message
+                      : "Je hebt je gratis berichten gebruikt. Meld je aan voor meer."}
+                  </div>
                 </div>
-                <a href="/login" className="shrink-0 rounded-full border border-red-300/20 bg-red-400/10 px-3 py-1.5 text-[11px] font-medium text-red-200 transition-colors hover:bg-red-400/16 hover:text-white">
-                  Upgrade →
-                </a>
+                {isPersonalRoute ? (
+                  <a href="/login" className="shrink-0 rounded-full border border-blue-300/20 bg-blue-400/10 px-3 py-1.5 text-[11px] font-medium text-blue-200 transition-colors hover:bg-blue-400/16 hover:text-white">
+                    Upgrade →
+                  </a>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowLoginBox(true)}
+                    className="shrink-0 rounded-full border border-blue-300/20 bg-blue-400/14 px-3 py-1.5 text-[11px] font-medium text-blue-100 transition-colors hover:bg-blue-400/22 hover:text-white"
+                  >
+                    Aanmelden →
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -3905,28 +3965,32 @@ updated[index].messages[
 
             {openUserMessageMenuKey === `${renderedChatId}-${originalIndex}` && (
               <div className="absolute right-0 top-9 z-[90] min-w-[190px] overflow-hidden rounded-[16px] border border-white/8 bg-[#0c1120]/96 p-1.5 shadow-[0_18px_40px_rgba(0,0,0,0.28)] backdrop-blur-2xl">
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleSavePrompt(String(msg.content || ""));
-                  }}
-                  disabled={savingPrompt || !String(msg.content || "").trim()}
-                  className="flex w-full items-center justify-between rounded-[12px] px-3 py-2 text-left text-sm text-white/86 ol-interactive transition-[background-color,color] duration-200 hover:bg-white/[0.06] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  <span>{savingPrompt ? "Saving..." : "Save as prompt"}</span>
-                  <span className="text-xs text-white/34">↗</span>
-                </button>
+                {isPersonalRoute && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleSavePrompt(String(msg.content || ""));
+                      }}
+                      disabled={savingPrompt || !String(msg.content || "").trim()}
+                      className="flex w-full items-center justify-between rounded-[12px] px-3 py-2 text-left text-sm text-white/86 ol-interactive transition-[background-color,color] duration-200 hover:bg-white/[0.06] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      <span>{savingPrompt ? "Saving..." : "Save as prompt"}</span>
+                      <span className="text-xs text-white/34">↗</span>
+                    </button>
 
-                {savePromptSuccess && (
-                  <div className="px-3 pb-1 pt-1 text-xs text-green-400">
-                    Saved
-                  </div>
-                )}
+                    {savePromptSuccess && (
+                      <div className="px-3 pb-1 pt-1 text-xs text-green-400">
+                        Saved
+                      </div>
+                    )}
 
-                {!!savePromptError && (
-                  <div className="px-3 pb-1 pt-1 text-xs text-red-400">
-  {savePromptError || "Failed to save prompt"}
-</div>
+                    {!!savePromptError && (
+                      <div className="px-3 pb-1 pt-1 text-xs text-red-400">
+                        {savePromptError || "Failed to save prompt"}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}
@@ -4285,7 +4349,13 @@ updated[index].messages[
 
                         <button
               type="button"
-              onClick={() => fileRef.current?.click()}
+              onClick={() => {
+                if (!isPersonalRoute) {
+                  setShowLoginBox(true);
+                  return;
+                }
+                fileRef.current?.click();
+              }}
               className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/8 bg-white/[0.035] text-lg text-white/74 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_10px_22px_rgba(0,0,0,0.10)] active:scale-95"
             >
               +

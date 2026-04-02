@@ -356,6 +356,34 @@ const handleSavePrompt = async (explicitContent?: string) => {
   limitType: "monthly",
 });
 
+const ANON_MSG_LIMIT = 3;
+const ANON_STORAGE_KEY = "openlura_anon_usage";
+const ANON_WINDOW_MS = 5 * 60 * 60 * 1000; // 5 uur
+
+const getAnonUsage = (): { count: number; resetAt: number } => {
+  try {
+    const raw = localStorage.getItem(ANON_STORAGE_KEY);
+    if (!raw) return { count: 0, resetAt: 0 };
+    const parsed = JSON.parse(raw);
+    const now = Date.now();
+    if (!parsed.resetAt || parsed.resetAt <= now) {
+      return { count: 0, resetAt: 0 };
+    }
+    return { count: parsed.count || 0, resetAt: parsed.resetAt };
+  } catch { return { count: 0, resetAt: 0 }; }
+};
+
+const incrementAnonUsage = (): { count: number; resetAt: number } => {
+  try {
+    const now = Date.now();
+    const existing = getAnonUsage();
+    const resetAt = existing.resetAt > now ? existing.resetAt : now + ANON_WINDOW_MS;
+    const next = { count: existing.count + 1, resetAt };
+    localStorage.setItem(ANON_STORAGE_KEY, JSON.stringify(next));
+    return next;
+  } catch { return { count: 0, resetAt: 0 }; }
+};
+
 const [usage, setUsage] = useState<{
   used: number;
   limit: number;
@@ -2370,6 +2398,22 @@ Do not mention that this is a new attempt.`,
 
   const sendMessage = async () => {
     if (!input.trim() && !image) return;
+
+    if (!isPersonalRoute) {
+      const usage = getAnonUsage();
+      if (usage.count >= ANON_MSG_LIMIT) {
+        const resetTime = new Date(usage.resetAt);
+        const resetLabel = resetTime.toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" });
+        setUpgradeNotice({
+          visible: true,
+          message: `Je kunt weer chatten om ${resetLabel}, of meld je aan voor onbeperkt chatten.`,
+          tier: "free",
+          limitType: "anon_window",
+        });
+        return;
+      }
+      incrementAnonUsage();
+    }
 
     closeMobileSidebar();
 
