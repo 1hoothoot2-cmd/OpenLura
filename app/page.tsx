@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { FormEvent, useState } from "react";
 
 const chapterLinks = [
   { href: "#how-it-works", label: "How it works" },
@@ -45,6 +45,80 @@ function SectionFooter({
 
 export default function HomePage() {
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
+  const [feedbackSubject, setFeedbackSubject] = useState("");
+  const [feedbackDetails, setFeedbackDetails] = useState("");
+  const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
+  const [feedbackStatus, setFeedbackStatus] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
+
+  function resetFeedbackModal() {
+    setIsFeedbackOpen(false);
+    setFeedbackSubject("");
+    setFeedbackDetails("");
+    setFeedbackSubmitting(false);
+    setFeedbackStatus(null);
+  }
+
+  async function handleFeedbackSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+
+    const subject = feedbackSubject.trim();
+    const details = feedbackDetails.trim();
+
+    if (!subject || !details) {
+      setFeedbackStatus({
+        type: "error",
+        message: "Please fill in both subject and details.",
+      });
+      return;
+    }
+
+    setFeedbackSubmitting(true);
+    setFeedbackStatus(null);
+
+    try {
+      const res = await fetch("/api/feedback", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          type: "idea",
+          message: details,
+          userMessage: subject,
+          source: "homepage_feedback_modal",
+          learningType: "content",
+          environment: "default",
+          timestamp: new Date().toISOString(),
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Feedback request failed");
+      }
+
+      setFeedbackStatus({
+        type: "success",
+        message: "Feedback sent successfully.",
+      });
+
+      setFeedbackSubject("");
+      setFeedbackDetails("");
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("openlura_feedback_update"));
+      }
+    } catch {
+      setFeedbackStatus({
+        type: "error",
+        message: "Something went wrong while sending feedback.",
+      });
+    } finally {
+      setFeedbackSubmitting(false);
+    }
+  }
 
   return (
     <main
@@ -76,10 +150,14 @@ export default function HomePage() {
             AI that learns how you work.
           </h1>
 
-          <p className="mt-4 max-w-2xl text-base leading-7 text-white/62 sm:mt-5 sm:text-lg">
-            OpenLura is your adaptive AI workspace. It remembers useful context,
-            improves through feedback, and helps you move faster with less noise.
-          </p>
+              <p className="mt-4 max-w-2xl text-base leading-7 text-white/62 sm:mt-5 sm:text-lg">
+                OpenLura is your adaptive AI workspace. It remembers useful context,
+                improves through feedback, and helps you move faster with less noise.
+              </p>
+
+              <div className="mt-4 inline-flex max-w-fit items-center rounded-full border border-emerald-400/18 bg-emerald-400/10 px-3 py-1.5 text-[12px] font-medium text-emerald-200 backdrop-blur-xl">
+                Your account owns your workspace, history, and continuity.
+              </div>
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             <Link
@@ -90,7 +168,7 @@ export default function HomePage() {
             </Link>
 
             <Link
-              href="/auth"
+              href="/persoonlijke-omgeving"
               className="inline-flex h-12 w-full items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.04] px-6 text-sm font-medium text-white/88 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/30 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.99] sm:w-auto"
             >
               Log in
@@ -346,6 +424,18 @@ export default function HomePage() {
                   Feedback entry is live in the interface and backend wiring comes next.
                 </p>
               </div>
+
+              <div className="rounded-[22px] border border-emerald-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-medium text-white">User ownership</div>
+                  <span className="inline-flex items-center rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
+                    Active focus
+                  </span>
+                </div>
+                <p className="mt-2 text-sm leading-6 text-white/46">
+                  OpenLura is being shaped so each signed-in user keeps a clearly separated workspace, history, and restore flow.
+                </p>
+              </div>
             </div>
             <SectionFooter nextHref="#use-cases" nextLabel="Use cases" />
           </section>
@@ -587,6 +677,13 @@ export default function HomePage() {
               </div>
 
               <div className="rounded-[22px] border border-amber-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
+                <div className="text-sm font-medium text-white">User-owned continuity</div>
+                <p className="mt-2 text-sm leading-6 text-white/46">
+                  Saved context, returning sessions, and workspace continuity are intended to stay tied to the account that created them.
+                </p>
+              </div>
+
+              <div className="rounded-[22px] border border-amber-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
                 <div className="text-sm font-medium text-white">Separated environments</div>
                 <p className="mt-2 text-sm leading-6 text-white/46">
                   Clear boundaries help keep users, data, and product contexts properly separated.
@@ -651,7 +748,7 @@ export default function HomePage() {
                 </div>
                 <div className="text-sm font-medium text-white">Keep your flow going</div>
                 <p className="mt-2 text-sm leading-6 text-white/46">
-                  Return to the same workspace and continue with more continuity.
+                  Return to the same workspace and continue with more continuity tied to your own account.
                 </p>
               </div>
 
@@ -661,7 +758,7 @@ export default function HomePage() {
                 </div>
                 <div className="text-sm font-medium text-white">Grow over time</div>
                 <p className="mt-2 text-sm leading-6 text-white/46">
-                  As OpenLura evolves, the experience becomes more useful and more connected.
+                  As OpenLura evolves, the experience becomes more useful and more connected without losing account ownership boundaries.
                 </p>
               </div>
             </div>
@@ -774,10 +871,10 @@ export default function HomePage() {
                   </Link>
 
                   <Link
-                    href="/auth"
+                    href="/login"
                     className="inline-flex h-12 w-full items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.04] px-6 text-sm font-medium text-white/86 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/14 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.10)] active:scale-[0.99] sm:w-auto"
                   >
-                    Log in
+                    Log in / Account aanmaken
                   </Link>
 
                   <button
@@ -804,7 +901,7 @@ export default function HomePage() {
             <button
               type="button"
               aria-label="Close feedback modal"
-              onClick={() => setIsFeedbackOpen(false)}
+              onClick={resetFeedbackModal}
               className="absolute inset-0 bg-black/70 backdrop-blur-sm"
             />
 
@@ -827,20 +924,22 @@ export default function HomePage() {
                 <button
                   type="button"
                   aria-label="Close"
-                  onClick={() => setIsFeedbackOpen(false)}
+                  onClick={resetFeedbackModal}
                   className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white/70 transition-colors duration-200 hover:bg-white/[0.07] hover:text-white"
                 >
                   ×
                 </button>
               </div>
 
-              <form className="mt-6 space-y-4">
+              <form className="mt-6 space-y-4" onSubmit={handleFeedbackSubmit}>
                 <div>
                   <label className="mb-2 block text-sm font-medium text-white/88">
                     Subject
                   </label>
                   <input
                     type="text"
+                    value={feedbackSubject}
+                    onChange={(e) => setFeedbackSubject(e.target.value)}
                     placeholder="Bug, feedback, or idea"
                     className="w-full rounded-[18px] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none placeholder:text-white/30 ol-surface transition-colors duration-200 focus:border-white/20"
                   />
@@ -852,25 +951,40 @@ export default function HomePage() {
                   </label>
                   <textarea
                     rows={5}
+                    value={feedbackDetails}
+                    onChange={(e) => setFeedbackDetails(e.target.value)}
                     placeholder="Tell us what happened or what could be improved"
                     className="w-full rounded-[18px] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none placeholder:text-white/30 ol-surface transition-colors duration-200 focus:border-white/20"
                   />
                 </div>
 
                 <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:justify-end">
+                  {feedbackStatus ? (
+                    <div
+                      className={`sm:mr-auto rounded-[16px] border px-4 py-3 text-sm ${
+                        feedbackStatus.type === "success"
+                          ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-200"
+                          : "border-rose-400/20 bg-rose-400/10 text-rose-200"
+                      }`}
+                    >
+                      {feedbackStatus.message}
+                    </div>
+                  ) : null}
                   <button
                     type="button"
-                    onClick={() => setIsFeedbackOpen(false)}
-                    className="inline-flex h-11 items-center justify-center rounded-[16px] border border-white/10 bg-white/[0.04] px-5 text-sm font-medium text-white/78 transition-[background-color,border-color,color] duration-200 hover:border-white/14 hover:bg-white/[0.06] hover:text-white"
+                    onClick={resetFeedbackModal}
+                    disabled={feedbackSubmitting}
+                    className="inline-flex h-11 items-center justify-center rounded-[16px] border border-white/10 bg-white/[0.04] px-5 text-sm font-medium text-white/78 transition-[background-color,border-color,color,opacity] duration-200 hover:border-white/14 hover:bg-white/[0.06] hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     Cancel
                   </button>
 
                   <button
                     type="submit"
-                    className="inline-flex h-11 items-center justify-center rounded-[16px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-5 text-sm font-medium text-white shadow-[0_12px_28px_rgba(59,130,246,0.24)] transition-[transform,filter,box-shadow] duration-200 hover:brightness-110 hover:shadow-[0_14px_32px_rgba(59,130,246,0.28)] active:scale-[0.99]"
+                    disabled={feedbackSubmitting}
+                    className="inline-flex h-11 items-center justify-center rounded-[16px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-5 text-sm font-medium text-white shadow-[0_12px_28px_rgba(59,130,246,0.24)] transition-[transform,filter,box-shadow,opacity] duration-200 hover:brightness-110 hover:shadow-[0_14px_32px_rgba(59,130,246,0.28)] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    Send feedback
+                    {feedbackSubmitting ? "Sending..." : "Send feedback"}
                   </button>
                 </div>
               </form>
