@@ -242,10 +242,6 @@ export function getBearerTokenFromRequest(req: Request) {
     return directCookieToken;
   }
 
-  if (directCookieToken) {
-    return directCookieToken;
-  }
-
   const packedCookie =
     getCookieValue(req, "supabase-auth-token") ||
     getCookieValue(req, "sb-auth-token") ||
