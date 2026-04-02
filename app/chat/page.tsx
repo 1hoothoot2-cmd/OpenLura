@@ -3781,22 +3781,32 @@ updated[index].messages[
           </div>
 
           {usage && usage.percentage >= 0.8 && !upgradeNotice.visible && (
-            <div className="mx-4 mt-4 rounded-[24px] border border-yellow-300/12 bg-yellow-500/[0.065] px-4 py-3 text-sm text-yellow-100 shadow-[0_10px_22px_rgba(0,0,0,0.10)] backdrop-blur-xl">
-              <div className="font-medium">
-                Near usage limit
-              </div>
-              <div className="mt-1 opacity-90">
-                {Math.round(usage.percentage * 100)}% used ({usage.used}/{usage.limit})
+            <div className="mx-4 mt-4 rounded-[24px] border border-amber-300/12 bg-amber-500/[0.065] px-4 py-3 text-sm text-amber-100 shadow-[0_10px_22px_rgba(0,0,0,0.10)] backdrop-blur-xl">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="font-medium">Bijna op je limiet</div>
+                  <div className="mt-0.5 text-[12px] opacity-80">
+                    {usage.used} / {usage.limit} berichten gebruikt ({Math.round(usage.percentage * 100)}%)
+                  </div>
+                </div>
+                <a href="/login" className="shrink-0 rounded-full border border-amber-300/20 bg-amber-400/10 px-3 py-1.5 text-[11px] font-medium text-amber-200 transition-colors hover:bg-amber-400/16 hover:text-white">
+                  Upgrade →
+                </a>
               </div>
             </div>
           )}
 
           {upgradeNotice.visible && (
-            <div className="mx-4 mt-4 rounded-[24px] border border-amber-300/12 bg-amber-500/[0.065] px-4 py-3 text-sm text-amber-100 shadow-[0_10px_22px_rgba(0,0,0,0.10)] backdrop-blur-xl">
-              <div className="font-medium">
-                Limit reached {upgradeNotice.tier ? `(${upgradeNotice.tier})` : ""}
+            <div className="mx-4 mt-4 rounded-[24px] border border-red-400/14 bg-red-500/[0.07] px-4 py-4 text-sm text-red-100 shadow-[0_10px_22px_rgba(0,0,0,0.10)] backdrop-blur-xl">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="font-semibold text-red-100">Maandlimiet bereikt</div>
+                  <div className="mt-1 text-[12px] text-red-200/80 leading-5">{upgradeNotice.message}</div>
+                </div>
+                <a href="/login" className="shrink-0 rounded-full border border-red-300/20 bg-red-400/10 px-3 py-1.5 text-[11px] font-medium text-red-200 transition-colors hover:bg-red-400/16 hover:text-white">
+                  Upgrade →
+                </a>
               </div>
-              <div className="mt-1 opacity-90">{upgradeNotice.message}</div>
             </div>
           )}
 
@@ -4367,8 +4377,9 @@ updated[index].messages[
       sendMessage();
     }
   }}
-  className={`${composerInputClass} min-h-[48px] max-h-[140px] flex-1 rounded-2xl bg-transparent px-2 py-2.5 text-[16px] leading-6 text-white/95 outline-none placeholder:text-white/28 focus:bg-white/[0.02] md:px-3`}
-  placeholder={activeMessages.length === 0 ? "Ask anything" : "Message OpenLura..."}
+  disabled={upgradeNotice.visible}
+  className={`${composerInputClass} min-h-[48px] max-h-[140px] flex-1 rounded-2xl bg-transparent px-2 py-2.5 text-[16px] leading-6 text-white/95 outline-none placeholder:text-white/28 focus:bg-white/[0.02] md:px-3 disabled:opacity-40 disabled:cursor-not-allowed`}
+  placeholder={upgradeNotice.visible ? "Limiet bereikt — upgrade om door te gaan" : activeMessages.length === 0 ? "Ask anything" : "Message OpenLura..."}
   enterKeyHint="send"
   rows={1}
 />
