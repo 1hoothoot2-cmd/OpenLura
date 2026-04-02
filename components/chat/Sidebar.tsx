@@ -43,6 +43,7 @@ type Props = {
   isPersonalRoute: boolean;
   setShowFeedbackBox: (v: boolean) => void;
   setShowLoginBox: (v: boolean) => void;
+  onOpenSettings?: () => void;
   onCopyActiveChatMarkdown?: () => void;
   onDownloadActiveChatMarkdown?: () => void;
 };
@@ -70,6 +71,7 @@ export default function Sidebar({
   isPersonalRoute,
   setShowFeedbackBox,
   setShowLoginBox,
+  onOpenSettings,
   onCopyActiveChatMarkdown,
   onDownloadActiveChatMarkdown
 }: Props) {
@@ -1039,6 +1041,20 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
           >
             Feedback / Idea
           </button>
+
+          {isPersonalRoute && (
+            <button
+              type="button"
+              onClick={() => {
+                setOpenChatMenuId(null);
+                setMobileMenu(false);
+                onOpenSettings?.();
+              }}
+              className="w-full rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2.5 text-left text-sm text-white/82 ol-interactive transition-[background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.985]"
+            >
+              Instellingen
+            </button>
+          )}
 
           {!isPersonalRoute && (
             <button
