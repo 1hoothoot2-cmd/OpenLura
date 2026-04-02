@@ -2400,9 +2400,10 @@ Do not mention that this is a new attempt.`,
     if (!input.trim() && !image) return;
 
     if (!isPersonalRoute) {
-      const usage = getAnonUsage();
-      if (usage.count >= ANON_MSG_LIMIT) {
-        const resetTime = new Date(usage.resetAt);
+      const anonUsage = getAnonUsage();
+      if (anonUsage.count >= ANON_MSG_LIMIT) {
+        const resetAt = anonUsage.resetAt > Date.now() ? anonUsage.resetAt : Date.now() + ANON_WINDOW_MS;
+        const resetTime = new Date(resetAt);
         const resetLabel = resetTime.toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" });
         setUpgradeNotice({
           visible: true,
