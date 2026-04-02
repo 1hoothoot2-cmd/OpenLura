@@ -267,6 +267,66 @@ function parseAuthBody(body: unknown) {
   };
 }
 
+async function fetchSupabaseSignup(input: {
+  email: string;
+  password: string;
+}) {
+  if (!supabaseUrl || !supabaseAnonKey) return null;
+
+  try {
+    const headers = new Headers();
+    headers.set("Content-Type", "application/json");
+    headers.set("apikey", supabaseAnonKey);
+    headers.set("Accept", "application/json");
+
+    const res = await fetch(`${supabaseUrl}/auth/v1/signup`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        email: input.email,
+        password: input.password,
+      }),
+      cache: "no-store",
+    });
+
+    const data: unknown = await res.json();
+
+    if (!res.ok) {
+      const errorMsg =
+        data && typeof data === "object" && !Array.isArray(data)
+          ? String((data as any).msg || (data as any).message || "Signup failed")
+          : "Signup failed";
+      return { ok: false, error: errorMsg };
+    }
+
+    if (!data || typeof data !== "object" || Array.isArray(data)) {
+      return { ok: false, error: "Unexpected response" };
+    }
+
+    const session = data as {
+      access_token?: unknown;
+      refresh_token?: unknown;
+      user?: { id?: unknown } | null;
+    };
+
+    // Email confirmation required — no token yet
+    if (!session.access_token) {
+      return { ok: true, requiresConfirmation: true, accessToken: null, refreshToken: null, userId: null };
+    }
+
+    return {
+      ok: true,
+      requiresConfirmation: false,
+      accessToken: typeof session.access_token === "string" ? session.access_token.trim() : null,
+      refreshToken: typeof session.refresh_token === "string" ? session.refresh_token.trim() : null,
+      userId: typeof session.user?.id === "string" ? session.user.id.trim() : null,
+    };
+  } catch (error) {
+    logSafeError("Supabase signup failed", error);
+    return { ok: false, error: "Signup failed" };
+  }
+}
+
 export async function POST(req: Request) {
   const rateLimit = checkAuthRateLimit(req);
 
@@ -309,6 +369,114 @@ export async function POST(req: Request) {
           headers: buildHeaders(rateLimit),
         }
       );
+    }
+
+    // Handle session sync (client pushes fresh Supabase tokens into httpOnly cookies)
+    if (
+      rawBody &&
+      typeof rawBody === "object" &&
+      !Array.isArray(rawBody) &&
+      (rawBody as Record<string, unknown>).action === "sync"
+    ) {
+      const body = rawBody as Record<string, unknown>;
+      const accessToken =
+        typeof body.accessToken === "string" && body.accessToken.trim()
+          ? body.accessToken.trim()
+          : null;
+      const refreshToken =
+        typeof body.refreshToken === "string" && body.refreshToken.trim()
+          ? body.refreshToken.trim()
+          : null;
+
+      if (!accessToken && !refreshToken) {
+        return NextResponse.json(
+          { success: false, error: "No token provided" },
+          { status: 400, headers: buildHeaders(rateLimit) }
+        );
+      }
+
+      let finalAccess = accessToken;
+      let finalRefresh = refreshToken;
+
+      // Try to refresh if we have a refresh token
+      if (refreshToken) {
+        const refreshed = await refreshSupabaseSession(refreshToken);
+        if (refreshed?.accessToken) {
+          finalAccess = refreshed.accessToken;
+          finalRefresh = refreshed.refreshToken ?? refreshToken;
+        }
+      }
+
+      if (!finalAccess) {
+        return NextResponse.json(
+          { success: false, error: "Token refresh failed" },
+          { status: 401, headers: buildHeaders(rateLimit) }
+        );
+      }
+
+      const response = NextResponse.json(
+        { success: true, runtime: { authenticated: true } },
+        { headers: buildHeaders(rateLimit) }
+      );
+
+      response.cookies.set("sb-access-token", finalAccess, getSupabaseAuthCookieOptions());
+      response.cookies.set("supabase-access-token", finalAccess, getSupabaseAuthCookieOptions());
+
+      if (finalRefresh) {
+        response.cookies.set("sb-refresh-token", finalRefresh, getSupabaseAuthCookieOptions());
+      }
+
+      return response;
+    }
+
+    // Handle signup
+    if (
+      rawBody &&
+      typeof rawBody === "object" &&
+      !Array.isArray(rawBody) &&
+      (rawBody as Record<string, unknown>).action === "signup"
+    ) {
+      const body = rawBody as Record<string, unknown>;
+      const email = typeof body.email === "string" ? body.email.trim() : "";
+      const password = typeof body.password === "string" ? body.password : "";
+
+      if (!email || !password || email.length > MAX_USERNAME_LENGTH || password.length > MAX_PASSWORD_LENGTH) {
+        return NextResponse.json(
+          { success: false, error: "Invalid email or password" },
+          { status: 400, headers: buildHeaders(rateLimit) }
+        );
+      }
+
+      const result = await fetchSupabaseSignup({ email, password });
+
+      if (!result || !result.ok) {
+        return NextResponse.json(
+          { success: false, error: (result as any)?.error || "Signup failed" },
+          { status: 401, headers: buildHeaders(rateLimit) }
+        );
+      }
+
+      if (result.requiresConfirmation) {
+        return NextResponse.json(
+          { success: true, requiresConfirmation: true },
+          { headers: buildHeaders(rateLimit) }
+        );
+      }
+
+      const response = NextResponse.json(
+        { success: true, runtime: { authenticated: true, userId: result.userId } },
+        { headers: buildHeaders(rateLimit) }
+      );
+
+      if (result.accessToken) {
+        response.cookies.set("sb-access-token", result.accessToken, getSupabaseAuthCookieOptions());
+        response.cookies.set("supabase-access-token", result.accessToken, getSupabaseAuthCookieOptions());
+      }
+      if (result.refreshToken) {
+        response.cookies.set("sb-refresh-token", result.refreshToken, getSupabaseAuthCookieOptions());
+      }
+
+      return response;
     }
 
     const parsedBody = parseAuthBody(rawBody);
@@ -435,8 +603,111 @@ export async function POST(req: Request) {
   }
 }
 
+async function refreshSupabaseSession(refreshToken: string): Promise<{
+  accessToken: string;
+  refreshToken: string | null;
+  userId: string | null;
+} | null> {
+  if (!supabaseUrl || !supabaseAnonKey) return null;
+
+  try {
+    const headers = new Headers();
+    headers.set("apikey", supabaseAnonKey);
+    headers.set("Content-Type", "application/json");
+
+    const res = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=refresh_token`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ refresh_token: refreshToken }),
+      cache: "no-store",
+    });
+
+    if (!res.ok) return null;
+
+    const data: unknown = await res.json();
+
+    if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+
+    const session = data as {
+      access_token?: unknown;
+      refresh_token?: unknown;
+      user?: { id?: unknown } | null;
+    };
+
+    if (typeof session.access_token !== "string" || !session.access_token.trim()) return null;
+
+    return {
+      accessToken: session.access_token.trim(),
+      refreshToken:
+        typeof session.refresh_token === "string" && session.refresh_token.trim()
+          ? session.refresh_token.trim()
+          : null,
+      userId:
+        typeof session.user?.id === "string" && session.user.id.trim()
+          ? session.user.id.trim()
+          : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function GET(req: Request) {
   try {
+    const url = new URL(req.url);
+
+    // Token refresh flow
+    if (url.searchParams.get("action") === "refresh") {
+      const refreshToken = getCookieValue(req, "sb-refresh-token");
+
+      if (!refreshToken || !supabaseUrl || !supabaseAnonKey) {
+        return NextResponse.json({ success: false }, { status: 401, headers: NO_STORE_HEADERS });
+      }
+
+      const res = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=refresh_token`, {
+        method: "POST",
+        headers: {
+          "apikey": supabaseAnonKey,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+        cache: "no-store",
+      });
+
+      if (!res.ok) {
+        return NextResponse.json({ success: false }, { status: 401, headers: NO_STORE_HEADERS });
+      }
+
+      const data: unknown = await res.json();
+
+      if (!data || typeof data !== "object" || Array.isArray(data)) {
+        return NextResponse.json({ success: false }, { status: 401, headers: NO_STORE_HEADERS });
+      }
+
+      const session = data as { access_token?: unknown; refresh_token?: unknown };
+
+      if (typeof session.access_token !== "string" || !session.access_token.trim()) {
+        return NextResponse.json({ success: false }, { status: 401, headers: NO_STORE_HEADERS });
+      }
+
+      const newAccessToken = session.access_token.trim();
+      const newRefreshToken =
+        typeof session.refresh_token === "string" && session.refresh_token.trim()
+          ? session.refresh_token.trim()
+          : null;
+
+      const response = NextResponse.json({ success: true }, { headers: NO_STORE_HEADERS });
+
+      response.cookies.set("sb-access-token", newAccessToken, getSupabaseAuthCookieOptions());
+      response.cookies.set("supabase-access-token", newAccessToken, getSupabaseAuthCookieOptions());
+
+      if (newRefreshToken) {
+        response.cookies.set("sb-refresh-token", newRefreshToken, getSupabaseAuthCookieOptions());
+      }
+
+      return response;
+    }
+
     const sessionCookie = getCookieValue(req, ADMIN_COOKIE_NAME);
     const hasAdminSession = isValidAdminSession(sessionCookie);
     const identity = await resolveOpenLuraRequestIdentity(req);
