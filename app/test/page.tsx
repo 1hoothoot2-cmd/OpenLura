@@ -13,30 +13,86 @@ function safeParseJson<T>(raw: string | null, fallback: T): T {
 }
 
 const PERSONAL_ENV_WELCOME_MESSAGE =
-  "👋 Welcome to your personal environment. Here we test private memory, improvement feedback, and training of your AI behavior.";
+  "👋 Welkom in je persoonlijke omgeving. Hier testen we privé memory, verbeterpunten en training van jouw AI-gedrag.";
 
 export default function ChatPage() {
   const pathname = usePathname();
   const isPersonalRoute = pathname === "/persoonlijke-omgeving";
+  const [userScopedStorageId, setUserScopedStorageId] = useState("");
+
+  const makeUserBoundStorageKey = (baseKey: string) =>
+    isPersonalRoute || !userScopedStorageId
+      ? baseKey
+      : `${baseKey}__${userScopedStorageId}`;
+
   const chatStorageKey = isPersonalRoute
     ? "openlura_personal_chats"
-    : "openlura_chats";
+    : makeUserBoundStorageKey("openlura_chats");
   const memoryStorageKey = isPersonalRoute
     ? "openlura_personal_memory"
-    : "openlura_memory";
+    : makeUserBoundStorageKey("openlura_memory");
   const [personalStateLoaded, setPersonalStateLoaded] = useState(false);
   const [chats, setChats] = useState<any[]>([]);
   const [activeChatId, setActiveChatId] = useState<number | null>(null);
   const [input, setInput] = useState("");
-const [prefillFromMessage, setPrefillFromMessage] = useState<string | null>(null);
+const [workflowPrefill, setWorkflowPrefill] = useState<{
+  value: string;
+  source: "prompt" | "result" | "message";
+  label: string;
+} | null>(null);
 
-const applyComposerInput = (nextContent: string) => {
+const clearWorkflowPrefill = () => {
+  setWorkflowPrefill(null);
+};
+
+const applyComposerInput = (
+  nextContent: string,
+  options?: {
+    source?: "prompt" | "result" | "message";
+    label?: string;
+    mode?: "replace" | "append";
+  }
+) => {
   const nextValue = String(nextContent || "").trim();
 
   if (!nextValue) return;
 
-  setInput(nextValue);
-  setPrefillFromMessage(nextValue);
+  const mode = options?.mode || "replace";
+
+  setInput((prev) => {
+    const previousValue = String(prev || "").trim();
+    const resolvedValue =
+      mode === "append" && previousValue
+        ? `${previousValue}\n\n${nextValue}`
+        : nextValue;
+
+    requestAnimationFrame(() => {
+      resizeComposerTextarea();
+      inputRef.current?.focus();
+
+      try {
+        inputRef.current?.setSelectionRange(
+          resolvedValue.length,
+          resolvedValue.length
+        );
+      } catch {}
+    });
+
+    return resolvedValue;
+  });
+
+  setWorkflowPrefill({
+    value: nextValue,
+    source: options?.source || "message",
+    label:
+      options?.label ||
+      (options?.source === "prompt"
+        ? "Prompt ready"
+        : options?.source === "result"
+        ? "Result ready"
+        : "Input ready"),
+  });
+
   setImage(null);
 
   if (savePromptSuccess) {
@@ -46,19 +102,121 @@ const applyComposerInput = (nextContent: string) => {
   if (savePromptError) {
     setSavePromptError("");
   }
-
-  requestAnimationFrame(() => {
-    resizeComposerTextarea();
-    inputRef.current?.focus();
-
-    try {
-      inputRef.current?.setSelectionRange(nextValue.length, nextValue.length);
-    } catch {}
-  });
 };
 
 const handleUseAsInput = (content: string) => {
-  applyComposerInput(content);
+  applyComposerInput(content, {
+    source: "message",
+    label: "Input ready",
+    mode: "replace",
+  });
+};
+
+// =============================
+// EXPORT HELPERS
+// =============================
+
+const getActiveChat = () => {
+  return chats.find((c) => c.id === activeChatId) || null;
+};
+
+const buildMarkdownExport = (chat: any) => {
+  if (!chat) return "";
+
+  const title = String(chat.title || "Chat").trim() || "Chat";
+  const exportableMessages = (chat.messages || []).filter((msg: any) => {
+    const content = String(msg?.content || "").trim();
+
+    if (!msg) return false;
+    if (msg.disableFeedback && content === "🤖 What can I improve?") return false;
+    if (content === "🤖 Thanks for your feedback. I’ll use this to improve future answers.") {
+      return false;
+    }
+    if (msg.isStreaming && content === "…") return false;
+    if (!content && !msg.image) return false;
+
+    return true;
+  });
+
+  const lines: string[] = [`# ${title}`, ""];
+
+  for (const msg of exportableMessages) {
+    if (msg.role === "user") {
+      lines.push("## You");
+    } else if (msg.role === "ai") {
+      lines.push("## OpenLura");
+    } else {
+      lines.push("## Message");
+    }
+
+    if (msg.image) {
+      lines.push("_[Image attached]_");
+    }
+
+    const content = String(msg.content || "").trim();
+    if (content) {
+      lines.push(content);
+    }
+
+    lines.push("");
+  }
+
+  return lines.join("\n").trim();
+};
+
+const copyChatToClipboard = async () => {
+  const chat = getActiveChat();
+  if (!chat) return;
+
+  const markdown = buildMarkdownExport(chat);
+  if (!markdown.trim()) return;
+
+  try {
+    await navigator.clipboard.writeText(markdown);
+    setFeedbackUI((prev) => ({
+      ...prev,
+      __chat_export__: "Chat copied",
+    }));
+
+    window.setTimeout(() => {
+      setFeedbackUI((prev) => {
+        const copy = { ...prev };
+        delete copy.__chat_export__;
+        return copy;
+      });
+    }, 1400);
+  } catch (error) {
+    console.error("OpenLura chat export copy failed:", error);
+  }
+};
+
+const downloadMarkdown = () => {
+  const chat = getActiveChat();
+  if (!chat) return;
+
+  const markdown = buildMarkdownExport(chat);
+  if (!markdown.trim()) return;
+
+  const fileName = `${String(chat.title || "chat")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "") || "chat"}.md`;
+
+  const blob = new Blob([markdown], {
+    type: "text/markdown;charset=utf-8;",
+  });
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 };
 const [savingPrompt, setSavingPrompt] = useState(false);
 const [savePromptSuccess, setSavePromptSuccess] = useState(false);
@@ -194,6 +352,33 @@ const [usage, setUsage] = useState<{
   limit: number;
   percentage: number;
 } | null>(null);
+
+const settingsStorageKey = isPersonalRoute
+  ? "openlura_personal_settings"
+  : makeUserBoundStorageKey("openlura_settings");
+
+const feedbackStorageKey = isPersonalRoute
+  ? "openlura_personal_feedback"
+  : makeUserBoundStorageKey("openlura_feedback");
+
+const ideasStorageKey = isPersonalRoute
+  ? "openlura_personal_ideas"
+  : makeUserBoundStorageKey("openlura_ideas");
+
+const [showSettingsBox, setShowSettingsBox] = useState(false);
+
+// EXPORT UI STATE
+const [showExportMenu, setShowExportMenu] = useState(false);
+
+const [chatSettings, setChatSettings] = useState<{
+  tone: "default" | "friendly" | "direct" | "professional";
+  style: "default" | "concise" | "structured" | "detailed";
+  memoryEnabled: boolean;
+}>({
+  tone: "default",
+  style: "default",
+  memoryEnabled: true,
+});
   
   const fileRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -210,16 +395,14 @@ const [usage, setUsage] = useState<{
   const [initialStateReady, setInitialStateReady] = useState(false);
   const [openChatMenuId, setOpenChatMenuId] = useState<number | null>(null);
   const [openUserMessageMenuKey, setOpenUserMessageMenuKey] = useState<string | null>(null);
-const [openAiMessageMenuKey, setOpenAiMessageMenuKey] = useState<string | null>(null);
+  const [openAiMessageMenuKey, setOpenAiMessageMenuKey] = useState<string | null>(null);
 
   const hasBlockingOverlay =
-    (mobileMenu &&
-      typeof window !== "undefined" &&
-      window.innerWidth < 768) ||
     showFeedbackBox ||
     showClearDeletedConfirm ||
     deleteTargetChatId !== null ||
-    showLoginBox;
+    showLoginBox ||
+    showSettingsBox;
 
   const closeMobileSidebar = () => {
     if (typeof window !== "undefined" && window.innerWidth < 768) {
@@ -245,6 +428,24 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
   ...overrides,
 });
 
+const isReplaceableStarterChat = (chat: any) => {
+  if (!chat || chat.pinned || chat.archived || chat.deleted) return false;
+
+  const title = String(chat.title || "").trim();
+  const messages = Array.isArray(chat.messages) ? chat.messages : [];
+
+  if (isPersonalRoute) {
+    return (
+      title === "Persoonlijke omgeving" &&
+      messages.length === 1 &&
+      messages[0]?.role === "ai" &&
+      messages[0]?.content === PERSONAL_ENV_WELCOME_MESSAGE
+    );
+  }
+
+  return title === "New Chat" && messages.length === 0;
+};
+
   const activateChat = (chatId: number) => {
   const chatExists = chats.some(
     (c) => c.id === chatId && !c.deleted
@@ -252,6 +453,8 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
 
   if (!chatExists) return;
 
+  closeMobileSidebar();
+  isBootstrappingChatRef.current = false;
   hasManualChatSelectionRef.current = true;
   pendingActiveChatIdRef.current = chatId;
   preferredActiveChatIdRef.current = chatId;
@@ -259,7 +462,8 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
 
   setActiveChatId(chatId);
   setOpenChatMenuId(null);
-  closeMobileSidebar();
+  setOpenUserMessageMenuKey(null);
+  setOpenAiMessageMenuKey(null);
 };
 
     const createNewChat = (
@@ -281,11 +485,17 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
     preferredActiveChatIdRef.current = newChatId;
     forcedActiveChatIdRef.current = newChatId;
     setOpenChatMenuId(null);
+    setOpenUserMessageMenuKey(null);
+    setOpenAiMessageMenuKey(null);
 
     setChats((prev) => {
-      const existingTitles = prev.map((chat: any) =>
-        String(chat.title || "").trim()
+      const replaceableStarterIndex = prev.findIndex((chat: any) =>
+        isReplaceableStarterChat(chat)
       );
+
+      const existingTitles = prev
+        .filter((_: any, index: number) => index !== replaceableStarterIndex)
+        .map((chat: any) => String(chat.title || "").trim());
 
       const buildUniqueTitle = (rawBaseTitle: string) => {
         if (!existingTitles.includes(rawBaseTitle)) return rawBaseTitle;
@@ -307,6 +517,12 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
         deleted: false,
       };
 
+      if (replaceableStarterIndex !== -1) {
+        const nextChats = [...prev];
+        nextChats[replaceableStarterIndex] = newChat;
+        return nextChats;
+      }
+
       return [newChat, ...prev];
     });
 
@@ -314,9 +530,23 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
   };
 
   useEffect(() => {
+    if (!isPersonalRoute && !userScopedStorageId) {
+      return;
+    }
+
     const loadState = async () => {
       try {
         let loadedFromServer = false;
+
+        if (isPersonalRoute) {
+          setPersonalStateLoaded(false);
+          setChats([]);
+          setMemory([]);
+          setActiveChatId(null);
+          preferredActiveChatIdRef.current = null;
+          pendingActiveChatIdRef.current = null;
+          forcedActiveChatIdRef.current = null;
+        }
 
         if (isPersonalRoute) {
           try {
@@ -344,6 +574,13 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
             }
 
             if (!res.ok) {
+              preferredActiveChatIdRef.current = null;
+              pendingActiveChatIdRef.current = null;
+              forcedActiveChatIdRef.current = null;
+
+              setChats([]);
+              setMemory([]);
+              setActiveChatId(null);
               setPersonalStateLoaded(true);
               loadedFromServer = true;
               return;
@@ -373,7 +610,19 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
               if (hasServerChats) {
                 setChats(normalizedChats);
 
+                const preferredVisibleChatId =
+                  preferredActiveChatIdRef.current !== null &&
+                  normalizedChats.some(
+                    (chat: any) =>
+                      chat.id === preferredActiveChatIdRef.current &&
+                      !chat.archived &&
+                      !chat.deleted
+                  )
+                    ? preferredActiveChatIdRef.current
+                    : null;
+
                 const nextActiveChatId =
+                  preferredVisibleChatId ??
                   normalizedChats.find((chat: any) => !chat.archived && !chat.deleted)?.id ??
                   normalizedChats.find((chat: any) => !chat.deleted)?.id ??
                   null;
@@ -430,7 +679,19 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
           if (!hasManualChatSelectionRef.current) {
             setChats(normalizedChats);
 
+            const preferredVisibleChatId =
+              preferredActiveChatIdRef.current !== null &&
+              normalizedChats.some(
+                (chat: any) =>
+                  chat.id === preferredActiveChatIdRef.current &&
+                  !chat.archived &&
+                  !chat.deleted
+              )
+                ? preferredActiveChatIdRef.current
+                : null;
+
             const nextActiveChatId =
+              preferredVisibleChatId ??
               normalizedChats.find((chat: any) => !chat.archived && !chat.deleted)?.id ??
               normalizedChats.find((chat: any) => !chat.deleted)?.id ??
               null;
@@ -472,7 +733,7 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
     loadState().finally(() => {
       setInitialStateReady(true);
     });
-  }, [chatStorageKey, memoryStorageKey, isPersonalRoute]);
+  }, [chatStorageKey, memoryStorageKey, isPersonalRoute, userScopedStorageId]);
 
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -505,15 +766,69 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
         return;
       }
 
+      setMobileMenu(false);
       setOpenChatMenuId(null);
+      setOpenUserMessageMenuKey(null);
+      setOpenAiMessageMenuKey(null);
     };
 
+    handleResize();
     window.addEventListener("resize", handleResize);
 
     return () => {
       window.removeEventListener("resize", handleResize);
     };
   }, []);
+
+  useEffect(() => {
+    if (!isPersonalRoute && !userScopedStorageId) {
+      return;
+    }
+
+    try {
+      const saved = localStorage.getItem(settingsStorageKey);
+      const parsed = safeParseJson<{
+        tone?: "default" | "friendly" | "direct" | "professional";
+        style?: "default" | "concise" | "structured" | "detailed";
+        memoryEnabled?: boolean;
+      } | null>(saved, null);
+
+      if (!parsed) return;
+
+      setChatSettings({
+        tone:
+          parsed.tone === "friendly" ||
+          parsed.tone === "direct" ||
+          parsed.tone === "professional"
+            ? parsed.tone
+            : "default",
+        style:
+          parsed.style === "concise" ||
+          parsed.style === "structured" ||
+          parsed.style === "detailed"
+            ? parsed.style
+            : "default",
+        memoryEnabled:
+          typeof parsed.memoryEnabled === "boolean"
+            ? parsed.memoryEnabled
+            : true,
+      });
+    } catch (error) {
+      console.error("OpenLura settings load failed:", error);
+    }
+  }, [settingsStorageKey, isPersonalRoute, userScopedStorageId]);
+
+  useEffect(() => {
+    if (!isPersonalRoute && !userScopedStorageId) {
+      return;
+    }
+
+    try {
+      localStorage.setItem(settingsStorageKey, JSON.stringify(chatSettings));
+    } catch (error) {
+      console.error("OpenLura settings persistence failed:", error);
+    }
+  }, [chatSettings, settingsStorageKey, isPersonalRoute, userScopedStorageId]);
 
   useEffect(() => {
     latestChatsRef.current = chats;
@@ -581,9 +896,9 @@ const shouldSkipPersonalStateSync =
         const res = await fetch("/api/personal-state", {
           method: "POST",
           headers: getOpenLuraRequestHeaders(true, {
-  personalEnv: false,
-  includeUserId: true,
-}),
+            personalEnv: true,
+            includeUserId: false,
+          }),
           credentials: "same-origin",
           body: JSON.stringify({
             chats: safeChats,
@@ -617,11 +932,45 @@ const shouldSkipPersonalStateSync =
   useEffect(() => {
     setOpenChatMenuId(null);
     setOpenUserMessageMenuKey(null);
+    setOpenAiMessageMenuKey(null);
   }, [activeChatId]);
+
+  useEffect(() => {
+    if (!showExportMenu) return;
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+
+      const exportTrigger = document.querySelector(
+        "[data-openlura-export-trigger]"
+      );
+      const exportMenu = document.querySelector(
+        "[data-openlura-export-menu]"
+      );
+
+      if (exportTrigger?.contains(target) || exportMenu?.contains(target)) {
+        return;
+      }
+
+      setShowExportMenu(false);
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+    };
+  }, [showExportMenu]);
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
+
+      if (showExportMenu) {
+        setShowExportMenu(false);
+        return;
+      }
 
       if (showLoginBox) {
         setShowLoginBox(false);
@@ -643,6 +992,11 @@ const shouldSkipPersonalStateSync =
         return;
       }
 
+      if (showSettingsBox) {
+        setShowSettingsBox(false);
+        return;
+      }
+
       if (deleteTargetChatId !== null) {
         setDeleteTargetChatId(null);
         return;
@@ -653,12 +1007,21 @@ const shouldSkipPersonalStateSync =
         return;
       }
 
+      if (openAiMessageMenuKey !== null) {
+        setOpenAiMessageMenuKey(null);
+        return;
+      }
+
       if (openChatMenuId !== null) {
         setOpenChatMenuId(null);
         return;
       }
 
-      if (mobileMenu && typeof window !== "undefined" && window.innerWidth < 768) {
+      if (
+        mobileMenu &&
+        typeof window !== "undefined" &&
+        window.innerWidth < 768
+      ) {
         setMobileMenu(false);
       }
     };
@@ -672,10 +1035,13 @@ const shouldSkipPersonalStateSync =
     mobileMenu,
     openChatMenuId,
     openUserMessageMenuKey,
+    openAiMessageMenuKey,
     showLoginBox,
     showFeedbackBox,
     showClearDeletedConfirm,
-    deleteTargetChatId
+    showSettingsBox,
+    showExportMenu,
+    deleteTargetChatId,
   ]);
 
   useEffect(() => {
@@ -750,6 +1116,13 @@ const shouldSkipPersonalStateSync =
         }
 
         if (!res.ok) {
+          preferredActiveChatIdRef.current = null;
+          pendingActiveChatIdRef.current = null;
+          forcedActiveChatIdRef.current = null;
+          setActiveChatId(null);
+          setChats([]);
+          setMemory([]);
+          setPersonalStateLoaded(true);
           return;
         }
 
@@ -801,13 +1174,25 @@ const shouldSkipPersonalStateSync =
                 chat.id === latestActiveChatId && !chat.archived && !chat.deleted
             );
 
+          const preferredVisibleChatId =
+            preferredActiveChatIdRef.current !== null &&
+            normalizedChats.some(
+              (chat: any) =>
+                chat.id === preferredActiveChatIdRef.current &&
+                !chat.archived &&
+                !chat.deleted
+            )
+              ? preferredActiveChatIdRef.current
+              : null;
+
           const nextActiveChatId =
             hasServerChats
-              ? currentStillExists
-                ? latestActiveChatId
-                : normalizedChats.find((chat: any) => !chat.archived && !chat.deleted)?.id ??
-                  normalizedChats.find((chat: any) => !chat.deleted)?.id ??
-                  null
+              ? preferredVisibleChatId ??
+                (currentStillExists
+                  ? latestActiveChatId
+                  : normalizedChats.find((chat: any) => !chat.archived && !chat.deleted)?.id ??
+                    normalizedChats.find((chat: any) => !chat.deleted)?.id ??
+                    null)
               : null;
 
           preferredActiveChatIdRef.current = nextActiveChatId;
@@ -894,14 +1279,19 @@ const shouldSkipPersonalStateSync =
         content?: string;
         promptId?: string;
         source?: string;
-        mode?: "replace";
+        mode?: "replace" | "append";
       }>;
 
       const nextContent = String(customEvent.detail?.content || "").trim();
 
       if (!nextContent) return;
 
-      applyComposerInput(nextContent);
+      applyComposerInput(nextContent, {
+        source: "prompt",
+        label: "Prompt ready",
+        mode: customEvent.detail?.mode || "replace",
+      });
+
       closeMobileSidebar();
     };
 
@@ -945,6 +1335,16 @@ const getOrCreateOpenLuraUserId = () => {
   localStorage.setItem(storageKey, newId);
   return newId;
 };
+
+useEffect(() => {
+  if (isPersonalRoute) {
+    setUserScopedStorageId("");
+    return;
+  }
+
+  const resolvedUserId = getOrCreateOpenLuraUserId();
+  setUserScopedStorageId(resolvedUserId);
+}, [isPersonalRoute]);
 
 const getOpenLuraRequestHeaders = (
   includeJson = true,
@@ -1025,7 +1425,11 @@ const handleUseResultAsInput = (
 
   if (!nextValue) return;
 
-  applyComposerInput(nextValue);
+  applyComposerInput(nextValue, {
+    source: "result",
+    label: "Result ready",
+    mode: "replace",
+  });
 
   const keyId = getFeedbackUiKey(chatId, msgIndex);
 
@@ -1736,7 +2140,6 @@ const restoreDeletedChat = (chatId: number) => {
 }),
         body: JSON.stringify({
           message: `The user wants you to answer the same question again.
-
 Original question:
 ${originalUserMessage}
 
@@ -1745,10 +2148,15 @@ ${originalAiMessage}
 
 Now give a complete, good answer to the original question.
 Do not mention that this is a new attempt.`,
-          memory: memory
-            .filter((m) => m.weight > 0.6)
-            .map((m) => m.text)
-            .join(" | "),
+          memory: chatSettings.memoryEnabled
+            ? memory
+                .filter((m) => m.weight > 0.6)
+                .map((m) => m.text)
+                .join(" | ")
+            : "",
+          tone: chatSettings.tone,
+          style: chatSettings.style,
+          memoryEnabled: chatSettings.memoryEnabled,
           feedback: {
             likes: 0,
             dislikes: 0,
@@ -1876,12 +2284,24 @@ Do not mention that this is a new attempt.`,
 
     try {
 
-      const currentChatId = activeChatId ?? activeChat?.id ?? null;
+      let currentChatId = activeChatId ?? activeChat?.id ?? null;
 
-    if (currentChatId === null) {
-      setLoading(false);
-      return;
-    }
+      if (currentChatId === null) {
+        const fallbackChat = buildFallbackChat({
+          title: isPersonalRoute ? "Persoonlijke chat" : "New Chat",
+          messages: [],
+        });
+
+        currentChatId = fallbackChat.id;
+
+        hasManualChatSelectionRef.current = true;
+        pendingActiveChatIdRef.current = currentChatId;
+        preferredActiveChatIdRef.current = currentChatId;
+        forcedActiveChatIdRef.current = currentChatId;
+
+        setChats((prev) => [fallbackChat, ...prev]);
+        setActiveChatId(currentChatId);
+      }
 
     const pendingImprovement = awaitingImprovement[currentChatId];
     const isImprovementReply = !!pendingImprovement && !!input.trim();
@@ -1908,11 +2328,8 @@ Do not mention that this is a new attempt.`,
         pendingImprovement?.originalAiMessage || "";
 
               if (!retryRequest) {
-        const localFeedbackKey = isPersonalRoute
-          ? "openlura_personal_feedback"
-          : "openlura_feedback";
         const existingFeedback = safeParseJson<any[]>(
-          localStorage.getItem(localFeedbackKey),
+          localStorage.getItem(feedbackStorageKey),
           []
         );
 
@@ -1929,7 +2346,7 @@ Do not mention that this is a new attempt.`,
         });
 
         try {
-          localStorage.setItem(localFeedbackKey, JSON.stringify(existingFeedback));
+          localStorage.setItem(feedbackStorageKey, JSON.stringify(existingFeedback));
         } catch (error) {
           console.error("OpenLura local improvement feedback persistence failed:", error);
         }
@@ -1955,10 +2372,7 @@ Do not mention that this is a new attempt.`,
         try {
           const feedbackRes = await fetch("/api/feedback", {
             method: "POST",
-            headers: getOpenLuraRequestHeaders(true, {
-  personalEnv: false,
-  includeUserId: true,
-}),
+            headers: getScopedRequestHeaders(true, isPersonalEnvironment),
             body: JSON.stringify({
               chatId: String(currentChatId),
               msgIndex: pendingImprovement?.targetMsgIndex ?? null,
@@ -1983,6 +2397,7 @@ Do not mention that this is a new attempt.`,
 
       setChats([...updated]);
       setInput("");
+      clearWorkflowPrefill();
       setImage(null);
 
       setAwaitingImprovement((prev) => ({
@@ -2000,10 +2415,7 @@ Do not mention that this is a new attempt.`,
       try {
         improveRes = await fetch("/api/chat", {
           method: "POST",
-          headers: getOpenLuraRequestHeaders(true, {
-  personalEnv: false,
-  includeUserId: true,
-}),
+          headers: getScopedRequestHeaders(true, isPersonalEnvironment),
           body: JSON.stringify({
             message: retryRequest
               ? `The user wants you to answer the same question again.
@@ -2038,10 +2450,15 @@ IMPORTANT:
 
 Do not mention that this is an improved version.
 Only give the improved answer directly.`,
-            memory: memory
-              .filter((m) => m.weight > 0.6)
-              .map((m) => m.text)
-              .join(" | "),
+            memory: chatSettings.memoryEnabled
+              ? memory
+                  .filter((m) => m.weight > 0.6)
+                  .map((m) => m.text)
+                  .join(" | ")
+              : "",
+            tone: chatSettings.tone,
+            style: chatSettings.style,
+            memoryEnabled: chatSettings.memoryEnabled,
             feedback: retryRequest
               ? {
                   likes: 0,
@@ -2195,6 +2612,7 @@ Only give the improved answer directly.`,
 
     if (index === -1) {
       const fallbackChat = buildFallbackChat({
+        id: currentChatId,
         title: isPersonalRoute ? "Persoonlijke chat" : "New Chat",
         messages: [],
       });
@@ -2256,7 +2674,7 @@ IMPORTANT:
 
     setChats(updated);
     setInput("");
-    setPrefillFromMessage(null);
+    clearWorkflowPrefill();
     setImage(null);
     setLoading(true);
 
@@ -2277,9 +2695,7 @@ setChats([...updated]);
     });
 
     const rawFeedback = safeParseJson<any[]>(
-      localStorage.getItem(
-        isPersonalRoute ? "openlura_personal_feedback" : "openlura_feedback"
-      ),
+      localStorage.getItem(feedbackStorageKey),
       []
     ).slice(-20);
 
@@ -2311,10 +2727,12 @@ setChats([...updated]);
     const controller = new AbortController();
     setStreamController(controller);
 
-    const resolvedMemoryText = memory
-      .filter((m) => m.weight > 0.6)
-      .map((m) => m.text)
-      .join(" | ");
+    const resolvedMemoryText = chatSettings.memoryEnabled
+      ? memory
+          .filter((m) => m.weight > 0.6)
+          .map((m) => m.text)
+          .join(" | ")
+      : "";
 
     let res: Response;
 
@@ -2322,15 +2740,18 @@ setChats([...updated]);
       res = await fetch("/api/chat", {
         method: "POST",
         signal: controller.signal,
-        headers: getOpenLuraRequestHeaders(true, {
-  personalEnv: false,
-  includeUserId: true,
-}),
+        headers: getScopedRequestHeaders(true, isPersonalEnvironment),
         body: JSON.stringify({
           message: inputToSend,
           image: imageToSend,
           memory: resolvedMemoryText,
-          personalMemory: isPersonalRoute ? resolvedMemoryText : "",
+          personalMemory:
+            isPersonalRoute && chatSettings.memoryEnabled
+              ? resolvedMemoryText
+              : "",
+          tone: chatSettings.tone,
+          style: chatSettings.style,
+          memoryEnabled: chatSettings.memoryEnabled,
           feedback: feedbackSummary,
           recentMessages: (updated[index]?.messages || [])
             .filter(
@@ -2503,7 +2924,11 @@ updated[index].messages[
     setStreamController(null);
 
     // ✅ MEMORY SAVE
-    if (rawInputToSend.length < 60 && !isRefinementInstruction(rawInputToSend)) {
+    if (
+      chatSettings.memoryEnabled &&
+      rawInputToSend.length < 60 &&
+      !isRefinementInstruction(rawInputToSend)
+    ) {
       const existing = memory.find((m) => m.text === rawInputToSend);
 
       let newMemory;
@@ -2544,10 +2969,10 @@ updated[index].messages[
     }
   };
   const handleFeedback = async (chatId: number, msgIndex: number, type: string) => {
-  const key = isPersonalRoute
-    ? "openlura_personal_feedback"
-    : "openlura_feedback";
-  const existing = safeParseJson<any[]>(localStorage.getItem(key), []);
+  const existing = safeParseJson<any[]>(
+    localStorage.getItem(feedbackStorageKey),
+    []
+  );
 
   const chat = chats.find((c) => c.id === chatId);
   const message = chat?.messages[msgIndex];
@@ -2572,7 +2997,7 @@ updated[index].messages[
   });
 
   try {
-    localStorage.setItem(key, JSON.stringify(existing));
+    localStorage.setItem(feedbackStorageKey, JSON.stringify(existing));
   } catch (error) {
     console.error("OpenLura local feedback persistence failed:", error);
   }
@@ -2664,8 +3089,10 @@ updated[index].messages[
   if (!feedbackText.trim()) return;
 
   if (!isPersonalEnvironment) {
-    const key = "openlura_ideas";
-    const existing = safeParseJson<any[]>(localStorage.getItem(key), []);
+    const existing = safeParseJson<any[]>(
+      localStorage.getItem(ideasStorageKey),
+      []
+    );
 
     const ideaEntry = {
       text: feedbackText.trim(),
@@ -2677,7 +3104,7 @@ updated[index].messages[
     };
 
     existing.push(ideaEntry);
-    localStorage.setItem(key, JSON.stringify(existing));
+    localStorage.setItem(ideasStorageKey, JSON.stringify(existing));
   }
 
     fetch("/api/feedback", {
@@ -2744,6 +3171,8 @@ updated[index].messages[
   isPersonalRoute={isPersonalRoute}
   setShowFeedbackBox={setShowFeedbackBox}
   setShowLoginBox={setShowLoginBox}
+  onCopyActiveChatMarkdown={copyChatToClipboard}
+  onDownloadActiveChatMarkdown={downloadMarkdown}
 />
 
 {mobileMenu && (
@@ -2751,6 +3180,111 @@ updated[index].messages[
     onClick={() => setMobileMenu(false)}
     className="fixed inset-0 z-30 bg-[#020308]/72 backdrop-blur-[3px] touch-none md:hidden"
   />
+)}
+
+{showSettingsBox && (
+  <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+    <div className="w-full max-w-[380px] rounded-[28px] border border-white/8 bg-[#0a0f1d]/95 p-6 shadow-[0_22px_60px_rgba(0,0,0,0.30)] backdrop-blur-2xl">
+      <div className="mb-4">
+        <h2 className="text-lg font-semibold text-white/95">Settings</h2>
+        <p className="mt-1 text-sm text-white/52">
+          Tone, style and memory behavior for this workspace.
+        </p>
+      </div>
+
+      <div className="space-y-4">
+        <div>
+          <label className="mb-2 block text-[11px] uppercase tracking-[0.16em] text-white/34">
+            Tone
+          </label>
+          <select
+            value={chatSettings.tone}
+            onChange={(e) =>
+              setChatSettings((prev) => ({
+                ...prev,
+                tone: e.target.value as
+                  | "default"
+                  | "friendly"
+                  | "direct"
+                  | "professional",
+              }))
+            }
+            className="w-full rounded-[18px] border border-white/8 bg-white/[0.04] px-3 py-3 text-sm text-white/90 outline-none ol-surface focus:border-white/14 focus:bg-white/[0.06]"
+          >
+            <option value="default" className="bg-[#0b1020] text-white">Default</option>
+            <option value="friendly" className="bg-[#0b1020] text-white">Friendly</option>
+            <option value="direct" className="bg-[#0b1020] text-white">Direct</option>
+            <option value="professional" className="bg-[#0b1020] text-white">Professional</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="mb-2 block text-[11px] uppercase tracking-[0.16em] text-white/34">
+            Style
+          </label>
+          <select
+            value={chatSettings.style}
+            onChange={(e) =>
+              setChatSettings((prev) => ({
+                ...prev,
+                style: e.target.value as
+                  | "default"
+                  | "concise"
+                  | "structured"
+                  | "detailed",
+              }))
+            }
+            className="w-full rounded-[18px] border border-white/8 bg-white/[0.04] px-3 py-3 text-sm text-white/90 outline-none ol-surface focus:border-white/14 focus:bg-white/[0.06]"
+          >
+            <option value="default" className="bg-[#0b1020] text-white">Default</option>
+            <option value="concise" className="bg-[#0b1020] text-white">Concise</option>
+            <option value="structured" className="bg-[#0b1020] text-white">Structured</option>
+            <option value="detailed" className="bg-[#0b1020] text-white">Detailed</option>
+          </select>
+        </div>
+
+        <div className="flex items-center justify-between rounded-[20px] border border-white/8 bg-white/[0.03] px-4 py-3">
+          <div>
+            <div className="text-sm font-medium text-white/88">Memory</div>
+            <div className="mt-1 text-xs text-white/42">
+              Use saved memory in new responses
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() =>
+              setChatSettings((prev) => ({
+                ...prev,
+                memoryEnabled: !prev.memoryEnabled,
+              }))
+            }
+            className={`relative inline-flex h-7 w-12 items-center rounded-full border transition-[background-color,border-color] duration-200 ${
+              chatSettings.memoryEnabled
+                ? "border-[#3b82f6]/30 bg-[#3b82f6]"
+                : "border-white/10 bg-white/[0.10]"
+            }`}
+          >
+            <span
+              className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ${
+                chatSettings.memoryEnabled ? "translate-x-6" : "translate-x-1"
+              }`}
+            />
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-5 flex gap-2">
+        <button
+          type="button"
+          onClick={() => setShowSettingsBox(false)}
+          className="flex-1 rounded-[20px] border border-white/8 bg-white/[0.04] p-3 text-white/88 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.99]"
+        >
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
 )}
                      {showClearDeletedConfirm && (
         <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
@@ -2880,13 +3414,70 @@ updated[index].messages[
                 <div className="text-[10px] uppercase tracking-[0.18em] text-white/32">
                   Adaptive AI workspace
                 </div>
+                <div className="mt-1 text-[11px] text-white/42">
+                  {isPersonalRoute
+                    ? "Private account workspace"
+                    : userScopedStorageId
+                    ? "Browser workspace tied to this user on this device"
+                    : "Preparing user workspace"}
+                </div>
               </div>
             </div>
 
-            <div className="hidden items-center gap-2 md:flex">
+            <div className="relative flex items-center gap-2">
               <span className="rounded-full border border-[#3b82f6]/16 bg-[#3b82f6]/8 px-3 py-1 text-[11px] font-medium text-[#bfdbfe]">
                 Chat
               </span>
+
+              <button
+                type="button"
+                data-openlura-export-trigger
+                onClick={() => setShowExportMenu((prev) => !prev)}
+                className="rounded-full border border-[#3b82f6]/20 bg-[#3b82f6]/10 px-3 py-1 text-[11px] font-semibold text-[#bfdbfe] shadow-[0_8px_18px_rgba(59,130,246,0.12)] ol-interactive transition-[background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/30 hover:bg-[#3b82f6]/16 hover:text-white"
+              >
+                Export chat
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowSettingsBox(true)}
+                className="rounded-full border border-white/8 bg-white/[0.04] px-3 py-1 text-[11px] font-medium text-white/74 ol-interactive transition-[background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white"
+              >
+                Settings
+              </button>
+
+              {showExportMenu && (
+                <div
+                  data-openlura-export-menu
+                  className="absolute right-0 top-10 z-[120] flex min-w-[180px] flex-col gap-1 rounded-[16px] border border-white/8 bg-[#0c1120]/96 p-1.5 shadow-[0_18px_40px_rgba(0,0,0,0.28)] backdrop-blur-2xl"
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      copyChatToClipboard();
+                      setShowExportMenu(false);
+                    }}
+                    disabled={!activeChat}
+                    className="flex w-full items-center justify-between rounded-[12px] px-3 py-2 text-left text-sm text-white/86 ol-interactive transition-[background-color,color] duration-200 hover:bg-white/[0.06] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <span>Copy as Markdown</span>
+                    <span className="text-xs text-white/34">⌘</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      downloadMarkdown();
+                      setShowExportMenu(false);
+                    }}
+                    disabled={!activeChat}
+                    className="flex w-full items-center justify-between rounded-[12px] px-3 py-2 text-left text-sm text-white/86 ol-interactive transition-[background-color,color] duration-200 hover:bg-white/[0.06] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <span>Download .md</span>
+                    <span className="text-xs text-white/34">↓</span>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -3178,6 +3769,8 @@ updated[index].messages[
                                     <button
   type="button"
   onClick={() => {
+    setOpenUserMessageMenuKey(null);
+    setOpenAiMessageMenuKey(null);
     handleUseResultAsInput(
       String(msg.content || ""),
       renderedChatId,
@@ -3404,11 +3997,19 @@ updated[index].messages[
               </div>
             )}
 
-{prefillFromMessage && !image && (
-  <div className="hidden md:flex shrink-0 items-center">
-    <span className="rounded-full border border-[#3b82f6]/18 bg-[#3b82f6]/8 px-3 py-1 text-[11px] text-[#bfdbfe]">
-      Workflow input ready
+{workflowPrefill && !image && (
+  <div className="flex shrink-0 items-center gap-2 max-w-full">
+    <span className="max-w-[180px] truncate rounded-full border border-[#3b82f6]/18 bg-[#3b82f6]/8 px-3 py-1 text-[11px] text-[#bfdbfe]">
+      {workflowPrefill.label}
     </span>
+
+    <button
+      type="button"
+      onClick={clearWorkflowPrefill}
+      className="shrink-0 rounded-full border border-white/8 bg-white/[0.04] px-2.5 py-1 text-[11px] text-white/62 ol-interactive transition-[background-color,border-color,color] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white"
+    >
+      Clear
+    </button>
   </div>
 )}
 
@@ -3433,7 +4034,12 @@ updated[index].messages[
     }
   }}
   onChange={(e) => {
-    setInput(e.target.value);
+    const nextValue = e.target.value;
+    setInput(nextValue);
+
+    if (!nextValue.trim() && workflowPrefill) {
+      clearWorkflowPrefill();
+    }
 
     if (savePromptSuccess) {
       setSavePromptSuccess(false);
@@ -3621,3 +4227,4 @@ updated[index].messages[
     </main>
   );
 }
+

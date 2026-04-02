@@ -413,6 +413,24 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
   ...overrides,
 });
 
+const isReplaceableStarterChat = (chat: any) => {
+  if (!chat || chat.pinned || chat.archived || chat.deleted) return false;
+
+  const title = String(chat.title || "").trim();
+  const messages = Array.isArray(chat.messages) ? chat.messages : [];
+
+  if (isPersonalRoute) {
+    return (
+      title === "Persoonlijke omgeving" &&
+      messages.length === 1 &&
+      messages[0]?.role === "ai" &&
+      messages[0]?.content === PERSONAL_ENV_WELCOME_MESSAGE
+    );
+  }
+
+  return title === "New Chat" && messages.length === 0;
+};
+
   const activateChat = (chatId: number) => {
   const chatExists = chats.some(
     (c) => c.id === chatId && !c.deleted
@@ -421,6 +439,7 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
   if (!chatExists) return;
 
   closeMobileSidebar();
+  isBootstrappingChatRef.current = false;
   hasManualChatSelectionRef.current = true;
   pendingActiveChatIdRef.current = chatId;
   preferredActiveChatIdRef.current = chatId;
@@ -455,9 +474,13 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
     setOpenAiMessageMenuKey(null);
 
     setChats((prev) => {
-      const existingTitles = prev.map((chat: any) =>
-        String(chat.title || "").trim()
+      const replaceableStarterIndex = prev.findIndex((chat: any) =>
+        isReplaceableStarterChat(chat)
       );
+
+      const existingTitles = prev
+        .filter((_: any, index: number) => index !== replaceableStarterIndex)
+        .map((chat: any) => String(chat.title || "").trim());
 
       const buildUniqueTitle = (rawBaseTitle: string) => {
         if (!existingTitles.includes(rawBaseTitle)) return rawBaseTitle;
@@ -478,6 +501,12 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
         archived: false,
         deleted: false,
       };
+
+      if (replaceableStarterIndex !== -1) {
+        const nextChats = [...prev];
+        nextChats[replaceableStarterIndex] = newChat;
+        return nextChats;
+      }
 
       return [newChat, ...prev];
     });
@@ -562,7 +591,19 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
               if (hasServerChats) {
                 setChats(normalizedChats);
 
+                const preferredVisibleChatId =
+                  preferredActiveChatIdRef.current !== null &&
+                  normalizedChats.some(
+                    (chat: any) =>
+                      chat.id === preferredActiveChatIdRef.current &&
+                      !chat.archived &&
+                      !chat.deleted
+                  )
+                    ? preferredActiveChatIdRef.current
+                    : null;
+
                 const nextActiveChatId =
+                  preferredVisibleChatId ??
                   normalizedChats.find((chat: any) => !chat.archived && !chat.deleted)?.id ??
                   normalizedChats.find((chat: any) => !chat.deleted)?.id ??
                   null;
@@ -619,7 +660,19 @@ const buildFallbackChat = (overrides?: Partial<any>) => ({
           if (!hasManualChatSelectionRef.current) {
             setChats(normalizedChats);
 
+            const preferredVisibleChatId =
+              preferredActiveChatIdRef.current !== null &&
+              normalizedChats.some(
+                (chat: any) =>
+                  chat.id === preferredActiveChatIdRef.current &&
+                  !chat.archived &&
+                  !chat.deleted
+              )
+                ? preferredActiveChatIdRef.current
+                : null;
+
             const nextActiveChatId =
+              preferredVisibleChatId ??
               normalizedChats.find((chat: any) => !chat.archived && !chat.deleted)?.id ??
               normalizedChats.find((chat: any) => !chat.deleted)?.id ??
               null;
@@ -1094,13 +1147,25 @@ const shouldSkipPersonalStateSync =
                 chat.id === latestActiveChatId && !chat.archived && !chat.deleted
             );
 
+          const preferredVisibleChatId =
+            preferredActiveChatIdRef.current !== null &&
+            normalizedChats.some(
+              (chat: any) =>
+                chat.id === preferredActiveChatIdRef.current &&
+                !chat.archived &&
+                !chat.deleted
+            )
+              ? preferredActiveChatIdRef.current
+              : null;
+
           const nextActiveChatId =
             hasServerChats
-              ? currentStillExists
-                ? latestActiveChatId
-                : normalizedChats.find((chat: any) => !chat.archived && !chat.deleted)?.id ??
-                  normalizedChats.find((chat: any) => !chat.deleted)?.id ??
-                  null
+              ? preferredVisibleChatId ??
+                (currentStillExists
+                  ? latestActiveChatId
+                  : normalizedChats.find((chat: any) => !chat.archived && !chat.deleted)?.id ??
+                    normalizedChats.find((chat: any) => !chat.deleted)?.id ??
+                    null)
               : null;
 
           preferredActiveChatIdRef.current = nextActiveChatId;
