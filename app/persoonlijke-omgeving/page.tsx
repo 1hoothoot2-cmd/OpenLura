@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Home from "@/app/page";
+import ChatPage from "@/app/chat/page";
 
 export default function PersoonlijkeOmgevingPage() {
   const [auth, setAuth] = useState<null | {
@@ -10,11 +10,16 @@ export default function PersoonlijkeOmgevingPage() {
   }>(null);
 
   useEffect(() => {
-    fetch("/api/auth")
-      .then((res) => res.json())
-      .then((data) => {
+    fetch("/api/auth", {
+      method: "GET",
+      credentials: "same-origin",
+      cache: "no-store",
+    })
+      .then(async (res) => {
+        const data = await res.json().catch(() => null);
+
         setAuth({
-          authenticated: data?.authenticated,
+          authenticated: !!data?.authenticated,
           userId: data?.runtime?.userId,
         });
       })
@@ -24,11 +29,7 @@ export default function PersoonlijkeOmgevingPage() {
   }, []);
 
   if (auth === null) {
-    return (
-      <div className="p-6 text-white">
-        Laden...
-      </div>
-    );
+    return <div className="p-6 text-white">Laden...</div>;
   }
 
   if (!auth.authenticated) {
@@ -39,5 +40,5 @@ export default function PersoonlijkeOmgevingPage() {
     );
   }
 
-  return <Home />;
+  return <ChatPage />;
 }
