@@ -892,26 +892,45 @@ const shouldSkipPersonalStateSync =
     }
 
     personalSyncTimeoutRef.current = setTimeout(async () => {
-      try {
-        const res = await fetch("/api/personal-state", {
-          method: "POST",
-          headers: getOpenLuraRequestHeaders(true, {
-            personalEnv: true,
-            includeUserId: false,
-          }),
-          credentials: "same-origin",
-          body: JSON.stringify({
-            chats: safeChats,
-            memory,
-          }),
-        });
+      const attemptSync = async (attempt = 1): Promise<void> => {
+        try {
+          const res = await fetch("/api/personal-state", {
+            method: "POST",
+            headers: getOpenLuraRequestHeaders(true, {
+              personalEnv: true,
+              includeUserId: false,
+            }),
+            credentials: "same-origin",
+            body: JSON.stringify({
+              chats: safeChats,
+              memory,
+              profile: {
+                tone: chatSettings.tone,
+                style: chatSettings.style,
+                memoryEnabled: chatSettings.memoryEnabled,
+                preferences: [],
+              },
+            }),
+          });
 
-        if (!res.ok) {
-          throw new Error(`Personal sync failed with status ${res.status}`);
+          if (res.status === 401) return; // niet ingelogd, niet retrien
+          if (!res.ok && attempt < 3) {
+            await new Promise((r) => setTimeout(r, 1200 * attempt));
+            return attemptSync(attempt + 1);
+          }
+          if (!res.ok) {
+            console.error(`OpenLura personal sync failed after ${attempt} attempts (status ${res.status})`);
+          }
+        } catch (error) {
+          if (attempt < 3) {
+            await new Promise((r) => setTimeout(r, 1200 * attempt));
+            return attemptSync(attempt + 1);
+          }
+          console.error("OpenLura personal sync failed:", error);
         }
-      } catch (error) {
-        console.error("OpenLura personal sync failed:", error);
-      }
+      };
+
+      await attemptSync();
     }, 700);
 
     return () => {

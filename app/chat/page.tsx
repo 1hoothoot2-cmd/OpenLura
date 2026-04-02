@@ -18,12 +18,19 @@ const PERSONAL_ENV_WELCOME_MESSAGE =
 export default function ChatPage() {
   const pathname = usePathname();
   const isPersonalRoute = pathname === "/persoonlijke-omgeving";
+  const [userScopedStorageId, setUserScopedStorageId] = useState("");
+
+  const makeUserBoundStorageKey = (baseKey: string) =>
+    isPersonalRoute || !userScopedStorageId
+      ? baseKey
+      : `${baseKey}__${userScopedStorageId}`;
+
   const chatStorageKey = isPersonalRoute
     ? "openlura_personal_chats"
-    : "openlura_chats";
+    : makeUserBoundStorageKey("openlura_chats");
   const memoryStorageKey = isPersonalRoute
     ? "openlura_personal_memory"
-    : "openlura_memory";
+    : makeUserBoundStorageKey("openlura_memory");
   const [personalStateLoaded, setPersonalStateLoaded] = useState(false);
   const [chats, setChats] = useState<any[]>([]);
   const [activeChatId, setActiveChatId] = useState<number | null>(null);
@@ -348,7 +355,15 @@ const [usage, setUsage] = useState<{
 
 const settingsStorageKey = isPersonalRoute
   ? "openlura_personal_settings"
-  : "openlura_settings";
+  : makeUserBoundStorageKey("openlura_settings");
+
+const feedbackStorageKey = isPersonalRoute
+  ? "openlura_personal_feedback"
+  : makeUserBoundStorageKey("openlura_feedback");
+
+const ideasStorageKey = isPersonalRoute
+  ? "openlura_personal_ideas"
+  : makeUserBoundStorageKey("openlura_ideas");
 
 const [showSettingsBox, setShowSettingsBox] = useState(false);
 
@@ -515,6 +530,10 @@ const isReplaceableStarterChat = (chat: any) => {
   };
 
   useEffect(() => {
+    if (!isPersonalRoute && !userScopedStorageId) {
+      return;
+    }
+
     const loadState = async () => {
       try {
         let loadedFromServer = false;
@@ -714,7 +733,7 @@ const isReplaceableStarterChat = (chat: any) => {
     loadState().finally(() => {
       setInitialStateReady(true);
     });
-  }, [chatStorageKey, memoryStorageKey, isPersonalRoute]);
+  }, [chatStorageKey, memoryStorageKey, isPersonalRoute, userScopedStorageId]);
 
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -762,6 +781,10 @@ const isReplaceableStarterChat = (chat: any) => {
   }, []);
 
   useEffect(() => {
+    if (!isPersonalRoute && !userScopedStorageId) {
+      return;
+    }
+
     try {
       const saved = localStorage.getItem(settingsStorageKey);
       const parsed = safeParseJson<{
@@ -793,15 +816,19 @@ const isReplaceableStarterChat = (chat: any) => {
     } catch (error) {
       console.error("OpenLura settings load failed:", error);
     }
-  }, [settingsStorageKey]);
+  }, [settingsStorageKey, isPersonalRoute, userScopedStorageId]);
 
   useEffect(() => {
+    if (!isPersonalRoute && !userScopedStorageId) {
+      return;
+    }
+
     try {
       localStorage.setItem(settingsStorageKey, JSON.stringify(chatSettings));
     } catch (error) {
       console.error("OpenLura settings persistence failed:", error);
     }
-  }, [chatSettings, settingsStorageKey]);
+  }, [chatSettings, settingsStorageKey, isPersonalRoute, userScopedStorageId]);
 
   useEffect(() => {
     latestChatsRef.current = chats;
@@ -865,26 +892,45 @@ const shouldSkipPersonalStateSync =
     }
 
     personalSyncTimeoutRef.current = setTimeout(async () => {
-      try {
-        const res = await fetch("/api/personal-state", {
-          method: "POST",
-          headers: getOpenLuraRequestHeaders(true, {
-            personalEnv: true,
-            includeUserId: false,
-          }),
-          credentials: "same-origin",
-          body: JSON.stringify({
-            chats: safeChats,
-            memory,
-          }),
-        });
+      const attemptSync = async (attempt = 1): Promise<void> => {
+        try {
+          const res = await fetch("/api/personal-state", {
+            method: "POST",
+            headers: getOpenLuraRequestHeaders(true, {
+              personalEnv: true,
+              includeUserId: false,
+            }),
+            credentials: "same-origin",
+            body: JSON.stringify({
+              chats: safeChats,
+              memory,
+              profile: {
+                tone: chatSettings.tone,
+                style: chatSettings.style,
+                memoryEnabled: chatSettings.memoryEnabled,
+                preferences: [],
+              },
+            }),
+          });
 
-        if (!res.ok) {
-          throw new Error(`Personal sync failed with status ${res.status}`);
+          if (res.status === 401) return; // niet ingelogd, niet retrien
+          if (!res.ok && attempt < 3) {
+            await new Promise((r) => setTimeout(r, 1200 * attempt));
+            return attemptSync(attempt + 1);
+          }
+          if (!res.ok) {
+            console.error(`OpenLura personal sync failed after ${attempt} attempts (status ${res.status})`);
+          }
+        } catch (error) {
+          if (attempt < 3) {
+            await new Promise((r) => setTimeout(r, 1200 * attempt));
+            return attemptSync(attempt + 1);
+          }
+          console.error("OpenLura personal sync failed:", error);
         }
-      } catch (error) {
-        console.error("OpenLura personal sync failed:", error);
-      }
+      };
+
+      await attemptSync();
     }, 700);
 
     return () => {
@@ -1308,6 +1354,16 @@ const getOrCreateOpenLuraUserId = () => {
   localStorage.setItem(storageKey, newId);
   return newId;
 };
+
+useEffect(() => {
+  if (isPersonalRoute) {
+    setUserScopedStorageId("");
+    return;
+  }
+
+  const resolvedUserId = getOrCreateOpenLuraUserId();
+  setUserScopedStorageId(resolvedUserId);
+}, [isPersonalRoute]);
 
 const getOpenLuraRequestHeaders = (
   includeJson = true,
@@ -2291,11 +2347,8 @@ Do not mention that this is a new attempt.`,
         pendingImprovement?.originalAiMessage || "";
 
               if (!retryRequest) {
-        const localFeedbackKey = isPersonalRoute
-          ? "openlura_personal_feedback"
-          : "openlura_feedback";
         const existingFeedback = safeParseJson<any[]>(
-          localStorage.getItem(localFeedbackKey),
+          localStorage.getItem(feedbackStorageKey),
           []
         );
 
@@ -2312,7 +2365,7 @@ Do not mention that this is a new attempt.`,
         });
 
         try {
-          localStorage.setItem(localFeedbackKey, JSON.stringify(existingFeedback));
+          localStorage.setItem(feedbackStorageKey, JSON.stringify(existingFeedback));
         } catch (error) {
           console.error("OpenLura local improvement feedback persistence failed:", error);
         }
@@ -2661,9 +2714,7 @@ setChats([...updated]);
     });
 
     const rawFeedback = safeParseJson<any[]>(
-      localStorage.getItem(
-        isPersonalRoute ? "openlura_personal_feedback" : "openlura_feedback"
-      ),
+      localStorage.getItem(feedbackStorageKey),
       []
     ).slice(-20);
 
@@ -2937,10 +2988,10 @@ updated[index].messages[
     }
   };
   const handleFeedback = async (chatId: number, msgIndex: number, type: string) => {
-  const key = isPersonalRoute
-    ? "openlura_personal_feedback"
-    : "openlura_feedback";
-  const existing = safeParseJson<any[]>(localStorage.getItem(key), []);
+  const existing = safeParseJson<any[]>(
+    localStorage.getItem(feedbackStorageKey),
+    []
+  );
 
   const chat = chats.find((c) => c.id === chatId);
   const message = chat?.messages[msgIndex];
@@ -2965,7 +3016,7 @@ updated[index].messages[
   });
 
   try {
-    localStorage.setItem(key, JSON.stringify(existing));
+    localStorage.setItem(feedbackStorageKey, JSON.stringify(existing));
   } catch (error) {
     console.error("OpenLura local feedback persistence failed:", error);
   }
@@ -3057,8 +3108,10 @@ updated[index].messages[
   if (!feedbackText.trim()) return;
 
   if (!isPersonalEnvironment) {
-    const key = "openlura_ideas";
-    const existing = safeParseJson<any[]>(localStorage.getItem(key), []);
+    const existing = safeParseJson<any[]>(
+      localStorage.getItem(ideasStorageKey),
+      []
+    );
 
     const ideaEntry = {
       text: feedbackText.trim(),
@@ -3070,7 +3123,7 @@ updated[index].messages[
     };
 
     existing.push(ideaEntry);
-    localStorage.setItem(key, JSON.stringify(existing));
+    localStorage.setItem(ideasStorageKey, JSON.stringify(existing));
   }
 
     fetch("/api/feedback", {
@@ -3379,6 +3432,13 @@ updated[index].messages[
                 </div>
                 <div className="text-[10px] uppercase tracking-[0.18em] text-white/32">
                   Adaptive AI workspace
+                </div>
+                <div className="mt-1 text-[11px] text-white/42">
+                  {isPersonalRoute
+                    ? "Private account workspace"
+                    : userScopedStorageId
+                    ? "Browser workspace tied to this user on this device"
+                    : "Preparing user workspace"}
                 </div>
               </div>
             </div>
