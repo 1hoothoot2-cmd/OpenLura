@@ -3538,10 +3538,10 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
 
       const limitMessage =
         usageLimitSnapshot.windowExceeded
-          ? "Je hebt je limiet van 10 berichten per 3 uur bereikt. Wacht even of upgrade naar Go voor onbeperkt gebruik."
+          ? "Je zit even op je limiet voor nu — kom over 3 uur terug, of upgrade naar Go voor onbeperkt chatten."
           : usageLimitSnapshot.tier === "free"
-          ? "Je hebt je maandelijkse limiet van 150 berichten bereikt. Upgrade naar Go (€4,99/maand) om door te gaan."
-          : "Je huidige gebruikslimiet is bereikt. Controleer je plan of verhoog je limiet.";
+          ? "Je hebt je maandlimiet bereikt op het gratis plan. Upgrade naar Go (€4,99/maand) om door te blijven gaan."
+          : "Je huidige limiet is bereikt. Bekijk je plan voor meer gebruik.";
 
       return new Response(limitMessage, {
         status: 429,
