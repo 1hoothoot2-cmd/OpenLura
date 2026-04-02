@@ -932,7 +932,7 @@ const shouldSkipPersonalStateSync =
                 tone: chatSettings.tone,
                 style: chatSettings.style,
                 memoryEnabled: chatSettings.memoryEnabled,
-                preferences: [],
+                preferences: settingsPreferences,
               },
             }),
           });
