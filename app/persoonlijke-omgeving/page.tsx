@@ -10,22 +10,33 @@ export default function PersoonlijkeOmgevingPage() {
   }>(null);
 
   useEffect(() => {
-    fetch("/api/auth", {
-      method: "GET",
-      credentials: "same-origin",
-      cache: "no-store",
-    })
-      .then(async (res) => {
-        const data = await res.json().catch(() => null);
+    async function initAuth() {
+      // Refresh het token stil op de achtergrond
+      await fetch("/api/auth?action=refresh", {
+        method: "GET",
+        credentials: "same-origin",
+        cache: "no-store",
+      }).catch(() => null);
 
-        setAuth({
-          authenticated: !!data?.authenticated,
-          userId: data?.runtime?.userId,
-        });
+      fetch("/api/auth", {
+        method: "GET",
+        credentials: "same-origin",
+        cache: "no-store",
       })
-      .catch(() => {
-        setAuth({ authenticated: false });
-      });
+        .then(async (res) => {
+          const data = await res.json().catch(() => null);
+
+          setAuth({
+            authenticated: !!data?.authenticated,
+            userId: data?.runtime?.userId,
+          });
+        })
+        .catch(() => {
+          setAuth({ authenticated: false });
+        });
+    }
+
+    initAuth();
   }, []);
 
   if (auth === null) {

@@ -11,6 +11,8 @@ type ResolvedOpenLuraIdentity = {
   isAuthenticated: boolean;
 };
 
+const requestIdentityCache = new WeakMap<Request, Promise<ResolvedOpenLuraIdentity>>();
+
 type RequireOpenLuraIdentityResult =
   | {
       ok: true;
@@ -240,6 +242,10 @@ export function getBearerTokenFromRequest(req: Request) {
     return directCookieToken;
   }
 
+  if (directCookieToken) {
+    return directCookieToken;
+  }
+
   const packedCookie =
     getCookieValue(req, "supabase-auth-token") ||
     getCookieValue(req, "sb-auth-token") ||
@@ -306,9 +312,50 @@ export async function fetchSupabaseAuthUser(accessToken?: string | null) {
 export async function resolveOpenLuraRequestIdentity(
   req: Request
 ): Promise<ResolvedOpenLuraIdentity> {
-  const accessToken = getBearerTokenFromRequest(req);
+  const cached = requestIdentityCache.get(req);
 
-  if (!accessToken) {
+  if (cached) {
+    return cached;
+  }
+
+  const pendingIdentity = (async (): Promise<ResolvedOpenLuraIdentity> => {
+    const accessToken = getBearerTokenFromRequest(req);
+
+    if (!accessToken) {
+      return {
+        accessToken: null,
+        authUser: null,
+        userId: null,
+        isAuthenticated: false,
+      };
+    }
+
+    const authUser = await fetchSupabaseAuthUser(accessToken);
+
+    if (!authUser?.id) {
+      return {
+        accessToken: null,
+        authUser: null,
+        userId: null,
+        isAuthenticated: false,
+      };
+    }
+
+    return {
+      accessToken,
+      authUser,
+      userId: authUser.id,
+      isAuthenticated: true,
+    };
+  })();
+
+  requestIdentityCache.set(req, pendingIdentity);
+
+  try {
+    return await pendingIdentity;
+  } catch (error) {
+    requestIdentityCache.delete(req);
+    logSafeError("OpenLura request identity resolution failed", error);
     return {
       accessToken: null,
       authUser: null,
@@ -316,24 +363,6 @@ export async function resolveOpenLuraRequestIdentity(
       isAuthenticated: false,
     };
   }
-
-  const authUser = await fetchSupabaseAuthUser(accessToken);
-
-  if (!authUser?.id) {
-    return {
-      accessToken: null,
-      authUser: null,
-      userId: null,
-      isAuthenticated: false,
-    };
-  }
-
-  return {
-    accessToken,
-    authUser,
-    userId: authUser.id,
-    isAuthenticated: true,
-  };
 }
 
 export async function requireOpenLuraIdentity(
@@ -366,6 +395,22 @@ export async function requireOpenLuraIdentity(
     };
   }
 
+  if (identity.authUser.id !== identity.userId) {
+    logSafeError(
+      "OpenLura identity mismatch detected",
+      new Error("Resolved auth user id mismatch"),
+      {
+        authUserId: identity.authUser.id,
+        userId: identity.userId,
+      }
+    );
+
+    return {
+      ok: false,
+      reason: "unauthenticated",
+    };
+  }
+
   return {
     ok: true,
     identity: {
@@ -380,4 +425,9 @@ export async function requireOpenLuraIdentity(
 export async function resolveOpenLuraUserId(req: Request) {
   const identity = await resolveOpenLuraRequestIdentity(req);
   return identity.isAuthenticated ? identity.userId : null;
+}
+
+export async function resolveOpenLuraAccessToken(req: Request) {
+  const identity = await resolveOpenLuraRequestIdentity(req);
+  return identity.isAuthenticated ? identity.accessToken : null;
 }
