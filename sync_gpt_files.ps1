@@ -7,22 +7,24 @@ if (!(Test-Path $syncRoot)) {
 
 $filesToSync = @(
     # CORE APP
-    @{ Source = "app\page.tsx"; Destinationtion = "Home_page.tsx" },
+    @{ Source = "app\page.tsx"; Destination = "Home_page.tsx" },
     @{ Source = "app\layout.tsx"; Destination = "layout.tsx" },
     @{ Source = "app\globals.css"; Destination = "globals.css" },
     @{ Source = "app\chat\page.tsx"; Destination = "chat_page.tsx" },
-    
+
     # ROUTES
     @{ Source = "app\api\chat\route.ts"; Destination = "chat_route.ts" },
     @{ Source = "app\api\feedback\route.ts"; Destination = "feedback_route.ts" },
     @{ Source = "app\api\auth\route.ts"; Destination = "auth_route.ts" },
     @{ Source = "app\api\personal-state\route.ts"; Destination = "personal_state_route.ts" },
     @{ Source = "app\api\prompts\route.ts"; Destination = "prompts_route.ts" },
+    @{ Source = "app\auth\callback\page.tsx"; Destination = "auth_callback_page.tsx" },
 
     # PAGES
     @{ Source = "app\analytics\page.tsx"; Destination = "analytics_page.tsx" },
     @{ Source = "app\persoonlijke-omgeving\page.tsx"; Destination = "persoonlijke-omgeving_page.tsx" },
-    
+    @{ Source = "app\privacy\page.tsx"; Destination = "privacy_page.tsx" },
+
     # MEMORY FILES
     @{ Source = "OPENLURA_PROJECT_MEMORY.md"; Destination = "OPENLURA_PROJECT_MEMORY.md" },
     @{ Source = "OPENLURA_RULES.md"; Destination = "OPENLURA_RULES.md" },
