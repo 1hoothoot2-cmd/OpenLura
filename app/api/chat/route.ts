@@ -2459,6 +2459,11 @@ RUNTIME PROFILE INPUT:
 - web search route: ${input.shouldUseWebSearch ? "yes" : "no"}
 - personal preferences: ${input.effectivePreferences?.length > 0 ? input.effectivePreferences.map((p: string) => `\n  * ${p}`).join("") : "none"}
 
+PERSONAL PREFERENCE OVERRIDE RULES:
+${input.effectivePreferences?.length > 0 ? `The following are HARD user preferences that MUST override default style rules:
+${input.effectivePreferences.map((p: string) => `- ${p}`).join("\n")}
+These preferences take priority over formatting defaults, structure rules, and style guidelines.` : "No personal preferences set."}
+
 RESPONSE CONTENT PREFERENCE FOR THIS EXACT MESSAGE:
 ${input.contentLearningState.responsePreferenceContext}
 
@@ -3685,6 +3690,9 @@ Explicit workspace settings:
 - style: ${effectiveStyle}
 - memory enabled: ${effectiveMemoryEnabled ? "yes" : "no"}
 - personal preferences: ${effectivePreferences.length > 0 ? effectivePreferences.map(p => `\n  * ${p}`).join("") : "none"}
+
+PERSONAL PREFERENCE OVERRIDE RULES:
+${effectivePreferences.length > 0 ? `The following are HARD user preferences that MUST override default style rules:\n${effectivePreferences.map(p => `- ${p}`).join("\n")}\nThese preferences take priority over formatting defaults, structure rules, and style guidelines.` : "No personal preferences set."}
 
 ${sharedStyleInstructionBlock}
 
