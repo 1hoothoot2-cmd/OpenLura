@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { resolveOpenLuraUserId } from "@/lib/auth/requestIdentity";
+import { getBearerTokenFromRequest } from "@/lib/auth/requestIdentity";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -117,9 +117,25 @@ function getSupabaseConfig() {
   };
 }
 
+function decodeJwtUserId(token: string): string | null {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    const payload = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"));
+    const sub = typeof payload?.sub === "string" ? payload.sub.trim() : null;
+    if (!sub || sub.length > MAX_USER_ID_LENGTH) return null;
+    return sub;
+  } catch {
+    return null;
+  }
+}
+
 async function getRequestUserId(req: Request) {
-  const sessionUserId = await resolveOpenLuraUserId(req);
-  if (sessionUserId) return sessionUserId;
+  const token = getBearerTokenFromRequest(req);
+  if (token) {
+    const jwtUserId = decodeJwtUserId(token);
+    if (jwtUserId) return jwtUserId;
+  }
 
   const raw = req.headers.get("x-openlura-user-id")?.trim() || "";
   if (!raw) return null;
