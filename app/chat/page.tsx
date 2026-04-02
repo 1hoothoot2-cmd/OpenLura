@@ -3736,6 +3736,7 @@ updated[index].messages[
                 Chat
               </span>
 
+              {isPersonalRoute && (
               <button
                 type="button"
                 data-openlura-export-trigger
@@ -3744,6 +3745,7 @@ updated[index].messages[
               >
                 Export chat
               </button>
+              )}
 
               <button
                 type="button"
@@ -3805,17 +3807,31 @@ updated[index].messages[
           )}
 
           {upgradeNotice.visible && (
-            <div className="mx-4 mt-4 rounded-[24px] border border-red-400/14 bg-red-500/[0.07] px-4 py-4 text-sm text-red-100 shadow-[0_10px_22px_rgba(0,0,0,0.10)] backdrop-blur-xl">
+            <div className="mx-4 mt-4 rounded-[24px] border border-blue-400/18 bg-blue-500/[0.07] px-4 py-4 text-sm text-blue-100 shadow-[0_10px_22px_rgba(0,0,0,0.10)] backdrop-blur-xl">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="font-semibold text-red-100">
-                {upgradeNotice.limitType === "window" ? "Even pauzeren ☕" : "Daglimiet bereikt"}
-              </div>
-                  <div className="mt-1 text-[12px] text-red-200/80 leading-5">{upgradeNotice.message}</div>
+                  <div className="font-semibold text-blue-100">
+                    {isPersonalRoute ? "Limiet bereikt" : "Gratis berichten op"}
+                  </div>
+                  <div className="mt-1 text-[12px] text-blue-200/80 leading-5">
+                    {isPersonalRoute
+                      ? upgradeNotice.message
+                      : "Je hebt je gratis berichten gebruikt. Meld je aan voor meer."}
+                  </div>
                 </div>
-                <a href="/login" className="shrink-0 rounded-full border border-red-300/20 bg-red-400/10 px-3 py-1.5 text-[11px] font-medium text-red-200 transition-colors hover:bg-red-400/16 hover:text-white">
-                  Upgrade →
-                </a>
+                {isPersonalRoute ? (
+                  <a href="/login" className="shrink-0 rounded-full border border-blue-300/20 bg-blue-400/10 px-3 py-1.5 text-[11px] font-medium text-blue-200 transition-colors hover:bg-blue-400/16 hover:text-white">
+                    Upgrade →
+                  </a>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowLoginBox(true)}
+                    className="shrink-0 rounded-full border border-blue-300/20 bg-blue-400/14 px-3 py-1.5 text-[11px] font-medium text-blue-100 transition-colors hover:bg-blue-400/22 hover:text-white"
+                  >
+                    Aanmelden →
+                  </button>
+                )}
               </div>
             </div>
           )}
