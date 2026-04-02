@@ -245,6 +245,7 @@ function buildCacheKey(input: {
   learningScope?: string;
   isPersonalEnvironment?: boolean;
   personalUserId?: string | null;
+  authUserId?: string | null;
 }) {
   const memoryFingerprint = (input.personalMemory || "")
     .trim()
@@ -260,6 +261,7 @@ function buildCacheKey(input: {
       input.isPersonalEnvironment === true
         ? String(input.personalUserId || "").trim()
         : "",
+    authUserId: String(input.authUserId || "").trim(),
   });
 }
 
@@ -737,6 +739,13 @@ type OpenLuraUsageStats = {
   tier?: "free" | "pro" | "admin";
 };
 
+type OpenLuraPersonalProfile = {
+  tone?: "default" | "friendly" | "direct" | "professional";
+  style?: "default" | "concise" | "structured" | "detailed";
+  memoryEnabled?: boolean;
+  preferences?: string[];
+};
+
 type OpenLuraPersonalStateStyleProfile = {
   preferredBrevity?: "tight" | "compact" | "balanced";
   preferredClarity?: "high" | "elevated" | "normal";
@@ -763,6 +772,7 @@ type OpenLuraPersonalStateRow = {
   personal_feedback?: unknown;
   personalMemory?: unknown;
   profile_memory?: unknown;
+  profile?: unknown;
   state?: {
     memory?: unknown;
   } | null;
@@ -776,6 +786,7 @@ type OpenLuraPersonalState = {
   feedback: OpenLuraFeedbackRow[];
   styleProfile: OpenLuraPersonalStateStyleProfile | null;
   usageStats: OpenLuraUsageStats | null;
+  profile: OpenLuraPersonalProfile | null;
   raw: OpenLuraPersonalStateRow | null;
 };
 
@@ -832,6 +843,44 @@ async function resolveVerifiedPersonalRuntimeIdentity(req: Request) {
     isAuthenticated: true,
     userId: hardIdentity.identity.userId,
     accessToken: hardIdentity.identity.accessToken,
+  };
+}
+
+function normalizePersonalProfileValue(value: any): OpenLuraPersonalProfile | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const tone =
+    value.tone === "friendly" ||
+    value.tone === "direct" ||
+    value.tone === "professional"
+      ? value.tone
+      : "default";
+
+  const style =
+    value.style === "concise" ||
+    value.style === "structured" ||
+    value.style === "detailed"
+      ? value.style
+      : "default";
+
+  const memoryEnabled =
+    typeof value.memoryEnabled === "boolean" ? value.memoryEnabled : true;
+
+  const preferences = Array.isArray(value.preferences)
+    ? value.preferences
+        .filter((item: any) => typeof item === "string")
+        .map((item: string) => item.trim())
+        .filter(Boolean)
+        .slice(0, 20)
+    : [];
+
+  return {
+    tone,
+    style,
+    memoryEnabled,
+    preferences,
   };
 }
 
@@ -1118,7 +1167,7 @@ function getUsagePeriodKey(date = new Date()) {
 }
 
 function resolveUsageTier(input: {
-  userScope?: "admin" | "guest" | "personal";
+  userScope?: "admin" | "guest" | "personal" | "user";
   existingUsageStats?: OpenLuraUsageStats | null;
 }) {
   if (input.userScope === "admin") return "admin";
@@ -1131,7 +1180,7 @@ function buildUpdatedUsageStats(input: {
   isPersonalEnvironment: boolean;
   usedWebSearch: boolean;
   usedImage: boolean;
-  userScope?: "admin" | "guest" | "personal";
+  userScope?: "admin" | "guest" | "personal" | "user";
 }) {
   const now = new Date();
   const periodKey = getUsagePeriodKey(now);
@@ -1309,12 +1358,13 @@ async function fetchSupabasePersonalState(
       feedback: [],
       styleProfile: null,
       usageStats: null,
+      profile: null,
       raw: null,
     } satisfies OpenLuraPersonalState;
   }
 
   const query =
-    `select=memory,style_profile,usage_stats,updated_at` +
+    `select=memory,profile,style_profile,usage_stats,updated_at` +
     `&user_id=eq.${encodeURIComponent(resolvedUserId)}` +
     `&limit=1`;
 
@@ -1335,12 +1385,13 @@ async function fetchSupabasePersonalState(
         status: res.status,
       });
 
-      return {
+        return {
         userId: resolvedUserId,
         memory: "",
         feedback: [],
         styleProfile: null,
         usageStats: null,
+        profile: null,
         raw: null,
       } satisfies OpenLuraPersonalState;
     }
@@ -1368,6 +1419,7 @@ async function fetchSupabasePersonalState(
         row?.usage_stats && typeof row.usage_stats === "object"
           ? row.usage_stats
           : null,
+      profile: normalizePersonalProfileValue(row?.profile),
       raw: row,
     } satisfies OpenLuraPersonalState;
   } catch (error) {
@@ -1379,6 +1431,7 @@ async function fetchSupabasePersonalState(
       feedback: [],
       styleProfile: null,
       usageStats: null,
+      profile: null,
       raw: null,
     } satisfies OpenLuraPersonalState;
   }
@@ -1613,6 +1666,7 @@ async function resolvePersonalRuntimeContext(input: {
           feedback: [],
           styleProfile: null,
           usageStats: null,
+          profile: null,
           raw: null,
         } satisfies OpenLuraPersonalState);
 
@@ -1830,12 +1884,17 @@ function normalizeFeedbackUserScope(
 function getUserScopeFromRequest(input: {
   isPersonalEnvironment?: boolean;
   hasAdminSession?: boolean;
-}): "admin" | "guest" | "personal" {
+  isAuthenticatedUser?: boolean;
+}): "admin" | "guest" | "personal" | "user" {
   if (input.isPersonalEnvironment) {
     return "personal";
   }
 
-  return input.hasAdminSession ? "admin" : "guest";
+  if (input.hasAdminSession) {
+    return "admin";
+  }
+
+  return input.isAuthenticatedUser ? "user" : "guest";
 }
 
 async function storeAutoDebugSignals(input: {
@@ -2190,6 +2249,7 @@ type OpenLuraRuntimePromptBuilderInput = {
   tone: "default" | "friendly" | "direct" | "professional";
   style: "default" | "concise" | "structured" | "detailed";
   memoryEnabled: boolean;
+  effectivePreferences: string[];
   isPersonalEnvironment: boolean;
   personalUserId: string | null;
   learningScope: string;
@@ -2397,6 +2457,7 @@ RUNTIME PROFILE INPUT:
 - memory enabled: ${input.memoryEnabled ? "yes" : "no"}
 - image attached: ${input.image ? "yes" : "no"}
 - web search route: ${input.shouldUseWebSearch ? "yes" : "no"}
+- personal preferences: ${input.effectivePreferences?.length > 0 ? input.effectivePreferences.map((p: string) => `\n  * ${p}`).join("") : "none"}
 
 RESPONSE CONTENT PREFERENCE FOR THIS EXACT MESSAGE:
 ${input.contentLearningState.responsePreferenceContext}
@@ -2683,9 +2744,9 @@ export async function POST(req: Request) {
     image,
     memory,
     location,
-    tone,
-    style,
-    memoryEnabled,
+    tone: requestTone,
+    style: requestStyle,
+    memoryEnabled: requestMemoryEnabled,
     feedback,
     recentMessages,
   } = body;
@@ -2700,6 +2761,11 @@ export async function POST(req: Request) {
   }
 
   const hasAdminSession = false;
+  const requestIdentity = await resolveOpenLuraRequestIdentity(req);
+  const authenticatedUserId =
+    requestIdentity?.isAuthenticated && requestIdentity?.userId
+      ? requestIdentity.userId
+      : null;
 
   const {
     personalEnvRequested,
@@ -2745,7 +2811,31 @@ export async function POST(req: Request) {
   const userScope = getUserScopeFromRequest({
     isPersonalEnvironment,
     hasAdminSession,
+    isAuthenticatedUser: !!authenticatedUserId,
   });
+
+  const effectiveTone =
+    isPersonalEnvironment && personalState.profile?.tone
+      ? personalState.profile.tone
+      : requestTone;
+
+  const effectiveStyle =
+    isPersonalEnvironment && personalState.profile?.style
+      ? personalState.profile.style
+      : requestStyle;
+
+  const effectiveMemoryEnabled =
+    isPersonalEnvironment &&
+    typeof personalState.profile?.memoryEnabled === "boolean"
+      ? personalState.profile.memoryEnabled
+      : requestMemoryEnabled;
+
+  const effectivePreferences: string[] =
+    isPersonalEnvironment &&
+    Array.isArray(personalState.profile?.preferences) &&
+    personalState.profile.preferences.length > 0
+      ? personalState.profile.preferences.slice(0, 10)
+      : [];
 
   const serverFeedback = await getRecentServerFeedback();
 
@@ -2878,7 +2968,7 @@ export async function POST(req: Request) {
   const personalLayer = isPersonalEnvironment ? personalLearningFeedback : [];
   const userLayer: OpenLuraFeedbackRow[] = userRuntimeFeedback;
 
-  const runtimePersonalMemory = memoryEnabled
+  const runtimePersonalMemory = effectiveMemoryEnabled
     ? rebalancePersonalMemoryFromFeedback({
         personalMemory: resolvedPersonalMemory,
         feedbackRows: [...personalLayer, ...userLayer],
@@ -3447,29 +3537,29 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
     const responseStyleProfile = {
       ...responseStyleProfileBase,
       tone:
-        tone === "friendly"
+        effectiveTone === "friendly"
           ? "casual_balanced"
-          : tone === "direct"
+          : effectiveTone === "direct"
           ? "practical_grounded"
-          : tone === "professional"
+          : effectiveTone === "professional"
           ? "default_premium"
           : responseStyleProfileBase.tone,
       brevity:
-        style === "concise"
+        effectiveStyle === "concise"
           ? "tight"
           : responseStyleProfileBase.brevity,
       structure:
-        style === "structured"
+        effectiveStyle === "structured"
           ? "structured"
           : responseStyleProfileBase.structure,
       depth:
-        style === "detailed"
+        effectiveStyle === "detailed"
           ? "expanded"
-          : style === "concise"
+          : effectiveStyle === "concise"
           ? "concise"
           : responseStyleProfileBase.depth,
       clarity:
-        tone === "direct" || style === "structured"
+        effectiveTone === "direct" || effectiveStyle === "structured"
           ? "high"
           : responseStyleProfileBase.clarity,
     };
@@ -3483,7 +3573,7 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
     const personalOverrideProfile = buildPersonalOverrideProfile({
       isPersonalEnvironment,
       personalFeedbackRows: personalLearningFeedback,
-      personalMemory: memoryEnabled ? runtimePersonalMemory : "",
+      personalMemory: effectiveMemoryEnabled ? runtimePersonalMemory : "",
     });
 
     if ((shouldPersistRuntimeMemory || shouldPersistUsageStats) && personalUserId && accessToken) {
@@ -3559,6 +3649,7 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
               learningScope,
               isPersonalEnvironment,
               personalUserId,
+              authUserId: authenticatedUserId,
             });
 
       const cached = cacheKey ? responseCache.get(cacheKey) : null;
@@ -3590,18 +3681,19 @@ Do not use long structure for greetings or tiny prompts.
 Keep the answer useful but compact.
 
 Explicit workspace settings:
-- tone: ${tone}
-- style: ${style}
-- memory enabled: ${memoryEnabled ? "yes" : "no"}
+- tone: ${effectiveTone}
+- style: ${effectiveStyle}
+- memory enabled: ${effectiveMemoryEnabled ? "yes" : "no"}
+- personal preferences: ${effectivePreferences.length > 0 ? effectivePreferences.map(p => `\n  * ${p}`).join("") : "none"}
 
 ${sharedStyleInstructionBlock}
 
 Fast-path runtime learning:
 - personal environment active: ${isPersonalEnvironment ? "yes" : "no"}
 - learning scope: ${learningScope}
-- personal memory: ${memoryEnabled ? runtimePersonalMemory || "none" : "disabled"}
+- personal memory: ${effectiveMemoryEnabled ? runtimePersonalMemory || "none" : "disabled"}
 - memory priority rule: when personal memory exists, follow higher-priority memory items before weaker global style hints unless the current user request conflicts
-- memory enabled: ${memoryEnabled ? "yes" : "no"}
+- memory enabled: ${effectiveMemoryEnabled ? "yes" : "no"}
 
 Runtime override block:
 ${runtimeOverrideInstructionBlock}
@@ -3662,6 +3754,7 @@ Fast-path rules:
       learningScope,
       isPersonalEnvironment,
       personalUserId,
+      authUserId: authenticatedUserId,
     })
   : "";
 
@@ -3772,6 +3865,7 @@ Do not use web search for this path.`,
         learningScope: `${learningScope}:${shouldForceFastCompactOutput ? "fast" : responseVariant}`,
         isPersonalEnvironment,
         personalUserId,
+        authUserId: authenticatedUserId,
       })
     : "";
 
@@ -3814,9 +3908,10 @@ Do not use web search for this path.`,
       shouldUseWebSearch,
       message,
       image,
-      tone,
-      style,
-      memoryEnabled,
+      tone: effectiveTone,
+      style: effectiveStyle,
+      memoryEnabled: effectiveMemoryEnabled,
+      effectivePreferences,
       isPersonalEnvironment,
       personalUserId,
       learningScope,
