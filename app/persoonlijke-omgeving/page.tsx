@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Home from "@/app/page";
 
 export default function PersoonlijkeOmgevingPage() {
   const [auth, setAuth] = useState<null | {
@@ -38,5 +39,5 @@ export default function PersoonlijkeOmgevingPage() {
     );
   }
 
-  return <Home />;
+  import Home from "@/app/page";
 }
