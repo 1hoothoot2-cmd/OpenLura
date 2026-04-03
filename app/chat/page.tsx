@@ -3449,27 +3449,29 @@ updated[index].messages[
       </div>
 
       <div className="border-t border-white/8 px-5 py-4 space-y-3">
-        <button
-          type="button"
-          onClick={async () => {
-            setShowDashboard(false);
-            try {
-              const res = await fetch("/api/stripe/portal", {
-                method: "POST",
-                credentials: "include",
-              });
-              if (res.ok) {
-                const data = await res.json();
-                if (data.url) window.location.href = data.url;
+        {(userTier === "pro" || userTier === "admin") && (
+          <button
+            type="button"
+            onClick={async () => {
+              setShowDashboard(false);
+              try {
+                const res = await fetch("/api/stripe/portal", {
+                  method: "POST",
+                  credentials: "include",
+                });
+                if (res.ok) {
+                  const data = await res.json();
+                  if (data.url) window.location.href = data.url;
+                }
+              } catch (err) {
+                console.error("Portal error:", err);
               }
-            } catch (err) {
-              console.error("Portal error:", err);
-            }
-          }}
-          className="w-full rounded-2xl border border-blue-400/16 bg-blue-400/[0.04] px-4 py-2.5 text-sm text-blue-200/80 hover:border-blue-400/24 hover:bg-blue-400/[0.08] hover:text-blue-100 transition-all"
-        >
-          Manage subscription
-        </button>
+            }}
+            className="w-full rounded-2xl border border-blue-400/16 bg-blue-400/[0.04] px-4 py-2.5 text-sm text-blue-200/80 hover:border-blue-400/24 hover:bg-blue-400/[0.08] hover:text-blue-100 transition-all"
+          >
+            Manage subscription
+          </button>
+        )}
         <div className="flex justify-between items-center">
           <button type="button" onClick={() => { setShowDashboard(false); setShowSettingsBox(true); }}
             className="text-[12px] text-white/42 hover:text-white/70 transition-colors">

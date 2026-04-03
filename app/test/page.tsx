@@ -390,6 +390,9 @@ const [usage, setUsage] = useState<{
   percentage: number;
 } | null>(null);
 
+const [userTier, setUserTier] = useState<"free" | "pro" | "admin">("free");
+const ADMIN_USER_IDS = ["fb392988-b34a-44a4-8823-b27abb7bfe06"];
+
 const settingsStorageKey = isPersonalRoute
   ? "openlura_personal_settings"
   : makeUserBoundStorageKey("openlura_settings");
@@ -719,6 +722,15 @@ const isReplaceableStarterChat = (chat: any) => {
 
             loadedFromServer = true;
             setPersonalStateLoaded(true);
+
+            // Resolve tier on load
+            const loadedUserId = data?.userId || null;
+            const loadedTier = data?.usageStats?.tier || "free";
+            if (loadedUserId && ADMIN_USER_IDS.includes(loadedUserId)) {
+              setUserTier("admin");
+            } else if (loadedTier === "pro" || loadedTier === "admin") {
+              setUserTier(loadedTier);
+            }
           } catch (error) {
             console.error("OpenLura personal server load failed:", error);
             setPersonalStateLoaded(true);
@@ -2976,6 +2988,11 @@ setChats([...updated]);
     const usageUsed = Number(res.headers.get("X-OpenLura-Usage-Used") || 0);
     const usageLimit = Number(res.headers.get("X-OpenLura-Usage-Limit") || 0);
 
+    const responseTier = res.headers.get("X-OpenLura-Usage-Tier");
+    if (responseTier === "pro" || responseTier === "admin" || responseTier === "free") {
+      setUserTier(responseTier);
+    }
+
     if (usageLimit > 0) {
       const percentage = usageUsed / usageLimit;
 
@@ -3321,6 +3338,7 @@ updated[index].messages[
   }}
   onCopyActiveChatMarkdown={copyChatToClipboard}
   onDownloadActiveChatMarkdown={downloadMarkdown}
+  userTier={userTier}
 />
       <button
   onClick={() => setMobileMenu(!mobileMenu)}
@@ -3431,27 +3449,29 @@ updated[index].messages[
       </div>
 
       <div className="border-t border-white/8 px-5 py-4 space-y-3">
-        <button
-          type="button"
-          onClick={async () => {
-            setShowDashboard(false);
-            try {
-              const res = await fetch("/api/stripe/portal", {
-                method: "POST",
-                credentials: "include",
-              });
-              if (res.ok) {
-                const data = await res.json();
-                if (data.url) window.location.href = data.url;
+        {(userTier === "pro" || userTier === "admin") && (
+          <button
+            type="button"
+            onClick={async () => {
+              setShowDashboard(false);
+              try {
+                const res = await fetch("/api/stripe/portal", {
+                  method: "POST",
+                  credentials: "include",
+                });
+                if (res.ok) {
+                  const data = await res.json();
+                  if (data.url) window.location.href = data.url;
+                }
+              } catch (err) {
+                console.error("Portal error:", err);
               }
-            } catch (err) {
-              console.error("Portal error:", err);
-            }
-          }}
-          className="w-full rounded-2xl border border-blue-400/16 bg-blue-400/[0.04] px-4 py-2.5 text-sm text-blue-200/80 hover:border-blue-400/24 hover:bg-blue-400/[0.08] hover:text-blue-100 transition-all"
-        >
-          Manage subscription
-        </button>
+            }}
+            className="w-full rounded-2xl border border-blue-400/16 bg-blue-400/[0.04] px-4 py-2.5 text-sm text-blue-200/80 hover:border-blue-400/24 hover:bg-blue-400/[0.08] hover:text-blue-100 transition-all"
+          >
+            Manage subscription
+          </button>
+        )}
         <div className="flex justify-between items-center">
           <button type="button" onClick={() => { setShowDashboard(false); setShowSettingsBox(true); }}
             className="text-[12px] text-white/42 hover:text-white/70 transition-colors">
