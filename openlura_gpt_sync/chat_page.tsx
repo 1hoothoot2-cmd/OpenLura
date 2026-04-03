@@ -581,6 +581,8 @@ const incrementAnonUsage = (): { count: number; resetAt: number } => {
   } catch { return { count: 0, resetAt: 0 }; }
 };
 
+const [isWaitingForFirstToken, setIsWaitingForFirstToken] = useState(false);
+
 const [usage, setUsage] = useState<{
   used: number;
   limit: number;
@@ -1381,16 +1383,15 @@ const shouldSkipPersonalStateSync =
     deleteTargetChatId,
   ]);
 
+  const isNearBottomRef = useRef(true);
+
   useEffect(() => {
   const el = messagesRef.current;
   if (!el) return;
 
   const handleViewportResize = () => {
     requestAnimationFrame(() => {
-      el.scrollTo({
-        top: el.scrollHeight,
-        behavior: "auto",
-      });
+      el.scrollTo({ top: el.scrollHeight, behavior: "auto" });
     });
   };
 
@@ -1410,12 +1411,15 @@ const shouldSkipPersonalStateSync =
       (resolvedActiveChat?.messages?.length || 1) - 1
     ] || null;
 
-  requestAnimationFrame(() => {
-    el.scrollTo({
-      top: el.scrollHeight,
-      behavior: lastMessage?.isStreaming ? "auto" : "smooth",
+  if (isNearBottomRef.current) {
+    requestAnimationFrame(() => {
+      el.scrollTo({
+        top: el.scrollHeight,
+        behavior: lastMessage?.isStreaming ? "auto" : "smooth",
+      });
     });
-  });
+  }
+
   return () => {
     window.removeEventListener("resize", handleViewportResize);
   };
@@ -1426,8 +1430,11 @@ const shouldSkipPersonalStateSync =
     if (!el) return;
     const handleScroll = () => {
       const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+      isNearBottomRef.current = distanceFromBottom < 120;
       setShowScrollBottom(distanceFromBottom > 120);
     };
+    // Reset near-bottom on chat switch
+    isNearBottomRef.current = true;
     el.addEventListener("scroll", handleScroll, { passive: true });
     return () => el.removeEventListener("scroll", handleScroll);
   }, [activeChatId, initialStateReady]);
@@ -3147,6 +3154,7 @@ updated[index].messages.push({
 });
 
 setChats([...updated]);
+setIsWaitingForFirstToken(true);
 
     if (imageToSend) {
     }
@@ -3262,16 +3270,8 @@ setChats([...updated]);
         limitType,
       });
 
-      updated[index].messages[
-        updated[index].messages.length - 1
-      ] = {
-        ...updated[index].messages[
-          updated[index].messages.length - 1
-        ],
-        content: limitMessage,
-        isStreaming: false,
-        disableFeedback: true,
-      };
+      // Verwijder het "…" streaming bericht — notice in sidebar is genoeg
+      updated[index].messages.splice(updated[index].messages.length - 1, 1);
 
       setChats([...updated]);
       setStreamController(null);
@@ -3343,6 +3343,18 @@ updated[index].messages[
     setChats([...updated]);
 
         try {
+      let rafScheduled = false;
+
+      const flushToUI = () => {
+        updated[index].messages[updated[index].messages.length - 1] = {
+          ...updated[index].messages[updated[index].messages.length - 1],
+          content: aiText || "…",
+          isStreaming: !aiText.trim(),
+        };
+        setChats([...updated]);
+        rafScheduled = false;
+      };
+
       while (true) {
         const { done, value } = await reader!.read();
         if (done) break;
@@ -3356,16 +3368,18 @@ updated[index].messages[
 
         aiText += chunk;
 
-        updated[index].messages[
-          updated[index].messages.length - 1
-        ] = {
-          ...updated[index].messages[updated[index].messages.length - 1],
-          content: aiText || "…",
-          isStreaming: !aiText.trim(),
-        };
+        if (isWaitingForFirstToken) {
+          setIsWaitingForFirstToken(false);
+        }
 
-        setChats([...updated]);
+        if (!rafScheduled) {
+          rafScheduled = true;
+          requestAnimationFrame(flushToUI);
+        }
       }
+
+      // Ensure final state is always flushed
+      flushToUI();
     } catch (error: any) {
       if (error?.name !== "AbortError") {
         console.error("OpenLura chat stream failed:", error);
@@ -3392,6 +3406,7 @@ updated[index].messages[
 
     setChats([...updated]);
 
+    setIsWaitingForFirstToken(false);
     setStreamController(null);
 
     // ✅ MEMORY SAVE
@@ -4251,6 +4266,22 @@ updated[index].messages[
                   <div className="mt-1 text-[12px] text-blue-200/80 leading-5">
                     {upgradeNotice.message}
                   </div>
+                  {!isPersonalRoute && upgradeNotice.limitType === "anon_window" && (() => {
+                    try {
+                      const raw = localStorage.getItem(ANON_STORAGE_KEY);
+                      if (!raw) return null;
+                      const parsed = JSON.parse(raw);
+                      const resetAt = parsed?.resetAt;
+                      if (!resetAt || resetAt <= Date.now()) return null;
+                      const resetTime = new Date(resetAt);
+                      const resetLabel = resetTime.toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" });
+                      return (
+                        <div className="mt-1.5 text-[11px] text-blue-300/70">
+                          🕐 Weer gratis chatten om {resetLabel}
+                        </div>
+                      );
+                    } catch { return null; }
+                  })()}
                 </div>
                 {isPersonalRoute ? (
                   <button
@@ -4446,7 +4477,9 @@ updated[index].messages[
             style={{ animationDelay: "240ms" }}
           />
         </span>
-        <span className="text-sm">{t("thinking")}</span>
+        <span className="text-sm">
+          {isWaitingForFirstToken ? t("thinking") : "..."}
+        </span>
       </span>
     ) : (
       <>

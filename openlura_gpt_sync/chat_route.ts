@@ -28,8 +28,8 @@ const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const RATE_LIMIT_MAX_REQUESTS = 20;
 const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
 
-const ANON_WINDOW_MS = 8 * 60 * 60 * 1000; // 8 uur
-const ANON_MAX_REQUESTS = 3;
+const ANON_WINDOW_MS = 5 * 60 * 60 * 1000; // 5 uur
+const ANON_MAX_REQUESTS = 5;
 const anonRateLimitStore = new Map<string, { count: number; resetAt: number }>();
 
 function checkAnonRateLimit(ip: string, isAuthenticated: boolean): { allowed: boolean; resetAt: number } {
@@ -2622,9 +2622,12 @@ ${input.currentGlobalFeedbackSnapshot
   .filter(
     (f: any) => f.type === "down" || f.source === "idea_feedback_learning"
   )
+  .slice(0, 5)
   .map(
-    (f: any) =>
-      `User said: "${f.userMessage || f.message}" → user was not satisfied`
+    (f: any) => {
+      const text = (f.userMessage || f.message || "").slice(0, 80);
+      return `- "${text}"`;
+    }
   )
   .join("\n") || "none"}
 
@@ -2659,10 +2662,6 @@ RUNTIME LEARNING PRIORITY:
 
 USAGE SNAPSHOT:
 - tier: ${input.usageLimitSnapshot.tier}
-- monthly requests used: ${input.usageLimitSnapshot.requestCount}
-- monthly web searches used: ${input.usageLimitSnapshot.webSearchCount}
-- requests remaining: ${input.usageLimitSnapshot.requestsRemaining === Infinity ? "unlimited" : input.usageLimitSnapshot.requestsRemaining}
-- web searches remaining: ${input.usageLimitSnapshot.webSearchesRemaining === Infinity ? "unlimited" : input.usageLimitSnapshot.webSearchesRemaining}
 - limit exceeded: ${input.usageLimitSnapshot.exceeded ? "yes" : "no"}
 
 SUCCESSFUL PATTERNS (completed items):
@@ -2673,8 +2672,8 @@ ${input.completedFeedback
       f.type === "improve" ||
       f.source === "idea_feedback_learning"
   )
-  .map((f: any) => `- ${f.userMessage || f.message}`)
-  .slice(0, 5)
+  .slice(0, 3)
+  .map((f: any) => `- ${(f.userMessage || f.message || "").slice(0, 80)}`)
   .join("\n") || "none"}
 
 ADAPTATION RULES:
@@ -4142,7 +4141,10 @@ Do not use web search for this path.`,
       .join("")
       .trim();
 
+  const isPaidUser = isPersonalEnvironment && usageLimitSnapshot.tier !== "free";
+
   const shouldRewriteCasualReply =
+    isPaidUser &&
     isCasualChatRequest &&
     detectCasualStyleMismatch({
       userMessage: message || "",
@@ -4153,28 +4155,16 @@ Do not use web search for this path.`,
     try {
       const rewrite = await openai.chat.completions.create({
         model: "gpt-4o-mini",
+        max_tokens: 300,
+        temperature: 0.7,
         messages: [
           {
             role: "system",
-            content: `You are OpenLura.
-
-Rewrite the assistant draft so it feels more natural for a casual personal chat.
-Rules:
-- Keep the same language as the user
-- Make it shorter
-- Sound warm, light, and spontaneous
-- Avoid essay tone, abstract self-analysis, and overexplaining
-- Usually 2 to 5 short paragraphs max
-- Keep the meaning, just make it feel more human
-- If it fits, lightly bounce the conversation back to the user`,
+            content: `You are OpenLura. Rewrite the draft for casual chat. Rules: same language as user, shorter, warm and spontaneous, max 3 short paragraphs, no essay tone, keep the meaning.`,
           },
           {
             role: "user",
-            content: `User message:
-${message || ""}
-
-Current draft:
-${aiText}`,
+            content: `User: ${message || ""}\n\nDraft: ${aiText}`,
           },
         ],
       });
@@ -4265,19 +4255,20 @@ ${aiText}`,
 
   const encoder = new TextEncoder();
 
+  const safeText =
+    aiText && aiText.trim()
+      ? aiText
+      : (image
+          ? "Ik kon de afbeelding niet goed uitlezen. Stuur de foto opnieuw met een korte vraag erbij."
+          : message && message.trim().length <= 10
+          ? `Hoi! Hoe kan ik je helpen?`
+          : "Ik kon geen antwoord genereren. Probeer het opnieuw.");
+
   return new Response(
     new ReadableStream({
       async start(controller) {
-        const chunkSize = 80;
-
-                const safeText =
-          aiText && aiText.trim()
-            ? aiText
-            : (image
-                ? "Ik kon de afbeelding niet goed uitlezen. Stuur de foto opnieuw met een korte vraag erbij."
-                : message && message.trim().length <= 10
-                ? `Hoi! Hoe kan ik je helpen?`
-                : "Ik kon geen antwoord genereren. Probeer het opnieuw.");
+        // Stream in larger chunks for smoother UX (was 80, now 160)
+        const chunkSize = 160;
 
         for (let i = 0; i < safeText.length; i += chunkSize) {
           controller.enqueue(
