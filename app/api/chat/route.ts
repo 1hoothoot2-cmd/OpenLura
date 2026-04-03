@@ -3896,6 +3896,7 @@ Fast-path rules:
             "X-OpenLura-Variant": responseVariant,
             "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
             "X-OpenLura-Speed": "fast_text",
+            "X-OpenLura-Lang": detectedLanguage,
             ...buildRateLimitHeaders(rateLimit),
             ...buildUsageHeaders(usageLimitSnapshot),
           }),
