@@ -928,11 +928,17 @@ function normalizePersonalProfileValue(value: any): OpenLuraPersonalProfile | nu
         .slice(0, 20)
     : [];
 
+  const name =
+    typeof value.name === "string" && value.name.trim()
+      ? value.name.trim().slice(0, 80)
+      : undefined;
+
   return {
     tone,
     style,
     memoryEnabled,
     preferences,
+    ...(name ? { name } : {}),
   };
 }
 
