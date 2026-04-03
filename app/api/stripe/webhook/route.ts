@@ -78,8 +78,20 @@ export async function POST(req: Request) {
 
   if (event.type === "customer.subscription.deleted") {
     const customerId = event.data.object.customer;
-    // lookup user by customer id - voor nu loggen
-    console.log("Subscription cancelled for customer:", customerId);
+    
+    // Zoek user op via stripe_customer_id in Supabase
+    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+    const { data } = await supabase
+      .from("openlura_personal_state")
+      .select("user_id, usage_stats")
+      .eq("usage_stats->>stripe_customer_id", customerId)
+      .single();
+
+    if (data?.user_id) {
+      await setUserTier(data.user_id, "free");
+    } else {
+      console.log("No user found for customer:", customerId);
+    }
   }
 
   return new Response("ok", { status: 200 });
