@@ -4142,7 +4142,10 @@ Do not use web search for this path.`,
       .join("")
       .trim();
 
+  const isPaidUser = isPersonalEnvironment && usageLimitSnapshot.tier !== "free";
+
   const shouldRewriteCasualReply =
+    isPaidUser &&
     isCasualChatRequest &&
     detectCasualStyleMismatch({
       userMessage: message || "",
