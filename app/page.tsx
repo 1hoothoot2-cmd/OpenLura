@@ -680,7 +680,7 @@ export default function HomePage() {
                     href="/persoonlijke-omgeving"
                     className="inline-flex w-full items-center justify-center rounded-[18px] border border-blue-400/20 bg-blue-400/10 px-5 py-3 text-sm font-medium text-blue-200 transition-[background-color,border-color,color] duration-200 hover:border-blue-400/30 hover:bg-blue-400/16 hover:text-white"
                   >
-                    Coming soon
+                    Get started with Go
                   </a>
                 </div>
               </div>
