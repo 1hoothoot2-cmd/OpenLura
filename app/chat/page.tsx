@@ -68,6 +68,22 @@ export default function ChatPage() {
         pap: "Limiet yega — upgrade pa sigui",
         en: "Limit reached — upgrade to continue",
       },
+      welcome_title: {
+        nl: "Waar wil je vandaag aan werken?",
+        de: "Woran möchtest du heute arbeiten?",
+        fr: "Sur quoi veux-tu travailler aujourd'hui ?",
+        es: "¿En qué quieres trabajar hoy?",
+        pap: "Kiko bo ke traha awe?",
+        en: "What do you want to work on today?",
+      },
+      welcome_sub: {
+        nl: "Stel een vraag, upload een afbeelding, of ga verder met een eerdere chat.",
+        de: "Stelle eine Frage, lade ein Bild hoch oder führe ein früheres Gespräch fort.",
+        fr: "Pose une question, télécharge une image, ou continue une discussion précédente.",
+        es: "Haz una pregunta, sube una imagen o continúa un chat anterior.",
+        pap: "Hasi un pregunta, subi un imagen, of sigui ku un chat anterior.",
+        en: "Ask a question, upload an image, or continue an earlier chat.",
+      },
     };
 
     return translations[key]?.[detectedLang] ?? translations[key]?.["en"] ?? key;
@@ -4007,10 +4023,10 @@ updated[index].messages[
               <div className="flex h-full w-full max-w-2xl -mt-20 flex-col items-center justify-center px-4 md:px-6 text-center">
                 <div className="rounded-[28px] border border-white/8 bg-white/[0.032] px-8 py-8 shadow-[0_16px_36px_rgba(0,0,0,0.16)] backdrop-blur-xl md:px-10 md:py-10">
                   <h1 className="mb-3 bg-gradient-to-r from-white via-white to-white/70 bg-clip-text text-2xl font-semibold tracking-tight text-transparent md:text-4xl">
-                    What do you want to work on today?
+                    {t("welcome_title")}
                   </h1>
                   <p className="mx-auto max-w-md text-sm leading-6 text-white/44">
-                    Ask a question, upload an image, or continue an earlier chat.
+                    {t("welcome_sub")}
                   </p>
                   {!isPersonalRoute && (
                     <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
