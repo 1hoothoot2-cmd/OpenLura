@@ -1088,6 +1088,31 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
             </button>
           )}
 
+          {isPersonalRoute && (
+            <button
+              type="button"
+              onClick={async () => {
+                setOpenChatMenuId(null);
+                setMobileMenu(false);
+                try {
+                  const res = await fetch("/api/stripe/portal", {
+                    method: "POST",
+                    credentials: "include",
+                  });
+                  if (res.ok) {
+                    const data = await res.json();
+                    if (data.url) window.location.href = data.url;
+                  }
+                } catch (err) {
+                  console.error("Portal error:", err);
+                }
+              }}
+              className="w-full rounded-2xl border border-blue-400/16 bg-blue-400/[0.04] px-3 py-2.5 text-left text-sm text-blue-200/80 ol-interactive transition-[background-color,border-color,color,box-shadow] duration-200 hover:border-blue-400/24 hover:bg-blue-400/[0.08] hover:text-blue-100 hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.985]"
+            >
+              Manage subscription
+            </button>
+          )}
+
           {!isPersonalRoute && (
             <button
               type="button"

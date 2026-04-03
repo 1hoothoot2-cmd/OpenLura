@@ -29,7 +29,7 @@ async function verifyStripeSignature(payload: string, signature: string, secret:
   return computed === v1;
 }
 
-async function setUserTier(userId: string, tier: "pro" | "free") {
+async function setUserTier(userId: string, tier: "pro" | "free", stripeCustomerId?: string) {
   const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
   const { data: existing } = await supabase
@@ -47,6 +47,7 @@ async function setUserTier(userId: string, tier: "pro" | "free") {
       usage_stats: {
         ...currentStats,
         tier,
+        ...(stripeCustomerId ? { stripe_customer_id: stripeCustomerId } : {}),
       },
       updated_at: new Date().toISOString(),
     }, { onConflict: "user_id" });
@@ -69,8 +70,9 @@ export async function POST(req: Request) {
 
   if (event.type === "checkout.session.completed") {
     const userId = event.data.object.metadata?.user_id || event.data.object.client_reference_id;
+    const customerId = event.data.object.customer;
     if (userId) {
-      await setUserTier(userId, "pro");
+      await setUserTier(userId, "pro", customerId);
     }
   }
 
