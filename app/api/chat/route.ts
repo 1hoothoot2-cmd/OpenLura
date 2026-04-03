@@ -3780,6 +3780,7 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
       const fastStream = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         stream: true,
+        max_tokens: 300,
         messages: [
           {
             role: "system",
