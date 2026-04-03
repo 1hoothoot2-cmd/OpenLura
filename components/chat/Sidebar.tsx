@@ -669,8 +669,16 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
                 regularChats.map((chat: SidebarChat) => renderChatRow(chat, false))
               ) : (
                 <div className={emptyStateClass}>
-  No chats found
-</div>
+                  {isPersonalRoute ? (
+                    <button
+                      type="button"
+                      onClick={() => createNewChat()}
+                      className="w-full text-left text-white/40 hover:text-white/70 transition-colors"
+                    >
+                      + Start je eerste chat
+                    </button>
+                  ) : "No chats found"}
+                </div>
               )}
             </div>
           </div>
@@ -895,7 +903,9 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
                 })
               ) : (
                 <div className={emptyStateClass}>
-                  No saved prompts yet
+                  {isPersonalRoute
+                    ? "Sla een bericht op als prompt via ⋯"
+                    : "No saved prompts yet"}
                 </div>
               )}
             </div>
