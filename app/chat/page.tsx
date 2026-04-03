@@ -4788,7 +4788,7 @@ updated[index].messages[
     loading
       ? "bg-red-500 text-white shadow-[0_10px_24px_rgba(239,68,68,0.30)]"
       : !input.trim() && !image
-      ? "bg-white/[0.07] text-white/24 shadow-none"
+      ? "bg-white/[0.06] text-white/18 shadow-none cursor-not-allowed"
       : "bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] text-white shadow-[0_12px_24px_rgba(59,130,246,0.26)] hover:brightness-110"
   }`}
 >
