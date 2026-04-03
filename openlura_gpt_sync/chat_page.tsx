@@ -356,11 +356,42 @@ const handleSavePrompt = async (explicitContent?: string) => {
   limitType: "monthly",
 });
 
+const ANON_MSG_LIMIT = 3;
+const ANON_STORAGE_KEY = "openlura_anon_usage";
+const ANON_WINDOW_MS = 5 * 60 * 60 * 1000; // 5 uur
+
+const getAnonUsage = (): { count: number; resetAt: number } => {
+  try {
+    const raw = localStorage.getItem(ANON_STORAGE_KEY);
+    if (!raw) return { count: 0, resetAt: 0 };
+    const parsed = JSON.parse(raw);
+    const now = Date.now();
+    if (!parsed.resetAt || parsed.resetAt <= now) {
+      return { count: 0, resetAt: 0 };
+    }
+    return { count: parsed.count || 0, resetAt: parsed.resetAt };
+  } catch { return { count: 0, resetAt: 0 }; }
+};
+
+const incrementAnonUsage = (): { count: number; resetAt: number } => {
+  try {
+    const now = Date.now();
+    const existing = getAnonUsage();
+    const resetAt = existing.resetAt > now ? existing.resetAt : now + ANON_WINDOW_MS;
+    const next = { count: existing.count + 1, resetAt };
+    localStorage.setItem(ANON_STORAGE_KEY, JSON.stringify(next));
+    return next;
+  } catch { return { count: 0, resetAt: 0 }; }
+};
+
 const [usage, setUsage] = useState<{
   used: number;
   limit: number;
   percentage: number;
 } | null>(null);
+
+const [userTier, setUserTier] = useState<"free" | "pro" | "admin">("free");
+const ADMIN_USER_IDS = ["fb392988-b34a-44a4-8823-b27abb7bfe06"];
 
 const settingsStorageKey = isPersonalRoute
   ? "openlura_personal_settings"
@@ -691,6 +722,15 @@ const isReplaceableStarterChat = (chat: any) => {
 
             loadedFromServer = true;
             setPersonalStateLoaded(true);
+
+            // Resolve tier on load
+            const loadedUserId = data?.userId || null;
+            const loadedTier = data?.usageStats?.tier || "free";
+            if (loadedUserId && ADMIN_USER_IDS.includes(loadedUserId)) {
+              setUserTier("admin");
+            } else if (loadedTier === "pro" || loadedTier === "admin") {
+              setUserTier(loadedTier);
+            }
           } catch (error) {
             console.error("OpenLura personal server load failed:", error);
             setPersonalStateLoaded(true);
@@ -2371,6 +2411,23 @@ Do not mention that this is a new attempt.`,
   const sendMessage = async () => {
     if (!input.trim() && !image) return;
 
+    if (!isPersonalRoute) {
+      const anonUsage = getAnonUsage();
+      if (anonUsage.count >= ANON_MSG_LIMIT) {
+        const resetAt = anonUsage.resetAt > Date.now() ? anonUsage.resetAt : Date.now() + ANON_WINDOW_MS;
+        const resetTime = new Date(resetAt);
+        const resetLabel = resetTime.toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" });
+        setUpgradeNotice({
+          visible: true,
+          message: `Je kunt weer chatten om ${resetLabel}, of meld je aan voor onbeperkt chatten.`,
+          tier: "free",
+          limitType: "anon_window",
+        });
+        return;
+      }
+      incrementAnonUsage();
+    }
+
     closeMobileSidebar();
 
     try {
@@ -2931,6 +2988,11 @@ setChats([...updated]);
     const usageUsed = Number(res.headers.get("X-OpenLura-Usage-Used") || 0);
     const usageLimit = Number(res.headers.get("X-OpenLura-Usage-Limit") || 0);
 
+    const responseTier = res.headers.get("X-OpenLura-Usage-Tier");
+    if (responseTier === "pro" || responseTier === "admin" || responseTier === "free") {
+      setUserTier(responseTier);
+    }
+
     if (usageLimit > 0) {
       const percentage = usageUsed / usageLimit;
 
@@ -3276,6 +3338,7 @@ updated[index].messages[
   }}
   onCopyActiveChatMarkdown={copyChatToClipboard}
   onDownloadActiveChatMarkdown={downloadMarkdown}
+  userTier={userTier}
 />
       <button
   onClick={() => setMobileMenu(!mobileMenu)}
@@ -3385,15 +3448,40 @@ updated[index].messages[
         )}
       </div>
 
-      <div className="border-t border-white/8 px-5 py-4 flex justify-between items-center">
-        <button type="button" onClick={() => { setShowDashboard(false); setShowSettingsBox(true); }}
-          className="text-[12px] text-white/42 hover:text-white/70 transition-colors">
-          Naar instellingen →
-        </button>
-        <button type="button" onClick={() => setShowDashboard(false)}
-          className="rounded-2xl border border-white/8 bg-white/[0.04] px-4 py-2 text-sm text-white/60 hover:text-white/80 transition-colors">
-          Sluiten
-        </button>
+      <div className="border-t border-white/8 px-5 py-4 space-y-3">
+        {(userTier === "pro" || userTier === "admin") && (
+          <button
+            type="button"
+            onClick={async () => {
+              setShowDashboard(false);
+              try {
+                const res = await fetch("/api/stripe/portal", {
+                  method: "POST",
+                  credentials: "include",
+                });
+                if (res.ok) {
+                  const data = await res.json();
+                  if (data.url) window.location.href = data.url;
+                }
+              } catch (err) {
+                console.error("Portal error:", err);
+              }
+            }}
+            className="w-full rounded-2xl border border-blue-400/16 bg-blue-400/[0.04] px-4 py-2.5 text-sm text-blue-200/80 hover:border-blue-400/24 hover:bg-blue-400/[0.08] hover:text-blue-100 transition-all"
+          >
+            Manage subscription
+          </button>
+        )}
+        <div className="flex justify-between items-center">
+          <button type="button" onClick={() => { setShowDashboard(false); setShowSettingsBox(true); }}
+            className="text-[12px] text-white/42 hover:text-white/70 transition-colors">
+            Naar instellingen →
+          </button>
+          <button type="button" onClick={() => setShowDashboard(false)}
+            className="rounded-2xl border border-white/8 bg-white/[0.04] px-4 py-2 text-sm text-white/60 hover:text-white/80 transition-colors">
+            Sluiten
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -3736,6 +3824,7 @@ updated[index].messages[
                 Chat
               </span>
 
+              {isPersonalRoute && (
               <button
                 type="button"
                 data-openlura-export-trigger
@@ -3744,6 +3833,7 @@ updated[index].messages[
               >
                 Export chat
               </button>
+              )}
 
               <button
                 type="button"
@@ -3797,25 +3887,52 @@ updated[index].messages[
                     {usage.used} / {usage.limit} berichten gebruikt ({Math.round(usage.percentage * 100)}%)
                   </div>
                 </div>
-                <a href="/login" className="shrink-0 rounded-full border border-amber-300/20 bg-amber-400/10 px-3 py-1.5 text-[11px] font-medium text-amber-200 transition-colors hover:bg-amber-400/16 hover:text-white">
-                  Upgrade →
+                <a href="/#plans" className="shrink-0 rounded-full border border-amber-300/20 bg-amber-400/10 px-3 py-1.5 text-[11px] font-medium text-amber-200 transition-colors hover:bg-amber-400/16 hover:text-white">
+                  Bekijk plannen →
                 </a>
               </div>
             </div>
           )}
 
           {upgradeNotice.visible && (
-            <div className="mx-4 mt-4 rounded-[24px] border border-red-400/14 bg-red-500/[0.07] px-4 py-4 text-sm text-red-100 shadow-[0_10px_22px_rgba(0,0,0,0.10)] backdrop-blur-xl">
+            <div className="mx-4 mt-4 rounded-[24px] border border-blue-400/18 bg-blue-500/[0.07] px-4 py-4 text-sm text-blue-100 shadow-[0_10px_22px_rgba(0,0,0,0.10)] backdrop-blur-xl">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="font-semibold text-red-100">
-                {upgradeNotice.limitType === "window" ? "Even pauzeren ☕" : "Daglimiet bereikt"}
-              </div>
-                  <div className="mt-1 text-[12px] text-red-200/80 leading-5">{upgradeNotice.message}</div>
+                  <div className="font-semibold text-blue-100">
+                    {isPersonalRoute
+                      ? upgradeNotice.limitType === "window"
+                        ? "Even pauzeren ☕"
+                        : "Maandlimiet bereikt"
+                      : "Gratis berichten op"}
+                  </div>
+                  <div className="mt-1 text-[12px] text-blue-200/80 leading-5">
+                    {upgradeNotice.message}
+                  </div>
                 </div>
-                <a href="/login" className="shrink-0 rounded-full border border-red-300/20 bg-red-400/10 px-3 py-1.5 text-[11px] font-medium text-red-200 transition-colors hover:bg-red-400/16 hover:text-white">
-                  Upgrade →
-                </a>
+                {isPersonalRoute ? (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const res = await fetch("/api/stripe/checkout", { method: "POST", credentials: "include" });
+                        if (res.status === 401) { window.location.href = "/persoonlijke-omgeving"; return; }
+                        const data = await res.json();
+                        if (data.url) window.location.href = data.url;
+                      } catch {}
+                    }}
+                    className="shrink-0 rounded-full border border-blue-300/20 bg-blue-400/14 px-3 py-1.5 text-[11px] font-medium text-blue-100 transition-colors hover:bg-blue-400/22 hover:text-white"
+                  >
+                    Upgrade naar Go →
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowLoginBox(true)}
+                    className="shrink-0 rounded-full border border-blue-300/20 bg-blue-400/14 px-3 py-1.5 text-[11px] font-medium text-blue-100 transition-colors hover:bg-blue-400/22 hover:text-white"
+                  >
+                    Aanmelden →
+                  </button>
+                )}
               </div>
             </div>
           )}

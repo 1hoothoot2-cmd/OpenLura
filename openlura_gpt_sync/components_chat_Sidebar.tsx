@@ -47,6 +47,7 @@ type Props = {
   onOpenDashboard?: () => void;
   onCopyActiveChatMarkdown?: () => void;
   onDownloadActiveChatMarkdown?: () => void;
+  userTier?: "free" | "pro" | "admin";
 };
 
 export default function Sidebar({
@@ -75,7 +76,8 @@ export default function Sidebar({
   onOpenSettings,
   onOpenDashboard,
   onCopyActiveChatMarkdown,
-  onDownloadActiveChatMarkdown
+  onDownloadActiveChatMarkdown,
+  userTier = "free"
 }: Props) {
   const sidebarRef = useRef<HTMLDivElement | null>(null);
 const promptMessageTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1045,6 +1047,43 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
                   Download .md
                 </button>
               </div>
+            </div>
+          )}
+
+          {isPersonalRoute && (
+            <div className={`rounded-2xl border px-3 py-2.5 flex items-center justify-between ${
+              userTier === "pro" || userTier === "admin"
+                ? "border-emerald-400/16 bg-emerald-400/[0.04]"
+                : "border-white/8 bg-white/[0.03]"
+            }`}>
+              <div>
+                <div className="text-[10px] uppercase tracking-[0.16em] text-white/30">Plan</div>
+                <div className={`text-sm font-medium mt-0.5 ${
+                  userTier === "pro" || userTier === "admin"
+                    ? "text-emerald-300"
+                    : "text-white/60"
+                }`}>
+                  {userTier === "pro" ? "Go ✓" : userTier === "admin" ? "Admin ✓" : "Free"}
+                </div>
+              </div>
+              {userTier === "free" && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setOpenChatMenuId(null);
+                    setMobileMenu(false);
+                    try {
+                      const res = await fetch("/api/stripe/checkout", { method: "POST", credentials: "include" });
+                      if (res.status === 401) { window.location.href = "/persoonlijke-omgeving"; return; }
+                      const data = await res.json();
+                      if (data.url) window.location.href = data.url;
+                    } catch {}
+                  }}
+                  className="rounded-xl border border-blue-400/20 bg-blue-400/10 px-3 py-1.5 text-[11px] font-medium text-blue-200 hover:bg-blue-400/16 hover:text-white transition-colors"
+                >
+                  Upgrade →
+                </button>
+              )}
             </div>
           )}
 

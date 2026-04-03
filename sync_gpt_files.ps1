@@ -19,12 +19,12 @@ $filesToSync = @(
     @{ Source = "app\api\personal-state\route.ts"; Destination = "personal_state_route.ts" },
     @{ Source = "app\api\prompts\route.ts"; Destination = "prompts_route.ts" },
     @{ Source = "app\auth\callback\page.tsx"; Destination = "auth_callback_page.tsx" },
-
+    
     # PAGES
     @{ Source = "app\analytics\page.tsx"; Destination = "analytics_page.tsx" },
     @{ Source = "app\persoonlijke-omgeving\page.tsx"; Destination = "persoonlijke-omgeving_page.tsx" },
     @{ Source = "app\privacy\page.tsx"; Destination = "privacy_page.tsx" },
-
+    
     # MEMORY FILES
     @{ Source = "OPENLURA_PROJECT_MEMORY.md"; Destination = "OPENLURA_PROJECT_MEMORY.md" },
     @{ Source = "OPENLURA_RULES.md"; Destination = "OPENLURA_RULES.md" },
@@ -35,7 +35,12 @@ $filesToSync = @(
     @{ Source = "lib\auth\requestIdentity.ts"; Destination = "lib_auth_requestIdentity.ts" },
 
     # COMPONENTS
-    @{ Source = "components\chat\Sidebar.tsx"; Destination = "components_chat_Sidebar.tsx" }
+    @{ Source = "components\chat\Sidebar.tsx"; Destination = "components_chat_Sidebar.tsx" },
+
+    # STRIPE
+    @{ Source = "app\api\stripe\checkout\route.ts"; Destination = "stripe_checkout_route.ts" },
+    @{ Source = "app\api\stripe\webhook\route.ts"; Destination = "stripe_webhook_route.ts" },
+    @{ Source = "app\api\stripe\portal\route.ts"; Destination = "stripe_portal_route.ts" }
 )
 
 Write-Host ""

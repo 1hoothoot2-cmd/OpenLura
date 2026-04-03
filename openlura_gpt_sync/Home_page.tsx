@@ -159,6 +159,11 @@ export default function HomePage() {
                 Your account owns your workspace, history, and continuity.
               </div>
 
+              <div className="mt-3 inline-flex max-w-fit items-center gap-2 rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1.5 text-[12px] font-medium text-amber-200 backdrop-blur-xl">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-400/80" />
+                First month 25% off — use code <span className="font-semibold tracking-wide">LAUNCH25</span>
+              </div>
+
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             <Link
               href="/chat"
@@ -171,7 +176,7 @@ export default function HomePage() {
               href="/persoonlijke-omgeving"
               className="inline-flex h-12 w-full items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.04] px-6 text-sm font-medium text-white/88 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/30 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.99] sm:w-auto"
             >
-              Log in
+              Log in / Create account
             </Link>
 
             <Link
@@ -575,7 +580,14 @@ export default function HomePage() {
                   </span>
                 </div>
 
-                <div className="mt-6 space-y-3">
+                <div className="mt-4">
+                    <div className="flex items-baseline gap-1.5">
+                      <div className="text-2xl font-semibold text-white">€0</div>
+                      <div className="text-sm text-white/40">/maand</div>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 space-y-3">
                   <div className="flex items-start gap-3">
                     <span className="mt-1 h-2 w-2 rounded-full bg-white/50" />
                     <p className="text-sm leading-6 text-white/72">
@@ -603,20 +615,31 @@ export default function HomePage() {
                       Good for getting familiar with OpenLura
                     </p>
                   </div>
+
+                  <div className="flex items-start gap-3">
+                    <span className="mt-1 h-2 w-2 rounded-full bg-white/30" />
+                    <p className="text-sm leading-6 text-white/46">
+                      150 messages per month
+                    </p>
+                  </div>
                 </div>
               </div>
 
               <div className="rounded-[24px] border border-blue-400/16 bg-gradient-to-b from-[#0d1733] to-[#0a1022] p-6 shadow-[0_18px_40px_rgba(29,78,216,0.12)] backdrop-blur-xl ol-surface sm:p-7">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <div className="text-lg font-semibold text-white">Go</div>
+                    <div className="flex items-baseline gap-2">
+                      <div className="text-lg font-semibold text-white">Go</div>
+                      <div className="text-2xl font-semibold text-white">€4,99</div>
+                      <div className="text-sm text-white/40">/maand</div>
+                    </div>
                     <p className="mt-2 text-sm leading-6 text-white/50">
                       Built for more consistent usage, deeper workflows, and a stronger product experience over time.
                     </p>
                   </div>
 
                   <span className="inline-flex items-center rounded-full border border-blue-400/20 bg-blue-400/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-blue-300">
-                    Evolving
+                    Coming soon
                   </span>
                 </div>
 
@@ -648,6 +671,38 @@ export default function HomePage() {
                       Designed for users who want more from OpenLura over time
                     </p>
                   </div>
+
+                  <div className="flex items-start gap-3">
+                    <span className="mt-1 h-2 w-2 rounded-full bg-blue-300" />
+                    <p className="text-sm leading-6 text-white/78">
+                      Unlimited messages per month
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-6">
+                    <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const res = await fetch("/api/stripe/checkout", { method: "POST", credentials: "include" });
+                        console.log("Stripe checkout status:", res.status);
+                        if (res.status === 401) {
+                          window.location.href = "/persoonlijke-omgeving";
+                          return;
+                        }
+                        const text = await res.text();
+                        console.log("Stripe checkout response:", text);
+                        const data = JSON.parse(text);
+                        if (data.url) window.location.href = data.url;
+                      } catch (err) {
+                        console.error("Stripe checkout error:", err);
+                      }
+                    }}
+                    className="inline-flex w-full items-center justify-center rounded-[18px] border border-blue-400/20 bg-blue-400/10 px-5 py-3 text-sm font-medium text-blue-200 transition-[background-color,border-color,color] duration-200 hover:border-blue-400/30 hover:bg-blue-400/16 hover:text-white"
+                  >
+                    Get started with Go
+                  </button>
                 </div>
               </div>
             </div>
@@ -874,7 +929,7 @@ export default function HomePage() {
                     href="/login"
                     className="inline-flex h-12 w-full items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.04] px-6 text-sm font-medium text-white/86 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/14 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.10)] active:scale-[0.99] sm:w-auto"
                   >
-                    Log in / Account aanmaken
+                    Log in / Create account
                   </Link>
 
                   <button
@@ -1100,6 +1155,11 @@ export default function HomePage() {
               0 0 22px rgba(59, 130, 246, 0.28);
           }
         `}</style>
+        <div className="mt-8 pb-8 text-center">
+          <a href="/privacy" className="text-[12px] text-white/30 hover:text-white/60 transition-colors duration-200">
+            Privacy policy
+          </a>
+        </div>
     </main>
   );
 }

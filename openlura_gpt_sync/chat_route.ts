@@ -28,6 +28,29 @@ const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const RATE_LIMIT_MAX_REQUESTS = 20;
 const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
 
+const ANON_WINDOW_MS = 8 * 60 * 60 * 1000; // 8 uur
+const ANON_MAX_REQUESTS = 3;
+const anonRateLimitStore = new Map<string, { count: number; resetAt: number }>();
+
+function checkAnonRateLimit(ip: string, isAuthenticated: boolean): { allowed: boolean; resetAt: number } {
+  if (isAuthenticated) return { allowed: true, resetAt: 0 };
+
+  const now = Date.now();
+  const existing = anonRateLimitStore.get(ip);
+
+  if (!existing || existing.resetAt <= now) {
+    anonRateLimitStore.set(ip, { count: 1, resetAt: now + ANON_WINDOW_MS });
+    return { allowed: true, resetAt: now + ANON_WINDOW_MS };
+  }
+
+  if (existing.count >= ANON_MAX_REQUESTS) {
+    return { allowed: false, resetAt: existing.resetAt };
+  }
+
+  existing.count += 1;
+  return { allowed: true, resetAt: existing.resetAt };
+}
+
 function getRequestIp(req: Request) {
   const forwardedFor = req.headers.get("x-forwarded-for");
   if (forwardedFor) {
@@ -1168,10 +1191,14 @@ function getUsagePeriodKey(date = new Date()) {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
+const ADMIN_USER_IDS = ["fb392988-b34a-44a4-8823-b27abb7bfe06"];
+
 function resolveUsageTier(input: {
   userScope?: "admin" | "guest" | "personal" | "user";
   existingUsageStats?: OpenLuraUsageStats | null;
+  userId?: string | null;
 }) {
+  if (input.userId && ADMIN_USER_IDS.includes(input.userId)) return "admin";
   if (input.userScope === "admin") return "admin";
   if (input.existingUsageStats?.tier === "pro") return "pro";
   return "free";
@@ -1183,6 +1210,7 @@ function buildUpdatedUsageStats(input: {
   usedWebSearch: boolean;
   usedImage: boolean;
   userScope?: "admin" | "guest" | "personal" | "user";
+  userId?: string | null;
 }) {
   const now = new Date();
   const periodKey = getUsagePeriodKey(now);
@@ -1200,6 +1228,7 @@ function buildUpdatedUsageStats(input: {
         tier: resolveUsageTier({
           userScope: input.userScope,
           existingUsageStats: existing,
+          userId: input.userId,
         }),
       }
     : {
@@ -1212,6 +1241,7 @@ function buildUpdatedUsageStats(input: {
         tier: resolveUsageTier({
           userScope: input.userScope,
           existingUsageStats: existing,
+          userId: input.userId,
         }),
       };
 
@@ -2796,6 +2826,23 @@ export async function POST(req: Request) {
       ? requestIdentity.userId
       : null;
 
+  const ip = getRequestIp(req);
+  const anonLimit = checkAnonRateLimit(ip, !!authenticatedUserId);
+
+  if (!anonLimit.allowed) {
+    const resetInHours = Math.ceil((anonLimit.resetAt - Date.now()) / (1000 * 60 * 60));
+    return new Response(
+      `Je hebt je limiet van ${ANON_MAX_REQUESTS} berichten bereikt. Meld je aan voor meer gebruik of wacht ${resetInHours} uur.`,
+      {
+        status: 429,
+        headers: buildNoStoreTextHeaders({
+          "X-OpenLura-Limit-Type": "anon_window",
+          "Retry-After": String(Math.ceil((anonLimit.resetAt - Date.now()) / 1000)),
+        }),
+      }
+    );
+  }
+
   const {
     personalEnvRequested,
     isPersonalEnvironment,
@@ -3513,6 +3560,7 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
       usedWebSearch: shouldUseWebSearch,
       usedImage: !!image,
       userScope,
+      userId: personalUserId,
     });
 
     const usageLimitSnapshot = getUsageLimitSnapshot({
@@ -3522,7 +3570,8 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
     const shouldBlockForUsageLimit =
       isPersonalEnvironment &&
       usageLimitSnapshot.exceeded &&
-      userScope !== "admin";
+      userScope !== "admin" &&
+      !(personalUserId && ADMIN_USER_IDS.includes(personalUserId));
 
     if (shouldBlockForUsageLimit) {
       if (personalUserId && accessToken) {

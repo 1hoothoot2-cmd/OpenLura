@@ -288,6 +288,32 @@ function buildCacheKey(input: {
   });
 }
 
+function detectInputLanguage(text?: string): string {
+  if (!text || text.trim().length < 3) return "en";
+
+  const t = text.toLowerCase();
+
+  const patterns: [string, RegExp][] = [
+    ["nl", /\b(de|het|een|en|van|is|dat|wat|hoe|waar|waarom|niet|ook|maar|voor|met|zijn|ik|je|jij|wij|ze|dit|nog|wel|kan|kun|wil|mag|moet|ben|was|heeft|hebben|wordt|worden|worden|worden|dan|dus|want|als|bij|door|over|uit|naar|al|zo|er|om|nu|toen|veel|meer|minder|graag|alles|niets|iets|hier|daar|jullie|ons|onze|mijn|jouw|hun|haar|zijn)\b/g],
+    ["fr", /\b(le|la|les|un|une|des|et|est|pas|que|qui|dans|pour|sur|avec|au|du|je|tu|il|elle|nous|vous|ils|elles|mon|ton|son|mais|ou|donc|ni|car|ce|se|ne|en|y|très|bien|plus|moins|tout|tous|toute|aussi|même|autre|leurs|leur|cette|cet|comme|quoi|quand|où|comment|pourquoi)\b/g],
+    ["de", /\b(der|die|das|ein|eine|und|ist|nicht|es|ich|du|er|sie|wir|ihr|sie|mein|dein|sein|aber|oder|wenn|weil|wie|was|wer|wo|warum|auch|noch|schon|sehr|mehr|gut|alle|kein|keine|einem|einer|haben|hat|wird|werden|wurde|sind|war|mit|für|auf|aus|nach|von|zu|an|im|am)\b/g],
+    ["es", /\b(el|la|los|las|un|una|y|es|no|que|de|en|con|por|para|su|sus|lo|le|les|me|te|se|mi|tu|si|más|muy|todo|también|pero|como|cuando|donde|hay|del|al|qué|cómo|quién|cuándo|porque|este|esta|estos|estas|ser|estar|tiene|tienen|han|fue|era)\b/g],
+    ["pt", /\b(o|a|os|as|um|uma|e|é|não|que|de|em|com|por|para|seu|sua|me|te|se|mi|tu|si|mais|muito|todo|também|mas|como|quando|onde|há|do|da|dos|das|ao|às|que|quem|porque|este|esta|estes|estas|ser|estar|tem|têm|foi|era)\b/g],
+  ];
+
+  let best = { lang: "en", score: 0 };
+
+  for (const [lang, pattern] of patterns) {
+    const matches = t.match(pattern);
+    const score = matches ? matches.length : 0;
+    if (score > best.score) {
+      best = { lang, score };
+    }
+  }
+
+  return best.score >= 2 ? best.lang : "en";
+}
+
 function applyFeedbackWeighting(input: {
   personal: any[];
   global: any[];
@@ -2810,6 +2836,8 @@ export async function POST(req: Request) {
     recentMessages,
   } = body;
 
+  const detectedLanguage = detectInputLanguage(message);
+
   if (!message && !image) {
     return new Response("Empty request", {
       status: 400,
@@ -4216,6 +4244,7 @@ ${aiText}`,
       headers: buildNoStoreTextHeaders({
         "X-OpenLura-Variant": responseVariant,
         "X-OpenLura-Sources": encodeURIComponent(JSON.stringify(sources)),
+        "X-OpenLura-Lang": detectedLanguage,
         ...buildRateLimitHeaders(rateLimit),
         ...buildUsageHeaders(usageLimitSnapshot),
       }),

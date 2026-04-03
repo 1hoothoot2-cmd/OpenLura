@@ -14,7 +14,11 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "OpenLura",
-  description: "AI chat app",
+  description: "AI that learns how you work.",
+  icons: {
+    icon: "/openlura-logo.png",
+    apple: "/openlura-logo.png",
+  },
 };
 
 export default function RootLayout({
