@@ -3890,9 +3890,20 @@ updated[index].messages[
                   </div>
                 </div>
                 {isPersonalRoute ? (
-                  <a href="/#plans" className="shrink-0 rounded-full border border-blue-300/20 bg-blue-400/14 px-3 py-1.5 text-[11px] font-medium text-blue-100 transition-colors hover:bg-blue-400/22 hover:text-white">
-                    Bekijk Go →
-                  </a>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const res = await fetch("/api/stripe/checkout", { method: "POST", credentials: "include" });
+                        if (res.status === 401) { window.location.href = "/persoonlijke-omgeving"; return; }
+                        const data = await res.json();
+                        if (data.url) window.location.href = data.url;
+                      } catch {}
+                    }}
+                    className="shrink-0 rounded-full border border-blue-300/20 bg-blue-400/14 px-3 py-1.5 text-[11px] font-medium text-blue-100 transition-colors hover:bg-blue-400/22 hover:text-white"
+                  >
+                    Upgrade naar Go →
+                  </button>
                 ) : (
                   <button
                     type="button"

@@ -3430,15 +3430,38 @@ updated[index].messages[
         )}
       </div>
 
-      <div className="border-t border-white/8 px-5 py-4 flex justify-between items-center">
-        <button type="button" onClick={() => { setShowDashboard(false); setShowSettingsBox(true); }}
-          className="text-[12px] text-white/42 hover:text-white/70 transition-colors">
-          Naar instellingen →
+      <div className="border-t border-white/8 px-5 py-4 space-y-3">
+        <button
+          type="button"
+          onClick={async () => {
+            setShowDashboard(false);
+            try {
+              const res = await fetch("/api/stripe/portal", {
+                method: "POST",
+                credentials: "include",
+              });
+              if (res.ok) {
+                const data = await res.json();
+                if (data.url) window.location.href = data.url;
+              }
+            } catch (err) {
+              console.error("Portal error:", err);
+            }
+          }}
+          className="w-full rounded-2xl border border-blue-400/16 bg-blue-400/[0.04] px-4 py-2.5 text-sm text-blue-200/80 hover:border-blue-400/24 hover:bg-blue-400/[0.08] hover:text-blue-100 transition-all"
+        >
+          Manage subscription
         </button>
-        <button type="button" onClick={() => setShowDashboard(false)}
-          className="rounded-2xl border border-white/8 bg-white/[0.04] px-4 py-2 text-sm text-white/60 hover:text-white/80 transition-colors">
-          Sluiten
-        </button>
+        <div className="flex justify-between items-center">
+          <button type="button" onClick={() => { setShowDashboard(false); setShowSettingsBox(true); }}
+            className="text-[12px] text-white/42 hover:text-white/70 transition-colors">
+            Naar instellingen →
+          </button>
+          <button type="button" onClick={() => setShowDashboard(false)}
+            className="rounded-2xl border border-white/8 bg-white/[0.04] px-4 py-2 text-sm text-white/60 hover:text-white/80 transition-colors">
+            Sluiten
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -3844,8 +3867,8 @@ updated[index].messages[
                     {usage.used} / {usage.limit} berichten gebruikt ({Math.round(usage.percentage * 100)}%)
                   </div>
                 </div>
-                <a href="/login" className="shrink-0 rounded-full border border-amber-300/20 bg-amber-400/10 px-3 py-1.5 text-[11px] font-medium text-amber-200 transition-colors hover:bg-amber-400/16 hover:text-white">
-                  Upgrade →
+                <a href="/#plans" className="shrink-0 rounded-full border border-amber-300/20 bg-amber-400/10 px-3 py-1.5 text-[11px] font-medium text-amber-200 transition-colors hover:bg-amber-400/16 hover:text-white">
+                  Bekijk plannen →
                 </a>
               </div>
             </div>
@@ -3856,18 +3879,31 @@ updated[index].messages[
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="font-semibold text-blue-100">
-                    {isPersonalRoute ? "Limiet bereikt" : "Gratis berichten op"}
+                    {isPersonalRoute
+                      ? upgradeNotice.limitType === "window"
+                        ? "Even pauzeren ☕"
+                        : "Maandlimiet bereikt"
+                      : "Gratis berichten op"}
                   </div>
                   <div className="mt-1 text-[12px] text-blue-200/80 leading-5">
-                    {isPersonalRoute
-                      ? upgradeNotice.message
-                      : "Je hebt je gratis berichten gebruikt. Meld je aan voor meer."}
+                    {upgradeNotice.message}
                   </div>
                 </div>
                 {isPersonalRoute ? (
-                  <a href="/login" className="shrink-0 rounded-full border border-blue-300/20 bg-blue-400/10 px-3 py-1.5 text-[11px] font-medium text-blue-200 transition-colors hover:bg-blue-400/16 hover:text-white">
-                    Upgrade →
-                  </a>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const res = await fetch("/api/stripe/checkout", { method: "POST", credentials: "include" });
+                        if (res.status === 401) { window.location.href = "/persoonlijke-omgeving"; return; }
+                        const data = await res.json();
+                        if (data.url) window.location.href = data.url;
+                      } catch {}
+                    }}
+                    className="shrink-0 rounded-full border border-blue-300/20 bg-blue-400/14 px-3 py-1.5 text-[11px] font-medium text-blue-100 transition-colors hover:bg-blue-400/22 hover:text-white"
+                  >
+                    Upgrade naar Go →
+                  </button>
                 ) : (
                   <button
                     type="button"
