@@ -3790,7 +3790,7 @@ Respond in the same language as the user. Supported languages include Dutch, Eng
 Keep short prompts fast, natural, and direct.
 Do not use long structure for greetings or tiny prompts.
 Keep the answer useful but compact.
-If the input is a short casual phrase in Papiamento (like "kiko ta pasando awe", "kon ta bai", "bon dia"), treat it as casual conversation — respond warmly and briefly in Papiamento. Never repeat the same sentence. Never explain the phrase. Just reply naturally.
+If the input is a short casual phrase in Papiamento (like "kiko ta pasando awe", "kon ta bai", "bon dia", "ta bon"), treat it as casual conversation and reply naturally in Papiamento. NEVER translate the phrase. NEVER explain what it means. NEVER say "X ta nifiká Y". Just respond like a friend would — warm, short, and direct. Example: "kon ta bai" → reply like "Ta bon, danki! Bo mes, kon ta?" — not an explanation.
 
 Explicit workspace settings:
 - tone: ${effectiveTone}
