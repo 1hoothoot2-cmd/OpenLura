@@ -4251,6 +4251,22 @@ updated[index].messages[
                   <div className="mt-1 text-[12px] text-blue-200/80 leading-5">
                     {upgradeNotice.message}
                   </div>
+                  {!isPersonalRoute && upgradeNotice.limitType === "anon_window" && (() => {
+                    try {
+                      const raw = localStorage.getItem(ANON_STORAGE_KEY);
+                      if (!raw) return null;
+                      const parsed = JSON.parse(raw);
+                      const resetAt = parsed?.resetAt;
+                      if (!resetAt || resetAt <= Date.now()) return null;
+                      const resetTime = new Date(resetAt);
+                      const resetLabel = resetTime.toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" });
+                      return (
+                        <div className="mt-1.5 text-[11px] text-blue-300/70">
+                          🕐 Weer gratis chatten om {resetLabel}
+                        </div>
+                      );
+                    } catch { return null; }
+                  })()}
                 </div>
                 {isPersonalRoute ? (
                   <button
