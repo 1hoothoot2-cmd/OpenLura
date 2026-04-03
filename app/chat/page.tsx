@@ -581,6 +581,8 @@ const incrementAnonUsage = (): { count: number; resetAt: number } => {
   } catch { return { count: 0, resetAt: 0 }; }
 };
 
+const [isWaitingForFirstToken, setIsWaitingForFirstToken] = useState(false);
+
 const [usage, setUsage] = useState<{
   used: number;
   limit: number;
@@ -3152,6 +3154,7 @@ updated[index].messages.push({
 });
 
 setChats([...updated]);
+setIsWaitingForFirstToken(true);
 
     if (imageToSend) {
     }
@@ -3365,6 +3368,10 @@ updated[index].messages[
 
         aiText += chunk;
 
+        if (isWaitingForFirstToken) {
+          setIsWaitingForFirstToken(false);
+        }
+
         if (!rafScheduled) {
           rafScheduled = true;
           requestAnimationFrame(flushToUI);
@@ -3399,6 +3406,7 @@ updated[index].messages[
 
     setChats([...updated]);
 
+    setIsWaitingForFirstToken(false);
     setStreamController(null);
 
     // ✅ MEMORY SAVE
@@ -4469,7 +4477,9 @@ updated[index].messages[
             style={{ animationDelay: "240ms" }}
           />
         </span>
-        <span className="text-sm">{t("thinking")}</span>
+        <span className="text-sm">
+          {isWaitingForFirstToken ? t("thinking") : "..."}
+        </span>
       </span>
     ) : (
       <>
