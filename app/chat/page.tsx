@@ -3844,8 +3844,8 @@ updated[index].messages[
                     {usage.used} / {usage.limit} berichten gebruikt ({Math.round(usage.percentage * 100)}%)
                   </div>
                 </div>
-                <a href="/login" className="shrink-0 rounded-full border border-amber-300/20 bg-amber-400/10 px-3 py-1.5 text-[11px] font-medium text-amber-200 transition-colors hover:bg-amber-400/16 hover:text-white">
-                  Upgrade →
+                <a href="/pricing" className="shrink-0 rounded-full border border-amber-300/20 bg-amber-400/10 px-3 py-1.5 text-[11px] font-medium text-amber-200 transition-colors hover:bg-amber-400/16 hover:text-white">
+                  Bekijk plannen →
                 </a>
               </div>
             </div>
@@ -3856,15 +3856,19 @@ updated[index].messages[
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="font-semibold text-blue-100">
-                    {isPersonalRoute ? "Limiet bereikt" : "Gratis berichten op"}
+                    {isPersonalRoute
+                      ? upgradeNotice.limitType === "window"
+                        ? "Even pauzeren ☕"
+                        : "Maandlimiet bereikt"
+                      : "Gratis berichten op"}
                   </div>
                   <div className="mt-1 text-[12px] text-blue-200/80 leading-5">
                     {upgradeNotice.message}
                   </div>
                 </div>
                 {isPersonalRoute ? (
-                  <a href="/login" className="shrink-0 rounded-full border border-blue-300/20 bg-blue-400/10 px-3 py-1.5 text-[11px] font-medium text-blue-200 transition-colors hover:bg-blue-400/16 hover:text-white">
-                    Upgrade →
+                  <a href="/pricing" className="shrink-0 rounded-full border border-blue-300/20 bg-blue-400/14 px-3 py-1.5 text-[11px] font-medium text-blue-100 transition-colors hover:bg-blue-400/22 hover:text-white">
+                    Bekijk Go →
                   </a>
                 ) : (
                   <button
