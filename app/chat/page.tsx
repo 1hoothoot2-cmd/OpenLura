@@ -32,7 +32,17 @@ export default function ChatPage() {
     ? "openlura_personal_memory"
     : makeUserBoundStorageKey("openlura_memory");
   const [personalStateLoaded, setPersonalStateLoaded] = useState(false);
-  const [detectedLang, setDetectedLang] = useState("en");
+  const [detectedLang, setDetectedLang] = useState(() => {
+    if (typeof navigator === "undefined") return "en";
+    const raw = (navigator.language || "en").toLowerCase();
+    if (raw.startsWith("nl")) return "nl";
+    if (raw.startsWith("de")) return "de";
+    if (raw.startsWith("fr")) return "fr";
+    if (raw.startsWith("es")) return "es";
+    if (raw.startsWith("pt")) return "pt";
+    if (raw.startsWith("pap")) return "pap";
+    return "en";
+  });
 
   const t = (key: string) => {
     const translations: Record<string, Record<string, string>> = {
