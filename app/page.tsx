@@ -676,12 +676,21 @@ export default function HomePage() {
                 </div>
 
                 <div className="mt-6">
-                  <a
-                    href="/persoonlijke-omgeving"
+                    <button
+                    type="button"
+                    onClick={async () => {
+                      const res = await fetch("/api/stripe/checkout", { method: "POST" });
+                      if (res.status === 401) {
+                        window.location.href = "/persoonlijke-omgeving";
+                        return;
+                      }
+                      const data = await res.json();
+                      if (data.url) window.location.href = data.url;
+                    }}
                     className="inline-flex w-full items-center justify-center rounded-[18px] border border-blue-400/20 bg-blue-400/10 px-5 py-3 text-sm font-medium text-blue-200 transition-[background-color,border-color,color] duration-200 hover:border-blue-400/30 hover:bg-blue-400/16 hover:text-white"
                   >
                     Get started with Go
-                  </a>
+                  </button>
                 </div>
               </div>
             </div>
