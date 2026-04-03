@@ -49,6 +49,7 @@ type Props = {
   onDownloadActiveChatMarkdown?: () => void;
   userTier?: "free" | "pro" | "admin";
   onRenameChat?: (id: number, title: string) => void;
+  userName?: string | null;
 };
 
 function AnonUsageIndicator() {
@@ -111,6 +112,7 @@ export default function Sidebar({
   onDownloadActiveChatMarkdown,
   userTier = "free",
   onRenameChat,
+  userName,
 }: Props) {
   const sidebarRef = useRef<HTMLDivElement | null>(null);
 const promptMessageTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -681,6 +683,11 @@ const [chatTitleDraft, setChatTitleDraft] = useState("");
                 <div className="text-[10px] uppercase tracking-[0.18em] text-white/32">
                   Adaptive AI workspace
                 </div>
+                {userName && (
+                  <div className="mt-0.5 text-[11px] text-white/46">
+                    {userName}
+                  </div>
+                )}
               </div>
             </div>
 
