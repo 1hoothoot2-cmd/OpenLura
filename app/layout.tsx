@@ -73,6 +73,20 @@ export default async function RootLayout({
     >
       <head>
         <meta name="description" content={description} />
+        <script
+          async
+          src="https://www.googletagmanager.com/gtag/js?id=AW-16726641191"
+        />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              window.dataLayer = window.dataLayer || [];
+              function gtag(){dataLayer.push(arguments);}
+              gtag('js', new Date());
+              gtag('config', 'AW-16726641191');
+            `,
+          }}
+        />
       </head>
       <body className="min-h-full flex flex-col">
         {children}
