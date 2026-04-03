@@ -299,6 +299,7 @@ function detectInputLanguage(text?: string): string {
     ["de", /\b(der|die|das|ein|eine|und|ist|nicht|es|ich|du|er|sie|wir|ihr|sie|mein|dein|sein|aber|oder|wenn|weil|wie|was|wer|wo|warum|auch|noch|schon|sehr|mehr|gut|alle|kein|keine|einem|einer|haben|hat|wird|werden|wurde|sind|war|mit|für|auf|aus|nach|von|zu|an|im|am)\b/g],
     ["es", /\b(el|la|los|las|un|una|y|es|no|que|de|en|con|por|para|su|sus|lo|le|les|me|te|se|mi|tu|si|más|muy|todo|también|pero|como|cuando|donde|hay|del|al|qué|cómo|quién|cuándo|porque|este|esta|estos|estas|ser|estar|tiene|tienen|han|fue|era)\b/g],
     ["pt", /\b(o|a|os|as|um|uma|e|é|não|que|de|em|com|por|para|seu|sua|me|te|se|mi|tu|si|mais|muito|todo|também|mas|como|quando|onde|há|do|da|dos|das|ao|às|que|quem|porque|este|esta|estes|estas|ser|estar|tem|têm|foi|era)\b/g],
+    ["pap", /\b(danki|pabien|bon|bini|dikon|kiko|unda|masha|awe|ayera|mainta|anochi|kuanto|kua|kual|tur|hopi|loke|ami|abo|dje|nos|boso|nan|tin|tabata|lo|por|mester|kier|sabi|bisa|papia|kuminda|kas|kaminda|rei|pues|manera)\b/g],
   ];
 
   let best = { lang: "en", score: 0 };
