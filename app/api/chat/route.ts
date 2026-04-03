@@ -2407,15 +2407,16 @@ type OpenLuraRuntimePromptBuilderInput = {
   responseVariant: string;
   feedbackContext: string;
   personalFeedbackContext: string;
+  detectedLanguage: string;
 };
 
-function buildOpenLuraBasePrompt() {
+function buildOpenLuraBasePrompt(detectedLanguage: string = "en") {
   return `You are OpenLura.
 
 You improve yourself based on user feedback.
 
 CRITICAL RULES:
-- Detect the language of the user message and ALWAYS respond in that same language
+- The user's detected language is: ${detectedLanguage}. ALWAYS respond in this language. Do not switch languages mid-response.
 - NEVER mix languages
 - NEVER write "(blank line)"
 - Learn from feedback: avoid disliked responses and reinforce liked ones
@@ -2509,12 +2510,12 @@ function buildOpenLuraRuntimePrompt(input: OpenLuraRuntimePromptBuilderInput) {
   if (input.isLightPrompt) {
     return `You are OpenLura.
 
-Respond in the same language as the user. Supported languages include Dutch, English, French, German, Spanish, Portuguese, and Papiamento (spoken on Curaçao, Aruba, and Bonaire). If the user writes in Papiamento, always respond in Papiamento — never switch to Spanish or Portuguese.
+Respond in the detected language: ${input.detectedLanguage}. Supported languages include Dutch, English, French, German, Spanish, Portuguese, and Papiamento (spoken on Curaçao, Aruba, and Bonaire). If the detected language is "pap", always respond in Papiamento — never switch to Spanish or Portuguese.
 Be clear, useful, and direct.
 Avoid long structured sections unless needed.`;
   }
 
-  const basePrompt = buildOpenLuraBasePrompt();
+  const basePrompt = buildOpenLuraBasePrompt(input.detectedLanguage);
 
   return `
 ${basePrompt}
@@ -4057,6 +4058,7 @@ Do not use web search for this path.`,
       responseVariant,
       feedbackContext,
       personalFeedbackContext,
+      detectedLanguage,
     }),
       input: [
         {
