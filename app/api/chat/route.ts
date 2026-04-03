@@ -1269,7 +1269,7 @@ function getUsageLimitSnapshot(input: {
       ? { monthlyRequests: Infinity, monthlyWebSearches: Infinity, windowRequests: Infinity }
       : tier === "pro"
       ? { monthlyRequests: 500, monthlyWebSearches: Infinity, windowRequests: Infinity }
-      : { monthlyRequests: 3, monthlyWebSearches: 50, windowRequests: 10
+      : { monthlyRequests: 150, monthlyWebSearches: 50, windowRequests: 10
        };
 
   const requestCount = input.usageStats?.requestCount || 0;
