@@ -1134,6 +1134,11 @@ export default function HomePage() {
               0 0 22px rgba(59, 130, 246, 0.28);
           }
         `}</style>
+        <div className="mt-8 pb-8 text-center">
+          <a href="/privacy" className="text-[12px] text-white/30 hover:text-white/60 transition-colors duration-200">
+            Privacy policy
+          </a>
+        </div>
     </main>
   );
 }
