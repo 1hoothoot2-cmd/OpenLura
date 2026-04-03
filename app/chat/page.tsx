@@ -520,7 +520,7 @@ const handleSavePrompt = async (explicitContent?: string) => {
   limitType: "monthly",
 });
 
-const ANON_MSG_LIMIT = 3;
+const ANON_MSG_LIMIT = 5;
 const ANON_STORAGE_KEY = "openlura_anon_usage";
 const ANON_WINDOW_MS = 5 * 60 * 60 * 1000; // 5 uur
 
@@ -2642,7 +2642,7 @@ Do not mention that this is a new attempt.`,
         const resetLabel = resetTime.toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" });
         setUpgradeNotice({
           visible: true,
-          message: `Je kunt weer chatten om ${resetLabel}, of meld je aan voor onbeperkt chatten.`,
+          message: `Je hebt ${ANON_MSG_LIMIT} gratis berichten gebruikt. Meld je aan voor onbeperkt chatten — het is gratis.`,
           tier: "free",
           limitType: "anon_window",
         });
@@ -4108,6 +4108,29 @@ updated[index].messages[
               )}
             </div>
           </div>
+
+          {!isPersonalRoute && (() => {
+            try {
+              const raw = localStorage.getItem("openlura_anon_usage");
+              if (!raw) return null;
+              const parsed = JSON.parse(raw);
+              const now = Date.now();
+              if (!parsed.resetAt || parsed.resetAt <= now) return null;
+              const count = parsed.count || 0;
+              if (count === 0) return null;
+              return (
+                <div className="mx-4 mt-3 flex items-center gap-3">
+                  <div className="flex-1 h-1 rounded-full bg-white/8 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${count >= ANON_MSG_LIMIT ? "bg-red-400/60" : "bg-[#3b82f6]/50"}`}
+                      style={{ width: `${Math.min((count / ANON_MSG_LIMIT) * 100, 100)}%` }}
+                    />
+                  </div>
+                  <span className="shrink-0 text-[11px] text-white/36">{count}/{ANON_MSG_LIMIT} berichten</span>
+                </div>
+              );
+            } catch { return null; }
+          })()}
 
           {usage && usage.percentage >= 0.8 && !upgradeNotice.visible && (
             <div className="mx-4 mt-4 rounded-[24px] border border-amber-300/12 bg-amber-500/[0.065] px-4 py-3 text-sm text-amber-100 shadow-[0_10px_22px_rgba(0,0,0,0.10)] backdrop-blur-xl">
