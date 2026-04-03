@@ -17,7 +17,7 @@ const PERSONAL_ENV_WELCOME_MESSAGE =
 
 export default function ChatPage() {
   const pathname = usePathname();
-  const isPersonalRoute = pathname === "/persoonlijke-omgeving";
+  const isPersonalRoute = pathname === "/personal-workspace";
   const [userScopedStorageId, setUserScopedStorageId] = useState("");
 
   const makeUserBoundStorageKey = (baseKey: string) =>
@@ -2274,7 +2274,7 @@ const restoreDeletedChat = (chatId: number) => {
       setShowLoginBox(false);
       setLoginUsername("");
       setLoginPassword("");
-      window.location.href = "/persoonlijke-omgeving";
+      window.location.href = "/personal-workspace";
     } catch {
       setLoginError("Login failed");
     } finally {
@@ -2317,7 +2317,7 @@ const restoreDeletedChat = (chatId: number) => {
 
       setShowLoginBox(false);
       setRegisterEmail(""); setRegisterPassword(""); setRegisterPasswordConfirm("");
-      window.location.href = "/persoonlijke-omgeving";
+      window.location.href = "/personal-workspace";
     } catch { setRegisterError("Registratie mislukt"); }
     finally { setRegisterLoading(false); }
   };
@@ -2642,7 +2642,7 @@ Do not mention that this is a new attempt.`,
         const resetLabel = resetTime.toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" });
         setUpgradeNotice({
           visible: true,
-          message: `Je hebt ${ANON_MSG_LIMIT} gratis berichten gebruikt. Meld je aan voor onbeperkt chatten — het is gratis.`,
+          message: `Je hebt ${ANON_MSG_LIMIT} gratis berichten gebruikt. Meld je aan voor onbeperkt chatten het is gratis ! `,
           tier: "free",
           limitType: "anon_window",
         });
@@ -4169,7 +4169,7 @@ updated[index].messages[
                     onClick={async () => {
                       try {
                         const res = await fetch("/api/stripe/checkout", { method: "POST", credentials: "include" });
-                        if (res.status === 401) { window.location.href = "/persoonlijke-omgeving"; return; }
+                        if (res.status === 401) { window.location.href = "/personal-workspace"; return; }
                         const data = await res.json();
                         if (data.url) window.location.href = data.url;
                       } catch {}
