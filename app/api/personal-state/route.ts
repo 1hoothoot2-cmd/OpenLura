@@ -240,6 +240,9 @@ function normalizePersonalProfile(profile: unknown): OpenLuraPersonalProfile {
       ? candidate.memoryEnabled
       : true;
 
+  const name =
+    typeof candidate.name === "string" ? candidate.name.trim().slice(0, 80) : "";
+
   const preferences = Array.isArray(candidate.preferences)
     ? candidate.preferences
         .filter((item) => typeof item === "string")
@@ -253,6 +256,7 @@ function normalizePersonalProfile(profile: unknown): OpenLuraPersonalProfile {
     style,
     memoryEnabled,
     preferences,
+    ...(name ? { name } : {}),
   };
 }
 

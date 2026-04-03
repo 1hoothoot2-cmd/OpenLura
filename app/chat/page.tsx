@@ -34,6 +34,8 @@ export default function ChatPage() {
   const [personalStateLoaded, setPersonalStateLoaded] = useState(false);
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [userName, setUserName] = useState<string | null>(null);
+  const [showNamePopup, setShowNamePopup] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
 
   const [detectedLang, setDetectedLang] = useState(() => {
     if (typeof navigator === "undefined") return "en";
@@ -267,6 +269,33 @@ const applyComposerInput = (
   if (savePromptError) {
     setSavePromptError("");
   }
+};
+
+const saveUserName = async (name: string) => {
+  const trimmed = name.trim();
+  if (!trimmed) return;
+  setUserName(trimmed);
+  setShowNamePopup(false);
+
+  // Sla op in profile
+  try {
+    await fetch("/api/personal-state", {
+      method: "POST",
+      headers: getOpenLuraRequestHeaders(true, { personalEnv: true, includeUserId: false }),
+      credentials: "same-origin",
+      body: JSON.stringify({
+        chats,
+        memory,
+        profile: {
+          tone: chatSettings.tone,
+          style: chatSettings.style,
+          memoryEnabled: chatSettings.memoryEnabled,
+          preferences: settingsPreferences,
+          name: trimmed,
+        },
+      }),
+    });
+  } catch {}
 };
 
 const handleUseAsInput = (content: string) => {
@@ -824,6 +853,14 @@ const isReplaceableStarterChat = (chat: any) => {
               if (Array.isArray(p.preferences)) {
                 setSettingsPreferences(p.preferences);
               }
+              if (typeof p.name === "string" && p.name.trim()) {
+                setUserName(p.name.trim());
+              } else {
+                // Geen naam bekend → popup tonen
+                setShowNamePopup(true);
+              }
+            } else {
+              setShowNamePopup(true);
             }
 
             const normalizedChats = serverChats.map((chat: any) => ({
@@ -1180,6 +1217,7 @@ const shouldSkipPersonalStateSync =
                 style: chatSettings.style,
                 memoryEnabled: chatSettings.memoryEnabled,
                 preferences: settingsPreferences,
+                ...(userName ? { name: userName } : {}),
               },
             }),
           });
@@ -4876,6 +4914,69 @@ updated[index].messages[
           >
             Log in
           </button>
+        </div>
+      )}
+
+      {showNamePopup && isPersonalRoute && (
+        <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-[380px] rounded-[28px] border border-white/10 bg-[#0a0f1d]/98 shadow-[0_22px_60px_rgba(0,0,0,0.40)] backdrop-blur-2xl overflow-hidden">
+            <div className="px-6 py-6">
+              <div className="text-[11px] uppercase tracking-[0.16em] text-white/38 mb-2">
+                {detectedLang === "nl" ? "Persoonlijke omgeving" : "Personal workspace"}
+              </div>
+              <h2 className="text-xl font-semibold tracking-tight text-white/95 mb-1">
+                {detectedLang === "nl" ? "Hoe mag ik je noemen?" :
+                 detectedLang === "de" ? "Wie darf ich dich nennen?" :
+                 detectedLang === "fr" ? "Comment puis-je t'appeler ?" :
+                 detectedLang === "es" ? "¿Cómo te llamas?" :
+                 "What should I call you?"}
+              </h2>
+              <p className="text-sm text-white/46 mb-5">
+                {detectedLang === "nl" ? "Je naam wordt onthouden en gebruikt in je persoonlijke workspace." :
+                 detectedLang === "de" ? "Dein Name wird gespeichert und in deinem Workspace verwendet." :
+                 detectedLang === "fr" ? "Ton prénom sera mémorisé et utilisé dans ton espace personnel." :
+                 detectedLang === "es" ? "Tu nombre se guardará y se usará en tu espacio personal." :
+                 "Your name will be remembered and used in your personal workspace."}
+              </p>
+              <input
+                autoFocus
+                type="text"
+                value={nameDraft}
+                onChange={(e) => setNameDraft(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && nameDraft.trim()) saveUserName(nameDraft); }}
+                placeholder={
+                  detectedLang === "nl" ? "Je voornaam..." :
+                  detectedLang === "de" ? "Dein Vorname..." :
+                  detectedLang === "fr" ? "Ton prénom..." :
+                  detectedLang === "es" ? "Tu nombre..." :
+                  "Your first name..."
+                }
+                className="w-full rounded-[18px] border border-white/10 bg-white/[0.05] px-4 py-3 text-white/95 outline-none placeholder:text-white/28 transition-[border-color] duration-200 focus:border-white/20 mb-4"
+                maxLength={40}
+              />
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowNamePopup(false)}
+                  className="flex-1 rounded-[18px] border border-white/8 bg-white/[0.04] p-3 text-sm text-white/60 hover:text-white/80 transition-colors"
+                >
+                  {detectedLang === "nl" ? "Overslaan" : "Skip"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { if (nameDraft.trim()) saveUserName(nameDraft); }}
+                  disabled={!nameDraft.trim()}
+                  className="flex-1 rounded-[18px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] p-3 text-sm text-white shadow-[0_10px_24px_rgba(59,130,246,0.24)] hover:brightness-110 disabled:opacity-50 transition-all"
+                >
+                  {detectedLang === "nl" ? "Opslaan" :
+                   detectedLang === "de" ? "Speichern" :
+                   detectedLang === "fr" ? "Enregistrer" :
+                   detectedLang === "es" ? "Guardar" :
+                   "Save"}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
