@@ -1124,8 +1124,14 @@ const hasOnlyPersonalFallbackPlaceholder =
   safeChats[0].messages[0]?.role === "ai" &&
   safeChats[0].messages[0]?.content === personalPlaceholderMessage;
 
+const hasAllChatsDeleted =
+  safeChats.length > 0 &&
+  safeChats.every((c: any) => c.deleted === true);
+
 const shouldSkipPersonalStateSync =
-  hasOnlyPersonalFallbackPlaceholder && memory.length === 0;
+  hasOnlyPersonalFallbackPlaceholder &&
+  memory.length === 0 &&
+  !hasAllChatsDeleted;
 
     if (shouldSkipPersonalStateSync) {
       return;
