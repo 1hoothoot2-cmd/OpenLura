@@ -38,5 +38,11 @@ export async function POST(req: Request) {
   });
 
   const session = await res.json();
+  
+  if (!res.ok) {
+    console.error("Stripe portal error:", JSON.stringify(session));
+    return new Response("Failed to create portal session", { status: 500 });
+  }
+
   return Response.json({ url: session.url });
 }
