@@ -3035,7 +3035,8 @@ IMPORTANT:
     // ✅ AUTO TITLE
     if (updated[index].messages.length === 1) {
       if (rawInputToSend.trim()) {
-        updated[index].title = rawInputToSend.trim().slice(0, 30);
+        const words = rawInputToSend.trim().split(/\s+/);
+        updated[index].title = words.slice(0, 5).join(" ");
       } else if (imageToSend) {
         updated[index].title = "Afbeelding";
       }
