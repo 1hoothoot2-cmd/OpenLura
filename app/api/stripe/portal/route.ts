@@ -12,7 +12,6 @@ export async function POST(req: Request) {
 
   const userId = identity.identity.userId;
 
-  // Haal stripe_customer_id op uit Supabase
   const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
   const { data } = await supabase
     .from("openlura_personal_state")
