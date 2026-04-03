@@ -1381,51 +1381,43 @@ const shouldSkipPersonalStateSync =
     deleteTargetChatId,
   ]);
 
+  const isNearBottomRef = useRef(true);
+
   useEffect(() => {
   const el = messagesRef.current;
   if (!el) return;
 
   const handleViewportResize = () => {
     requestAnimationFrame(() => {
-      el.scrollTo({
-        top: el.scrollHeight,
-        behavior: "auto",
-      });
+      el.scrollTo({ top: el.scrollHeight, behavior: "auto" });
     });
   };
 
   window.addEventListener("resize", handleViewportResize);
+  return () => window.removeEventListener("resize", handleViewportResize);
+}, []);
 
-  const visibleChats = chats.filter(
-    (chat: any) => !chat.archived && !chat.deleted
-  );
+  useEffect(() => {
+  const el = messagesRef.current;
+  if (!el) return;
 
-  const resolvedActiveChat =
-    visibleChats.find((chat: any) => chat.id === activeChatId) ??
-    visibleChats[0] ??
-    null;
-
-  const lastMessage =
-    resolvedActiveChat?.messages?.[
-      (resolvedActiveChat?.messages?.length || 1) - 1
-    ] || null;
+  // Only auto-scroll if user is near the bottom
+  if (!isNearBottomRef.current) return;
 
   requestAnimationFrame(() => {
     el.scrollTo({
       top: el.scrollHeight,
-      behavior: lastMessage?.isStreaming ? "auto" : "smooth",
+      behavior: loading ? "auto" : "smooth",
     });
   });
-  return () => {
-    window.removeEventListener("resize", handleViewportResize);
-  };
-}, [activeChatId, chats, loading]);
+}, [activeChatId, loading, chats.find((c: any) => c.id === activeChatId)?.messages?.length]);
 
   useEffect(() => {
     const el = messagesRef.current;
     if (!el) return;
     const handleScroll = () => {
       const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+      isNearBottomRef.current = distanceFromBottom < 120;
       setShowScrollBottom(distanceFromBottom > 120);
     };
     el.addEventListener("scroll", handleScroll, { passive: true });
