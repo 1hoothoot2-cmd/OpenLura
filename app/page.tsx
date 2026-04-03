@@ -171,7 +171,7 @@ export default function HomePage() {
               href="/persoonlijke-omgeving"
               className="inline-flex h-12 w-full items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.04] px-6 text-sm font-medium text-white/88 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/30 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.99] sm:w-auto"
             >
-              Log in
+              Log in / Create account
             </Link>
 
             <Link
@@ -614,7 +614,7 @@ export default function HomePage() {
                   <div className="flex items-start gap-3">
                     <span className="mt-1 h-2 w-2 rounded-full bg-white/30" />
                     <p className="text-sm leading-6 text-white/46">
-                      150 berichten per maand
+                      150 messages per month
                     </p>
                   </div>
                 </div>
@@ -634,7 +634,7 @@ export default function HomePage() {
                   </div>
 
                   <span className="inline-flex items-center rounded-full border border-blue-400/20 bg-blue-400/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-blue-300">
-                    Binnenkort
+                    Coming soon
                   </span>
                 </div>
 
@@ -670,7 +670,7 @@ export default function HomePage() {
                   <div className="flex items-start gap-3">
                     <span className="mt-1 h-2 w-2 rounded-full bg-blue-300" />
                     <p className="text-sm leading-6 text-white/78">
-                      Onbeperkt berichten per maand
+                      Unlimited messages per month
                     </p>
                   </div>
                 </div>
@@ -680,7 +680,7 @@ export default function HomePage() {
                     href="/persoonlijke-omgeving"
                     className="inline-flex w-full items-center justify-center rounded-[18px] border border-blue-400/20 bg-blue-400/10 px-5 py-3 text-sm font-medium text-blue-200 transition-[background-color,border-color,color] duration-200 hover:border-blue-400/30 hover:bg-blue-400/16 hover:text-white"
                   >
-                    Binnenkort beschikbaar
+                    Coming soon
                   </a>
                 </div>
               </div>
@@ -908,7 +908,7 @@ export default function HomePage() {
                     href="/login"
                     className="inline-flex h-12 w-full items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.04] px-6 text-sm font-medium text-white/86 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/14 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.10)] active:scale-[0.99] sm:w-auto"
                   >
-                    Log in / Account aanmaken
+                    Log in / Create account
                   </Link>
 
                   <button
