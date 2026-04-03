@@ -28,8 +28,8 @@ const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const RATE_LIMIT_MAX_REQUESTS = 20;
 const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
 
-const ANON_WINDOW_MS = 8 * 60 * 60 * 1000; // 8 uur
-const ANON_MAX_REQUESTS = 3;
+const ANON_WINDOW_MS = 5 * 60 * 60 * 1000; // 5 uur
+const ANON_MAX_REQUESTS = 5;
 const anonRateLimitStore = new Map<string, { count: number; resetAt: number }>();
 
 function checkAnonRateLimit(ip: string, isAuthenticated: boolean): { allowed: boolean; resetAt: number } {

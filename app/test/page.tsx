@@ -3262,16 +3262,8 @@ setChats([...updated]);
         limitType,
       });
 
-      updated[index].messages[
-        updated[index].messages.length - 1
-      ] = {
-        ...updated[index].messages[
-          updated[index].messages.length - 1
-        ],
-        content: limitMessage,
-        isStreaming: false,
-        disableFeedback: true,
-      };
+      // Verwijder het "…" streaming bericht — notice in sidebar is genoeg
+      updated[index].messages.splice(updated[index].messages.length - 1, 1);
 
       setChats([...updated]);
       setStreamController(null);
