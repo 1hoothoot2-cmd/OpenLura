@@ -32,6 +32,8 @@ export default function ChatPage() {
     ? "openlura_personal_memory"
     : makeUserBoundStorageKey("openlura_memory");
   const [personalStateLoaded, setPersonalStateLoaded] = useState(false);
+  const [placeholderIndex, setPlaceholderIndex] = useState(0);
+
   const [detectedLang, setDetectedLang] = useState(() => {
     if (typeof navigator === "undefined") return "en";
     const raw = (navigator.language || "en").toLowerCase();
@@ -605,6 +607,7 @@ const [chatSettings, setChatSettings] = useState<{
   const latestChatsRef = useRef<any[]>([]);
   const latestActiveChatIdRef = useRef<number | null>(null);
   const [initialStateReady, setInitialStateReady] = useState(false);
+  const [showScrollBottom, setShowScrollBottom] = useState(false);
   const [openChatMenuId, setOpenChatMenuId] = useState<number | null>(null);
   const [openUserMessageMenuKey, setOpenUserMessageMenuKey] = useState<string | null>(null);
   const [openAiMessageMenuKey, setOpenAiMessageMenuKey] = useState<string | null>(null);
@@ -1351,8 +1354,36 @@ const shouldSkipPersonalStateSync =
 }, [activeChatId, chats, loading]);
 
   useEffect(() => {
+    const el = messagesRef.current;
+    if (!el) return;
+    const handleScroll = () => {
+      const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+      setShowScrollBottom(distanceFromBottom > 120);
+    };
+    el.addEventListener("scroll", handleScroll, { passive: true });
+    return () => el.removeEventListener("scroll", handleScroll);
+  }, [activeChatId, initialStateReady]);
+
+  useEffect(() => {
     resizeComposerTextarea();
   }, [input, image]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.innerWidth < 768) return;
+    if (!initialStateReady) return;
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+    });
+  }, [initialStateReady]);
+
+  const rotatingPlaceholders: Record<string, string[]> = {
+    nl: ["Stel een vraag...", "Schrijf een e-mail...", "Leg iets uit...", "Maak een plan..."],
+    de: ["Stell eine Frage...", "Schreib eine E-Mail...", "Erkläre etwas...", "Mach einen Plan..."],
+    fr: ["Posez une question...", "Écrivez un e-mail...", "Expliquez quelque chose...", "Faites un plan..."],
+    es: ["Haz una pregunta...", "Escribe un correo...", "Explica algo...", "Haz un plan..."],
+    en: ["Ask anything...", "Write an email...", "Explain something...", "Make a plan..."],
+  };
 
   useEffect(() => {
     if (!isPersonalRoute || !initialStateReady || !personalStateLoaded) return;
@@ -1671,6 +1702,11 @@ const activeMessages = Array.isArray(activeChat?.messages)
   : [];
 
 const renderedChatId = activeChat?.id ?? null;
+
+// eslint-disable-next-line react-hooks/exhaustive-deps
+
+// rotating placeholder effect (needs activeMessages)
+// eslint-disable-next-line react-hooks/exhaustive-deps
 
 const getFeedbackUiKey = (chatId: number | null, msgIndex: number) =>
   `${chatId ?? "no-chat"}-${msgIndex}`;
@@ -3969,7 +4005,7 @@ updated[index].messages[
       )}
 
       <div className="flex min-w-0 min-h-0 flex-1 items-stretch justify-start pt-0 md:h-screen md:p-4">
-        <div className="mx-auto flex h-full min-h-0 w-full min-w-0 max-w-2xl flex-col border border-white/8 bg-white/[0.042] shadow-[0_20px_56px_rgba(0,0,0,0.20)] backdrop-blur-2xl md:min-h-0 md:rounded-[28px] xl:max-w-[920px]">
+        <div className="relative mx-auto flex h-full min-h-0 w-full min-w-0 max-w-2xl flex-col border border-white/8 bg-white/[0.042] shadow-[0_20px_56px_rgba(0,0,0,0.20)] backdrop-blur-2xl md:min-h-0 md:rounded-[28px] xl:max-w-[920px]">
 
           <div className="flex items-center justify-between gap-3 border-b border-white/8 pl-16 pr-4 py-3 md:px-6">
             <div className="hidden md:flex min-w-0 items-center gap-3">
@@ -4591,6 +4627,21 @@ updated[index].messages[
             )}
           </div>
 
+                                        {showScrollBottom && (activeChat?.messages?.length ?? 0) > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                messagesRef.current?.scrollTo({ top: messagesRef.current.scrollHeight, behavior: "smooth" });
+              }}
+              className="absolute bottom-24 right-4 z-[50] flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-[#0b1020]/90 text-white/60 shadow-[0_8px_18px_rgba(0,0,0,0.24)] backdrop-blur-xl ol-interactive transition-[transform,opacity,background-color] duration-200 hover:bg-white/[0.08] hover:text-white active:scale-95 md:bottom-20 md:right-6"
+              aria-label="Scroll to bottom"
+            >
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 5v14M5 12l7 7 7-7"/>
+              </svg>
+            </button>
+          )}
+
                                         <div
   className={`${
     activeMessages.length === 0
@@ -4715,7 +4766,7 @@ updated[index].messages[
     upgradeNotice.visible
       ? t("placeholder_limit")
       : activeMessages.length === 0
-        ? t("placeholder_empty")
+        ? (rotatingPlaceholders[detectedLang] ?? rotatingPlaceholders["en"])[placeholderIndex]
         : t("placeholder_active")
   }
   enterKeyHint="send"
