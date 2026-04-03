@@ -92,12 +92,12 @@ export default function ChatPage() {
         en: userName ? `Hello ${userName} 👋` : "What do you want to work on today?",
       },
       welcome_sub: {
-        nl: "Stel een vraag, upload een afbeelding, of ga verder met een eerdere chat.",
-        de: "Stelle eine Frage, lade ein Bild hoch oder führe ein früheres Gespräch fort.",
-        fr: "Pose une question, télécharge une image, ou continue une discussion précédente.",
-        es: "Haz una pregunta, sube una imagen o continúa un chat anterior.",
-        pap: "Hasi un pregunta, subi un imagen, of sigui ku un chat anterior.",
-        en: "Ask a question, upload an image, or continue an earlier chat.",
+        nl: userName ? "Waar kan ik je vandaag mee helpen?" : "Stel een vraag, upload een afbeelding, of ga verder met een eerdere chat.",
+        de: userName ? "Wobei kann ich dir heute helfen?" : "Stelle eine Frage, lade ein Bild hoch oder führe ein früheres Gespräch fort.",
+        fr: userName ? "Comment puis-je t'aider aujourd'hui ?" : "Pose une question, télécharge une image, ou continue une discussion précédente.",
+        es: userName ? "¿En qué puedo ayudarte hoy?" : "Haz una pregunta, sube una imagen o continúa un chat anterior.",
+        pap: userName ? "Con ki mi por yudabo awe?" : "Hasi un pregunta, subi un imagen, of sigui ku un chat anterior.",
+        en: userName ? "How can I help you today?" : "Ask a question, upload an image, or continue an earlier chat.",
       },
       starter_1: {
         nl: "✍️ Schrijf een e-mail",
@@ -3629,6 +3629,7 @@ updated[index].messages[
       prev.map((c) => (c.id === id ? { ...c, title } : c))
     );
   }}
+  userName={userName}
 />
       <button
   onClick={() => setMobileMenu(!mobileMenu)}
