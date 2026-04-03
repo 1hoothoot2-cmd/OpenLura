@@ -4184,7 +4184,7 @@ updated[index].messages[
                       <button
                         key={key}
                         type="button"
-                        onClick={() => applyComposerInput(t(`${key}_prompt`), { source: "message", label: t(key) })}
+                        onClick={() => { closeMobileSidebar(); applyComposerInput(t(`${key}_prompt`), { source: "message", label: t(key) }); }}
                         className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs text-white/68 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/16 hover:bg-white/[0.07] hover:text-white active:scale-95"
                       >
                         {t(key)}
