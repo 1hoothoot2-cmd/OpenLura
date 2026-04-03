@@ -1218,7 +1218,7 @@ function getUsagePeriodKey(date = new Date()) {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
-const ADMIN_USER_IDS = ["fb392988-b34a-44a4-8823-b27abb7bfe06"];
+const ADMIN_USER_IDS = ["fb392988-b34a-44a4-8823-b27abb7bfe06", "b824ba24-69a2-4d22-a8a3-cf8a2378282d"];
 
 function resolveUsageTier(input: {
   userScope?: "admin" | "guest" | "personal" | "user";
