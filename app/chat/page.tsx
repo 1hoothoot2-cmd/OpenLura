@@ -3262,16 +3262,8 @@ setChats([...updated]);
         limitType,
       });
 
-      updated[index].messages[
-        updated[index].messages.length - 1
-      ] = {
-        ...updated[index].messages[
-          updated[index].messages.length - 1
-        ],
-        content: limitMessage,
-        isStreaming: false,
-        disableFeedback: true,
-      };
+      // Verwijder het "…" streaming bericht — notice in sidebar is genoeg
+      updated[index].messages.splice(updated[index].messages.length - 1, 1);
 
       setChats([...updated]);
       setStreamController(null);
@@ -3343,6 +3335,18 @@ updated[index].messages[
     setChats([...updated]);
 
         try {
+      let rafScheduled = false;
+
+      const flushToUI = () => {
+        updated[index].messages[updated[index].messages.length - 1] = {
+          ...updated[index].messages[updated[index].messages.length - 1],
+          content: aiText || "…",
+          isStreaming: !aiText.trim(),
+        };
+        setChats([...updated]);
+        rafScheduled = false;
+      };
+
       while (true) {
         const { done, value } = await reader!.read();
         if (done) break;
@@ -3356,16 +3360,14 @@ updated[index].messages[
 
         aiText += chunk;
 
-        updated[index].messages[
-          updated[index].messages.length - 1
-        ] = {
-          ...updated[index].messages[updated[index].messages.length - 1],
-          content: aiText || "…",
-          isStreaming: !aiText.trim(),
-        };
-
-        setChats([...updated]);
+        if (!rafScheduled) {
+          rafScheduled = true;
+          requestAnimationFrame(flushToUI);
+        }
       }
+
+      // Ensure final state is always flushed
+      flushToUI();
     } catch (error: any) {
       if (error?.name !== "AbortError") {
         console.error("OpenLura chat stream failed:", error);
