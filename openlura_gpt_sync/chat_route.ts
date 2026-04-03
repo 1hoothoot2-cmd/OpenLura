@@ -288,6 +288,33 @@ function buildCacheKey(input: {
   });
 }
 
+function detectInputLanguage(text?: string): string {
+  if (!text || text.trim().length < 3) return "en";
+
+  const t = text.toLowerCase();
+
+  const patterns: [string, RegExp][] = [
+    ["nl", /\b(de|het|een|en|van|is|dat|wat|hoe|waar|waarom|niet|ook|maar|voor|met|zijn|ik|je|jij|wij|ze|dit|nog|wel|kan|kun|wil|mag|moet|ben|was|heeft|hebben|wordt|worden|worden|worden|dan|dus|want|als|bij|door|over|uit|naar|al|zo|er|om|nu|toen|veel|meer|minder|graag|alles|niets|iets|hier|daar|jullie|ons|onze|mijn|jouw|hun|haar|zijn)\b/g],
+    ["fr", /\b(le|la|les|un|une|des|et|est|pas|que|qui|dans|pour|sur|avec|au|du|je|tu|il|elle|nous|vous|ils|elles|mon|ton|son|mais|ou|donc|ni|car|ce|se|ne|en|y|très|bien|plus|moins|tout|tous|toute|aussi|même|autre|leurs|leur|cette|cet|comme|quoi|quand|où|comment|pourquoi)\b/g],
+    ["de", /\b(der|die|das|ein|eine|und|ist|nicht|es|ich|du|er|sie|wir|ihr|sie|mein|dein|sein|aber|oder|wenn|weil|wie|was|wer|wo|warum|auch|noch|schon|sehr|mehr|gut|alle|kein|keine|einem|einer|haben|hat|wird|werden|wurde|sind|war|mit|für|auf|aus|nach|von|zu|an|im|am)\b/g],
+    ["es", /\b(el|la|los|las|un|una|y|es|no|que|de|en|con|por|para|su|sus|lo|le|les|me|te|se|mi|tu|si|más|muy|todo|también|pero|como|cuando|donde|hay|del|al|qué|cómo|quién|cuándo|porque|este|esta|estos|estas|ser|estar|tiene|tienen|han|fue|era)\b/g],
+    ["pt", /\b(o|a|os|as|um|uma|e|é|não|que|de|em|com|por|para|seu|sua|me|te|se|mi|tu|si|mais|muito|todo|também|mas|como|quando|onde|há|do|da|dos|das|ao|às|que|quem|porque|este|esta|estes|estas|ser|estar|tem|têm|foi|era)\b/g],
+    ["pap", /\b(danki|pabien|bon|bini|dikon|kiko|unda|masha|awe|ayera|mainta|anochi|kuanto|kua|kual|tur|hopi|loke|ami|abo|dje|nos|boso|nan|tin|tabata|lo|por|mester|kier|sabi|bisa|papia|kuminda|kas|kaminda|rei|pues|manera)\b/g],
+  ];
+
+  let best = { lang: "en", score: 0 };
+
+  for (const [lang, pattern] of patterns) {
+    const matches = t.match(pattern);
+    const score = matches ? matches.length : 0;
+    if (score > best.score) {
+      best = { lang, score };
+    }
+  }
+
+  return best.score >= 2 ? best.lang : "en";
+}
+
 function applyFeedbackWeighting(input: {
   personal: any[];
   global: any[];
@@ -1191,7 +1218,7 @@ function getUsagePeriodKey(date = new Date()) {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
-const ADMIN_USER_IDS = ["fb392988-b34a-44a4-8823-b27abb7bfe06"];
+const ADMIN_USER_IDS = ["fb392988-b34a-44a4-8823-b27abb7bfe06", "b824ba24-69a2-4d22-a8a3-cf8a2378282d"];
 
 function resolveUsageTier(input: {
   userScope?: "admin" | "guest" | "personal" | "user";
@@ -2380,15 +2407,16 @@ type OpenLuraRuntimePromptBuilderInput = {
   responseVariant: string;
   feedbackContext: string;
   personalFeedbackContext: string;
+  detectedLanguage: string;
 };
 
-function buildOpenLuraBasePrompt() {
+function buildOpenLuraBasePrompt(detectedLanguage: string = "en") {
   return `You are OpenLura.
 
 You improve yourself based on user feedback.
 
 CRITICAL RULES:
-- Detect the language of the user message and ALWAYS respond in that same language
+- The user's detected language is: ${detectedLanguage}. ALWAYS respond in this language. Do not switch languages mid-response.
 - NEVER mix languages
 - NEVER write "(blank line)"
 - Learn from feedback: avoid disliked responses and reinforce liked ones
@@ -2482,12 +2510,12 @@ function buildOpenLuraRuntimePrompt(input: OpenLuraRuntimePromptBuilderInput) {
   if (input.isLightPrompt) {
     return `You are OpenLura.
 
-Respond in the same language as the user.
+Respond in the detected language: ${input.detectedLanguage}. Supported languages include Dutch, English, French, German, Spanish, Portuguese, and Papiamento (spoken on Curaçao, Aruba, and Bonaire). If the detected language is "pap", always respond in Papiamento — never switch to Spanish or Portuguese.
 Be clear, useful, and direct.
 Avoid long structured sections unless needed.`;
   }
 
-  const basePrompt = buildOpenLuraBasePrompt();
+  const basePrompt = buildOpenLuraBasePrompt(input.detectedLanguage);
 
   return `
 ${basePrompt}
@@ -2809,6 +2837,8 @@ export async function POST(req: Request) {
     feedback,
     recentMessages,
   } = body;
+
+  const detectedLanguage = detectInputLanguage(message);
 
   if (!message && !image) {
     return new Response("Empty request", {
@@ -3751,15 +3781,17 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
       const fastStream = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         stream: true,
+        max_tokens: 300,
         messages: [
           {
             role: "system",
             content: `You are OpenLura.
 
-Respond in the same language as the user.
+Respond in the same language as the user. Supported languages include Dutch, English, French, German, Spanish, Portuguese, and Papiamento (spoken on Curaçao, Aruba, and Bonaire). If the user writes in Papiamento, always respond in Papiamento — never switch to Spanish or Portuguese.
 Keep short prompts fast, natural, and direct.
 Do not use long structure for greetings or tiny prompts.
 Keep the answer useful but compact.
+If the input is a short casual phrase in Papiamento (like "kiko ta pasando awe", "kon ta bai", "bon dia", "ta bon"), treat it as casual conversation and reply naturally in Papiamento. NEVER translate the phrase. NEVER explain what it means. NEVER say "X ta nifiká Y". Just respond like a friend would — warm, short, and direct. Example: "kon ta bai" → reply like "Ta bon, danki! Bo mes, kon ta?" — not an explanation.
 
 Explicit workspace settings:
 - tone: ${effectiveTone}
@@ -3865,6 +3897,7 @@ Fast-path rules:
             "X-OpenLura-Variant": responseVariant,
             "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
             "X-OpenLura-Speed": "fast_text",
+            "X-OpenLura-Lang": detectedLanguage,
             ...buildRateLimitHeaders(rateLimit),
             ...buildUsageHeaders(usageLimitSnapshot),
           }),
@@ -3881,7 +3914,7 @@ Fast-path rules:
             role: "system",
             content: `You are OpenLura.
 
-Respond in the same language as the user.
+Respond in the same language as the user. Supported languages include Dutch, English, French, German, Spanish, Portuguese, and Papiamento (spoken on Curaçao, Aruba, and Bonaire). If the user writes in Papiamento, always respond in Papiamento — never switch to Spanish or Portuguese.
 Analyze the image directly.
 Be fast, clear, and compact first.
 If something is uncertain, say that clearly.
@@ -4025,6 +4058,7 @@ Do not use web search for this path.`,
       responseVariant,
       feedbackContext,
       personalFeedbackContext,
+      detectedLanguage,
     }),
       input: [
         {
@@ -4216,6 +4250,7 @@ ${aiText}`,
       headers: buildNoStoreTextHeaders({
         "X-OpenLura-Variant": responseVariant,
         "X-OpenLura-Sources": encodeURIComponent(JSON.stringify(sources)),
+        "X-OpenLura-Lang": detectedLanguage,
         ...buildRateLimitHeaders(rateLimit),
         ...buildUsageHeaders(usageLimitSnapshot),
       }),

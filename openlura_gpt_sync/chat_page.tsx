@@ -32,6 +32,62 @@ export default function ChatPage() {
     ? "openlura_personal_memory"
     : makeUserBoundStorageKey("openlura_memory");
   const [personalStateLoaded, setPersonalStateLoaded] = useState(false);
+  const [detectedLang, setDetectedLang] = useState("en");
+
+  const t = (key: string) => {
+    const translations: Record<string, Record<string, string>> = {
+      thinking: {
+        nl: "OpenLura denkt na...",
+        de: "OpenLura denkt nach...",
+        fr: "OpenLura réfléchit...",
+        es: "OpenLura está pensando...",
+        pap: "OpenLura ta pensa...",
+        en: "OpenLura is thinking",
+      },
+      placeholder_empty: {
+        nl: "Stel een vraag...",
+        de: "Stell eine Frage...",
+        fr: "Posez une question...",
+        es: "Haz una pregunta...",
+        pap: "Hasi un pregunta...",
+        en: "Ask anything",
+      },
+      placeholder_active: {
+        nl: "Bericht aan OpenLura...",
+        de: "Nachricht an OpenLura...",
+        fr: "Message à OpenLura...",
+        es: "Mensaje a OpenLura...",
+        pap: "Mensahe pa OpenLura...",
+        en: "Message OpenLura...",
+      },
+      placeholder_limit: {
+        nl: "Limiet bereikt — upgrade om door te gaan",
+        de: "Limit erreicht — upgrade zum Weitermachen",
+        fr: "Limite atteinte — passez à la version supérieure",
+        es: "Límite alcanzado — actualiza para continuar",
+        pap: "Limiet yega — upgrade pa sigui",
+        en: "Limit reached — upgrade to continue",
+      },
+      welcome_title: {
+        nl: "Waar wil je vandaag aan werken?",
+        de: "Woran möchtest du heute arbeiten?",
+        fr: "Sur quoi veux-tu travailler aujourd'hui ?",
+        es: "¿En qué quieres trabajar hoy?",
+        pap: "Kiko bo ke traha awe?",
+        en: "What do you want to work on today?",
+      },
+      welcome_sub: {
+        nl: "Stel een vraag, upload een afbeelding, of ga verder met een eerdere chat.",
+        de: "Stelle eine Frage, lade ein Bild hoch oder führe ein früheres Gespräch fort.",
+        fr: "Pose une question, télécharge une image, ou continue une discussion précédente.",
+        es: "Haz una pregunta, sube una imagen o continúa un chat anterior.",
+        pap: "Hasi un pregunta, subi un imagen, of sigui ku un chat anterior.",
+        en: "Ask a question, upload an image, or continue an earlier chat.",
+      },
+    };
+
+    return translations[key]?.[detectedLang] ?? translations[key]?.["en"] ?? key;
+  };
   const [chats, setChats] = useState<any[]>([]);
   const [activeChatId, setActiveChatId] = useState<number | null>(null);
   const [input, setInput] = useState("");
@@ -2082,6 +2138,18 @@ const restoreDeletedChat = (chatId: number) => {
     if (registerPassword.length < 6) { setRegisterError("Wachtwoord moet minimaal 6 tekens zijn"); return; }
     if (registerPassword !== registerPasswordConfirm) { setRegisterError("Wachtwoorden komen niet overeen"); return; }
     setRegisterLoading(true);
+
+    const browserLang = (() => {
+      const raw = (navigator.language || "en").toLowerCase();
+      if (raw.startsWith("nl")) return "nl";
+      if (raw.startsWith("de")) return "de";
+      if (raw.startsWith("fr")) return "fr";
+      if (raw.startsWith("es")) return "es";
+      if (raw.startsWith("pt")) return "pt";
+      if (raw.startsWith("pap")) return "pap";
+      return "en";
+    })();
+
     try {
       const res = await fetch("/api/auth", {
         method: "POST",
@@ -2092,6 +2160,9 @@ const restoreDeletedChat = (chatId: number) => {
       const data = await res.json();
       if (!res.ok || !data?.success) { setRegisterError(data?.error || "Registratie mislukt"); return; }
       if (data.requiresConfirmation) { setRegisterSuccess("Controleer je e-mail om je account te bevestigen."); return; }
+
+      setDetectedLang(browserLang);
+
       setShowLoginBox(false);
       setRegisterEmail(""); setRegisterPassword(""); setRegisterPasswordConfirm("");
       window.location.href = "/persoonlijke-omgeving";
@@ -3004,6 +3075,8 @@ setChats([...updated]);
     }
 
     const responseVariant = res.headers.get("X-OpenLura-Variant") || "unknown";
+    const responseLang = res.headers.get("X-OpenLura-Lang");
+    if (responseLang) setDetectedLang(responseLang);
     const responseSourcesHeader = res.headers.get("X-OpenLura-Sources");
         let responseSources: any[] = [];
     try {
@@ -3950,10 +4023,10 @@ updated[index].messages[
               <div className="flex h-full w-full max-w-2xl -mt-20 flex-col items-center justify-center px-4 md:px-6 text-center">
                 <div className="rounded-[28px] border border-white/8 bg-white/[0.032] px-8 py-8 shadow-[0_16px_36px_rgba(0,0,0,0.16)] backdrop-blur-xl md:px-10 md:py-10">
                   <h1 className="mb-3 bg-gradient-to-r from-white via-white to-white/70 bg-clip-text text-2xl font-semibold tracking-tight text-transparent md:text-4xl">
-                    What do you want to work on today?
+                    {t("welcome_title")}
                   </h1>
                   <p className="mx-auto max-w-md text-sm leading-6 text-white/44">
-                    Ask a question, upload an image, or continue an earlier chat.
+                    {t("welcome_sub")}
                   </p>
                   {!isPersonalRoute && (
                     <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
@@ -4087,7 +4160,7 @@ updated[index].messages[
             style={{ animationDelay: "240ms" }}
           />
         </span>
-        <span className="text-sm">OpenLura is thinking</span>
+        <span className="text-sm">{t("thinking")}</span>
       </span>
     ) : (
       <>
@@ -4516,7 +4589,13 @@ updated[index].messages[
   }}
   disabled={upgradeNotice.visible}
   className={`${composerInputClass} min-h-[48px] max-h-[140px] flex-1 rounded-2xl bg-transparent px-2 py-2.5 text-[16px] leading-6 text-white/95 outline-none placeholder:text-white/28 focus:bg-white/[0.02] md:px-3 disabled:opacity-40 disabled:cursor-not-allowed`}
-  placeholder={upgradeNotice.visible ? "Limiet bereikt — upgrade om door te gaan" : activeMessages.length === 0 ? "Ask anything" : "Message OpenLura..."}
+  placeholder={
+    upgradeNotice.visible
+      ? t("placeholder_limit")
+      : activeMessages.length === 0
+        ? t("placeholder_empty")
+        : t("placeholder_active")
+  }
   enterKeyHint="send"
   rows={1}
 />

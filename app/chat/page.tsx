@@ -84,6 +84,38 @@ export default function ChatPage() {
         pap: "Hasi un pregunta, subi un imagen, of sigui ku un chat anterior.",
         en: "Ask a question, upload an image, or continue an earlier chat.",
       },
+      starter_1: {
+        nl: "✍️ Schrijf een e-mail voor mij",
+        de: "✍️ Schreib eine E-Mail für mich",
+        fr: "✍️ Écris un e-mail pour moi",
+        es: "✍️ Escríbeme un correo",
+        pap: "✍️ Skirbi un email pa mi",
+        en: "✍️ Write an email for me",
+      },
+      starter_2: {
+        nl: "💡 Geef me ideeën voor mijn project",
+        de: "💡 Gib mir Ideen für mein Projekt",
+        fr: "💡 Donne-moi des idées pour mon projet",
+        es: "💡 Dame ideas para mi proyecto",
+        pap: "💡 Dami ideanan pa mi proyecto",
+        en: "💡 Give me ideas for my project",
+      },
+      starter_3: {
+        nl: "🔍 Leg iets uit aan mij",
+        de: "🔍 Erkläre mir etwas",
+        fr: "🔍 Explique-moi quelque chose",
+        es: "🔍 Explícame algo",
+        pap: "🔍 Splika mi algo",
+        en: "🔍 Explain something to me",
+      },
+      starter_4: {
+        nl: "📋 Maak een samenvatting",
+        de: "📋 Erstelle eine Zusammenfassung",
+        fr: "📋 Fais-moi un résumé",
+        es: "📋 Hazme un resumen",
+        pap: "📋 Hasi un samenvatting",
+        en: "📋 Summarize something for me",
+      },
     };
 
     return translations[key]?.[detectedLang] ?? translations[key]?.["en"] ?? key;
@@ -4028,8 +4060,24 @@ updated[index].messages[
                   <p className="mx-auto max-w-md text-sm leading-6 text-white/44">
                     {t("welcome_sub")}
                   </p>
+
+                  {isPersonalRoute && (
+                  <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+                    {(["starter_1", "starter_2", "starter_3", "starter_4"] as const).map((key) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => applyComposerInput(t(key), { source: "message" })}
+                        className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs text-white/68 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/16 hover:bg-white/[0.07] hover:text-white active:scale-95"
+                      >
+                        {t(key)}
+                      </button>
+                    ))}
+                  </div>
+                  )}
+
                   {!isPersonalRoute && (
-                    <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+                    <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
                       <a
                         href="/"
                         className="rounded-full border border-white/8 bg-white/[0.03] px-3 py-2 text-xs text-white/58 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.05] hover:text-white"

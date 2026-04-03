@@ -45,6 +45,104 @@ function SectionFooter({
 
 export default function HomePage() {
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
+
+  const lang = (() => {
+    if (typeof navigator === "undefined") return "en";
+    const raw = (navigator.language || "en").toLowerCase();
+    if (raw.startsWith("nl")) return "nl";
+    if (raw.startsWith("de")) return "de";
+    if (raw.startsWith("fr")) return "fr";
+    if (raw.startsWith("es")) return "es";
+    if (raw.startsWith("pt")) return "pt";
+    if (raw.startsWith("pap")) return "pap";
+    return "en";
+  })();
+
+  const t = (key: string) => {
+    const translations: Record<string, Record<string, string>> = {
+      hero_title: {
+        nl: "AI die leert hoe jij werkt.",
+        de: "KI, die lernt, wie du arbeitest.",
+        fr: "Une IA qui apprend comment vous travaillez.",
+        es: "IA que aprende cómo trabajas.",
+        pap: "AI ku ta siña kon bo ta traha.",
+        en: "AI that learns how you work.",
+      },
+      hero_sub: {
+        nl: "OpenLura is je adaptieve AI-werkruimte. Het onthoudt nuttige context, verbetert door feedback en helpt je sneller te werken met minder ruis.",
+        de: "OpenLura ist dein adaptiver KI-Arbeitsbereich. Er merkt sich nützlichen Kontext, verbessert sich durch Feedback und hilft dir, schneller zu arbeiten.",
+        fr: "OpenLura est votre espace de travail IA adaptatif. Il mémorise le contexte utile, s'améliore grâce aux retours et vous aide à avancer plus vite.",
+        es: "OpenLura es tu espacio de trabajo de IA adaptativo. Recuerda el contexto útil, mejora con el feedback y te ayuda a trabajar más rápido.",
+        pap: "OpenLura ta bo workspace di AI adaptivo. E ta rekordá konteksto útil, ta mehora ku feedback i ta yudabo traha mas rápido.",
+        en: "OpenLura is your adaptive AI workspace. It remembers useful context, improves through feedback, and helps you move faster with less noise.",
+      },
+      btn_start_chat: {
+        nl: "Start chat",
+        de: "Chat starten",
+        fr: "Démarrer le chat",
+        es: "Iniciar chat",
+        pap: "Kuminsá chat",
+        en: "Start chat",
+      },
+      btn_login: {
+        nl: "Inloggen / Account aanmaken",
+        de: "Anmelden / Konto erstellen",
+        fr: "Se connecter / Créer un compte",
+        es: "Iniciar sesión / Crear cuenta",
+        pap: "Login / Krea account",
+        en: "Log in / Create account",
+      },
+      btn_how_it_works: {
+        nl: "Bekijk hoe het werkt",
+        de: "So funktioniert es",
+        fr: "Voir comment ça marche",
+        es: "Ver cómo funciona",
+        pap: "Mira kon e ta traha",
+        en: "See how it works",
+      },
+      btn_give_feedback: {
+        nl: "Geef feedback",
+        de: "Feedback geben",
+        fr: "Donner un avis",
+        es: "Dar feedback",
+        pap: "Duna feedback",
+        en: "Give feedback",
+      },
+      btn_open_chat: {
+        nl: "Open chat",
+        de: "Chat öffnen",
+        fr: "Ouvrir le chat",
+        es: "Abrir chat",
+        pap: "Habri chat",
+        en: "Open chat",
+      },
+      btn_back_to_top: {
+        nl: "Terug naar boven",
+        de: "Nach oben",
+        fr: "Retour en haut",
+        es: "Volver arriba",
+        pap: "Bai bèk ariba",
+        en: "Back to top",
+      },
+      cta_title: {
+        nl: "Begin waar de waarde het sterkst is: de chat.",
+        de: "Fang dort an, wo der Wert am stärksten ist: dem Chat.",
+        fr: "Commencez là où la valeur est la plus forte : le chat.",
+        es: "Empieza donde el valor es mayor: el chat.",
+        pap: "Kuminsá kaminda e balor ta mas fuerte: e chat.",
+        en: "Start where the value is strongest: the chat.",
+      },
+      cta_sub: {
+        nl: "Sla de ruis over, open de werkruimte en laat OpenLura je helpen denken, schrijven, plannen en sneller te bewegen.",
+        de: "Überspring den Lärm, öffne den Arbeitsbereich und lass OpenLura dir beim Denken, Schreiben, Planen und schnelleren Vorankommen helfen.",
+        fr: "Ignorez le bruit, ouvrez l'espace de travail et laissez OpenLura vous aider à penser, écrire, planifier et avancer plus vite.",
+        es: "Salta el ruido, abre el espacio de trabajo y deja que OpenLura te ayude a pensar, escribir, planificar y moverte más rápido.",
+        pap: "Skip e ruido, habri e workspace i laga OpenLura yudabo pensa, skibi, plania i muebe mas lihe.",
+        en: "Skip the noise, open the workspace, and let OpenLura help you think, write, plan, and move faster.",
+      },
+    };
+    return translations[key]?.[lang] ?? translations[key]?.["en"] ?? key;
+  };
   const [feedbackSubject, setFeedbackSubject] = useState("");
   const [feedbackDetails, setFeedbackDetails] = useState("");
   const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
@@ -147,12 +245,11 @@ export default function HomePage() {
           </div>
 
           <h1 className="mt-5 max-w-4xl bg-gradient-to-r from-white via-white to-white/68 bg-clip-text text-4xl font-semibold tracking-tight text-transparent sm:mt-6 sm:text-5xl lg:text-6xl">
-            AI that learns how you work.
+            {t("hero_title")}
           </h1>
 
               <p className="mt-4 max-w-2xl text-base leading-7 text-white/62 sm:mt-5 sm:text-lg">
-                OpenLura is your adaptive AI workspace. It remembers useful context,
-                improves through feedback, and helps you move faster with less noise.
+                {t("hero_sub")}
               </p>
 
               <div className="mt-4 inline-flex max-w-fit items-center rounded-full border border-emerald-400/18 bg-emerald-400/10 px-3 py-1.5 text-[12px] font-medium text-emerald-200 backdrop-blur-xl">
@@ -169,21 +266,21 @@ export default function HomePage() {
               href="/chat"
               className="inline-flex h-12 w-full items-center justify-center rounded-[18px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-6 text-sm font-medium text-white shadow-[0_12px_28px_rgba(59,130,246,0.24)] ol-interactive transition-[transform,filter,box-shadow] duration-200 hover:brightness-110 hover:shadow-[0_14px_32px_rgba(59,130,246,0.28)] active:scale-[0.99] sm:w-auto"
             >
-              Start chat
+              {t("btn_start_chat")}
             </Link>
 
             <Link
               href="/persoonlijke-omgeving"
               className="inline-flex h-12 w-full items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.04] px-6 text-sm font-medium text-white/88 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/30 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.99] sm:w-auto"
             >
-              Log in / Create account
+              {t("btn_login")}
             </Link>
 
             <Link
               href="#how-it-works"
               className="inline-flex h-12 w-full items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.04] px-6 text-sm font-medium text-white/88 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/30 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.99] sm:w-auto"
             >
-              See how it works
+              {t("btn_how_it_works")}
             </Link>
           </div>
 
@@ -205,7 +302,7 @@ export default function HomePage() {
               onClick={() => setIsFeedbackOpen(true)}
               className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[12px] font-medium text-white/56 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-amber-400/26 hover:bg-amber-400/10 hover:text-amber-200 hover:shadow-[0_10px_24px_rgba(251,191,36,0.12)]"
             >
-              Give feedback
+              {t("btn_give_feedback")}
             </button>
           </div>
         </div>
@@ -908,12 +1005,11 @@ export default function HomePage() {
                     </div>
                   </div>
                   <h2 className="mt-4 text-2xl font-semibold text-white/95 sm:text-3xl">
-                    Start where the value is strongest: the chat.
+                    {t("cta_title")}
                   </h2>
 
                   <p className="mt-3 text-sm leading-6 text-white/58 sm:text-base">
-                    Skip the noise, open the workspace, and let OpenLura help you think,
-                    write, plan, and move faster.
+                    {t("cta_sub")}
                   </p>
                 </div>
 
@@ -922,14 +1018,14 @@ export default function HomePage() {
                     href="/chat"
                     className="inline-flex h-12 w-full items-center justify-center rounded-[18px] bg-gradient-to-r from-[#1d4ed8] via-[#2563eb] to-[#3b82f6] px-6 text-sm font-medium text-white shadow-[0_14px_34px_rgba(59,130,246,0.28)] ol-interactive transition-[transform,filter,box-shadow] duration-200 hover:-translate-y-[1px] hover:brightness-110 hover:shadow-[0_18px_40px_rgba(59,130,246,0.34)] active:scale-[0.99] sm:w-auto"
                   >
-                    Open chat
+                    {t("btn_open_chat")}
                   </Link>
 
                   <Link
                     href="/login"
                     className="inline-flex h-12 w-full items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.04] px-6 text-sm font-medium text-white/86 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/14 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.10)] active:scale-[0.99] sm:w-auto"
                   >
-                    Log in / Create account
+                    {t("btn_login")}
                   </Link>
 
                   <button
@@ -937,14 +1033,14 @@ export default function HomePage() {
                     onClick={() => setIsFeedbackOpen(true)}
                     className="inline-flex h-12 w-full items-center justify-center rounded-[18px] border border-amber-400/16 bg-amber-400/10 px-6 text-sm font-medium text-amber-200 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-amber-400/24 hover:bg-amber-400/14 hover:text-amber-100 hover:shadow-[0_10px_24px_rgba(251,191,36,0.12)] active:scale-[0.99] sm:w-auto"
                   >
-                    Give feedback
+                    {t("btn_give_feedback")}
                   </button>
 
                   <a
                     href="#top"
                     className="inline-flex h-12 w-full items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.04] px-6 text-sm font-medium text-white/86 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/14 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.10)] active:scale-[0.99] sm:w-auto"
                   >
-                    Back to top
+                    {t("btn_back_to_top")}
                   </a>
                 </div>
               </div>
