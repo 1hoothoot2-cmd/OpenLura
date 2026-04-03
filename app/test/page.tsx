@@ -17,7 +17,7 @@ const PERSONAL_ENV_WELCOME_MESSAGE =
 
 export default function ChatPage() {
   const pathname = usePathname();
-  const isPersonalRoute = pathname === "/persoonlijke-omgeving";
+  const isPersonalRoute = pathname === "/personal-workspace";
   const [userScopedStorageId, setUserScopedStorageId] = useState("");
 
   const makeUserBoundStorageKey = (baseKey: string) =>
@@ -520,7 +520,7 @@ const handleSavePrompt = async (explicitContent?: string) => {
   limitType: "monthly",
 });
 
-const ANON_MSG_LIMIT = 3;
+const ANON_MSG_LIMIT = 5;
 const ANON_STORAGE_KEY = "openlura_anon_usage";
 const ANON_WINDOW_MS = 5 * 60 * 60 * 1000; // 5 uur
 
@@ -1720,8 +1720,12 @@ const resizeComposerTextarea = () => {
   const el = inputRef.current;
   if (!el) return;
 
+  const prev = el.style.height;
   el.style.height = "0px";
-  el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
+  const next = `${Math.min(el.scrollHeight, 140)}px`;
+  if (prev !== next) {
+    el.style.height = next;
+  }
 };
 
 const handleUseResultAsInput = (
@@ -2270,7 +2274,7 @@ const restoreDeletedChat = (chatId: number) => {
       setShowLoginBox(false);
       setLoginUsername("");
       setLoginPassword("");
-      window.location.href = "/persoonlijke-omgeving";
+      window.location.href = "/personal-workspace";
     } catch {
       setLoginError("Login failed");
     } finally {
@@ -2313,7 +2317,7 @@ const restoreDeletedChat = (chatId: number) => {
 
       setShowLoginBox(false);
       setRegisterEmail(""); setRegisterPassword(""); setRegisterPasswordConfirm("");
-      window.location.href = "/persoonlijke-omgeving";
+      window.location.href = "/personal-workspace";
     } catch { setRegisterError("Registratie mislukt"); }
     finally { setRegisterLoading(false); }
   };
@@ -2638,7 +2642,7 @@ Do not mention that this is a new attempt.`,
         const resetLabel = resetTime.toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" });
         setUpgradeNotice({
           visible: true,
-          message: `Je kunt weer chatten om ${resetLabel}, of meld je aan voor onbeperkt chatten.`,
+          message: `Je hebt ${ANON_MSG_LIMIT} gratis berichten gebruikt. Meld je aan voor onbeperkt chatten het is gratis ! `,
           tier: "free",
           limitType: "anon_window",
         });
@@ -3561,6 +3565,11 @@ updated[index].messages[
   onCopyActiveChatMarkdown={copyChatToClipboard}
   onDownloadActiveChatMarkdown={downloadMarkdown}
   userTier={userTier}
+  onRenameChat={(id, title) => {
+    setChats((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, title } : c))
+    );
+  }}
 />
       <button
   onClick={() => setMobileMenu(!mobileMenu)}
@@ -4100,6 +4109,29 @@ updated[index].messages[
             </div>
           </div>
 
+          {!isPersonalRoute && (() => {
+            try {
+              const raw = localStorage.getItem("openlura_anon_usage");
+              if (!raw) return null;
+              const parsed = JSON.parse(raw);
+              const now = Date.now();
+              if (!parsed.resetAt || parsed.resetAt <= now) return null;
+              const count = parsed.count || 0;
+              if (count === 0) return null;
+              return (
+                <div className="mx-4 mt-3 flex items-center gap-3">
+                  <div className="flex-1 h-1 rounded-full bg-white/8 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${count >= ANON_MSG_LIMIT ? "bg-red-400/60" : "bg-[#3b82f6]/50"}`}
+                      style={{ width: `${Math.min((count / ANON_MSG_LIMIT) * 100, 100)}%` }}
+                    />
+                  </div>
+                  <span className="shrink-0 text-[11px] text-white/36">{count}/{ANON_MSG_LIMIT} berichten</span>
+                </div>
+              );
+            } catch { return null; }
+          })()}
+
           {usage && usage.percentage >= 0.8 && !upgradeNotice.visible && (
             <div className="mx-4 mt-4 rounded-[24px] border border-amber-300/12 bg-amber-500/[0.065] px-4 py-3 text-sm text-amber-100 shadow-[0_10px_22px_rgba(0,0,0,0.10)] backdrop-blur-xl">
               <div className="flex items-center justify-between gap-3">
@@ -4137,7 +4169,7 @@ updated[index].messages[
                     onClick={async () => {
                       try {
                         const res = await fetch("/api/stripe/checkout", { method: "POST", credentials: "include" });
-                        if (res.status === 401) { window.location.href = "/persoonlijke-omgeving"; return; }
+                        if (res.status === 401) { window.location.href = "/personal-workspace"; return; }
                         const data = await res.json();
                         if (data.url) window.location.href = data.url;
                       } catch {}
@@ -4184,7 +4216,7 @@ updated[index].messages[
                       <button
                         key={key}
                         type="button"
-                        onClick={() => applyComposerInput(t(`${key}_prompt`), { source: "message", label: t(key) })}
+                        onClick={() => { closeMobileSidebar(); applyComposerInput(t(`${key}_prompt`), { source: "message", label: t(key) }); }}
                         className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs text-white/68 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/16 hover:bg-white/[0.07] hover:text-white active:scale-95"
                       >
                         {t(key)}
@@ -4768,7 +4800,7 @@ updated[index].messages[
     }
   }}
   disabled={upgradeNotice.visible}
-  className={`${composerInputClass} min-h-[48px] max-h-[140px] flex-1 rounded-2xl bg-transparent px-2 py-2.5 text-[16px] leading-6 text-white/95 outline-none placeholder:text-white/28 focus:bg-white/[0.02] md:px-3 disabled:opacity-40 disabled:cursor-not-allowed`}
+  className={`${composerInputClass} min-h-[48px] max-h-[140px] flex-1 rounded-2xl bg-transparent px-2 py-2.5 text-[16px] leading-6 text-white/95 outline-none placeholder:text-white/28 focus:bg-white/[0.02] md:px-3 disabled:opacity-40 disabled:cursor-not-allowed transition-[height] duration-100`}
   placeholder={
     upgradeNotice.visible
       ? t("placeholder_limit")
@@ -4788,7 +4820,7 @@ updated[index].messages[
     loading
       ? "bg-red-500 text-white shadow-[0_10px_24px_rgba(239,68,68,0.30)]"
       : !input.trim() && !image
-      ? "bg-white/[0.07] text-white/24 shadow-none"
+      ? "bg-white/[0.06] text-white/18 shadow-none cursor-not-allowed"
       : "bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] text-white shadow-[0_12px_24px_rgba(59,130,246,0.26)] hover:brightness-110"
   }`}
 >
