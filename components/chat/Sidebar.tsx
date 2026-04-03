@@ -434,7 +434,7 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
     "rounded-full border border-[#3b82f6]/18 bg-[#3b82f6]/8 px-3 py-1 text-xs text-white/68 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/34 hover:bg-[#3b82f6]/12 hover:text-white hover:shadow-[0_6px_14px_rgba(59,130,246,0.12)] active:scale-95";
 
   const emptyStateClass =
-    "rounded-2xl border border-dashed border-white/8 bg-white/[0.022] px-3 py-3 text-sm text-white/36";
+    "rounded-2xl border border-dashed border-white/8 bg-white/[0.022] px-3 py-2.5 text-[12px] leading-5 text-white/36 break-words";
 
   const hasActiveChat =
     activeChatId !== null &&
@@ -904,7 +904,7 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
               ) : (
                 <div className={emptyStateClass}>
                   {isPersonalRoute
-                    ? "Sla een bericht op als prompt via ⋯"
+                    ? "Sla berichten op via ⋯"
                     : "No saved prompts yet"}
                 </div>
               )}
