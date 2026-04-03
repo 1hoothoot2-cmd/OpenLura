@@ -3180,7 +3180,7 @@ setChats([...updated]);
           memory: resolvedMemoryText,
           personalMemory:
             isPersonalRoute && chatSettings.memoryEnabled
-              ? resolvedMemoryText
+              ? [userName ? `Mijn naam is ${userName}.` : "", resolvedMemoryText].filter(Boolean).join("\n")
               : "",
           tone: chatSettings.tone,
           style: chatSettings.style,
