@@ -40,8 +40,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "OpenLura",
-  description: "AI that learns how you work.",
+  title: "OpenLura – Adaptive AI Workspace | Personal AI Chat",
+  description: "OpenLura is your personal AI workspace that learns how you work. Remembers context, improves with feedback, and helps you move faster. Try it free.",
   icons: {
     icon: "/openlura-logo.png",
     apple: "/openlura-logo.png",
@@ -74,7 +74,7 @@ export default async function RootLayout({
       <head>
         <meta name="description" content={description} />
       </head>
-            <body className="min-h-full flex flex-col">
+      <body className="min-h-full flex flex-col">
         {children}
         <Analytics />
         <SpeedInsights />
