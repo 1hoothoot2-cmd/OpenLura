@@ -2622,9 +2622,12 @@ ${input.currentGlobalFeedbackSnapshot
   .filter(
     (f: any) => f.type === "down" || f.source === "idea_feedback_learning"
   )
+  .slice(0, 5)
   .map(
-    (f: any) =>
-      `User said: "${f.userMessage || f.message}" → user was not satisfied`
+    (f: any) => {
+      const text = (f.userMessage || f.message || "").slice(0, 80);
+      return `- "${text}"`;
+    }
   )
   .join("\n") || "none"}
 
@@ -2659,10 +2662,6 @@ RUNTIME LEARNING PRIORITY:
 
 USAGE SNAPSHOT:
 - tier: ${input.usageLimitSnapshot.tier}
-- monthly requests used: ${input.usageLimitSnapshot.requestCount}
-- monthly web searches used: ${input.usageLimitSnapshot.webSearchCount}
-- requests remaining: ${input.usageLimitSnapshot.requestsRemaining === Infinity ? "unlimited" : input.usageLimitSnapshot.requestsRemaining}
-- web searches remaining: ${input.usageLimitSnapshot.webSearchesRemaining === Infinity ? "unlimited" : input.usageLimitSnapshot.webSearchesRemaining}
 - limit exceeded: ${input.usageLimitSnapshot.exceeded ? "yes" : "no"}
 
 SUCCESSFUL PATTERNS (completed items):
@@ -2673,8 +2672,8 @@ ${input.completedFeedback
       f.type === "improve" ||
       f.source === "idea_feedback_learning"
   )
-  .map((f: any) => `- ${f.userMessage || f.message}`)
-  .slice(0, 5)
+  .slice(0, 3)
+  .map((f: any) => `- ${(f.userMessage || f.message || "").slice(0, 80)}`)
   .join("\n") || "none"}
 
 ADAPTATION RULES:
