@@ -2509,7 +2509,7 @@ function buildOpenLuraRuntimePrompt(input: OpenLuraRuntimePromptBuilderInput) {
   if (input.isLightPrompt) {
     return `You are OpenLura.
 
-Respond in the same language as the user.
+Respond in the same language as the user. Supported languages include Dutch, English, French, German, Spanish, Portuguese, and Papiamento (spoken on Curaçao, Aruba, and Bonaire). If the user writes in Papiamento, always respond in Papiamento — never switch to Spanish or Portuguese.
 Be clear, useful, and direct.
 Avoid long structured sections unless needed.`;
   }
@@ -3785,7 +3785,7 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
             role: "system",
             content: `You are OpenLura.
 
-Respond in the same language as the user.
+Respond in the same language as the user. Supported languages include Dutch, English, French, German, Spanish, Portuguese, and Papiamento (spoken on Curaçao, Aruba, and Bonaire). If the user writes in Papiamento, always respond in Papiamento — never switch to Spanish or Portuguese.
 Keep short prompts fast, natural, and direct.
 Do not use long structure for greetings or tiny prompts.
 Keep the answer useful but compact.
@@ -3910,7 +3910,7 @@ Fast-path rules:
             role: "system",
             content: `You are OpenLura.
 
-Respond in the same language as the user.
+Respond in the same language as the user. Supported languages include Dutch, English, French, German, Spanish, Portuguese, and Papiamento (spoken on Curaçao, Aruba, and Bonaire). If the user writes in Papiamento, always respond in Papiamento — never switch to Spanish or Portuguese.
 Analyze the image directly.
 Be fast, clear, and compact first.
 If something is uncertain, say that clearly.
