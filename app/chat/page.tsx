@@ -32,6 +32,7 @@ export default function ChatPage() {
     ? "openlura_personal_memory"
     : makeUserBoundStorageKey("openlura_memory");
   const [personalStateLoaded, setPersonalStateLoaded] = useState(false);
+  const [detectedLang, setDetectedLang] = useState("en");
   const [chats, setChats] = useState<any[]>([]);
   const [activeChatId, setActiveChatId] = useState<number | null>(null);
   const [input, setInput] = useState("");
@@ -3004,6 +3005,8 @@ setChats([...updated]);
     }
 
     const responseVariant = res.headers.get("X-OpenLura-Variant") || "unknown";
+    const responseLang = res.headers.get("X-OpenLura-Lang");
+    if (responseLang) setDetectedLang(responseLang);
     const responseSourcesHeader = res.headers.get("X-OpenLura-Sources");
         let responseSources: any[] = [];
     try {
@@ -4516,7 +4519,13 @@ updated[index].messages[
   }}
   disabled={upgradeNotice.visible}
   className={`${composerInputClass} min-h-[48px] max-h-[140px] flex-1 rounded-2xl bg-transparent px-2 py-2.5 text-[16px] leading-6 text-white/95 outline-none placeholder:text-white/28 focus:bg-white/[0.02] md:px-3 disabled:opacity-40 disabled:cursor-not-allowed`}
-  placeholder={upgradeNotice.visible ? "Limiet bereikt — upgrade om door te gaan" : activeMessages.length === 0 ? "Ask anything" : "Message OpenLura..."}
+  placeholder={
+    upgradeNotice.visible
+      ? detectedLang === "nl" ? "Limiet bereikt — upgrade om door te gaan" : detectedLang === "pap" ? "Limiet yega — upgrade pa sigui" : "Limit reached — upgrade to continue"
+      : activeMessages.length === 0
+        ? detectedLang === "nl" ? "Stel een vraag..." : detectedLang === "pap" ? "Hasi un pregunta..." : detectedLang === "fr" ? "Posez une question..." : detectedLang === "de" ? "Stell eine Frage..." : detectedLang === "es" ? "Haz una pregunta..." : "Ask anything"
+        : detectedLang === "nl" ? "Bericht aan OpenLura..." : detectedLang === "pap" ? "Mensahe pa OpenLura..." : detectedLang === "fr" ? "Message à OpenLura..." : detectedLang === "de" ? "Nachricht an OpenLura..." : detectedLang === "es" ? "Mensaje a OpenLura..." : "Message OpenLura..."
+  }
   enterKeyHint="send"
   rows={1}
 />
