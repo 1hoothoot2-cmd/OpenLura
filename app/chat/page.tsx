@@ -33,6 +33,7 @@ export default function ChatPage() {
     : makeUserBoundStorageKey("openlura_memory");
   const [personalStateLoaded, setPersonalStateLoaded] = useState(false);
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
+  const [userName, setUserName] = useState<string | null>(null);
 
   const [detectedLang, setDetectedLang] = useState(() => {
     if (typeof navigator === "undefined") return "en";
@@ -81,12 +82,12 @@ export default function ChatPage() {
         en: "Limit reached — upgrade to continue",
       },
       welcome_title: {
-        nl: "Waar wil je vandaag aan werken?",
-        de: "Woran möchtest du heute arbeiten?",
-        fr: "Sur quoi veux-tu travailler aujourd'hui ?",
-        es: "¿En qué quieres trabajar hoy?",
-        pap: "Kiko bo ke traha awe?",
-        en: "What do you want to work on today?",
+        nl: userName ? `Hallo ${userName} 👋` : "Waar wil je vandaag aan werken?",
+        de: userName ? `Hallo ${userName} 👋` : "Woran möchtest du heute arbeiten?",
+        fr: userName ? `Bonjour ${userName} 👋` : "Sur quoi veux-tu travailler aujourd'hui ?",
+        es: userName ? `Hola ${userName} 👋` : "¿En qué quieres trabajar hoy?",
+        pap: userName ? `Halo ${userName} 👋` : "Kiko bo ke traha awe?",
+        en: userName ? `Hello ${userName} 👋` : "What do you want to work on today?",
       },
       welcome_sub: {
         nl: "Stel een vraag, upload een afbeelding, of ga verder met een eerdere chat.",
@@ -887,6 +888,26 @@ const isReplaceableStarterChat = (chat: any) => {
 
             loadedFromServer = true;
             setPersonalStateLoaded(true);
+
+            // Resolve name from user metadata
+            try {
+              const userRes = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/user`, {
+                headers: {
+                  apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",
+                  Authorization: `Bearer ${document.cookie.match(/sb-access-token=([^;]+)/)?.[1] || ""}`,
+                },
+                cache: "no-store",
+              });
+              if (userRes.ok) {
+                const userData = await userRes.json();
+                const name =
+                  userData?.user_metadata?.full_name ||
+                  userData?.user_metadata?.name ||
+                  userData?.email?.split("@")[0] ||
+                  null;
+                if (name) setUserName(String(name).split(" ")[0]);
+              }
+            } catch {}
 
             // Resolve tier on load
             const loadedUserId = data?.userId || null;
