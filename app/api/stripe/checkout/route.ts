@@ -31,6 +31,7 @@ export async function POST(req: Request) {
       "cancel_url": `${baseUrl}/#plans`,
       "metadata[user_id]": userId,
       "client_reference_id": userId,
+      "allow_promotion_codes": "true",
     }),
   });
 

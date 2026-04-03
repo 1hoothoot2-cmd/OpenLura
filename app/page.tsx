@@ -159,6 +159,11 @@ export default function HomePage() {
                 Your account owns your workspace, history, and continuity.
               </div>
 
+              <div className="mt-3 inline-flex max-w-fit items-center gap-2 rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1.5 text-[12px] font-medium text-amber-200 backdrop-blur-xl">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-400/80" />
+                First month 25% off — use code <span className="font-semibold tracking-wide">LAUNCH25</span>
+              </div>
+
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             <Link
               href="/chat"
