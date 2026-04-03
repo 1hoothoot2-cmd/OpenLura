@@ -85,36 +85,52 @@ export default function ChatPage() {
         en: "Ask a question, upload an image, or continue an earlier chat.",
       },
       starter_1: {
-        nl: "✍️ Schrijf een e-mail voor mij",
-        de: "✍️ Schreib eine E-Mail für mich",
-        fr: "✍️ Écris un e-mail pour moi",
-        es: "✍️ Escríbeme un correo",
-        pap: "✍️ Skirbi un email pa mi",
-        en: "✍️ Write an email for me",
+        nl: "✍️ Schrijf een e-mail",
+        de: "✍️ E-Mail schreiben",
+        fr: "✍️ Écrire un e-mail",
+        es: "✍️ Escribir un correo",
+        pap: "✍️ Skirbi un email",
+        en: "✍️ Write an email",
       },
       starter_2: {
-        nl: "💡 Geef me ideeën voor mijn project",
-        de: "💡 Gib mir Ideen für mein Projekt",
-        fr: "💡 Donne-moi des idées pour mon projet",
-        es: "💡 Dame ideas para mi proyecto",
-        pap: "💡 Dami ideanan pa mi proyecto",
-        en: "💡 Give me ideas for my project",
+        nl: "💡 Geef me ideeën",
+        de: "💡 Ideen geben",
+        fr: "💡 Donner des idées",
+        es: "💡 Dame ideas",
+        pap: "💡 Dami ideanan",
+        en: "💡 Give me ideas",
       },
       starter_3: {
-        nl: "🔍 Leg iets uit aan mij",
-        de: "🔍 Erkläre mir etwas",
-        fr: "🔍 Explique-moi quelque chose",
-        es: "🔍 Explícame algo",
-        pap: "🔍 Splika mi algo",
-        en: "🔍 Explain something to me",
+        nl: "🔍 Leg iets uit",
+        de: "🔍 Etwas erklären",
+        fr: "🔍 Expliquer quelque chose",
+        es: "🔍 Explicar algo",
+        pap: "🔍 Splika algo",
+        en: "🔍 Explain something",
       },
       starter_4: {
         nl: "📋 Maak een samenvatting",
-        de: "📋 Erstelle eine Zusammenfassung",
-        fr: "📋 Fais-moi un résumé",
-        es: "📋 Hazme un resumen",
+        de: "📋 Zusammenfassung erstellen",
+        fr: "📋 Faire un résumé",
+        es: "📋 Hacer un resumen",
         pap: "📋 Hasi un samenvatting",
-        en: "📋 Summarize something for me",
+        en: "📋 Summarize text",
+      },
+      starter_5: {
+        nl: "🧠 Denk met me mee",
+        de: "🧠 Denk mit mir",
+        fr: "🧠 Réfléchis avec moi",
+        es: "🧠 Piensa conmigo",
+        pap: "🧠 Pensa huntu ku mi",
+        en: "🧠 Think with me",
+      },
+      starter_6: {
+        nl: "✅ Maak een takenlijst",
+        de: "✅ Aufgabenliste erstellen",
+        fr: "✅ Créer une lijst de tâches",
+        es: "✅ Crear una lista de tareas",
+        pap: "✅ Hasi un lista di trabou",
+        en: "✅ Make a task list",
       },
     };
 
@@ -4063,7 +4079,7 @@ updated[index].messages[
 
                   {isPersonalRoute && (
                   <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-                    {(["starter_1", "starter_2", "starter_3", "starter_4"] as const).map((key) => (
+                    {(["starter_1", "starter_2", "starter_3", "starter_4", "starter_5", "starter_6"] as const).map((key) => (
                       <button
                         key={key}
                         type="button"
