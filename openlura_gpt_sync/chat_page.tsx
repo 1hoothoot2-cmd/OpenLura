@@ -17,7 +17,7 @@ const PERSONAL_ENV_WELCOME_MESSAGE =
 
 export default function ChatPage() {
   const pathname = usePathname();
-  const isPersonalRoute = pathname === "/persoonlijke-omgeving";
+  const isPersonalRoute = pathname === "/personal-workspace";
   const [userScopedStorageId, setUserScopedStorageId] = useState("");
 
   const makeUserBoundStorageKey = (baseKey: string) =>
@@ -32,7 +32,25 @@ export default function ChatPage() {
     ? "openlura_personal_memory"
     : makeUserBoundStorageKey("openlura_memory");
   const [personalStateLoaded, setPersonalStateLoaded] = useState(false);
-  const [detectedLang, setDetectedLang] = useState("en");
+  const [placeholderIndex, setPlaceholderIndex] = useState(0);
+  const [userName, setUserName] = useState<string | null>(null);
+  const [showNamePopup, setShowNamePopup] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+
+  const [detectedLang, setDetectedLang] = useState(() => {
+    if (typeof navigator === "undefined") return "en";
+    const raw = (navigator.language || "en").toLowerCase();
+    if (raw.startsWith("nl")) return "nl";
+    if (raw.startsWith("de")) return "de";
+    if (raw.startsWith("fr")) return "fr";
+    if (raw.startsWith("es")) return "es";
+    if (raw.startsWith("pt")) return "pt";
+    if (raw.startsWith("it")) return "it";
+    if (raw.startsWith("tr")) return "tr";
+    if (raw.startsWith("ar")) return "ar";
+    if (raw.startsWith("pap")) return "pap";
+    return "en";
+  });
 
   const t = (key: string) => {
     const translations: Record<string, Record<string, string>> = {
@@ -69,20 +87,116 @@ export default function ChatPage() {
         en: "Limit reached — upgrade to continue",
       },
       welcome_title: {
-        nl: "Waar wil je vandaag aan werken?",
-        de: "Woran möchtest du heute arbeiten?",
-        fr: "Sur quoi veux-tu travailler aujourd'hui ?",
-        es: "¿En qué quieres trabajar hoy?",
-        pap: "Kiko bo ke traha awe?",
-        en: "What do you want to work on today?",
+        nl: userName ? `Hallo ${userName} 👋` : "Waar wil je vandaag aan werken?",
+        de: userName ? `Hallo ${userName} 👋` : "Woran möchtest du heute arbeiten?",
+        fr: userName ? `Bonjour ${userName} 👋` : "Sur quoi veux-tu travailler aujourd'hui ?",
+        es: userName ? `Hola ${userName} 👋` : "¿En qué quieres trabajar hoy?",
+        pap: userName ? `Halo ${userName} 👋` : "Kiko bo ke traha awe?",
+        en: userName ? `Hello ${userName} 👋` : "What do you want to work on today?",
       },
       welcome_sub: {
-        nl: "Stel een vraag, upload een afbeelding, of ga verder met een eerdere chat.",
-        de: "Stelle eine Frage, lade ein Bild hoch oder führe ein früheres Gespräch fort.",
-        fr: "Pose une question, télécharge une image, ou continue une discussion précédente.",
-        es: "Haz una pregunta, sube una imagen o continúa un chat anterior.",
-        pap: "Hasi un pregunta, subi un imagen, of sigui ku un chat anterior.",
-        en: "Ask a question, upload an image, or continue an earlier chat.",
+        nl: userName ? "Waar kan ik je vandaag mee helpen?" : "Stel een vraag, upload een afbeelding, of ga verder met een eerdere chat.",
+        de: userName ? "Wobei kann ich dir heute helfen?" : "Stelle eine Frage, lade ein Bild hoch oder führe ein früheres Gespräch fort.",
+        fr: userName ? "Comment puis-je t'aider aujourd'hui ?" : "Pose une question, télécharge une image, ou continue une discussion précédente.",
+        es: userName ? "¿En qué puedo ayudarte hoy?" : "Haz una pregunta, sube una imagen o continúa un chat anterior.",
+        pap: userName ? "Con ki mi por yudabo awe?" : "Hasi un pregunta, subi un imagen, of sigui ku un chat anterior.",
+        en: userName ? "How can I help you today?" : "Ask a question, upload an image, or continue an earlier chat.",
+      },
+      starter_1: {
+        nl: "✍️ Schrijf een e-mail",
+        de: "✍️ E-Mail schreiben",
+        fr: "✍️ Écrire un e-mail",
+        es: "✍️ Escribir un correo",
+        pap: "✍️ Skirbi un email",
+        en: "✍️ Write an email",
+      },
+      starter_2: {
+        nl: "💡 Geef me ideeën",
+        de: "💡 Ideen geben",
+        fr: "💡 Donner des idées",
+        es: "💡 Dame ideas",
+        pap: "💡 Dami ideanan",
+        en: "💡 Give me ideas",
+      },
+      starter_3: {
+        nl: "🔍 Leg iets uit",
+        de: "🔍 Etwas erklären",
+        fr: "🔍 Expliquer quelque chose",
+        es: "🔍 Explicar algo",
+        pap: "🔍 Splika algo",
+        en: "🔍 Explain something",
+      },
+      starter_4: {
+        nl: "📋 Maak een samenvatting",
+        de: "📋 Zusammenfassung erstellen",
+        fr: "📋 Faire un résumé",
+        es: "📋 Hacer un resumen",
+        pap: "📋 Hasi un samenvatting",
+        en: "📋 Summarize text",
+      },
+      starter_5: {
+        nl: "🧠 Denk met me mee",
+        de: "🧠 Denk mit mir",
+        fr: "🧠 Réfléchis avec moi",
+        es: "🧠 Piensa conmigo",
+        pap: "🧠 Pensa huntu ku mi",
+        en: "🧠 Think with me",
+      },
+      starter_6: {
+        nl: "✅ Maak een takenlijst",
+        de: "✅ Aufgabenliste erstellen",
+        fr: "✅ Créer une lijst de tâches",
+        es: "✅ Crear una lista de tareas",
+        pap: "✅ Hasi un lista di trabou",
+        en: "✅ Make a task list",
+      },
+    starter_1_prompt: {
+        nl: "Schrijf een professionele e-mail om een afspraak te plannen. Geef me een kant-en-klaar voorbeeld dat ik direct kan gebruiken.",
+        de: "Schreib eine professionelle E-Mail, um einen Termin zu vereinbaren. Gib mir ein fertiges Beispiel, das ich direkt verwenden kann.",
+        fr: "Écris un e-mail professionnel pour planifier un rendez-vous. Donne-moi un exemple prêt à l'emploi.",
+        es: "Escribe un correo profesional para concertar una cita. Dame un ejemplo listo para usar.",
+        pap: "Skirbi un email profesional pa plania un cita. Dami un ehempel ku mi por usa mes awe.",
+        en: "Write a professional email to schedule a meeting. Give me a ready-to-use example I can send today.",
+      },
+      starter_2_prompt: {
+        nl: "Geef me 5 concrete ideeën om een project of taak interessanter en effectiever aan te pakken. Wees specifiek en praktisch.",
+        de: "Gib mir 5 konkrete Ideen, um ein Projekt oder eine Aufgabe interessanter und effektiver anzugehen.",
+        fr: "Donne-moi 5 idées concrètes pour aborder un projet ou une tâche de façon plus intéressante et efficace.",
+        es: "Dame 5 ideas concretas para abordar un proyecto o tarea de forma más interesante y efectiva.",
+        pap: "Dami 5 ideanan konkret pa ataka un proyecto of tarea di un manera mas interesante i efectivo.",
+        en: "Give me 5 concrete ideas to approach a project or task in a more interesting and effective way.",
+      },
+      starter_3_prompt: {
+        nl: "Leg me een complex onderwerp eenvoudig uit, alsof je het uitlegt aan iemand die er nog nooit van gehoord heeft. Kies zelf een interessant onderwerp.",
+        de: "Erkläre mir ein komplexes Thema einfach, als würdest du es jemandem erklären, der noch nie davon gehört hat.",
+        fr: "Explique-moi un sujet complexe simplement, comme si tu l'expliquais à quelqu'un qui n'en a jamais entendu parler.",
+        es: "Explícame un tema complejo de forma sencilla, como si se lo explicaras a alguien que nunca ha oído hablar de él.",
+        pap: "Splika mi un topiko kompleks simpel, manera si bo ta splika e na algun ku nunka a tende di ne.",
+        en: "Explain a complex topic simply, as if explaining it to someone who has never heard of it. Pick an interesting topic.",
+      },
+      starter_4_prompt: {
+        nl: "Plak hieronder een tekst en ik maak er een heldere samenvatting van in maximaal 5 zinnen.",
+        de: "Füge unten einen Text ein und ich erstelle eine klare Zusammenfassung in maximal 5 Sätzen.",
+        fr: "Colle un texte ci-dessous et je t'en ferai un résumé clair en 5 phrases maximum.",
+        es: "Pega un texto a continuación y haré un resumen claro en máximo 5 frases.",
+        pap: "Pega un teks aki abou i mi lo hasi un samenvatting kla di máximo 5 frasa.",
+        en: "Paste a text below and I'll summarize it clearly in 5 sentences or less.",
+      },
+      starter_5_prompt: {
+        nl: "Ik wil nadenken over een beslissing of uitdaging. Stel me de 3 meest relevante vragen om mijn gedachten te structureren.",
+        de: "Ich möchte über eine Entscheidung nachdenken. Stelle mir die 3 relevantesten Fragen, um meine Gedanken zu strukturieren.",
+        fr: "Je veux réfléchir à une décision. Pose-moi les 3 questions les plus pertinentes pour structurer ma réflexion.",
+        es: "Quiero reflexionar sobre una decisión. Hazme las 3 preguntas más relevantes para estructurar mis pensamientos.",
+        pap: "Mi ke pensa riba un decision. Hasi mi e 3 pregunta mas relevante pa struktura mi pensamentu.",
+        en: "I want to think through a decision. Ask me the 3 most relevant questions to help structure my thinking.",
+      },
+      starter_6_prompt: {
+        nl: "Maak een gestructureerde takenlijst voor een productieve werkdag. Verdeel het in ochtend, middag en avond met concrete acties.",
+        de: "Erstelle eine strukturierte Aufgabenliste für einen produktiven Arbeitstag. Unterteile in Morgen, Mittag und Abend.",
+        fr: "Crée une liste de tâches structurée pour une journée productive. Divise en matin, après-midi et soir.",
+        es: "Crea una lista de tareas para un día productivo. Divídela en mañana, tarde y noche con acciones concretas.",
+        pap: "Hasi un lista di tarea strukturá pa un dia produktivo. Dividi den mainta, merdia i atardi.",
+        en: "Create a structured task list for a productive workday. Split into morning, afternoon, and evening with concrete actions.",
       },
     };
 
@@ -158,6 +272,33 @@ const applyComposerInput = (
   if (savePromptError) {
     setSavePromptError("");
   }
+};
+
+const saveUserName = async (name: string) => {
+  const trimmed = name.trim();
+  if (!trimmed) return;
+  setUserName(trimmed);
+  setShowNamePopup(false);
+
+  // Sla op in profile
+  try {
+    await fetch("/api/personal-state", {
+      method: "POST",
+      headers: getOpenLuraRequestHeaders(true, { personalEnv: true, includeUserId: false }),
+      credentials: "same-origin",
+      body: JSON.stringify({
+        chats,
+        memory,
+        profile: {
+          tone: chatSettings.tone,
+          style: chatSettings.style,
+          memoryEnabled: chatSettings.memoryEnabled,
+          preferences: settingsPreferences,
+          name: trimmed,
+        },
+      }),
+    });
+  } catch {}
 };
 
 const handleUseAsInput = (content: string) => {
@@ -412,7 +553,7 @@ const handleSavePrompt = async (explicitContent?: string) => {
   limitType: "monthly",
 });
 
-const ANON_MSG_LIMIT = 3;
+const ANON_MSG_LIMIT = 5;
 const ANON_STORAGE_KEY = "openlura_anon_usage";
 const ANON_WINDOW_MS = 5 * 60 * 60 * 1000; // 5 uur
 
@@ -499,6 +640,7 @@ const [chatSettings, setChatSettings] = useState<{
   const latestChatsRef = useRef<any[]>([]);
   const latestActiveChatIdRef = useRef<number | null>(null);
   const [initialStateReady, setInitialStateReady] = useState(false);
+  const [showScrollBottom, setShowScrollBottom] = useState(false);
   const [openChatMenuId, setOpenChatMenuId] = useState<number | null>(null);
   const [openUserMessageMenuKey, setOpenUserMessageMenuKey] = useState<string | null>(null);
   const [openAiMessageMenuKey, setOpenAiMessageMenuKey] = useState<string | null>(null);
@@ -714,6 +856,14 @@ const isReplaceableStarterChat = (chat: any) => {
               if (Array.isArray(p.preferences)) {
                 setSettingsPreferences(p.preferences);
               }
+              if (typeof p.name === "string" && p.name.trim()) {
+                setUserName(p.name.trim());
+              } else {
+                // Geen naam bekend → popup tonen
+                setShowNamePopup(true);
+              }
+            } else {
+              setShowNamePopup(true);
             }
 
             const normalizedChats = serverChats.map((chat: any) => ({
@@ -778,6 +928,26 @@ const isReplaceableStarterChat = (chat: any) => {
 
             loadedFromServer = true;
             setPersonalStateLoaded(true);
+
+            // Resolve name from user metadata
+            try {
+              const userRes = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/user`, {
+                headers: {
+                  apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",
+                  Authorization: `Bearer ${document.cookie.match(/sb-access-token=([^;]+)/)?.[1] || ""}`,
+                },
+                cache: "no-store",
+              });
+              if (userRes.ok) {
+                const userData = await userRes.json();
+                const name =
+                  userData?.user_metadata?.full_name ||
+                  userData?.user_metadata?.name ||
+                  userData?.email?.split("@")[0] ||
+                  null;
+                if (name) setUserName(String(name).split(" ")[0]);
+              }
+            } catch {}
 
             // Resolve tier on load
             const loadedUserId = data?.userId || null;
@@ -1015,8 +1185,14 @@ const hasOnlyPersonalFallbackPlaceholder =
   safeChats[0].messages[0]?.role === "ai" &&
   safeChats[0].messages[0]?.content === personalPlaceholderMessage;
 
+const hasAllChatsDeleted =
+  safeChats.length > 0 &&
+  safeChats.every((c: any) => c.deleted === true);
+
 const shouldSkipPersonalStateSync =
-  hasOnlyPersonalFallbackPlaceholder && memory.length === 0;
+  hasOnlyPersonalFallbackPlaceholder &&
+  memory.length === 0 &&
+  !hasAllChatsDeleted;
 
     if (shouldSkipPersonalStateSync) {
       return;
@@ -1044,6 +1220,7 @@ const shouldSkipPersonalStateSync =
                 style: chatSettings.style,
                 memoryEnabled: chatSettings.memoryEnabled,
                 preferences: settingsPreferences,
+                ...(userName ? { name: userName } : {}),
               },
             }),
           });
@@ -1245,8 +1422,39 @@ const shouldSkipPersonalStateSync =
 }, [activeChatId, chats, loading]);
 
   useEffect(() => {
+    const el = messagesRef.current;
+    if (!el) return;
+    const handleScroll = () => {
+      const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+      setShowScrollBottom(distanceFromBottom > 120);
+    };
+    el.addEventListener("scroll", handleScroll, { passive: true });
+    return () => el.removeEventListener("scroll", handleScroll);
+  }, [activeChatId, initialStateReady]);
+
+  useEffect(() => {
     resizeComposerTextarea();
   }, [input, image]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.innerWidth < 768) return;
+    if (!initialStateReady) return;
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+    });
+  }, [initialStateReady]);
+
+  const rotatingPlaceholders: Record<string, string[]> = {
+    nl: ["Stel een vraag...", "Schrijf een e-mail...", "Leg iets uit...", "Maak een plan..."],
+    de: ["Stell eine Frage...", "Schreib eine E-Mail...", "Erkläre etwas...", "Mach einen Plan..."],
+    fr: ["Posez une question...", "Écrivez un e-mail...", "Expliquez quelque chose...", "Faites un plan..."],
+    es: ["Haz una pregunta...", "Escribe un correo...", "Explica algo...", "Haz un plan..."],
+    it: ["Fai una domanda...", "Scrivi un'email...", "Spiega qualcosa...", "Fai un piano..."],
+    tr: ["Bir soru sor...", "E-posta yaz...", "Bir şey açıkla...", "Plan yap..."],
+    ar: ["اطرح سؤالاً...", "اكتب بريداً...", "اشرح شيئاً...", "ضع خطة..."],
+    en: ["Ask anything...", "Write an email...", "Explain something...", "Make a plan..."],
+  };
 
   useEffect(() => {
     if (!isPersonalRoute || !initialStateReady || !personalStateLoaded) return;
@@ -1566,14 +1774,23 @@ const activeMessages = Array.isArray(activeChat?.messages)
 
 const renderedChatId = activeChat?.id ?? null;
 
+// eslint-disable-next-line react-hooks/exhaustive-deps
+
+// rotating placeholder effect (needs activeMessages)
+// eslint-disable-next-line react-hooks/exhaustive-deps
+
 const getFeedbackUiKey = (chatId: number | null, msgIndex: number) =>
   `${chatId ?? "no-chat"}-${msgIndex}`;
 const resizeComposerTextarea = () => {
   const el = inputRef.current;
   if (!el) return;
 
+  const prev = el.style.height;
   el.style.height = "0px";
-  el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
+  const next = `${Math.min(el.scrollHeight, 140)}px`;
+  if (prev !== next) {
+    el.style.height = next;
+  }
 };
 
 const handleUseResultAsInput = (
@@ -2122,7 +2339,7 @@ const restoreDeletedChat = (chatId: number) => {
       setShowLoginBox(false);
       setLoginUsername("");
       setLoginPassword("");
-      window.location.href = "/persoonlijke-omgeving";
+      window.location.href = "/personal-workspace";
     } catch {
       setLoginError("Login failed");
     } finally {
@@ -2146,6 +2363,9 @@ const restoreDeletedChat = (chatId: number) => {
       if (raw.startsWith("fr")) return "fr";
       if (raw.startsWith("es")) return "es";
       if (raw.startsWith("pt")) return "pt";
+      if (raw.startsWith("it")) return "it";
+      if (raw.startsWith("tr")) return "tr";
+      if (raw.startsWith("ar")) return "ar";
       if (raw.startsWith("pap")) return "pap";
       return "en";
     })();
@@ -2165,7 +2385,7 @@ const restoreDeletedChat = (chatId: number) => {
 
       setShowLoginBox(false);
       setRegisterEmail(""); setRegisterPassword(""); setRegisterPasswordConfirm("");
-      window.location.href = "/persoonlijke-omgeving";
+      window.location.href = "/personal-workspace";
     } catch { setRegisterError("Registratie mislukt"); }
     finally { setRegisterLoading(false); }
   };
@@ -2205,9 +2425,28 @@ const restoreDeletedChat = (chatId: number) => {
   const isRefinementInstruction = (text: string) => {
     const normalized = text.toLowerCase().trim();
 
-    return /^(and )?(now )?(even )?(shorter|short|clearer|simpler|more concrete|different|retry but shorter|make it shorter|shorter please|clearer please|simpler please|more context|less text)([.!?])?$/.test(
-      normalized
-    );
+    // NL
+    const isNl = /^(en )?(nu )?(nog )?(korter|kort|duidelijker|simpeler|meer concreet|concreter|anders|anders verwoorden|opnieuw maar korter|maak korter|maak het korter|korter graag|duidelijker graag|simpel(er)? graag|meer context|minder tekst|alleen het aantal|nu alleen het aantal|gewoon het aantal|alleen de naam|alleen de namen|alleen kort|alleen de conclusie|nog korter|iets korter|wat korter|veel korter|heel kort|korter alsjeblieft|graag korter|kan het korter|maak het wat korter|nu korter|opnieuw korter|en korter|nog beknopter|beknopter|bondiger|minder woorden|zonder uitleg|zonder toelichting|gewoon kort|alleen het resultaat|alleen de uitkomst)([.!?])?$/.test(normalized);
+
+    // EN
+    const isEn = /^(and )?(now )?(even )?(shorter|short|clearer|simpler|more concrete|different|make it shorter|shorter please|clearer please|simpler please|more context|less text|more concise|briefer|summarize|just the result|only the answer)([.!?])?$/.test(normalized);
+
+    // DE
+    const isDe = /^(noch )?(kürzer|kurz|klarer|einfacher|konkreter|anders formulieren|nochmal kürzer|mach es kürzer|bitte kürzer|weniger text|nur das ergebnis|nur die antwort)([.!?])?$/.test(normalized);
+
+    // FR
+    const isFr = /^(plus )?(court|courts|courte|courtes|clair|simple|concis|concise|reformule|reformuler|moins de texte|juste le résultat|seulement la réponse|encore plus court)([.!?])?$/.test(normalized);
+
+    // ES
+    const isEs = /^(más )?(corto|corta|claro|clara|simple|sencillo|concreto|concisa|reformula|menos texto|solo el resultado|solo la respuesta|más breve|más conciso)([.!?])?$/.test(normalized);
+
+    // IT
+    const isIt = /^(più )?(corto|breve|chiaro|semplice|concreto|riformula|meno testo|solo il risultato|ancora più corto)([.!?])?$/.test(normalized);
+
+    // TR
+    const isTr = /^(daha )?(kısa|kısalt|net|sade|somut|yeniden yaz|daha kısa yaz|sadece sonuç|daha az metin)([.!?])?$/.test(normalized);
+
+    return isNl || isEn || isDe || isFr || isEs || isIt || isTr;
   };
 
   const resolveFeedbackTargetContext = (messages: any[], aiMsgIndex: number) => {
@@ -2490,7 +2729,7 @@ Do not mention that this is a new attempt.`,
         const resetLabel = resetTime.toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" });
         setUpgradeNotice({
           visible: true,
-          message: `Je kunt weer chatten om ${resetLabel}, of meld je aan voor onbeperkt chatten.`,
+          message: `Je hebt ${ANON_MSG_LIMIT} gratis berichten gebruikt. Meld je aan voor onbeperkt chatten het is gratis ! `,
           tier: "free",
           limitType: "anon_window",
         });
@@ -2887,7 +3126,8 @@ IMPORTANT:
     // ✅ AUTO TITLE
     if (updated[index].messages.length === 1) {
       if (rawInputToSend.trim()) {
-        updated[index].title = rawInputToSend.trim().slice(0, 30);
+        const words = rawInputToSend.trim().split(/\s+/);
+        updated[index].title = words.slice(0, 5).join(" ");
       } else if (imageToSend) {
         updated[index].title = "Afbeelding";
       }
@@ -2968,7 +3208,7 @@ setChats([...updated]);
           memory: resolvedMemoryText,
           personalMemory:
             isPersonalRoute && chatSettings.memoryEnabled
-              ? resolvedMemoryText
+              ? [userName ? `Mijn naam is ${userName}.` : "", resolvedMemoryText].filter(Boolean).join("\n")
               : "",
           tone: chatSettings.tone,
           style: chatSettings.style,
@@ -2986,10 +3226,11 @@ setChats([...updated]);
                 msg.content !== "Analyzing image..." &&
                 msg.content !== "🤖 Wat kan ik beter doen?"
             )
-            .slice(-6)
+            .slice(-12)
             .map((msg: any) => ({
               role: msg.role,
               content: msg.content,
+              image: msg.image ? true : undefined,
             })),
         }),
       });
@@ -3412,6 +3653,12 @@ updated[index].messages[
   onCopyActiveChatMarkdown={copyChatToClipboard}
   onDownloadActiveChatMarkdown={downloadMarkdown}
   userTier={userTier}
+  onRenameChat={(id, title) => {
+    setChats((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, title } : c))
+    );
+  }}
+  userName={userName}
 />
       <button
   onClick={() => setMobileMenu(!mobileMenu)}
@@ -3863,7 +4110,7 @@ updated[index].messages[
       )}
 
       <div className="flex min-w-0 min-h-0 flex-1 items-stretch justify-start pt-0 md:h-screen md:p-4">
-        <div className="mx-auto flex h-full min-h-0 w-full min-w-0 max-w-2xl flex-col border border-white/8 bg-white/[0.042] shadow-[0_20px_56px_rgba(0,0,0,0.20)] backdrop-blur-2xl md:min-h-0 md:rounded-[28px] xl:max-w-[920px]">
+        <div className="relative mx-auto flex h-full min-h-0 w-full min-w-0 max-w-2xl flex-col border border-white/8 bg-white/[0.042] shadow-[0_20px_56px_rgba(0,0,0,0.20)] backdrop-blur-2xl md:min-h-0 md:rounded-[28px] xl:max-w-[920px]">
 
           <div className="flex items-center justify-between gap-3 border-b border-white/8 pl-16 pr-4 py-3 md:px-6">
             <div className="hidden md:flex min-w-0 items-center gap-3">
@@ -3951,6 +4198,29 @@ updated[index].messages[
             </div>
           </div>
 
+          {!isPersonalRoute && (() => {
+            try {
+              const raw = localStorage.getItem("openlura_anon_usage");
+              if (!raw) return null;
+              const parsed = JSON.parse(raw);
+              const now = Date.now();
+              if (!parsed.resetAt || parsed.resetAt <= now) return null;
+              const count = parsed.count || 0;
+              if (count === 0) return null;
+              return (
+                <div className="mx-4 mt-3 flex items-center gap-3">
+                  <div className="flex-1 h-1 rounded-full bg-white/8 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${count >= ANON_MSG_LIMIT ? "bg-red-400/60" : "bg-[#3b82f6]/50"}`}
+                      style={{ width: `${Math.min((count / ANON_MSG_LIMIT) * 100, 100)}%` }}
+                    />
+                  </div>
+                  <span className="shrink-0 text-[11px] text-white/36">{count}/{ANON_MSG_LIMIT} berichten</span>
+                </div>
+              );
+            } catch { return null; }
+          })()}
+
           {usage && usage.percentage >= 0.8 && !upgradeNotice.visible && (
             <div className="mx-4 mt-4 rounded-[24px] border border-amber-300/12 bg-amber-500/[0.065] px-4 py-3 text-sm text-amber-100 shadow-[0_10px_22px_rgba(0,0,0,0.10)] backdrop-blur-xl">
               <div className="flex items-center justify-between gap-3">
@@ -3988,7 +4258,7 @@ updated[index].messages[
                     onClick={async () => {
                       try {
                         const res = await fetch("/api/stripe/checkout", { method: "POST", credentials: "include" });
-                        if (res.status === 401) { window.location.href = "/persoonlijke-omgeving"; return; }
+                        if (res.status === 401) { window.location.href = "/personal-workspace"; return; }
                         const data = await res.json();
                         if (data.url) window.location.href = data.url;
                       } catch {}
@@ -4028,8 +4298,24 @@ updated[index].messages[
                   <p className="mx-auto max-w-md text-sm leading-6 text-white/44">
                     {t("welcome_sub")}
                   </p>
+
+                  {isPersonalRoute && (
+                  <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+                    {(["starter_1", "starter_2", "starter_3", "starter_4", "starter_5", "starter_6"] as const).map((key) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => { closeMobileSidebar(); applyComposerInput(t(`${key}_prompt`), { source: "message", label: t(key) }); }}
+                        className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs text-white/68 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/16 hover:bg-white/[0.07] hover:text-white active:scale-95"
+                      >
+                        {t(key)}
+                      </button>
+                    ))}
+                  </div>
+                  )}
+
                   {!isPersonalRoute && (
-                    <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+                    <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
                       <a
                         href="/"
                         className="rounded-full border border-white/8 bg-white/[0.03] px-3 py-2 text-xs text-white/58 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.05] hover:text-white"
@@ -4469,6 +4755,21 @@ updated[index].messages[
             )}
           </div>
 
+                                        {showScrollBottom && (activeChat?.messages?.length ?? 0) > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                messagesRef.current?.scrollTo({ top: messagesRef.current.scrollHeight, behavior: "smooth" });
+              }}
+              className="absolute bottom-24 right-4 z-[50] flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-[#0b1020]/90 text-white/60 shadow-[0_8px_18px_rgba(0,0,0,0.24)] backdrop-blur-xl ol-interactive transition-[transform,opacity,background-color] duration-200 hover:bg-white/[0.08] hover:text-white active:scale-95 md:bottom-20 md:right-6"
+              aria-label="Scroll to bottom"
+            >
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 5v14M5 12l7 7 7-7"/>
+              </svg>
+            </button>
+          )}
+
                                         <div
   className={`${
     activeMessages.length === 0
@@ -4588,12 +4889,12 @@ updated[index].messages[
     }
   }}
   disabled={upgradeNotice.visible}
-  className={`${composerInputClass} min-h-[48px] max-h-[140px] flex-1 rounded-2xl bg-transparent px-2 py-2.5 text-[16px] leading-6 text-white/95 outline-none placeholder:text-white/28 focus:bg-white/[0.02] md:px-3 disabled:opacity-40 disabled:cursor-not-allowed`}
+  className={`${composerInputClass} min-h-[48px] max-h-[140px] flex-1 rounded-2xl bg-transparent px-2 py-2.5 text-[16px] leading-6 text-white/95 outline-none placeholder:text-white/28 focus:bg-white/[0.02] md:px-3 disabled:opacity-40 disabled:cursor-not-allowed transition-[height] duration-100`}
   placeholder={
     upgradeNotice.visible
       ? t("placeholder_limit")
       : activeMessages.length === 0
-        ? t("placeholder_empty")
+        ? (rotatingPlaceholders[detectedLang] ?? rotatingPlaceholders["en"])[placeholderIndex]
         : t("placeholder_active")
   }
   enterKeyHint="send"
@@ -4608,7 +4909,7 @@ updated[index].messages[
     loading
       ? "bg-red-500 text-white shadow-[0_10px_24px_rgba(239,68,68,0.30)]"
       : !input.trim() && !image
-      ? "bg-white/[0.07] text-white/24 shadow-none"
+      ? "bg-white/[0.06] text-white/18 shadow-none cursor-not-allowed"
       : "bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] text-white shadow-[0_12px_24px_rgba(59,130,246,0.26)] hover:brightness-110"
   }`}
 >
@@ -4643,6 +4944,69 @@ updated[index].messages[
           >
             Log in
           </button>
+        </div>
+      )}
+
+      {showNamePopup && isPersonalRoute && (
+        <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-[380px] rounded-[28px] border border-white/10 bg-[#0a0f1d]/98 shadow-[0_22px_60px_rgba(0,0,0,0.40)] backdrop-blur-2xl overflow-hidden">
+            <div className="px-6 py-6">
+              <div className="text-[11px] uppercase tracking-[0.16em] text-white/38 mb-2">
+                {detectedLang === "nl" ? "Persoonlijke omgeving" : "Personal workspace"}
+              </div>
+              <h2 className="text-xl font-semibold tracking-tight text-white/95 mb-1">
+                {detectedLang === "nl" ? "Hoe mag ik je noemen?" :
+                 detectedLang === "de" ? "Wie darf ich dich nennen?" :
+                 detectedLang === "fr" ? "Comment puis-je t'appeler ?" :
+                 detectedLang === "es" ? "¿Cómo te llamas?" :
+                 "What should I call you?"}
+              </h2>
+              <p className="text-sm text-white/46 mb-5">
+                {detectedLang === "nl" ? "Je naam wordt onthouden en gebruikt in je persoonlijke workspace." :
+                 detectedLang === "de" ? "Dein Name wird gespeichert und in deinem Workspace verwendet." :
+                 detectedLang === "fr" ? "Ton prénom sera mémorisé et utilisé dans ton espace personnel." :
+                 detectedLang === "es" ? "Tu nombre se guardará y se usará en tu espacio personal." :
+                 "Your name will be remembered and used in your personal workspace."}
+              </p>
+              <input
+                autoFocus
+                type="text"
+                value={nameDraft}
+                onChange={(e) => setNameDraft(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && nameDraft.trim()) saveUserName(nameDraft); }}
+                placeholder={
+                  detectedLang === "nl" ? "Je voornaam..." :
+                  detectedLang === "de" ? "Dein Vorname..." :
+                  detectedLang === "fr" ? "Ton prénom..." :
+                  detectedLang === "es" ? "Tu nombre..." :
+                  "Your first name..."
+                }
+                className="w-full rounded-[18px] border border-white/10 bg-white/[0.05] px-4 py-3 text-white/95 outline-none placeholder:text-white/28 transition-[border-color] duration-200 focus:border-white/20 mb-4"
+                maxLength={40}
+              />
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowNamePopup(false)}
+                  className="flex-1 rounded-[18px] border border-white/8 bg-white/[0.04] p-3 text-sm text-white/60 hover:text-white/80 transition-colors"
+                >
+                  {detectedLang === "nl" ? "Overslaan" : "Skip"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { if (nameDraft.trim()) saveUserName(nameDraft); }}
+                  disabled={!nameDraft.trim()}
+                  className="flex-1 rounded-[18px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] p-3 text-sm text-white shadow-[0_10px_24px_rgba(59,130,246,0.24)] hover:brightness-110 disabled:opacity-50 transition-all"
+                >
+                  {detectedLang === "nl" ? "Opslaan" :
+                   detectedLang === "de" ? "Speichern" :
+                   detectedLang === "fr" ? "Enregistrer" :
+                   detectedLang === "es" ? "Guardar" :
+                   "Save"}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

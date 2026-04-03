@@ -270,7 +270,7 @@ export default function HomePage() {
             </Link>
 
             <Link
-              href="/persoonlijke-omgeving"
+              href="/personal-workspace"
               className="inline-flex h-12 w-full items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.04] px-6 text-sm font-medium text-white/88 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/30 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.99] sm:w-auto"
             >
               {t("btn_login")}
@@ -735,8 +735,8 @@ export default function HomePage() {
                     </p>
                   </div>
 
-                  <span className="inline-flex items-center rounded-full border border-blue-400/20 bg-blue-400/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-blue-300">
-                    Coming soon
+                  <span className="inline-flex items-center rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-emerald-300">
+                    Available now
                   </span>
                 </div>
 
@@ -785,7 +785,7 @@ export default function HomePage() {
                         const res = await fetch("/api/stripe/checkout", { method: "POST", credentials: "include" });
                         console.log("Stripe checkout status:", res.status);
                         if (res.status === 401) {
-                          window.location.href = "/persoonlijke-omgeving";
+                          window.location.href = "/personal-workspace";
                           return;
                         }
                         const text = await res.text();
@@ -940,45 +940,45 @@ export default function HomePage() {
                     </div>
 
                     <h2 className="mt-4 text-xl font-semibold text-white/92">
-                      Homepage structure expanded
+                      Productization & personal workspace
                     </h2>
 
                     <p className="mt-2 text-sm leading-6 text-white/50">
-                      OpenLura now includes a more complete homepage flow focused on clarity, trust, and product direction.
+                      OpenLura now includes onboarding, personal accounts with name memory, URL improvements, and a polished first-run experience.
                     </p>
                   </div>
 
                   <div className="text-sm text-white/42">
-                    Phase 4.4
+                    Phase 4.85
                   </div>
                 </div>
 
                 <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                   <div className="rounded-[20px] border border-white/10 bg-white/[0.02] p-4">
-                    <div className="text-sm font-medium text-white">Homepage flow</div>
+                    <div className="text-sm font-medium text-white">Personal workspace</div>
                     <p className="mt-2 text-sm leading-6 text-white/46">
-                      Hero, quick actions, and supporting product sections now work as one narrative.
+                      Users get a private workspace at /personal-workspace with account-bound memory and history.
                     </p>
                   </div>
 
                   <div className="rounded-[20px] border border-white/10 bg-white/[0.02] p-4">
-                    <div className="text-sm font-medium text-white">Roadmap visibility</div>
+                    <div className="text-sm font-medium text-white">Name onboarding</div>
                     <p className="mt-2 text-sm leading-6 text-white/46">
-                      Users can now see where OpenLura is heading without extra navigation.
+                      First-time users are welcomed by name — the AI remembers and uses it naturally.
                     </p>
                   </div>
 
                   <div className="rounded-[20px] border border-white/10 bg-white/[0.02] p-4">
-                    <div className="text-sm font-medium text-white">Feedback entry</div>
+                    <div className="text-sm font-medium text-white">UX polish</div>
                     <p className="mt-2 text-sm leading-6 text-white/46">
-                      A dedicated feedback modal improves product input without sending users into chat.
+                      Starter chips, rotating placeholders, scroll-to-bottom, and inline chat rename all ship in this phase.
                     </p>
                   </div>
 
                   <div className="rounded-[20px] border border-white/10 bg-white/[0.02] p-4">
-                    <div className="text-sm font-medium text-white">Trust layers</div>
+                    <div className="text-sm font-medium text-white">Billing & plans</div>
                     <p className="mt-2 text-sm leading-6 text-white/46">
-                      Plans, security, system status, and account flow now add clearer product confidence.
+                      Stripe integration, Go plan, and usage tracking are live for personal account holders.
                     </p>
                   </div>
                 </div>

@@ -4153,28 +4153,16 @@ Do not use web search for this path.`,
     try {
       const rewrite = await openai.chat.completions.create({
         model: "gpt-4o-mini",
+        max_tokens: 300,
+        temperature: 0.7,
         messages: [
           {
             role: "system",
-            content: `You are OpenLura.
-
-Rewrite the assistant draft so it feels more natural for a casual personal chat.
-Rules:
-- Keep the same language as the user
-- Make it shorter
-- Sound warm, light, and spontaneous
-- Avoid essay tone, abstract self-analysis, and overexplaining
-- Usually 2 to 5 short paragraphs max
-- Keep the meaning, just make it feel more human
-- If it fits, lightly bounce the conversation back to the user`,
+            content: `You are OpenLura. Rewrite the draft for casual chat. Rules: same language as user, shorter, warm and spontaneous, max 3 short paragraphs, no essay tone, keep the meaning.`,
           },
           {
             role: "user",
-            content: `User message:
-${message || ""}
-
-Current draft:
-${aiText}`,
+            content: `User: ${message || ""}\n\nDraft: ${aiText}`,
           },
         ],
       });
@@ -4265,19 +4253,20 @@ ${aiText}`,
 
   const encoder = new TextEncoder();
 
+  const safeText =
+    aiText && aiText.trim()
+      ? aiText
+      : (image
+          ? "Ik kon de afbeelding niet goed uitlezen. Stuur de foto opnieuw met een korte vraag erbij."
+          : message && message.trim().length <= 10
+          ? `Hoi! Hoe kan ik je helpen?`
+          : "Ik kon geen antwoord genereren. Probeer het opnieuw.");
+
   return new Response(
     new ReadableStream({
       async start(controller) {
-        const chunkSize = 80;
-
-                const safeText =
-          aiText && aiText.trim()
-            ? aiText
-            : (image
-                ? "Ik kon de afbeelding niet goed uitlezen. Stuur de foto opnieuw met een korte vraag erbij."
-                : message && message.trim().length <= 10
-                ? `Hoi! Hoe kan ik je helpen?`
-                : "Ik kon geen antwoord genereren. Probeer het opnieuw.");
+        // Stream in larger chunks for smoother UX (was 80, now 160)
+        const chunkSize = 160;
 
         for (let i = 0; i < safeText.length; i += chunkSize) {
           controller.enqueue(

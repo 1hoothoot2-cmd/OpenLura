@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { headers } from "next/headers";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 
 async function detectLangFromHeaders(): Promise<string> {
@@ -74,6 +76,8 @@ export default async function RootLayout({
       </head>
             <body className="min-h-full flex flex-col">
         {children}
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );

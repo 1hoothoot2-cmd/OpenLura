@@ -48,7 +48,40 @@ type Props = {
   onCopyActiveChatMarkdown?: () => void;
   onDownloadActiveChatMarkdown?: () => void;
   userTier?: "free" | "pro" | "admin";
+  onRenameChat?: (id: number, title: string) => void;
+  userName?: string | null;
 };
+
+function AnonUsageIndicator() {
+  const [count, setCount] = useState(0);
+  const limit = 3;
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("openlura_anon_usage");
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      const now = Date.now();
+      if (parsed.resetAt && parsed.resetAt > now) {
+        setCount(parsed.count || 0);
+      }
+    } catch {}
+  }, []);
+
+  if (count === 0) return null;
+
+  return (
+    <div className="mb-2 flex items-center gap-2">
+      <div className="flex-1 h-1 rounded-full bg-white/8 overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all duration-500 ${count >= limit ? "bg-red-400/60" : "bg-[#3b82f6]/60"}`}
+          style={{ width: `${Math.min((count / limit) * 100, 100)}%` }}
+        />
+      </div>
+      <span className="text-[10px] text-white/36 shrink-0">{count}/{limit} berichten</span>
+    </div>
+  );
+}
 
 export default function Sidebar({
   mobileMenu,
@@ -77,7 +110,9 @@ export default function Sidebar({
   onOpenDashboard,
   onCopyActiveChatMarkdown,
   onDownloadActiveChatMarkdown,
-  userTier = "free"
+  userTier = "free",
+  onRenameChat,
+  userName,
 }: Props) {
   const sidebarRef = useRef<HTMLDivElement | null>(null);
 const promptMessageTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -99,6 +134,8 @@ const [promptDraft, setPromptDraft] = useState<{
   tagsInput: "",
 });
 const [promptActionMessage, setPromptActionMessage] = useState("");
+const [editingChatTitleId, setEditingChatTitleId] = useState<number | null>(null);
+const [chatTitleDraft, setChatTitleDraft] = useState("");
 
   const getOrCreateOpenLuraUserId = () => {
     if (typeof window === "undefined") return "";
@@ -434,7 +471,7 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
     "rounded-full border border-[#3b82f6]/18 bg-[#3b82f6]/8 px-3 py-1 text-xs text-white/68 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/34 hover:bg-[#3b82f6]/12 hover:text-white hover:shadow-[0_6px_14px_rgba(59,130,246,0.12)] active:scale-95";
 
   const emptyStateClass =
-    "rounded-2xl border border-dashed border-white/8 bg-white/[0.022] px-3 py-3 text-sm text-white/36";
+    "rounded-2xl border border-dashed border-white/8 bg-white/[0.022] px-3 py-2.5 text-[12px] leading-5 text-white/36 break-words";
 
   const hasActiveChat =
     activeChatId !== null &&
@@ -493,17 +530,47 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
             }`}
           />
           <span className="min-w-0 flex-1 truncate">
-            <span
-              className={`block truncate transition-[color,opacity,font-weight] duration-200 ${
-                isActive
-                  ? "font-semibold tracking-[-0.01em] text-white"
-                  : isPinned
-                  ? "font-medium text-white/92"
-                  : "font-normal text-white/78"
-              }`}
-            >
-              {chat.title || "New Chat"}
-            </span>
+            {editingChatTitleId === chat.id ? (
+              <input
+                autoFocus
+                value={chatTitleDraft}
+                onChange={(e) => setChatTitleDraft(e.target.value)}
+                onBlur={() => {
+                  const trimmed = chatTitleDraft.trim();
+                  if (trimmed && onRenameChat) onRenameChat(chat.id, trimmed);
+                  setEditingChatTitleId(null);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    const trimmed = chatTitleDraft.trim();
+                    if (trimmed && onRenameChat) onRenameChat(chat.id, trimmed);
+                    setEditingChatTitleId(null);
+                  }
+                  if (e.key === "Escape") setEditingChatTitleId(null);
+                }}
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+                className="w-full rounded-lg border border-white/14 bg-white/[0.06] px-2 py-0.5 text-sm text-white outline-none"
+                maxLength={60}
+              />
+            ) : (
+              <span
+                className={`block truncate transition-[color,opacity,font-weight] duration-200 ${
+                  isActive
+                    ? "font-semibold tracking-[-0.01em] text-white"
+                    : isPinned
+                    ? "font-medium text-white/92"
+                    : "font-normal text-white/78"
+                }`}
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  setChatTitleDraft(chat.title || "");
+                  setEditingChatTitleId(chat.id);
+                }}
+              >
+                {chat.title || "New Chat"}
+              </span>
+            )}
           </span>
         </span>
       </button>
@@ -540,6 +607,20 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
             className="w-full px-3.5 py-2.5 text-left text-sm text-white/88 transition-[background-color,color] duration-150 hover:bg-white/[0.06] hover:text-white"
           >
             {isPinned ? "Unpin" : "Pin"}
+          </button>
+
+          <div className="mx-2 border-t border-white/8" />
+
+          <button
+            type="button"
+            onClick={() => {
+              setChatTitleDraft(chat.title || "");
+              setEditingChatTitleId(chat.id);
+              setOpenChatMenuId(null);
+            }}
+            className="w-full px-3.5 py-2.5 text-left text-sm text-white/88 transition-[background-color,color] duration-150 hover:bg-white/[0.06] hover:text-white"
+          >
+            Rename
           </button>
 
           <div className="mx-2 border-t border-white/8" />
@@ -602,6 +683,11 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
                 <div className="text-[10px] uppercase tracking-[0.18em] text-white/32">
                   Adaptive AI workspace
                 </div>
+                {userName && (
+                  <div className="mt-0.5 text-[11px] text-white/46">
+                    {userName}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -669,8 +755,16 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
                 regularChats.map((chat: SidebarChat) => renderChatRow(chat, false))
               ) : (
                 <div className={emptyStateClass}>
-  No chats found
-</div>
+                  {isPersonalRoute ? (
+                    <button
+                      type="button"
+                      onClick={() => createNewChat()}
+                      className="w-full text-left text-white/40 hover:text-white/70 transition-colors"
+                    >
+                      + Start je eerste chat
+                    </button>
+                  ) : "No chats found"}
+                </div>
               )}
             </div>
           </div>
@@ -895,7 +989,9 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
                 })
               ) : (
                 <div className={emptyStateClass}>
-                  No saved prompts yet
+                  {isPersonalRoute
+                    ? "Sla berichten op via ⋯"
+                    : "No saved prompts yet"}
                 </div>
               )}
             </div>
@@ -905,10 +1001,11 @@ const [promptActionMessage, setPromptActionMessage] = useState("");
             <div className="rounded-[20px] border border-[#3b82f6]/14 bg-[#3b82f6]/[0.04] px-3 py-3">
               <div className="text-[11px] font-medium text-[#bfdbfe] mb-1">✨ Persoonlijke omgeving</div>
               <p className="text-[11px] text-white/46 leading-5 mb-2.5">Meld je aan voor opgeslagen prompts, cross-device geheugen en meer.</p>
+              <AnonUsageIndicator />
               <button
                 type="button"
                 onClick={() => { setMobileMenu(false); window.location.href = "/login"; }}
-                className="w-full rounded-xl bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-3 py-2 text-[12px] font-medium text-white"
+                className="w-full rounded-xl bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-3 py-2 text-[12px] font-medium text-white mt-2"
               >
                 Aanmelden →
               </button>

@@ -22,7 +22,7 @@ $filesToSync = @(
     
     # PAGES
     @{ Source = "app\analytics\page.tsx"; Destination = "analytics_page.tsx" },
-    @{ Source = "app\persoonlijke-omgeving\page.tsx"; Destination = "persoonlijke-omgeving_page.tsx" },
+    @{ Source = "app\personal-workspace\page.tsx"; Destination = "persoonlijke-omgeving_page.tsx" },
     @{ Source = "app\privacy\page.tsx"; Destination = "privacy_page.tsx" },
     
     # MEMORY FILES
