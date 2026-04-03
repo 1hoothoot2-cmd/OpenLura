@@ -3844,7 +3844,7 @@ updated[index].messages[
                     {usage.used} / {usage.limit} berichten gebruikt ({Math.round(usage.percentage * 100)}%)
                   </div>
                 </div>
-                <a href="/pricing" className="shrink-0 rounded-full border border-amber-300/20 bg-amber-400/10 px-3 py-1.5 text-[11px] font-medium text-amber-200 transition-colors hover:bg-amber-400/16 hover:text-white">
+                <a href="/#plans" className="shrink-0 rounded-full border border-amber-300/20 bg-amber-400/10 px-3 py-1.5 text-[11px] font-medium text-amber-200 transition-colors hover:bg-amber-400/16 hover:text-white">
                   Bekijk plannen →
                 </a>
               </div>
@@ -3867,7 +3867,7 @@ updated[index].messages[
                   </div>
                 </div>
                 {isPersonalRoute ? (
-                  <a href="/pricing" className="shrink-0 rounded-full border border-blue-300/20 bg-blue-400/14 px-3 py-1.5 text-[11px] font-medium text-blue-100 transition-colors hover:bg-blue-400/22 hover:text-white">
+                  <a href="/#plans" className="shrink-0 rounded-full border border-blue-300/20 bg-blue-400/14 px-3 py-1.5 text-[11px] font-medium text-blue-100 transition-colors hover:bg-blue-400/22 hover:text-white">
                     Bekijk Go →
                   </a>
                 ) : (
