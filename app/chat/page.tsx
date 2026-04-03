@@ -132,6 +132,54 @@ export default function ChatPage() {
         pap: "✅ Hasi un lista di trabou",
         en: "✅ Make a task list",
       },
+    starter_1_prompt: {
+        nl: "Schrijf een professionele e-mail om een afspraak te plannen. Geef me een kant-en-klaar voorbeeld dat ik direct kan gebruiken.",
+        de: "Schreib eine professionelle E-Mail, um einen Termin zu vereinbaren. Gib mir ein fertiges Beispiel, das ich direkt verwenden kann.",
+        fr: "Écris un e-mail professionnel pour planifier un rendez-vous. Donne-moi un exemple prêt à l'emploi.",
+        es: "Escribe un correo profesional para concertar una cita. Dame un ejemplo listo para usar.",
+        pap: "Skirbi un email profesional pa plania un cita. Dami un ehempel ku mi por usa mes awe.",
+        en: "Write a professional email to schedule a meeting. Give me a ready-to-use example I can send today.",
+      },
+      starter_2_prompt: {
+        nl: "Geef me 5 concrete ideeën om een project of taak interessanter en effectiever aan te pakken. Wees specifiek en praktisch.",
+        de: "Gib mir 5 konkrete Ideen, um ein Projekt oder eine Aufgabe interessanter und effektiver anzugehen.",
+        fr: "Donne-moi 5 idées concrètes pour aborder un projet ou une tâche de façon plus intéressante et efficace.",
+        es: "Dame 5 ideas concretas para abordar un proyecto o tarea de forma más interesante y efectiva.",
+        pap: "Dami 5 ideanan konkret pa ataka un proyecto of tarea di un manera mas interesante i efectivo.",
+        en: "Give me 5 concrete ideas to approach a project or task in a more interesting and effective way.",
+      },
+      starter_3_prompt: {
+        nl: "Leg me een complex onderwerp eenvoudig uit, alsof je het uitlegt aan iemand die er nog nooit van gehoord heeft. Kies zelf een interessant onderwerp.",
+        de: "Erkläre mir ein komplexes Thema einfach, als würdest du es jemandem erklären, der noch nie davon gehört hat.",
+        fr: "Explique-moi un sujet complexe simplement, comme si tu l'expliquais à quelqu'un qui n'en a jamais entendu parler.",
+        es: "Explícame un tema complejo de forma sencilla, como si se lo explicaras a alguien que nunca ha oído hablar de él.",
+        pap: "Splika mi un topiko kompleks simpel, manera si bo ta splika e na algun ku nunka a tende di ne.",
+        en: "Explain a complex topic simply, as if explaining it to someone who has never heard of it. Pick an interesting topic.",
+      },
+      starter_4_prompt: {
+        nl: "Plak hieronder een tekst en ik maak er een heldere samenvatting van in maximaal 5 zinnen.",
+        de: "Füge unten einen Text ein und ich erstelle eine klare Zusammenfassung in maximal 5 Sätzen.",
+        fr: "Colle un texte ci-dessous et je t'en ferai un résumé clair en 5 phrases maximum.",
+        es: "Pega un texto a continuación y haré un resumen claro en máximo 5 frases.",
+        pap: "Pega un teks aki abou i mi lo hasi un samenvatting kla di máximo 5 frasa.",
+        en: "Paste a text below and I'll summarize it clearly in 5 sentences or less.",
+      },
+      starter_5_prompt: {
+        nl: "Ik wil nadenken over een beslissing of uitdaging. Stel me de 3 meest relevante vragen om mijn gedachten te structureren.",
+        de: "Ich möchte über eine Entscheidung nachdenken. Stelle mir die 3 relevantesten Fragen, um meine Gedanken zu strukturieren.",
+        fr: "Je veux réfléchir à une décision. Pose-moi les 3 questions les plus pertinentes pour structurer ma réflexion.",
+        es: "Quiero reflexionar sobre una decisión. Hazme las 3 preguntas más relevantes para estructurar mis pensamientos.",
+        pap: "Mi ke pensa riba un decision. Hasi mi e 3 pregunta mas relevante pa struktura mi pensamentu.",
+        en: "I want to think through a decision. Ask me the 3 most relevant questions to help structure my thinking.",
+      },
+      starter_6_prompt: {
+        nl: "Maak een gestructureerde takenlijst voor een productieve werkdag. Verdeel het in ochtend, middag en avond met concrete acties.",
+        de: "Erstelle eine strukturierte Aufgabenliste für einen produktiven Arbeitstag. Unterteile in Morgen, Mittag und Abend.",
+        fr: "Crée une liste de tâches structurée pour une journée productive. Divise en matin, après-midi et soir.",
+        es: "Crea una lista de tareas para un día productivo. Divídela en mañana, tarde y noche con acciones concretas.",
+        pap: "Hasi un lista di tarea strukturá pa un dia produktivo. Dividi den mainta, merdia i atardi.",
+        en: "Create a structured task list for a productive workday. Split into morning, afternoon, and evening with concrete actions.",
+      },
     };
 
     return translations[key]?.[detectedLang] ?? translations[key]?.["en"] ?? key;
@@ -4083,7 +4131,7 @@ updated[index].messages[
                       <button
                         key={key}
                         type="button"
-                        onClick={() => applyComposerInput(t(key), { source: "message" })}
+                        onClick={() => applyComposerInput(t(`${key}_prompt`), { source: "message" })}
                         className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs text-white/68 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/16 hover:bg-white/[0.07] hover:text-white active:scale-95"
                       >
                         {t(key)}
