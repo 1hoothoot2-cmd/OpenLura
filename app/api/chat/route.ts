@@ -2408,12 +2408,15 @@ type OpenLuraRuntimePromptBuilderInput = {
   feedbackContext: string;
   personalFeedbackContext: string;
   detectedLanguage: string;
+  userName?: string;
 };
 
-function buildOpenLuraBasePrompt(detectedLanguage: string = "en") {
+function buildOpenLuraBasePrompt(detectedLanguage: string = "en", userName?: string) {
   return `You are OpenLura.
 
 You improve yourself based on user feedback.
+
+${userName ? `The user's name is ${userName}. Use their name naturally and sparingly — only when it feels warm and fitting, not in every message.` : ""}
 
 CRITICAL RULES:
 - The user's detected language is: ${detectedLanguage}. ALWAYS respond in this language. Do not switch languages mid-response.
@@ -2518,7 +2521,7 @@ Avoid long structured sections unless needed.`;
   const basePrompt = buildOpenLuraBasePrompt(input.detectedLanguage);
 
   return `
-${basePrompt}
+${buildOpenLuraBasePrompt(input.detectedLanguage, input.userName)}
 
 GLOBAL FEEDBACK CONTEXT:
 ${input.feedbackContext}
@@ -3788,6 +3791,7 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
             content: `You are OpenLura.
 
 Respond in the same language as the user. Supported languages include Dutch, English, French, German, Spanish, Portuguese, and Papiamento (spoken on Curaçao, Aruba, and Bonaire). If the user writes in Papiamento, always respond in Papiamento — never switch to Spanish or Portuguese.
+${isPersonalEnvironment && (personalState.profile as any)?.name ? `The user's name is ${(personalState.profile as any).name}. Use their name naturally and sparingly — only when it feels warm and fitting, not in every message.` : ""}
 Keep short prompts fast, natural, and direct.
 Do not use long structure for greetings or tiny prompts.
 Keep the answer useful but compact.
@@ -4059,6 +4063,9 @@ Do not use web search for this path.`,
       feedbackContext,
       personalFeedbackContext,
       detectedLanguage,
+      userName: isPersonalEnvironment && personalState.profile
+        ? (personalState.profile as any).name || undefined
+        : undefined,
     }),
       input: [
         {
