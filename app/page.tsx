@@ -575,7 +575,14 @@ export default function HomePage() {
                   </span>
                 </div>
 
-                <div className="mt-6 space-y-3">
+                <div className="mt-4">
+                    <div className="flex items-baseline gap-1.5">
+                      <div className="text-2xl font-semibold text-white">€0</div>
+                      <div className="text-sm text-white/40">/maand</div>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 space-y-3">
                   <div className="flex items-start gap-3">
                     <span className="mt-1 h-2 w-2 rounded-full bg-white/50" />
                     <p className="text-sm leading-6 text-white/72">
@@ -603,20 +610,31 @@ export default function HomePage() {
                       Good for getting familiar with OpenLura
                     </p>
                   </div>
+
+                  <div className="flex items-start gap-3">
+                    <span className="mt-1 h-2 w-2 rounded-full bg-white/30" />
+                    <p className="text-sm leading-6 text-white/46">
+                      150 berichten per maand
+                    </p>
+                  </div>
                 </div>
               </div>
 
               <div className="rounded-[24px] border border-blue-400/16 bg-gradient-to-b from-[#0d1733] to-[#0a1022] p-6 shadow-[0_18px_40px_rgba(29,78,216,0.12)] backdrop-blur-xl ol-surface sm:p-7">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <div className="text-lg font-semibold text-white">Go</div>
+                    <div className="flex items-baseline gap-2">
+                      <div className="text-lg font-semibold text-white">Go</div>
+                      <div className="text-2xl font-semibold text-white">€4,99</div>
+                      <div className="text-sm text-white/40">/maand</div>
+                    </div>
                     <p className="mt-2 text-sm leading-6 text-white/50">
                       Built for more consistent usage, deeper workflows, and a stronger product experience over time.
                     </p>
                   </div>
 
                   <span className="inline-flex items-center rounded-full border border-blue-400/20 bg-blue-400/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-blue-300">
-                    Evolving
+                    Binnenkort
                   </span>
                 </div>
 
@@ -648,6 +666,22 @@ export default function HomePage() {
                       Designed for users who want more from OpenLura over time
                     </p>
                   </div>
+
+                  <div className="flex items-start gap-3">
+                    <span className="mt-1 h-2 w-2 rounded-full bg-blue-300" />
+                    <p className="text-sm leading-6 text-white/78">
+                      Onbeperkt berichten per maand
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-6">
+                  <a
+                    href="/persoonlijke-omgeving"
+                    className="inline-flex w-full items-center justify-center rounded-[18px] border border-blue-400/20 bg-blue-400/10 px-5 py-3 text-sm font-medium text-blue-200 transition-[background-color,border-color,color] duration-200 hover:border-blue-400/30 hover:bg-blue-400/16 hover:text-white"
+                  >
+                    Binnenkort beschikbaar
+                  </a>
                 </div>
               </div>
             </div>
