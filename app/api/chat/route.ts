@@ -1191,10 +1191,14 @@ function getUsagePeriodKey(date = new Date()) {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
+const ADMIN_USER_IDS = ["fb392988-b34a-44a4-8823-b27abb7bfe06"];
+
 function resolveUsageTier(input: {
   userScope?: "admin" | "guest" | "personal" | "user";
   existingUsageStats?: OpenLuraUsageStats | null;
+  userId?: string | null;
 }) {
+  if (input.userId && ADMIN_USER_IDS.includes(input.userId)) return "admin";
   if (input.userScope === "admin") return "admin";
   if (input.existingUsageStats?.tier === "pro") return "pro";
   return "free";
@@ -1206,6 +1210,7 @@ function buildUpdatedUsageStats(input: {
   usedWebSearch: boolean;
   usedImage: boolean;
   userScope?: "admin" | "guest" | "personal" | "user";
+  userId?: string | null;
 }) {
   const now = new Date();
   const periodKey = getUsagePeriodKey(now);
@@ -1223,6 +1228,7 @@ function buildUpdatedUsageStats(input: {
         tier: resolveUsageTier({
           userScope: input.userScope,
           existingUsageStats: existing,
+          userId: input.userId,
         }),
       }
     : {
@@ -1235,6 +1241,7 @@ function buildUpdatedUsageStats(input: {
         tier: resolveUsageTier({
           userScope: input.userScope,
           existingUsageStats: existing,
+          userId: input.userId,
         }),
       };
 
@@ -3553,6 +3560,7 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
       usedWebSearch: shouldUseWebSearch,
       usedImage: !!image,
       userScope,
+      userId: personalUserId,
     });
 
     const usageLimitSnapshot = getUsageLimitSnapshot({
@@ -3562,7 +3570,8 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
     const shouldBlockForUsageLimit =
       isPersonalEnvironment &&
       usageLimitSnapshot.exceeded &&
-      userScope !== "admin";
+      userScope !== "admin" &&
+      !(personalUserId && ADMIN_USER_IDS.includes(personalUserId));
 
     if (shouldBlockForUsageLimit) {
       if (personalUserId && accessToken) {
