@@ -33,6 +33,9 @@ export default function ChatPage() {
     : makeUserBoundStorageKey("openlura_memory");
   const [personalStateLoaded, setPersonalStateLoaded] = useState(false);
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
+  const [userName, setUserName] = useState<string | null>(null);
+  const [showNamePopup, setShowNamePopup] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
 
   const [detectedLang, setDetectedLang] = useState(() => {
     if (typeof navigator === "undefined") return "en";
@@ -42,6 +45,9 @@ export default function ChatPage() {
     if (raw.startsWith("fr")) return "fr";
     if (raw.startsWith("es")) return "es";
     if (raw.startsWith("pt")) return "pt";
+    if (raw.startsWith("it")) return "it";
+    if (raw.startsWith("tr")) return "tr";
+    if (raw.startsWith("ar")) return "ar";
     if (raw.startsWith("pap")) return "pap";
     return "en";
   });
@@ -81,20 +87,20 @@ export default function ChatPage() {
         en: "Limit reached — upgrade to continue",
       },
       welcome_title: {
-        nl: "Waar wil je vandaag aan werken?",
-        de: "Woran möchtest du heute arbeiten?",
-        fr: "Sur quoi veux-tu travailler aujourd'hui ?",
-        es: "¿En qué quieres trabajar hoy?",
-        pap: "Kiko bo ke traha awe?",
-        en: "What do you want to work on today?",
+        nl: userName ? `Hallo ${userName} 👋` : "Waar wil je vandaag aan werken?",
+        de: userName ? `Hallo ${userName} 👋` : "Woran möchtest du heute arbeiten?",
+        fr: userName ? `Bonjour ${userName} 👋` : "Sur quoi veux-tu travailler aujourd'hui ?",
+        es: userName ? `Hola ${userName} 👋` : "¿En qué quieres trabajar hoy?",
+        pap: userName ? `Halo ${userName} 👋` : "Kiko bo ke traha awe?",
+        en: userName ? `Hello ${userName} 👋` : "What do you want to work on today?",
       },
       welcome_sub: {
-        nl: "Stel een vraag, upload een afbeelding, of ga verder met een eerdere chat.",
-        de: "Stelle eine Frage, lade ein Bild hoch oder führe ein früheres Gespräch fort.",
-        fr: "Pose une question, télécharge une image, ou continue une discussion précédente.",
-        es: "Haz una pregunta, sube una imagen o continúa un chat anterior.",
-        pap: "Hasi un pregunta, subi un imagen, of sigui ku un chat anterior.",
-        en: "Ask a question, upload an image, or continue an earlier chat.",
+        nl: userName ? "Waar kan ik je vandaag mee helpen?" : "Stel een vraag, upload een afbeelding, of ga verder met een eerdere chat.",
+        de: userName ? "Wobei kann ich dir heute helfen?" : "Stelle eine Frage, lade ein Bild hoch oder führe ein früheres Gespräch fort.",
+        fr: userName ? "Comment puis-je t'aider aujourd'hui ?" : "Pose une question, télécharge une image, ou continue une discussion précédente.",
+        es: userName ? "¿En qué puedo ayudarte hoy?" : "Haz una pregunta, sube una imagen o continúa un chat anterior.",
+        pap: userName ? "Con ki mi por yudabo awe?" : "Hasi un pregunta, subi un imagen, of sigui ku un chat anterior.",
+        en: userName ? "How can I help you today?" : "Ask a question, upload an image, or continue an earlier chat.",
       },
       starter_1: {
         nl: "✍️ Schrijf een e-mail",
@@ -266,6 +272,33 @@ const applyComposerInput = (
   if (savePromptError) {
     setSavePromptError("");
   }
+};
+
+const saveUserName = async (name: string) => {
+  const trimmed = name.trim();
+  if (!trimmed) return;
+  setUserName(trimmed);
+  setShowNamePopup(false);
+
+  // Sla op in profile
+  try {
+    await fetch("/api/personal-state", {
+      method: "POST",
+      headers: getOpenLuraRequestHeaders(true, { personalEnv: true, includeUserId: false }),
+      credentials: "same-origin",
+      body: JSON.stringify({
+        chats,
+        memory,
+        profile: {
+          tone: chatSettings.tone,
+          style: chatSettings.style,
+          memoryEnabled: chatSettings.memoryEnabled,
+          preferences: settingsPreferences,
+          name: trimmed,
+        },
+      }),
+    });
+  } catch {}
 };
 
 const handleUseAsInput = (content: string) => {
@@ -823,6 +856,14 @@ const isReplaceableStarterChat = (chat: any) => {
               if (Array.isArray(p.preferences)) {
                 setSettingsPreferences(p.preferences);
               }
+              if (typeof p.name === "string" && p.name.trim()) {
+                setUserName(p.name.trim());
+              } else {
+                // Geen naam bekend → popup tonen
+                setShowNamePopup(true);
+              }
+            } else {
+              setShowNamePopup(true);
             }
 
             const normalizedChats = serverChats.map((chat: any) => ({
@@ -887,6 +928,26 @@ const isReplaceableStarterChat = (chat: any) => {
 
             loadedFromServer = true;
             setPersonalStateLoaded(true);
+
+            // Resolve name from user metadata
+            try {
+              const userRes = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/user`, {
+                headers: {
+                  apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",
+                  Authorization: `Bearer ${document.cookie.match(/sb-access-token=([^;]+)/)?.[1] || ""}`,
+                },
+                cache: "no-store",
+              });
+              if (userRes.ok) {
+                const userData = await userRes.json();
+                const name =
+                  userData?.user_metadata?.full_name ||
+                  userData?.user_metadata?.name ||
+                  userData?.email?.split("@")[0] ||
+                  null;
+                if (name) setUserName(String(name).split(" ")[0]);
+              }
+            } catch {}
 
             // Resolve tier on load
             const loadedUserId = data?.userId || null;
@@ -1159,6 +1220,7 @@ const shouldSkipPersonalStateSync =
                 style: chatSettings.style,
                 memoryEnabled: chatSettings.memoryEnabled,
                 preferences: settingsPreferences,
+                ...(userName ? { name: userName } : {}),
               },
             }),
           });
@@ -1388,6 +1450,9 @@ const shouldSkipPersonalStateSync =
     de: ["Stell eine Frage...", "Schreib eine E-Mail...", "Erkläre etwas...", "Mach einen Plan..."],
     fr: ["Posez une question...", "Écrivez un e-mail...", "Expliquez quelque chose...", "Faites un plan..."],
     es: ["Haz una pregunta...", "Escribe un correo...", "Explica algo...", "Haz un plan..."],
+    it: ["Fai una domanda...", "Scrivi un'email...", "Spiega qualcosa...", "Fai un piano..."],
+    tr: ["Bir soru sor...", "E-posta yaz...", "Bir şey açıkla...", "Plan yap..."],
+    ar: ["اطرح سؤالاً...", "اكتب بريداً...", "اشرح شيئاً...", "ضع خطة..."],
     en: ["Ask anything...", "Write an email...", "Explain something...", "Make a plan..."],
   };
 
@@ -2298,6 +2363,9 @@ const restoreDeletedChat = (chatId: number) => {
       if (raw.startsWith("fr")) return "fr";
       if (raw.startsWith("es")) return "es";
       if (raw.startsWith("pt")) return "pt";
+      if (raw.startsWith("it")) return "it";
+      if (raw.startsWith("tr")) return "tr";
+      if (raw.startsWith("ar")) return "ar";
       if (raw.startsWith("pap")) return "pap";
       return "en";
     })();
@@ -2357,9 +2425,28 @@ const restoreDeletedChat = (chatId: number) => {
   const isRefinementInstruction = (text: string) => {
     const normalized = text.toLowerCase().trim();
 
-    return /^(and )?(now )?(even )?(shorter|short|clearer|simpler|more concrete|different|retry but shorter|make it shorter|shorter please|clearer please|simpler please|more context|less text)([.!?])?$/.test(
-      normalized
-    );
+    // NL
+    const isNl = /^(en )?(nu )?(nog )?(korter|kort|duidelijker|simpeler|meer concreet|concreter|anders|anders verwoorden|opnieuw maar korter|maak korter|maak het korter|korter graag|duidelijker graag|simpel(er)? graag|meer context|minder tekst|alleen het aantal|nu alleen het aantal|gewoon het aantal|alleen de naam|alleen de namen|alleen kort|alleen de conclusie|nog korter|iets korter|wat korter|veel korter|heel kort|korter alsjeblieft|graag korter|kan het korter|maak het wat korter|nu korter|opnieuw korter|en korter|nog beknopter|beknopter|bondiger|minder woorden|zonder uitleg|zonder toelichting|gewoon kort|alleen het resultaat|alleen de uitkomst)([.!?])?$/.test(normalized);
+
+    // EN
+    const isEn = /^(and )?(now )?(even )?(shorter|short|clearer|simpler|more concrete|different|make it shorter|shorter please|clearer please|simpler please|more context|less text|more concise|briefer|summarize|just the result|only the answer)([.!?])?$/.test(normalized);
+
+    // DE
+    const isDe = /^(noch )?(kürzer|kurz|klarer|einfacher|konkreter|anders formulieren|nochmal kürzer|mach es kürzer|bitte kürzer|weniger text|nur das ergebnis|nur die antwort)([.!?])?$/.test(normalized);
+
+    // FR
+    const isFr = /^(plus )?(court|courts|courte|courtes|clair|simple|concis|concise|reformule|reformuler|moins de texte|juste le résultat|seulement la réponse|encore plus court)([.!?])?$/.test(normalized);
+
+    // ES
+    const isEs = /^(más )?(corto|corta|claro|clara|simple|sencillo|concreto|concisa|reformula|menos texto|solo el resultado|solo la respuesta|más breve|más conciso)([.!?])?$/.test(normalized);
+
+    // IT
+    const isIt = /^(più )?(corto|breve|chiaro|semplice|concreto|riformula|meno testo|solo il risultato|ancora più corto)([.!?])?$/.test(normalized);
+
+    // TR
+    const isTr = /^(daha )?(kısa|kısalt|net|sade|somut|yeniden yaz|daha kısa yaz|sadece sonuç|daha az metin)([.!?])?$/.test(normalized);
+
+    return isNl || isEn || isDe || isFr || isEs || isIt || isTr;
   };
 
   const resolveFeedbackTargetContext = (messages: any[], aiMsgIndex: number) => {
@@ -3121,7 +3208,7 @@ setChats([...updated]);
           memory: resolvedMemoryText,
           personalMemory:
             isPersonalRoute && chatSettings.memoryEnabled
-              ? resolvedMemoryText
+              ? [userName ? `Mijn naam is ${userName}.` : "", resolvedMemoryText].filter(Boolean).join("\n")
               : "",
           tone: chatSettings.tone,
           style: chatSettings.style,
@@ -3139,10 +3226,11 @@ setChats([...updated]);
                 msg.content !== "Analyzing image..." &&
                 msg.content !== "🤖 Wat kan ik beter doen?"
             )
-            .slice(-6)
+            .slice(-12)
             .map((msg: any) => ({
               role: msg.role,
               content: msg.content,
+              image: msg.image ? true : undefined,
             })),
         }),
       });
@@ -3570,6 +3658,7 @@ updated[index].messages[
       prev.map((c) => (c.id === id ? { ...c, title } : c))
     );
   }}
+  userName={userName}
 />
       <button
   onClick={() => setMobileMenu(!mobileMenu)}
@@ -4855,6 +4944,69 @@ updated[index].messages[
           >
             Log in
           </button>
+        </div>
+      )}
+
+      {showNamePopup && isPersonalRoute && (
+        <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-[380px] rounded-[28px] border border-white/10 bg-[#0a0f1d]/98 shadow-[0_22px_60px_rgba(0,0,0,0.40)] backdrop-blur-2xl overflow-hidden">
+            <div className="px-6 py-6">
+              <div className="text-[11px] uppercase tracking-[0.16em] text-white/38 mb-2">
+                {detectedLang === "nl" ? "Persoonlijke omgeving" : "Personal workspace"}
+              </div>
+              <h2 className="text-xl font-semibold tracking-tight text-white/95 mb-1">
+                {detectedLang === "nl" ? "Hoe mag ik je noemen?" :
+                 detectedLang === "de" ? "Wie darf ich dich nennen?" :
+                 detectedLang === "fr" ? "Comment puis-je t'appeler ?" :
+                 detectedLang === "es" ? "¿Cómo te llamas?" :
+                 "What should I call you?"}
+              </h2>
+              <p className="text-sm text-white/46 mb-5">
+                {detectedLang === "nl" ? "Je naam wordt onthouden en gebruikt in je persoonlijke workspace." :
+                 detectedLang === "de" ? "Dein Name wird gespeichert und in deinem Workspace verwendet." :
+                 detectedLang === "fr" ? "Ton prénom sera mémorisé et utilisé dans ton espace personnel." :
+                 detectedLang === "es" ? "Tu nombre se guardará y se usará en tu espacio personal." :
+                 "Your name will be remembered and used in your personal workspace."}
+              </p>
+              <input
+                autoFocus
+                type="text"
+                value={nameDraft}
+                onChange={(e) => setNameDraft(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && nameDraft.trim()) saveUserName(nameDraft); }}
+                placeholder={
+                  detectedLang === "nl" ? "Je voornaam..." :
+                  detectedLang === "de" ? "Dein Vorname..." :
+                  detectedLang === "fr" ? "Ton prénom..." :
+                  detectedLang === "es" ? "Tu nombre..." :
+                  "Your first name..."
+                }
+                className="w-full rounded-[18px] border border-white/10 bg-white/[0.05] px-4 py-3 text-white/95 outline-none placeholder:text-white/28 transition-[border-color] duration-200 focus:border-white/20 mb-4"
+                maxLength={40}
+              />
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowNamePopup(false)}
+                  className="flex-1 rounded-[18px] border border-white/8 bg-white/[0.04] p-3 text-sm text-white/60 hover:text-white/80 transition-colors"
+                >
+                  {detectedLang === "nl" ? "Overslaan" : "Skip"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { if (nameDraft.trim()) saveUserName(nameDraft); }}
+                  disabled={!nameDraft.trim()}
+                  className="flex-1 rounded-[18px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] p-3 text-sm text-white shadow-[0_10px_24px_rgba(59,130,246,0.24)] hover:brightness-110 disabled:opacity-50 transition-all"
+                >
+                  {detectedLang === "nl" ? "Opslaan" :
+                   detectedLang === "de" ? "Speichern" :
+                   detectedLang === "fr" ? "Enregistrer" :
+                   detectedLang === "es" ? "Guardar" :
+                   "Save"}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

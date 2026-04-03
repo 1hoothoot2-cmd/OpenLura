@@ -45,6 +45,9 @@ export default function ChatPage() {
     if (raw.startsWith("fr")) return "fr";
     if (raw.startsWith("es")) return "es";
     if (raw.startsWith("pt")) return "pt";
+    if (raw.startsWith("it")) return "it";
+    if (raw.startsWith("tr")) return "tr";
+    if (raw.startsWith("ar")) return "ar";
     if (raw.startsWith("pap")) return "pap";
     return "en";
   });
@@ -1447,6 +1450,9 @@ const shouldSkipPersonalStateSync =
     de: ["Stell eine Frage...", "Schreib eine E-Mail...", "Erkläre etwas...", "Mach einen Plan..."],
     fr: ["Posez une question...", "Écrivez un e-mail...", "Expliquez quelque chose...", "Faites un plan..."],
     es: ["Haz una pregunta...", "Escribe un correo...", "Explica algo...", "Haz un plan..."],
+    it: ["Fai una domanda...", "Scrivi un'email...", "Spiega qualcosa...", "Fai un piano..."],
+    tr: ["Bir soru sor...", "E-posta yaz...", "Bir şey açıkla...", "Plan yap..."],
+    ar: ["اطرح سؤالاً...", "اكتب بريداً...", "اشرح شيئاً...", "ضع خطة..."],
     en: ["Ask anything...", "Write an email...", "Explain something...", "Make a plan..."],
   };
 
@@ -2357,6 +2363,9 @@ const restoreDeletedChat = (chatId: number) => {
       if (raw.startsWith("fr")) return "fr";
       if (raw.startsWith("es")) return "es";
       if (raw.startsWith("pt")) return "pt";
+      if (raw.startsWith("it")) return "it";
+      if (raw.startsWith("tr")) return "tr";
+      if (raw.startsWith("ar")) return "ar";
       if (raw.startsWith("pap")) return "pap";
       return "en";
     })();
@@ -2416,9 +2425,28 @@ const restoreDeletedChat = (chatId: number) => {
   const isRefinementInstruction = (text: string) => {
     const normalized = text.toLowerCase().trim();
 
-    return /^(and )?(now )?(even )?(shorter|short|clearer|simpler|more concrete|different|retry but shorter|make it shorter|shorter please|clearer please|simpler please|more context|less text)([.!?])?$/.test(
-      normalized
-    );
+    // NL
+    const isNl = /^(en )?(nu )?(nog )?(korter|kort|duidelijker|simpeler|meer concreet|concreter|anders|anders verwoorden|opnieuw maar korter|maak korter|maak het korter|korter graag|duidelijker graag|simpel(er)? graag|meer context|minder tekst|alleen het aantal|nu alleen het aantal|gewoon het aantal|alleen de naam|alleen de namen|alleen kort|alleen de conclusie|nog korter|iets korter|wat korter|veel korter|heel kort|korter alsjeblieft|graag korter|kan het korter|maak het wat korter|nu korter|opnieuw korter|en korter|nog beknopter|beknopter|bondiger|minder woorden|zonder uitleg|zonder toelichting|gewoon kort|alleen het resultaat|alleen de uitkomst)([.!?])?$/.test(normalized);
+
+    // EN
+    const isEn = /^(and )?(now )?(even )?(shorter|short|clearer|simpler|more concrete|different|make it shorter|shorter please|clearer please|simpler please|more context|less text|more concise|briefer|summarize|just the result|only the answer)([.!?])?$/.test(normalized);
+
+    // DE
+    const isDe = /^(noch )?(kürzer|kurz|klarer|einfacher|konkreter|anders formulieren|nochmal kürzer|mach es kürzer|bitte kürzer|weniger text|nur das ergebnis|nur die antwort)([.!?])?$/.test(normalized);
+
+    // FR
+    const isFr = /^(plus )?(court|courts|courte|courtes|clair|simple|concis|concise|reformule|reformuler|moins de texte|juste le résultat|seulement la réponse|encore plus court)([.!?])?$/.test(normalized);
+
+    // ES
+    const isEs = /^(más )?(corto|corta|claro|clara|simple|sencillo|concreto|concisa|reformula|menos texto|solo el resultado|solo la respuesta|más breve|más conciso)([.!?])?$/.test(normalized);
+
+    // IT
+    const isIt = /^(più )?(corto|breve|chiaro|semplice|concreto|riformula|meno testo|solo il risultato|ancora più corto)([.!?])?$/.test(normalized);
+
+    // TR
+    const isTr = /^(daha )?(kısa|kısalt|net|sade|somut|yeniden yaz|daha kısa yaz|sadece sonuç|daha az metin)([.!?])?$/.test(normalized);
+
+    return isNl || isEn || isDe || isFr || isEs || isIt || isTr;
   };
 
   const resolveFeedbackTargetContext = (messages: any[], aiMsgIndex: number) => {
@@ -3202,6 +3230,7 @@ setChats([...updated]);
             .map((msg: any) => ({
               role: msg.role,
               content: msg.content,
+              image: msg.image ? true : undefined,
             })),
         }),
       });

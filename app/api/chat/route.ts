@@ -294,11 +294,14 @@ function detectInputLanguage(text?: string): string {
   const t = text.toLowerCase();
 
   const patterns: [string, RegExp][] = [
-    ["nl", /\b(de|het|een|en|van|is|dat|wat|hoe|waar|waarom|niet|ook|maar|voor|met|zijn|ik|je|jij|wij|ze|dit|nog|wel|kan|kun|wil|mag|moet|ben|was|heeft|hebben|wordt|worden|worden|worden|dan|dus|want|als|bij|door|over|uit|naar|al|zo|er|om|nu|toen|veel|meer|minder|graag|alles|niets|iets|hier|daar|jullie|ons|onze|mijn|jouw|hun|haar|zijn)\b/g],
+    ["nl", /\b(de|het|een|en|van|is|dat|wat|hoe|waar|waarom|niet|ook|maar|voor|met|zijn|ik|je|jij|wij|ze|dit|nog|wel|kan|kun|wil|mag|moet|ben|was|heeft|hebben|wordt|worden|dan|dus|want|als|bij|door|over|uit|naar|al|zo|er|om|nu|toen|veel|meer|minder|graag|alles|niets|iets|hier|daar|jullie|ons|onze|mijn|jouw|hun|haar)\b/g],
     ["fr", /\b(le|la|les|un|une|des|et|est|pas|que|qui|dans|pour|sur|avec|au|du|je|tu|il|elle|nous|vous|ils|elles|mon|ton|son|mais|ou|donc|ni|car|ce|se|ne|en|y|très|bien|plus|moins|tout|tous|toute|aussi|même|autre|leurs|leur|cette|cet|comme|quoi|quand|où|comment|pourquoi)\b/g],
-    ["de", /\b(der|die|das|ein|eine|und|ist|nicht|es|ich|du|er|sie|wir|ihr|sie|mein|dein|sein|aber|oder|wenn|weil|wie|was|wer|wo|warum|auch|noch|schon|sehr|mehr|gut|alle|kein|keine|einem|einer|haben|hat|wird|werden|wurde|sind|war|mit|für|auf|aus|nach|von|zu|an|im|am)\b/g],
+    ["de", /\b(der|die|das|ein|eine|und|ist|nicht|es|ich|du|er|sie|wir|ihr|mein|dein|sein|aber|oder|wenn|weil|wie|was|wer|wo|warum|auch|noch|schon|sehr|mehr|gut|alle|kein|keine|einem|einer|haben|hat|wird|werden|wurde|sind|war|mit|für|auf|aus|nach|von|zu|an|im|am)\b/g],
     ["es", /\b(el|la|los|las|un|una|y|es|no|que|de|en|con|por|para|su|sus|lo|le|les|me|te|se|mi|tu|si|más|muy|todo|también|pero|como|cuando|donde|hay|del|al|qué|cómo|quién|cuándo|porque|este|esta|estos|estas|ser|estar|tiene|tienen|han|fue|era)\b/g],
-    ["pt", /\b(o|a|os|as|um|uma|e|é|não|que|de|em|com|por|para|seu|sua|me|te|se|mi|tu|si|mais|muito|todo|também|mas|como|quando|onde|há|do|da|dos|das|ao|às|que|quem|porque|este|esta|estes|estas|ser|estar|tem|têm|foi|era)\b/g],
+    ["pt", /\b(o|a|os|as|um|uma|e|é|não|que|de|em|com|por|para|seu|sua|me|te|se|mais|muito|todo|também|mas|como|quando|onde|há|do|da|dos|das|ao|às|quem|porque|este|esta|estes|estas|ser|estar|tem|têm|foi|era)\b/g],
+    ["it", /\b(il|lo|la|i|gli|le|un|uno|una|e|è|non|che|di|in|con|per|su|da|del|della|dei|degli|delle|mi|ti|si|ci|vi|li|ne|ho|ha|hai|hanno|sono|sei|siamo|siete|era|erano|come|dove|quando|perché|cosa|chi|questo|questa|questi|queste|quello|quella|anche|però|quindi|così|già|più|molto|tutto|tutti|bene|male|fare|dire|avere|essere)\b/g],
+    ["tr", /\b(bir|bu|şu|o|ben|sen|biz|siz|onlar|ve|ile|için|ama|veya|çok|daha|en|gibi|kadar|sonra|önce|nasıl|neden|nerede|ne|kim|var|yok|evet|hayır|tamam|iyi|kötü|büyük|küçük|gel|git|yap|al|ver|bak|bil|is|değil|mi|mı|mu|mü)\b/g],
+    ["ar", /\b(في|من|إلى|على|أن|هذا|هذه|ذلك|التي|الذي|كان|كانت|يكون|أنا|أنت|هو|هي|نحن|هم|لا|نعم|مع|عن|قد|كل|بعد|قبل|هل|ما|من|كيف|لماذا|متى|أين|جيد|كبير|صغير|جديد|قديم)\b/g],
     ["pap", /\b(danki|pabien|bon|bini|dikon|kiko|unda|masha|awe|ayera|mainta|anochi|kuanto|kua|kual|tur|hopi|loke|ami|abo|dje|nos|boso|nan|tin|tabata|lo|por|mester|kier|sabi|bisa|papia|kuminda|kas|kaminda|rei|pues|manera)\b/g],
   ];
 
@@ -697,7 +700,7 @@ function shouldUseAdaptiveSpeedMode(input: {
 function isRefinementInstruction(text?: string) {
   const normalized = (text || "").toLowerCase().trim();
 
-  return /^(en )?(nu )?(nog )?(korter|kort|duidelijker|simpeler|meer concreet|concreter|anders|anders verwoorden|opnieuw maar korter|maak korter|maak het korter|korter graag|duidelijker graag|simpel(er)? graag|meer context|minder tekst|alleen het aantal|nu alleen het aantal|gewoon het aantal|alleen de naam|alleen de namen|alleen kort|alleen de conclusie)([.!?])?$/.test(
+  return /^(en )?(nu )?(nog )?(korter|kort|duidelijker|simpeler|meer concreet|concreter|anders|anders verwoorden|opnieuw maar korter|maak korter|maak het korter|korter graag|duidelijker graag|simpel(er)? graag|meer context|minder tekst|alleen het aantal|nu alleen het aantal|gewoon het aantal|alleen de naam|alleen de namen|alleen kort|alleen de conclusie|nog korter|iets korter|wat korter|veel korter|heel kort|korter alsjeblieft|graag korter|kan het korter|maak het wat korter|nu korter|opnieuw korter|en korter|nog beknopter|beknopter|bondiger|minder woorden|minder tekst|zonder uitleg|zonder toelichting|gewoon kort|alleen het resultaat|alleen de uitkomst)([.!?])?$/.test(
     normalized
   );
 }
@@ -729,7 +732,7 @@ function classifyOpenLuraRoute(input: {
   const shouldUseWebSearch =
     !isSimpleImageAnalysis &&
     (!input.image ||
-      /restaurant|cafe|coffee|koffie|location|locatie|where|waar|address|adres|opening|open|review|route|travel|venue|place|plek|business|bedrijf|hotel|map|maps|near|dichtbij|best|beste|news|nieuws|welke plek|which place|waar is dit|where is this|welk restaurant|which restaurant|vind locatie|find location|zoek locatie|search location/i.test(
+      /restaurant|cafe|coffee|koffie|location|locatie|where|waar|address|adres|opening|open|review|route|travel|venue|place|plek|business|bedrijf|hotel|map|maps|near|dichtbij|best|beste|news|nieuws|welke plek|which place|waar is dit|where is this|welk restaurant|which restaurant|vind locatie|find location|zoek locatie|search location|hoe laat|hoelaat|what time|current time|tijd nu|lokale tijd|tijdzone|timezone|hoe laat is het|what time is it|verhuurder|verhuur|adressen van|website van|telefoonnummer|contact van|where can i find|waar kan ik|gym in de buurt|fitness in de buurt|basic fit|sportschool|winkel in de buurt|dónde|donde|dirección|direccion|horario|abierto|cerca de|qué hora|que hora|wie spät|wie spät ist|adresse|ouvert|quelle heure|près de|pres de|dove|indirizzo|orario|vicino|que horas|endereço|endereco|aberto|perto de|unda|kon late|ki ora|kaminda/i.test(
         normalizedMessage
       ));
 
@@ -2443,6 +2446,8 @@ CRITICAL RULES:
 - For search answers: prioritize usefulness → what it is, why it fits, and what stands out
 - If sources exist: align the explanation with them so links feel connected
 - Never invent sources, links, addresses, ratings, opening hours, or locations
+- Never invent translations of words you are not certain about — if you don't know the exact meaning of a word (especially slang, dialect, or offensive terms in other languages), say clearly that you are not sure instead of guessing
+- For Turkish, Arabic, or other non-Latin words you don't recognize: say "Ik weet de exacte betekenis hiervan niet zeker" instead of inventing a meaning
 - If the answer depends on fresh web information, prefer searched information over guessing
 - If an image is present and no text is provided, treat the request as: "Analyze this image and tell me clearly what it shows"
 - If an image is present and text is also provided, answer the user's question using the image as primary context
@@ -2488,8 +2493,10 @@ STRUCTURE:
 FORMATTING RULES:
 - Use real empty lines for spacing
 - Keep it clean and easy to scan
-- No markdown like **bold**
+- ABSOLUTELY NO markdown bold like **bold** or __bold__ — this is a hard rule, never use it
+- ABSOLUTELY NO markdown headers like ## or ### — never use them
 - No "(blank line)"
+- Never wrap words in asterisks or underscores for emphasis
 
 SECTIONS TO USE (when relevant):
 
@@ -2508,18 +2515,26 @@ Short explanation + details
 💡 Pro tip / upgrade  
 
 BEHAVIOR:
+BEHAVIOR:
 - Treat the user like someone you can also talk with, not only someone asking technical or factual questions
 - Make answers feel slightly premium / expert-level
 - Avoid generic tips
 - Prefer specific, practical advice
-- If useful, add small “insider” tips`;
+- If useful, add small "insider" tips
+
+JOKE FORMAT RULE:
+- When telling a joke, NEVER give the punchline in the same message as the setup
+- Format: send only the setup/question first, then wait for the user to respond, then give the punchline
+- Example: User asks for a joke → you send "Waarom kunnen geheimagenten nooit goed kaarten?" → wait → user responds → then you say "Omdat ze altijd undercover zijn!"
+- NEVER add hints, tips, or "denk even na..." after the setup — just the setup, nothing else
+- NEVER explain the joke before or after`;
 }
 
 function buildOpenLuraRuntimePrompt(input: OpenLuraRuntimePromptBuilderInput) {
   if (input.isLightPrompt) {
     return `You are OpenLura.
 
-Respond in the detected language: ${input.detectedLanguage}. Supported languages include Dutch, English, French, German, Spanish, Portuguese, and Papiamento (spoken on Curaçao, Aruba, and Bonaire). If the detected language is "pap", always respond in Papiamento — never switch to Spanish or Portuguese.
+Respond in the detected language: ${input.detectedLanguage}. Supported languages include Dutch, English, French, German, Spanish, Portuguese, Italian, Turkish, Arabic, and Papiamento (spoken on Curaçao, Aruba, and Bonaire). If the detected language is "pap", always respond in Papiamento — never switch to Spanish or Portuguese. If the detected language is "tr", respond in Turkish. If the detected language is "ar", respond in Arabic. If the detected language is "it", respond in Italian. Always match the language the user writes in.
 Be clear, useful, and direct.
 Avoid long structured sections unless needed.`;
   }
@@ -2719,12 +2734,13 @@ EMOTIONAL SUPPORT RULES:
 - If completed (klaar) items exist, treat them as strong positive signals and reuse their structure, tone, and clarity
 - If user explicitly says "this is wrong", treat it as strong negative feedback
 
-- If recent conversation exists and the user's message is short, interpret it in the context of the ongoing topic first
-- For follow-up prompts like "korter", "nog korter", "anders verwoorden", "duidelijker", "welke dan", "waarom", "en voor rust?", "alleen het aantal", "gewoon het aantal", or "alleen de naam":
+- If recent conversation exists and the user's message is short (under 20 words), ALWAYS interpret it in the context of the ongoing topic first — never treat it as a new question unless the user clearly changes subject
+- For follow-up prompts like "korter", "nog korter", "anders verwoorden", "duidelijker", "welke dan", "waarom", "en voor rust?", "alleen het aantal", "gewoon het aantal", "en in cijfers?", "en voor X?", "en de rest?", "hoeveel dan?", or "alleen de naam":
   → continue the same topic by default
   → apply the follow-up directly to the last relevant answer
-  → do not ask a clarifying question unless the recent conversation still makes the intent genuinely unclear
-- Only treat the message as a fresh topic when the user clearly switches subject
+  → NEVER ask "what do you want shorter?" or "what topic?" — just apply the instruction to the last answer
+  → do not ask a clarifying question unless there is genuinely no recent context at all
+- Only treat the message as a fresh topic when the user clearly switches subject with a new noun or question
 
 - If user input is vague or unclear and similar feedback was negative:
   → Ask a clarifying question instead of giving a generic answer
@@ -3169,10 +3185,13 @@ ${personalRecentIssues.join("\n") || "none"}
             typeof msg.content === "string" &&
             msg.content.trim()
         )
-        .slice(-6)
+        .slice(-12)
         .map(
-          (msg: any) =>
-            `${msg.role === "user" ? "User" : "Assistant"}: ${msg.content.trim()}`
+          (msg: any) => {
+            const prefix = msg.role === "user" ? "User" : "Assistant";
+            const imageNote = msg.image ? " [had image attached]" : "";
+            return `${prefix}${imageNote}: ${msg.content.trim()}`;
+          }
         )
         .join("\n\n")
     : "none";
@@ -3745,8 +3764,12 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
         contentLearningState.shouldApplyContentPreference,
     };
 
+    const recentMessagesHaveImage = Array.isArray(recentMessages) &&
+      recentMessages.some((msg: any) => msg?.image);
+
     const shouldUseFastTextRoute =
       !conversationDependentFollowUp &&
+      !recentMessagesHaveImage &&
       shouldUseAdaptiveSpeedMode(fastRouteDecisionInput) &&
       !shouldBypassFastTextPath(fastRouteDecisionInput) &&
       !shouldUseWebSearch;
@@ -3796,7 +3819,7 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
             role: "system",
             content: `You are OpenLura.
 
-Respond in the same language as the user. Supported languages include Dutch, English, French, German, Spanish, Portuguese, and Papiamento (spoken on Curaçao, Aruba, and Bonaire). If the user writes in Papiamento, always respond in Papiamento — never switch to Spanish or Portuguese.
+Respond in the same language as the user. Supported languages include Dutch, English, French, German, Spanish, Portuguese, Italian, Turkish, Arabic, and Papiamento (spoken on Curaçao, Aruba, and Bonaire). If the user writes in Papiamento, always respond in Papiamento — never switch to Spanish or Portuguese. If the user writes in Turkish, always respond in Turkish. If the user writes in Arabic, always respond in Arabic. If the user writes in Italian, always respond in Italian.
 ${isPersonalEnvironment && (personalState.profile as any)?.name ? `The user's name is ${(personalState.profile as any).name}. This is a confirmed fact — you know their name. Never say you don't know it. Use it naturally and sparingly.` : ""}
 Keep short prompts fast, natural, and direct.
 Do not use long structure for greetings or tiny prompts.
@@ -3813,6 +3836,9 @@ PERSONAL PREFERENCE OVERRIDE RULES:
 ${effectivePreferences.length > 0 ? `The following are HARD user preferences that MUST override default style rules:\n${effectivePreferences.map(p => `- ${p}`).join("\n")}\nThese preferences take priority over formatting defaults, structure rules, and style guidelines.` : "No personal preferences set."}
 
 ${sharedStyleInstructionBlock}
+
+Recent conversation context:
+${recentConversationTranscript || "none"}
 
 Fast-path runtime learning:
 - personal environment active: ${isPersonalEnvironment ? "yes" : "no"}
@@ -3924,7 +3950,7 @@ Fast-path rules:
             role: "system",
             content: `You are OpenLura.
 
-Respond in the same language as the user. Supported languages include Dutch, English, French, German, Spanish, Portuguese, and Papiamento (spoken on Curaçao, Aruba, and Bonaire). If the user writes in Papiamento, always respond in Papiamento — never switch to Spanish or Portuguese.
+Respond in the same language as the user. Supported languages include Dutch, English, French, German, Spanish, Portuguese, Italian, Turkish, Arabic, and Papiamento (spoken on Curaçao, Aruba, and Bonaire). If the user writes in Papiamento, always respond in Papiamento — never switch to Spanish or Portuguese. If the user writes in Turkish, always respond in Turkish. If the user writes in Arabic, always respond in Arabic. If the user writes in Italian, always respond in Italian.
 Analyze the image directly.
 Be fast, clear, and compact first.
 If something is uncertain, say that clearly.
@@ -4245,10 +4271,13 @@ ${aiText}`,
         const chunkSize = 80;
 
                 const safeText =
-          aiText ||
-          (image
-            ? "Ik kon de afbeelding nog niet goed uitlezen. Probeer het nog een keer met een kortere vraag zoals: wat staat hierop?"
-            : "Ik kon geen antwoord genereren. Probeer het opnieuw.");
+          aiText && aiText.trim()
+            ? aiText
+            : (image
+                ? "Ik kon de afbeelding niet goed uitlezen. Stuur de foto opnieuw met een korte vraag erbij."
+                : message && message.trim().length <= 10
+                ? `Hoi! Hoe kan ik je helpen?`
+                : "Ik kon geen antwoord genereren. Probeer het opnieuw.");
 
         for (let i = 0; i < safeText.length; i += chunkSize) {
           controller.enqueue(
