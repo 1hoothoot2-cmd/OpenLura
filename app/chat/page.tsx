@@ -3198,7 +3198,7 @@ setChats([...updated]);
                 msg.content !== "Analyzing image..." &&
                 msg.content !== "🤖 Wat kan ik beter doen?"
             )
-            .slice(-6)
+            .slice(-12)
             .map((msg: any) => ({
               role: msg.role,
               content: msg.content,

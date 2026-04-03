@@ -54,13 +54,12 @@ export default function AnalyticsPage() {
       ? { "Content-Type": "application/json" }
       : {};
 
-    if (options?.includeUserId) {
-      const resolvedUserId = getOrCreateOpenLuraUserId();
+    // 🔥 TEMP: altijd user_id meesturen (simuleert login)
+const resolvedUserId = getOrCreateOpenLuraUserId();
 
-      if (resolvedUserId) {
-        headers["x-openlura-user-id"] = resolvedUserId;
-      }
-    }
+if (resolvedUserId) {
+  headers["x-openlura-user-id"] = resolvedUserId;
+}
 
     if (options?.personalEnv) {
       headers["x-openlura-personal-env"] = "true";
@@ -995,7 +994,46 @@ return () => {
 };
 }, [isUnlocked]);
 
-        const handleUnlock = async () => {
+        const downloadCSV = (weekOnly = false) => {
+    const now = Date.now();
+    const weekMs = 7 * 24 * 60 * 60 * 1000;
+
+    const rows = feedback.filter((f) => {
+      if (f.type !== "up" && f.type !== "down" && f.type !== "improve" && f.type !== "idea") return false;
+      if (weekOnly && f.timestamp) {
+        const time = new Date(f.timestamp).getTime();
+        if (now - time > weekMs) return false;
+      }
+      return true;
+    });
+
+    const headers = ["type", "userMessage", "message", "source", "environment", "userScope", "learningType", "timestamp"];
+
+    const escape = (val: any) => {
+      const str = String(val ?? "").replace(/"/g, '""');
+      return `"${str}"`;
+    };
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map((f) =>
+        headers.map((h) => escape((f as any)[h])).join(",")
+      ),
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const label = weekOnly ? "week" : "all";
+    a.download = `openlura-feedback-${label}-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleUnlock = async () => {
     try {
       const res = await fetch("/api/feedback", {
         method: "POST",
@@ -1288,6 +1326,20 @@ return () => {
             <div className="flex items-center justify-between mb-6">
   <h1 className="text-2xl">📊 OpenLura Analytics</h1>
     <button
+    onClick={() => downloadCSV(true)}
+    className="text-xs px-3 py-1 bg-green-500/20 rounded-lg hover:bg-green-500/30 text-green-300"
+  >
+    ↓ Deze week
+  </button>
+
+  <button
+    onClick={() => downloadCSV(false)}
+    className="text-xs px-3 py-1 bg-white/10 rounded-lg hover:bg-white/20"
+  >
+    ↓ Alles
+  </button>
+
+  <button
     onClick={async () => {
       try {
         await fetch("/api/feedback", {
