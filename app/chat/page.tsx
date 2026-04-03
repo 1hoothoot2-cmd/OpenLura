@@ -391,6 +391,7 @@ const [usage, setUsage] = useState<{
 } | null>(null);
 
 const [userTier, setUserTier] = useState<"free" | "pro" | "admin">("free");
+const ADMIN_USER_IDS = ["fb392988-b34a-44a4-8823-b27abb7bfe06"];
 
 const settingsStorageKey = isPersonalRoute
   ? "openlura_personal_settings"
@@ -721,6 +722,15 @@ const isReplaceableStarterChat = (chat: any) => {
 
             loadedFromServer = true;
             setPersonalStateLoaded(true);
+
+            // Resolve tier on load
+            const loadedUserId = data?.userId || null;
+            const loadedTier = data?.usageStats?.tier || "free";
+            if (loadedUserId && ADMIN_USER_IDS.includes(loadedUserId)) {
+              setUserTier("admin");
+            } else if (loadedTier === "pro" || loadedTier === "admin") {
+              setUserTier(loadedTier);
+            }
           } catch (error) {
             console.error("OpenLura personal server load failed:", error);
             setPersonalStateLoaded(true);
