@@ -679,7 +679,7 @@ export default function HomePage() {
                     <button
                     type="button"
                     onClick={async () => {
-                      const res = await fetch("/api/stripe/checkout", { method: "POST" });
+                      const res = await fetch("/api/stripe/checkout", { method: "POST", credentials: "include" });
                       if (res.status === 401) {
                         window.location.href = "/persoonlijke-omgeving";
                         return;
