@@ -390,6 +390,8 @@ const [usage, setUsage] = useState<{
   percentage: number;
 } | null>(null);
 
+const [userTier, setUserTier] = useState<"free" | "pro" | "admin">("free");
+
 const settingsStorageKey = isPersonalRoute
   ? "openlura_personal_settings"
   : makeUserBoundStorageKey("openlura_settings");
@@ -2976,6 +2978,11 @@ setChats([...updated]);
     const usageUsed = Number(res.headers.get("X-OpenLura-Usage-Used") || 0);
     const usageLimit = Number(res.headers.get("X-OpenLura-Usage-Limit") || 0);
 
+    const responseTier = res.headers.get("X-OpenLura-Usage-Tier");
+    if (responseTier === "pro" || responseTier === "admin" || responseTier === "free") {
+      setUserTier(responseTier);
+    }
+
     if (usageLimit > 0) {
       const percentage = usageUsed / usageLimit;
 
@@ -3321,6 +3328,7 @@ updated[index].messages[
   }}
   onCopyActiveChatMarkdown={copyChatToClipboard}
   onDownloadActiveChatMarkdown={downloadMarkdown}
+  userTier={userTier}
 />
       <button
   onClick={() => setMobileMenu(!mobileMenu)}
