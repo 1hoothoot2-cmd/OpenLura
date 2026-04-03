@@ -1,6 +1,6 @@
 export default function sitemap() {
   return [
-    { url: 'https://openlura.com', lastModified: new Date() },
-    { url: 'https://openlura.com/chat', lastModified: new Date() },
+    { url: 'https://openlura.ai', lastModified: new Date() },
+    { url: 'https://openlura.ai/chat', lastModified: new Date() },
   ]
 }
