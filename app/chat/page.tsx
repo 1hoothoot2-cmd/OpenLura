@@ -1720,8 +1720,12 @@ const resizeComposerTextarea = () => {
   const el = inputRef.current;
   if (!el) return;
 
+  const prev = el.style.height;
   el.style.height = "0px";
-  el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
+  const next = `${Math.min(el.scrollHeight, 140)}px`;
+  if (prev !== next) {
+    el.style.height = next;
+  }
 };
 
 const handleUseResultAsInput = (
@@ -3561,6 +3565,11 @@ updated[index].messages[
   onCopyActiveChatMarkdown={copyChatToClipboard}
   onDownloadActiveChatMarkdown={downloadMarkdown}
   userTier={userTier}
+  onRenameChat={(id, title) => {
+    setChats((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, title } : c))
+    );
+  }}
 />
       <button
   onClick={() => setMobileMenu(!mobileMenu)}
@@ -4768,7 +4777,7 @@ updated[index].messages[
     }
   }}
   disabled={upgradeNotice.visible}
-  className={`${composerInputClass} min-h-[48px] max-h-[140px] flex-1 rounded-2xl bg-transparent px-2 py-2.5 text-[16px] leading-6 text-white/95 outline-none placeholder:text-white/28 focus:bg-white/[0.02] md:px-3 disabled:opacity-40 disabled:cursor-not-allowed`}
+  className={`${composerInputClass} min-h-[48px] max-h-[140px] flex-1 rounded-2xl bg-transparent px-2 py-2.5 text-[16px] leading-6 text-white/95 outline-none placeholder:text-white/28 focus:bg-white/[0.02] md:px-3 disabled:opacity-40 disabled:cursor-not-allowed transition-[height] duration-100`}
   placeholder={
     upgradeNotice.visible
       ? t("placeholder_limit")
