@@ -28,6 +28,29 @@ const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const RATE_LIMIT_MAX_REQUESTS = 20;
 const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
 
+const ANON_WINDOW_MS = 8 * 60 * 60 * 1000; // 8 uur
+const ANON_MAX_REQUESTS = 3;
+const anonRateLimitStore = new Map<string, { count: number; resetAt: number }>();
+
+function checkAnonRateLimit(ip: string, isAuthenticated: boolean): { allowed: boolean; resetAt: number } {
+  if (isAuthenticated) return { allowed: true, resetAt: 0 };
+
+  const now = Date.now();
+  const existing = anonRateLimitStore.get(ip);
+
+  if (!existing || existing.resetAt <= now) {
+    anonRateLimitStore.set(ip, { count: 1, resetAt: now + ANON_WINDOW_MS });
+    return { allowed: true, resetAt: now + ANON_WINDOW_MS };
+  }
+
+  if (existing.count >= ANON_MAX_REQUESTS) {
+    return { allowed: false, resetAt: existing.resetAt };
+  }
+
+  existing.count += 1;
+  return { allowed: true, resetAt: existing.resetAt };
+}
+
 function getRequestIp(req: Request) {
   const forwardedFor = req.headers.get("x-forwarded-for");
   if (forwardedFor) {
@@ -1246,7 +1269,7 @@ function getUsageLimitSnapshot(input: {
       ? { monthlyRequests: Infinity, monthlyWebSearches: Infinity, windowRequests: Infinity }
       : tier === "pro"
       ? { monthlyRequests: 500, monthlyWebSearches: Infinity, windowRequests: Infinity }
-      : { monthlyRequests: 150, monthlyWebSearches: 50, windowRequests: 10
+      : { monthlyRequests: 3, monthlyWebSearches: 50, windowRequests: 10
        };
 
   const requestCount = input.usageStats?.requestCount || 0;
@@ -2795,6 +2818,23 @@ export async function POST(req: Request) {
     requestIdentity?.isAuthenticated && requestIdentity?.userId
       ? requestIdentity.userId
       : null;
+
+  const ip = getRequestIp(req);
+  const anonLimit = checkAnonRateLimit(ip, !!authenticatedUserId);
+
+  if (!anonLimit.allowed) {
+    const resetInHours = Math.ceil((anonLimit.resetAt - Date.now()) / (1000 * 60 * 60));
+    return new Response(
+      `Je hebt je limiet van ${ANON_MAX_REQUESTS} berichten bereikt. Meld je aan voor meer gebruik of wacht ${resetInHours} uur.`,
+      {
+        status: 429,
+        headers: buildNoStoreTextHeaders({
+          "X-OpenLura-Limit-Type": "anon_window",
+          "Retry-After": String(Math.ceil((anonLimit.resetAt - Date.now()) / 1000)),
+        }),
+      }
+    );
+  }
 
   const {
     personalEnvRequested,
