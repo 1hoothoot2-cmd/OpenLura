@@ -12,6 +12,11 @@ const nextConfig = {
         destination: "/",
         permanent: true,
       },
+      {
+        source: "/persoonlijke-omgeving",
+        destination: "/personal-workspace",
+        permanent: true,
+      },
     ];
   },
 };
