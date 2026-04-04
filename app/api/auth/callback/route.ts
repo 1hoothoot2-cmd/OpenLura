@@ -47,7 +47,7 @@ export async function GET(req: Request) {
       }),
     });
 
-    const response = NextResponse.redirect(new URL("/persoonlijke-omgeving", appUrl));
+    const response = NextResponse.redirect(new URL("/personal-workspace", appUrl));
 
     const cookieOptions = {
       httpOnly: true,

@@ -25,7 +25,7 @@ export default function LoginPage() {
       });
       const data = await res.json();
       if (!res.ok || !data?.success) { setError(data?.error || "Login mislukt"); return; }
-      router.replace("/persoonlijke-omgeving");
+      router.replace("/personal-workspace");
     } catch { setError("Login mislukt"); }
     finally { setLoading(false); }
   };
@@ -47,7 +47,7 @@ export default function LoginPage() {
       const data = await res.json();
       if (!res.ok || !data?.success) { setError(data?.error || "Registratie mislukt"); return; }
       if (data.requiresConfirmation) { setSuccess("Controleer je e-mail om je account te bevestigen."); return; }
-      router.replace("/persoonlijke-omgeving");
+      router.replace("/personal-workspace");
     } catch { setError("Registratie mislukt"); }
     finally { setLoading(false); }
   };

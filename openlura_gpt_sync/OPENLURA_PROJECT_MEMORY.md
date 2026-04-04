@@ -108,7 +108,7 @@ Current status:
 - analytics connection exists
 - personal route guard exists
 - personal login flow exists
-- redirect to /persoonlijke-omgeving works
+- redirect to /personal-workspace works
 - analytics opens in new tab from personal environment
 - private chat is separated from general chat
 - personal state sync via Supabase works
@@ -146,7 +146,7 @@ CURRENTLY STABLE / WORKING
 These systems are currently working and should be protected:
 
 - personal environment login flow
-- redirect to /persoonlijke-omgeving
+- redirect to /personal-workspace
 - personal route guard
 - analytics in new tab from personal environment
 - personal chat separated from general chat
@@ -185,7 +185,7 @@ BEST NEXT STEP
 Highest-impact next step:
 
 1. Read personal learning state inside /api/chat
-2. Let personal feedback / memory weigh more strongly inside /persoonlijke-omgeving
+2. Let personal feedback / memory weigh more strongly inside /personal-workspace
 3. Keep global learning and personal learning cleanly separated side by side
 4. Only after that move toward true accounts / Phase 4
 

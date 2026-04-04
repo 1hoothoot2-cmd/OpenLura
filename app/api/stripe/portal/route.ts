@@ -33,7 +33,7 @@ export async function POST(req: Request) {
     },
     body: new URLSearchParams({
       customer: stripeCustomerId,
-      return_url: `${baseUrl}/persoonlijke-omgeving`,
+      return_url: `${baseUrl}/personal-workspace`,
     }),
   });
 
