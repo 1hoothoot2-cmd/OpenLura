@@ -284,6 +284,13 @@ export default function HomePage() {
             </Link>
           </div>
 
+          <div className="mt-4 flex flex-wrap gap-2">
+            <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/16 bg-emerald-400/8 px-3 py-1.5 text-[12px] font-medium text-emerald-300/80">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400/70" />
+              Free plan available
+            </div>
+          </div>
+
           {/* HOMEPAGE CHAT ENTRY */}
           <div className="mt-5 w-full max-w-4xl">
             <div className="flex items-center gap-2 rounded-[18px] border border-white/20 bg-white/[0.08] px-3 py-2.5 shadow-[0_0_0_1px_rgba(59,130,246,0.10),0_4px_20px_rgba(0,0,0,0.20)] backdrop-blur-xl transition-[border-color,box-shadow] duration-200 focus-within:border-[#3b82f6]/50 focus-within:shadow-[0_0_0_1px_rgba(59,130,246,0.20),0_4px_24px_rgba(59,130,246,0.16)]">
