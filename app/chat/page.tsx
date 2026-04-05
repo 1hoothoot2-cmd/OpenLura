@@ -1864,6 +1864,11 @@ const getOpenLuraRequestHeaders = (
     headers["x-openlura-personal-env"] = "true";
   }
 
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (tz) headers["x-openlura-timezone"] = tz;
+  } catch {}
+
   return headers;
 };
 
@@ -5119,13 +5124,21 @@ updated[index].messages[
       </div>
 
       {isPersonalRoute ? (
-        <button
-          type="button"
-          onClick={handlePersonalLogout}
-          className="fixed right-4 top-[max(env(safe-area-inset-top),16px)] z-[60] hidden rounded-full border border-white/8 bg-white/[0.05] px-3.5 py-2 text-sm text-white/78 shadow-[0_12px_28px_rgba(0,0,0,0.18)] backdrop-blur-2xl ol-interactive transition-[transform,background-color,border-color,color,opacity,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.08] hover:text-white hover:shadow-[0_14px_30px_rgba(0,0,0,0.20)] active:scale-95 md:inline-flex"
-        >
-          Log out
-        </button>
+        <div className="fixed right-4 top-[max(env(safe-area-inset-top),16px)] z-[60] hidden items-center gap-2 md:flex">
+          <a
+            href="/personal-dashboard"
+            className="rounded-full border border-[#3b82f6]/22 bg-[#3b82f6]/10 px-3.5 py-2 text-sm text-[#93c5fd] shadow-[0_12px_28px_rgba(59,130,246,0.14)] backdrop-blur-2xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/36 hover:bg-[#3b82f6]/18 hover:text-white hover:shadow-[0_14px_30px_rgba(59,130,246,0.22)] active:scale-95"
+          >
+            Dashboard
+          </a>
+          <button
+            type="button"
+            onClick={handlePersonalLogout}
+            className="rounded-full border border-white/8 bg-white/[0.05] px-3.5 py-2 text-sm text-white/78 shadow-[0_12px_28px_rgba(0,0,0,0.18)] backdrop-blur-2xl ol-interactive transition-[transform,background-color,border-color,color,opacity,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.08] hover:text-white hover:shadow-[0_14px_30px_rgba(0,0,0,0.20)] active:scale-95"
+          >
+            Log out
+          </button>
+        </div>
       ) : (
         <div className="fixed right-4 top-[max(env(safe-area-inset-top),16px)] z-[60] hidden items-center gap-2 md:flex">
           <a
