@@ -363,7 +363,7 @@ export default function HomePage() {
             </div>
           </div>
 
-                    <div className="mt-10 grid w-full max-w-4xl gap-3.5 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-10 grid w-full max-w-4xl gap-3.5 sm:grid-cols-2 xl:grid-cols-3">
             <Link
               href="/chat"
               className="rounded-[22px] border border-white/10 bg-white/[0.03] px-4 py-4.5 text-left backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-white/14 hover:bg-white/[0.05] hover:shadow-[0_12px_28px_rgba(0,0,0,0.14)]"
