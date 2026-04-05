@@ -1022,7 +1022,7 @@ export default function HomePage() {
                   </Link>
 
                   <Link
-                    href="/login"
+                    href="/personal-workspace"
                     className="inline-flex h-12 w-full items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.04] px-6 text-sm font-medium text-white/86 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/14 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.10)] active:scale-[0.99] sm:w-auto"
                   >
                     {t("btn_login")}

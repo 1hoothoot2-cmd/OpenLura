@@ -26,7 +26,7 @@ export default function AuthCallbackPage() {
         refreshToken,
       }),
     }).finally(() => {
-      router.replace("/personal-workspace");
+      router.replace("/persoonlijke-omgeving");
     });
   }, []);
 

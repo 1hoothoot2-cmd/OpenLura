@@ -1171,7 +1171,7 @@ const [chatTitleDraft, setChatTitleDraft] = useState("");
                     setMobileMenu(false);
                     try {
                       const res = await fetch("/api/stripe/checkout", { method: "POST", credentials: "include" });
-                      if (res.status === 401) { window.location.href = "/personal-workspace"; return; }
+                      if (res.status === 401) { window.location.href = "/persoonlijke-omgeving"; return; }
                       const data = await res.json();
                       if (data.url) window.location.href = data.url;
                     } catch {}

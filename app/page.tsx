@@ -45,6 +45,7 @@ function SectionFooter({
 
 export default function HomePage() {
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
+  const [homeChatInput, setHomeChatInput] = useState("");
 
   const lang = (() => {
     if (typeof navigator === "undefined") return "en";
@@ -55,6 +56,7 @@ export default function HomePage() {
     if (raw.startsWith("es")) return "es";
     if (raw.startsWith("pt")) return "pt";
     if (raw.startsWith("pap")) return "pap";
+    if (raw.startsWith("hi")) return "hi";
     return "en";
   })();
 
@@ -305,7 +307,59 @@ export default function HomePage() {
               {t("btn_give_feedback")}
             </button>
           </div>
-        </div>
+
+          {/* HOMEPAGE CHAT ENTRY */}
+          <div className="mt-8 w-full max-w-4xl">
+            <div className="flex items-center gap-2 rounded-[18px] border border-white/10 bg-white/[0.04] px-3 py-2.5 shadow-[0_4px_16px_rgba(0,0,0,0.12)] backdrop-blur-xl transition-[border-color,box-shadow] duration-200 focus-within:border-[#3b82f6]/40 focus-within:shadow-[0_4px_20px_rgba(59,130,246,0.12)]">
+              <input
+                type="text"
+                value={homeChatInput}
+                onChange={(e) => setHomeChatInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && homeChatInput.trim()) {
+                    e.preventDefault();
+                    window.location.href = `/chat?q=${encodeURIComponent(homeChatInput.trim())}`;
+                  }
+                }}
+                placeholder={
+                  lang === "nl" ? "Hoe kan ik je helpen?" :
+                  lang === "hi" ? "मैं आपकी कैसे मदद कर सकता हूँ?" :
+                  "How can I assist you?"
+                }
+                className="flex-1 bg-transparent text-sm text-white outline-none placeholder:text-white/32"
+              />
+              <button
+                type="button"
+                disabled={!homeChatInput.trim()}
+                onClick={() => {
+                  if (homeChatInput.trim()) {
+                    window.location.href = `/chat?q=${encodeURIComponent(homeChatInput.trim())}`;
+                  }
+                }}
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] text-sm text-white shadow-[0_4px_12px_rgba(59,130,246,0.28)] transition-[transform,filter,opacity] duration-200 hover:brightness-110 active:scale-95 disabled:cursor-not-allowed disabled:opacity-30"
+              >
+                ↑
+              </button>
+            </div>
+            <div className="mt-2.5 flex flex-wrap gap-2">
+              {([
+                lang === "nl" ? "Help me een e-mail schrijven" : "Help me write an email",
+                lang === "nl" ? "Leg iets simpel uit" : "Explain something simply",
+                lang === "nl" ? "Plan iets voor me" : "Plan something for me",
+              ] as string[]).map((starter) => (
+                <button
+                  key={starter}
+                  type="button"
+                  onClick={() => {
+                    window.location.href = `/chat?q=${encodeURIComponent(starter)}`;
+                  }}
+                  className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] text-white/52 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color] duration-200 hover:border-[#3b82f6]/24 hover:bg-[#3b82f6]/10 hover:text-white/88 active:scale-95"
+                >
+                  {starter}
+                </button>
+              ))}
+            </div>
+          </div>
 
                     <div className="mt-10 grid w-full max-w-4xl gap-3.5 sm:grid-cols-2 xl:grid-cols-3">
             <Link
@@ -338,6 +392,7 @@ export default function HomePage() {
               </div>
             </Link>
           </div>
+        </div>
 
           <div className="mt-14 h-px w-full max-w-5xl bg-gradient-to-r from-transparent via-white/10 to-transparent sm:mt-16" />
 

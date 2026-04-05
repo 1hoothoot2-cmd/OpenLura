@@ -205,6 +205,8 @@ export default function ChatPage() {
   const [chats, setChats] = useState<any[]>([]);
   const [activeChatId, setActiveChatId] = useState<number | null>(null);
   const [input, setInput] = useState("");
+  const autoSentRef = useRef(false);
+  const pendingAutoSendRef = useRef<string | null>(null);
 const [workflowPrefill, setWorkflowPrefill] = useState<{
   value: string;
   source: "prompt" | "result" | "message";
@@ -1450,6 +1452,21 @@ const shouldSkipPersonalStateSync =
     requestAnimationFrame(() => {
       inputRef.current?.focus();
     });
+  }, [initialStateReady]);
+
+  // AUTO-SEND from homepage ?q= param
+  useEffect(() => {
+    if (!initialStateReady) return;
+    if (autoSentRef.current) return;
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const q = params.get("q");
+    if (!q || !q.trim()) return;
+    autoSentRef.current = true;
+    pendingAutoSendRef.current = q.trim();
+    setInput(q.trim());
+    const clean = window.location.pathname;
+    window.history.replaceState({}, "", clean);
   }, [initialStateReady]);
 
   const rotatingPlaceholders: Record<string, string[]> = {
@@ -2724,6 +2741,31 @@ Do not mention that this is a new attempt.`,
     setLoading(false);
     setStreamController(null);
   };
+
+  // Trigger auto-send when pendingAutoSendRef is set
+  useEffect(() => {
+    if (!pendingAutoSendRef.current) return;
+    if (!initialStateReady) return;
+    const pending = pendingAutoSendRef.current;
+    pendingAutoSendRef.current = null;
+    // Small delay to let state settle
+    const timer = window.setTimeout(() => {
+      setInput(pending);
+      // Dispatch Enter on the input to trigger send
+      const el = inputRef.current;
+      if (el) {
+        el.focus();
+        const event = new KeyboardEvent("keydown", {
+          key: "Enter",
+          bubbles: true,
+          cancelable: true,
+        });
+        el.dispatchEvent(event);
+      }
+    }, 120);
+    return () => window.clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialStateReady]);
 
   const sendMessage = async () => {
     if (!input.trim() && !image) return;

@@ -22,11 +22,11 @@ async function detectLangFromHeaders(): Promise<string> {
 }
 
 const descriptions: Record<string, string> = {
-  nl: "AI die leert hoe jij werkt. Jouw adaptieve AI-werkruimte.",
-  de: "KI, die lernt, wie du arbeitest. Dein adaptiver KI-Arbeitsbereich.",
-  fr: "Une IA qui apprend comment vous travaillez. Votre espace de travail IA adaptatif.",
-  es: "IA que aprende cómo trabajas. Tu espacio de trabajo de IA adaptativo.",
-  en: "AI that learns how you work. Your adaptive AI workspace.",
+  nl: "OpenLura is jouw persoonlijke AI-werkruimte die leert hoe jij werkt. Onthoudt context, verbetert met feedback en helpt je sneller werken. Probeer gratis.",
+  de: "OpenLura ist dein persönlicher KI-Arbeitsbereich, der lernt, wie du arbeitest. Kontext wird gespeichert, Feedback verbessert die KI. Kostenlos testen.",
+  fr: "OpenLura est votre espace de travail IA personnel qui apprend comment vous travaillez. Mémorise le contexte et s'améliore. Essai gratuit.",
+  es: "OpenLura es tu espacio de trabajo IA personal que aprende cómo trabajas. Recuerda contexto y mejora con feedback. Pruébalo gratis.",
+  en: "OpenLura is your personal AI workspace that learns how you work. Remembers context, improves with feedback, and helps you move faster. Try it free.",
 };
 
 const geistSans = Geist({
@@ -40,8 +40,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "OpenLura",
-  description: "AI that learns how you work.",
+  title: "OpenLura – Adaptive AI Workspace | Personal AI Chat",
+  description: "OpenLura is your personal AI workspace that learns how you work. Remembers context, improves with feedback, and helps you move faster. Try it free.",
   icons: {
     icon: "/openlura-logo.png",
     apple: "/openlura-logo.png",
@@ -73,8 +73,22 @@ export default async function RootLayout({
     >
       <head>
         <meta name="description" content={description} />
+        <script
+          async
+          src="https://www.googletagmanager.com/gtag/js?id=AW-16726641191"
+        />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              window.dataLayer = window.dataLayer || [];
+              function gtag(){dataLayer.push(arguments);}
+              gtag('js', new Date());
+              gtag('config', 'AW-16726641191');
+            `,
+          }}
+        />
       </head>
-            <body className="min-h-full flex flex-col">
+      <body className="min-h-full flex flex-col">
         {children}
         <Analytics />
         <SpeedInsights />
