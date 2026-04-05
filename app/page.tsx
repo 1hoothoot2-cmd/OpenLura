@@ -310,7 +310,7 @@ export default function HomePage() {
 
           {/* HOMEPAGE CHAT ENTRY */}
           <div className="mt-8 w-full max-w-4xl">
-            <div className="flex items-center gap-2 rounded-[18px] border border-white/10 bg-white/[0.04] px-3 py-2.5 shadow-[0_4px_16px_rgba(0,0,0,0.12)] backdrop-blur-xl transition-[border-color,box-shadow] duration-200 focus-within:border-[#3b82f6]/40 focus-within:shadow-[0_4px_20px_rgba(59,130,246,0.12)]">
+            <div className="flex items-center gap-2 rounded-[18px] border border-white/20 bg-white/[0.08] px-3 py-2.5 shadow-[0_0_0_1px_rgba(59,130,246,0.10),0_4px_20px_rgba(0,0,0,0.20)] backdrop-blur-xl transition-[border-color,box-shadow] duration-200 focus-within:border-[#3b82f6]/50 focus-within:shadow-[0_0_0_1px_rgba(59,130,246,0.20),0_4px_24px_rgba(59,130,246,0.16)]">
               <input
                 type="text"
                 value={homeChatInput}
