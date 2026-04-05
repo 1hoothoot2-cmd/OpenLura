@@ -63,12 +63,13 @@ export default function HomePage() {
   const t = (key: string) => {
     const translations: Record<string, Record<string, string>> = {
       hero_title: {
-        nl: "AI die leert hoe jij werkt.",
-        de: "KI, die lernt, wie du arbeitest.",
-        fr: "Une IA qui apprend comment vous travaillez.",
-        es: "IA que aprende cómo trabajas.",
-        pap: "AI ku ta siña kon bo ta traha.",
-        en: "AI that learns how you work.",
+        nl: "AI die zich aanpast aan jou, niet andersom.",
+        de: "KI, die sich dir anpasst, nicht umgekehrt.",
+        fr: "Une IA qui s'adapte à vous, pas l'inverse.",
+        es: "IA que se adapta a ti, no al revés.",
+        pap: "AI ku ta adaptá na bo, no al revés.",
+        hi: "AI जो आपके अनुसार ढलती है, न कि उल्टा।",
+        en: "AI that adapts to you, not the other way around.",
       },
       hero_sub: {
         nl: "OpenLura is je adaptieve AI-werkruimte. Het onthoudt nuttige context, verbetert door feedback en helpt je sneller te werken met minder ruis.",
@@ -76,6 +77,7 @@ export default function HomePage() {
         fr: "OpenLura est votre espace de travail IA adaptatif. Il mémorise le contexte utile, s'améliore grâce aux retours et vous aide à avancer plus vite.",
         es: "OpenLura es tu espacio de trabajo de IA adaptativo. Recuerda el contexto útil, mejora con el feedback y te ayuda a trabajar más rápido.",
         pap: "OpenLura ta bo workspace di AI adaptivo. E ta rekordá konteksto útil, ta mehora ku feedback i ta yudabo traha mas rápido.",
+        hi: "OpenLura आपका अनुकूली AI कार्यक्षेत्र है। यह उपयोगी संदर्भ याद रखता है, फीडबैक से सुधरता है और आपको कम शोर के साथ तेज़ी से काम करने में मदद करता है।",
         en: "OpenLura is your adaptive AI workspace. It remembers useful context, improves through feedback, and helps you move faster with less noise.",
       },
       btn_start_chat: {
@@ -84,6 +86,7 @@ export default function HomePage() {
         fr: "Démarrer le chat",
         es: "Iniciar chat",
         pap: "Kuminsá chat",
+        hi: "चैट शुरू करें",
         en: "Start chat",
       },
       btn_login: {
@@ -92,6 +95,7 @@ export default function HomePage() {
         fr: "Se connecter / Créer un compte",
         es: "Iniciar sesión / Crear cuenta",
         pap: "Login / Krea account",
+        hi: "लॉग इन / खाता बनाएं",
         en: "Log in / Create account",
       },
       btn_how_it_works: {
@@ -100,6 +104,7 @@ export default function HomePage() {
         fr: "Voir comment ça marche",
         es: "Ver cómo funciona",
         pap: "Mira kon e ta traha",
+        hi: "यह कैसे काम करता है",
         en: "See how it works",
       },
       btn_give_feedback: {
@@ -108,6 +113,7 @@ export default function HomePage() {
         fr: "Donner un avis",
         es: "Dar feedback",
         pap: "Duna feedback",
+        hi: "फीडबैक दें",
         en: "Give feedback",
       },
       btn_open_chat: {
@@ -116,6 +122,7 @@ export default function HomePage() {
         fr: "Ouvrir le chat",
         es: "Abrir chat",
         pap: "Habri chat",
+        hi: "चैट खोलें",
         en: "Open chat",
       },
       btn_back_to_top: {
@@ -124,6 +131,7 @@ export default function HomePage() {
         fr: "Retour en haut",
         es: "Volver arriba",
         pap: "Bai bèk ariba",
+        hi: "ऊपर जाएं",
         en: "Back to top",
       },
       cta_title: {
@@ -132,6 +140,7 @@ export default function HomePage() {
         fr: "Commencez là où la valeur est la plus forte : le chat.",
         es: "Empieza donde el valor es mayor: el chat.",
         pap: "Kuminsá kaminda e balor ta mas fuerte: e chat.",
+        hi: "जहाँ मूल्य सबसे अधिक है वहाँ से शुरू करें: चैट।",
         en: "Start where the value is strongest: the chat.",
       },
       cta_sub: {
@@ -140,6 +149,7 @@ export default function HomePage() {
         fr: "Ignorez le bruit, ouvrez l'espace de travail et laissez OpenLura vous aider à penser, écrire, planifier et avancer plus vite.",
         es: "Salta el ruido, abre el espacio de trabajo y deja que OpenLura te ayude a pensar, escribir, planificar y moverte más rápido.",
         pap: "Skip e ruido, habri e workspace i laga OpenLura yudabo pensa, skibi, plania i muebe mas lihe.",
+        hi: "शोर को छोड़ें, कार्यक्षेत्र खोलें और OpenLura को आपकी सोचने, लिखने, योजना बनाने और तेज़ी से आगे बढ़ने में मदद करने दें।",
         en: "Skip the noise, open the workspace, and let OpenLura help you think, write, plan, and move faster.",
       },
     };

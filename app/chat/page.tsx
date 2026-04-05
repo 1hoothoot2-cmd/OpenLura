@@ -49,6 +49,7 @@ export default function ChatPage() {
     if (raw.startsWith("tr")) return "tr";
     if (raw.startsWith("ar")) return "ar";
     if (raw.startsWith("pap")) return "pap";
+    if (raw.startsWith("hi")) return "hi";
     return "en";
   });
 
@@ -60,6 +61,7 @@ export default function ChatPage() {
         fr: "OpenLura réfléchit...",
         es: "OpenLura está pensando...",
         pap: "OpenLura ta pensa...",
+        hi: "OpenLura सोच रहा है...",
         en: "OpenLura is thinking",
       },
       placeholder_empty: {
@@ -68,6 +70,7 @@ export default function ChatPage() {
         fr: "Posez une question...",
         es: "Haz una pregunta...",
         pap: "Hasi un pregunta...",
+        hi: "कुछ भी पूछें...",
         en: "Ask anything",
       },
       placeholder_active: {
@@ -76,6 +79,7 @@ export default function ChatPage() {
         fr: "Message à OpenLura...",
         es: "Mensaje a OpenLura...",
         pap: "Mensahe pa OpenLura...",
+        hi: "OpenLura को संदेश...",
         en: "Message OpenLura...",
       },
       placeholder_limit: {
@@ -84,6 +88,7 @@ export default function ChatPage() {
         fr: "Limite atteinte — passez à la version supérieure",
         es: "Límite alcanzado — actualiza para continuar",
         pap: "Limiet yega — upgrade pa sigui",
+        hi: "सीमा पहुंची — जारी रखने के लिए अपग्रेड करें",
         en: "Limit reached — upgrade to continue",
       },
       welcome_title: {
@@ -92,6 +97,7 @@ export default function ChatPage() {
         fr: userName ? `Bonjour ${userName} 👋` : "Sur quoi veux-tu travailler aujourd'hui ?",
         es: userName ? `Hola ${userName} 👋` : "¿En qué quieres trabajar hoy?",
         pap: userName ? `Halo ${userName} 👋` : "Kiko bo ke traha awe?",
+        hi: userName ? `नमस्ते ${userName} 👋` : "आज आप किस पर काम करना चाहते हैं?",
         en: userName ? `Hello ${userName} 👋` : "What do you want to work on today?",
       },
       welcome_sub: {
@@ -100,6 +106,7 @@ export default function ChatPage() {
         fr: userName ? "Comment puis-je t'aider aujourd'hui ?" : "Pose une question, télécharge une image, ou continue une discussion précédente.",
         es: userName ? "¿En qué puedo ayudarte hoy?" : "Haz una pregunta, sube una imagen o continúa un chat anterior.",
         pap: userName ? "Con ki mi por yudabo awe?" : "Hasi un pregunta, subi un imagen, of sigui ku un chat anterior.",
+        hi: userName ? "आज मैं आपकी कैसे मदद कर सकता हूँ?" : "कोई सवाल पूछें, इमेज अपलोड करें, या पिछली चैट जारी रखें।",
         en: userName ? "How can I help you today?" : "Ask a question, upload an image, or continue an earlier chat.",
       },
       starter_1: {
@@ -108,6 +115,7 @@ export default function ChatPage() {
         fr: "✍️ Écrire un e-mail",
         es: "✍️ Escribir un correo",
         pap: "✍️ Skirbi un email",
+        hi: "✍️ ईमेल लिखें",
         en: "✍️ Write an email",
       },
       starter_2: {
@@ -116,6 +124,7 @@ export default function ChatPage() {
         fr: "💡 Donner des idées",
         es: "💡 Dame ideas",
         pap: "💡 Dami ideanan",
+        hi: "💡 मुझे आइडिया दें",
         en: "💡 Give me ideas",
       },
       starter_3: {
@@ -124,6 +133,7 @@ export default function ChatPage() {
         fr: "🔍 Expliquer quelque chose",
         es: "🔍 Explicar algo",
         pap: "🔍 Splika algo",
+        hi: "🔍 कुछ समझाएं",
         en: "🔍 Explain something",
       },
       starter_4: {
@@ -132,6 +142,7 @@ export default function ChatPage() {
         fr: "📋 Faire un résumé",
         es: "📋 Hacer un resumen",
         pap: "📋 Hasi un samenvatting",
+        hi: "📋 सारांश बनाएं",
         en: "📋 Summarize text",
       },
       starter_5: {
@@ -140,6 +151,7 @@ export default function ChatPage() {
         fr: "🧠 Réfléchis avec moi",
         es: "🧠 Piensa conmigo",
         pap: "🧠 Pensa huntu ku mi",
+        hi: "🧠 मेरे साथ सोचें",
         en: "🧠 Think with me",
       },
       starter_6: {
@@ -148,6 +160,7 @@ export default function ChatPage() {
         fr: "✅ Créer une lijst de tâches",
         es: "✅ Crear una lista de tareas",
         pap: "✅ Hasi un lista di trabou",
+        hi: "✅ कार्य सूची बनाएं",
         en: "✅ Make a task list",
       },
     starter_1_prompt: {
@@ -1477,6 +1490,7 @@ const shouldSkipPersonalStateSync =
     it: ["Fai una domanda...", "Scrivi un'email...", "Spiega qualcosa...", "Fai un piano..."],
     tr: ["Bir soru sor...", "E-posta yaz...", "Bir şey açıkla...", "Plan yap..."],
     ar: ["اطرح سؤالاً...", "اكتب بريداً...", "اشرح شيئاً...", "ضع خطة..."],
+    hi: ["कुछ भी पूछें...", "ईमेल लिखें...", "कुछ समझाएं...", "योजना बनाएं..."],
     en: ["Ask anything...", "Write an email...", "Explain something...", "Make a plan..."],
   };
 

@@ -214,17 +214,7 @@ function detectAutoDebugSignals(input: {
     });
   }
 
-  if (
-    input.usedWebSearch &&
-    (!Array.isArray(input.sources) || input.sources.length === 0)
-  ) {
-    signals.push({
-      type: "weak_source_support",
-      confidence: "high",
-      message: "Web search route ran but no sources were attached.",
-      learningType: "content",
-    });
-  }
+  // weak_source_support signaal uitgeschakeld — te veel false positives
 
   if (
     input.image &&
