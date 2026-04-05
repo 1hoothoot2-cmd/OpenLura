@@ -440,6 +440,92 @@ const [savingPrompt, setSavingPrompt] = useState(false);
 const [savePromptSuccess, setSavePromptSuccess] = useState(false);
 const [savePromptError, setSavePromptError] = useState("");
 
+// =============================
+// PHASE 9.1 — INTENT DETECTION
+// =============================
+
+type IntentType = "mail" | "plan" | "explain" | "code" | "list" | null;
+
+const detectIntent = (text: string): IntentType => {
+  const t = text.toLowerCase().trim();
+  if (!t || t.length < 3) return null;
+
+  if (/\b(mail|email|e-mail|schrijf.*mail|write.*email|send.*email|draft.*mail)\b/.test(t)) return "mail";
+  if (/\b(plan|planning|schedule|dag|week|agenda|rooster|structuur)\b/.test(t)) return "plan";
+  if (/\b(leg uit|explain|uitleg|wat is|hoe werkt|how does|what is|define|difference between|verschil)\b/.test(t)) return "explain";
+  if (/\b(code|script|function|component|schrijf.*code|write.*code|fix.*bug|debug|implement)\b/.test(t)) return "code";
+  if (/\b(lijst|list|overzicht|stappen|steps|items|opsomming|geef me een|give me a list)\b/.test(t)) return "list";
+
+  return null;
+};
+
+const INTENT_CONFIG: Record<NonNullable<IntentType>, { label: string; labelNl: string; prefix: string; prefixNl: string; emoji: string }> = {
+  mail: {
+    label: "Write email",
+    labelNl: "Mail schrijven",
+    prefix: "Write a professional email about: ",
+    prefixNl: "Schrijf een professionele mail over: ",
+    emoji: "✉️",
+  },
+  plan: {
+    label: "Make a plan",
+    labelNl: "Plan maken",
+    prefix: "Make a clear step-by-step plan for: ",
+    prefixNl: "Maak een helder stap-voor-stap plan voor: ",
+    emoji: "📋",
+  },
+  explain: {
+    label: "Explain clearly",
+    labelNl: "Uitleggen",
+    prefix: "Explain clearly and simply: ",
+    prefixNl: "Leg helder en simpel uit: ",
+    emoji: "💡",
+  },
+  code: {
+    label: "Write code",
+    labelNl: "Code schrijven",
+    prefix: "Write clean, well-commented code for: ",
+    prefixNl: "Schrijf nette, goed gedocumenteerde code voor: ",
+    emoji: "⌨️",
+  },
+  list: {
+    label: "Make a list",
+    labelNl: "Lijst maken",
+    prefix: "Give me a clear, numbered list of: ",
+    prefixNl: "Geef me een duidelijke, genummerde lijst van: ",
+    emoji: "📝",
+  },
+};
+
+const detectedIntent = detectIntent(input);
+
+const applyIntent = (intent: NonNullable<IntentType>) => {
+  const config = INTENT_CONFIG[intent];
+  const isNl = detectedLang === "nl";
+  const prefix = isNl ? config.prefixNl : config.prefix;
+  const rawInput = input.trim();
+
+  // Als de input al met de prefix begint, niet dubbel toevoegen
+  if (rawInput.startsWith(prefix)) return;
+
+  // Strip eventuele andere intent-prefixen
+  const allPrefixes = Object.values(INTENT_CONFIG).flatMap(c => [c.prefix, c.prefixNl]);
+  let cleanedInput = rawInput;
+  for (const p of allPrefixes) {
+    if (cleanedInput.startsWith(p)) {
+      cleanedInput = cleanedInput.slice(p.length).trim();
+      break;
+    }
+  }
+
+  const next = prefix + cleanedInput;
+  setInput(next);
+  requestAnimationFrame(() => {
+    inputRef.current?.focus();
+    inputRef.current?.setSelectionRange(next.length, next.length);
+  });
+};
+
 const getLastUserPrompt = () => {
   const activeChat = chats.find(c => c.id === activeChatId);
   if (!activeChat) return "";
@@ -4924,6 +5010,23 @@ updated[index].messages[
       className="shrink-0 rounded-full border border-white/8 bg-white/[0.04] px-2.5 py-1 text-[11px] text-white/62 ol-interactive transition-[background-color,border-color,color] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white"
     >
       Clear
+    </button>
+  </div>
+)}
+
+{/* PHASE 9.1 — INTENT CHIPS */}
+{detectedIntent && !loading && (
+  <div className="flex items-center gap-2 px-1 pb-1">
+    <span className="text-[11px] text-white/32 shrink-0">
+      {detectedLang === "nl" ? "AI herkent:" : "AI detects:"}
+    </span>
+    <button
+      type="button"
+      onClick={() => applyIntent(detectedIntent)}
+      className="inline-flex items-center gap-1.5 rounded-full border border-[#3b82f6]/22 bg-[#3b82f6]/10 px-3 py-1 text-[11px] font-medium text-[#93c5fd] ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-[#3b82f6]/36 hover:bg-[#3b82f6]/18 hover:text-white hover:shadow-[0_6px_14px_rgba(59,130,246,0.18)] active:scale-[0.97]"
+    >
+      <span>{INTENT_CONFIG[detectedIntent].emoji}</span>
+      <span>{detectedLang === "nl" ? INTENT_CONFIG[detectedIntent].labelNl : INTENT_CONFIG[detectedIntent].label}</span>
     </button>
   </div>
 )}

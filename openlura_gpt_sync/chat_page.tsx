@@ -49,6 +49,7 @@ export default function ChatPage() {
     if (raw.startsWith("tr")) return "tr";
     if (raw.startsWith("ar")) return "ar";
     if (raw.startsWith("pap")) return "pap";
+    if (raw.startsWith("hi")) return "hi";
     return "en";
   });
 
@@ -60,6 +61,7 @@ export default function ChatPage() {
         fr: "OpenLura réfléchit...",
         es: "OpenLura está pensando...",
         pap: "OpenLura ta pensa...",
+        hi: "OpenLura सोच रहा है...",
         en: "OpenLura is thinking",
       },
       placeholder_empty: {
@@ -68,6 +70,7 @@ export default function ChatPage() {
         fr: "Posez une question...",
         es: "Haz una pregunta...",
         pap: "Hasi un pregunta...",
+        hi: "कुछ भी पूछें...",
         en: "Ask anything",
       },
       placeholder_active: {
@@ -76,6 +79,7 @@ export default function ChatPage() {
         fr: "Message à OpenLura...",
         es: "Mensaje a OpenLura...",
         pap: "Mensahe pa OpenLura...",
+        hi: "OpenLura को संदेश...",
         en: "Message OpenLura...",
       },
       placeholder_limit: {
@@ -84,6 +88,7 @@ export default function ChatPage() {
         fr: "Limite atteinte — passez à la version supérieure",
         es: "Límite alcanzado — actualiza para continuar",
         pap: "Limiet yega — upgrade pa sigui",
+        hi: "सीमा पहुंची — जारी रखने के लिए अपग्रेड करें",
         en: "Limit reached — upgrade to continue",
       },
       welcome_title: {
@@ -92,6 +97,7 @@ export default function ChatPage() {
         fr: userName ? `Bonjour ${userName} 👋` : "Sur quoi veux-tu travailler aujourd'hui ?",
         es: userName ? `Hola ${userName} 👋` : "¿En qué quieres trabajar hoy?",
         pap: userName ? `Halo ${userName} 👋` : "Kiko bo ke traha awe?",
+        hi: userName ? `नमस्ते ${userName} 👋` : "आज आप किस पर काम करना चाहते हैं?",
         en: userName ? `Hello ${userName} 👋` : "What do you want to work on today?",
       },
       welcome_sub: {
@@ -100,6 +106,7 @@ export default function ChatPage() {
         fr: userName ? "Comment puis-je t'aider aujourd'hui ?" : "Pose une question, télécharge une image, ou continue une discussion précédente.",
         es: userName ? "¿En qué puedo ayudarte hoy?" : "Haz una pregunta, sube una imagen o continúa un chat anterior.",
         pap: userName ? "Con ki mi por yudabo awe?" : "Hasi un pregunta, subi un imagen, of sigui ku un chat anterior.",
+        hi: userName ? "आज मैं आपकी कैसे मदद कर सकता हूँ?" : "कोई सवाल पूछें, इमेज अपलोड करें, या पिछली चैट जारी रखें।",
         en: userName ? "How can I help you today?" : "Ask a question, upload an image, or continue an earlier chat.",
       },
       starter_1: {
@@ -108,6 +115,7 @@ export default function ChatPage() {
         fr: "✍️ Écrire un e-mail",
         es: "✍️ Escribir un correo",
         pap: "✍️ Skirbi un email",
+        hi: "✍️ ईमेल लिखें",
         en: "✍️ Write an email",
       },
       starter_2: {
@@ -116,6 +124,7 @@ export default function ChatPage() {
         fr: "💡 Donner des idées",
         es: "💡 Dame ideas",
         pap: "💡 Dami ideanan",
+        hi: "💡 मुझे आइडिया दें",
         en: "💡 Give me ideas",
       },
       starter_3: {
@@ -124,6 +133,7 @@ export default function ChatPage() {
         fr: "🔍 Expliquer quelque chose",
         es: "🔍 Explicar algo",
         pap: "🔍 Splika algo",
+        hi: "🔍 कुछ समझाएं",
         en: "🔍 Explain something",
       },
       starter_4: {
@@ -132,6 +142,7 @@ export default function ChatPage() {
         fr: "📋 Faire un résumé",
         es: "📋 Hacer un resumen",
         pap: "📋 Hasi un samenvatting",
+        hi: "📋 सारांश बनाएं",
         en: "📋 Summarize text",
       },
       starter_5: {
@@ -140,6 +151,7 @@ export default function ChatPage() {
         fr: "🧠 Réfléchis avec moi",
         es: "🧠 Piensa conmigo",
         pap: "🧠 Pensa huntu ku mi",
+        hi: "🧠 मेरे साथ सोचें",
         en: "🧠 Think with me",
       },
       starter_6: {
@@ -148,6 +160,7 @@ export default function ChatPage() {
         fr: "✅ Créer une lijst de tâches",
         es: "✅ Crear una lista de tareas",
         pap: "✅ Hasi un lista di trabou",
+        hi: "✅ कार्य सूची बनाएं",
         en: "✅ Make a task list",
       },
     starter_1_prompt: {
@@ -156,6 +169,7 @@ export default function ChatPage() {
         fr: "Écris un e-mail professionnel pour planifier un rendez-vous. Donne-moi un exemple prêt à l'emploi.",
         es: "Escribe un correo profesional para concertar una cita. Dame un ejemplo listo para usar.",
         pap: "Skirbi un email profesional pa plania un cita. Dami un ehempel ku mi por usa mes awe.",
+        hi: "एक मीटिंग शेड्यूल करने के लिए एक पेशेवर ईमेल लिखें। मुझे एक तैयार उदाहरण दें जो मैं आज भेज सकूं।",
         en: "Write a professional email to schedule a meeting. Give me a ready-to-use example I can send today.",
       },
       starter_2_prompt: {
@@ -164,6 +178,7 @@ export default function ChatPage() {
         fr: "Donne-moi 5 idées concrètes pour aborder un projet ou une tâche de façon plus intéressante et efficace.",
         es: "Dame 5 ideas concretas para abordar un proyecto o tarea de forma más interesante y efectiva.",
         pap: "Dami 5 ideanan konkret pa ataka un proyecto of tarea di un manera mas interesante i efectivo.",
+        hi: "किसी प्रोजेक्ट या कार्य को अधिक रोचक और प्रभावी तरीके से करने के लिए मुझे 5 ठोस विचार दें।",
         en: "Give me 5 concrete ideas to approach a project or task in a more interesting and effective way.",
       },
       starter_3_prompt: {
@@ -172,6 +187,7 @@ export default function ChatPage() {
         fr: "Explique-moi un sujet complexe simplement, comme si tu l'expliquais à quelqu'un qui n'en a jamais entendu parler.",
         es: "Explícame un tema complejo de forma sencilla, como si se lo explicaras a alguien que nunca ha oído hablar de él.",
         pap: "Splika mi un topiko kompleks simpel, manera si bo ta splika e na algun ku nunka a tende di ne.",
+        hi: "किसी जटिल विषय को सरल भाषा में समझाएं, जैसे किसी ऐसे व्यक्ति को समझा रहे हों जिसने इसके बारे में कभी नहीं सुना। कोई रोचक विषय चुनें।",
         en: "Explain a complex topic simply, as if explaining it to someone who has never heard of it. Pick an interesting topic.",
       },
       starter_4_prompt: {
@@ -180,6 +196,7 @@ export default function ChatPage() {
         fr: "Colle un texte ci-dessous et je t'en ferai un résumé clair en 5 phrases maximum.",
         es: "Pega un texto a continuación y haré un resumen claro en máximo 5 frases.",
         pap: "Pega un teks aki abou i mi lo hasi un samenvatting kla di máximo 5 frasa.",
+        hi: "नीचे एक टेक्स्ट पेस्ट करें और मैं उसे अधिकतम 5 वाक्यों में स्पष्ट रूप से सारांशित करूंगा।",
         en: "Paste a text below and I'll summarize it clearly in 5 sentences or less.",
       },
       starter_5_prompt: {
@@ -188,6 +205,7 @@ export default function ChatPage() {
         fr: "Je veux réfléchir à une décision. Pose-moi les 3 questions les plus pertinentes pour structurer ma réflexion.",
         es: "Quiero reflexionar sobre una decisión. Hazme las 3 preguntas más relevantes para estructurar mis pensamientos.",
         pap: "Mi ke pensa riba un decision. Hasi mi e 3 pregunta mas relevante pa struktura mi pensamentu.",
+        hi: "मैं किसी निर्णय के बारे में सोचना चाहता हूं। मेरी सोच को व्यवस्थित करने में मदद के लिए मुझसे 3 सबसे प्रासंगिक प्रश्न पूछें।",
         en: "I want to think through a decision. Ask me the 3 most relevant questions to help structure my thinking.",
       },
       starter_6_prompt: {
@@ -196,6 +214,7 @@ export default function ChatPage() {
         fr: "Crée une liste de tâches structurée pour une journée productive. Divise en matin, après-midi et soir.",
         es: "Crea una lista de tareas para un día productivo. Divídela en mañana, tarde y noche con acciones concretas.",
         pap: "Hasi un lista di tarea strukturá pa un dia produktivo. Dividi den mainta, merdia i atardi.",
+        hi: "एक उत्पादक कार्यदिवस के लिए एक संरचित कार्य सूची बनाएं। इसे सुबह, दोपहर और शाम में ठोस कार्यों के साथ विभाजित करें।",
         en: "Create a structured task list for a productive workday. Split into morning, afternoon, and evening with concrete actions.",
       },
     };
@@ -205,6 +224,8 @@ export default function ChatPage() {
   const [chats, setChats] = useState<any[]>([]);
   const [activeChatId, setActiveChatId] = useState<number | null>(null);
   const [input, setInput] = useState("");
+  const autoSentRef = useRef(false);
+  const pendingAutoSendRef = useRef<string | null>(null);
 const [workflowPrefill, setWorkflowPrefill] = useState<{
   value: string;
   source: "prompt" | "result" | "message";
@@ -1452,6 +1473,21 @@ const shouldSkipPersonalStateSync =
     });
   }, [initialStateReady]);
 
+  // AUTO-SEND from homepage ?q= param
+  useEffect(() => {
+    if (!initialStateReady) return;
+    if (autoSentRef.current) return;
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const q = params.get("q");
+    if (!q || !q.trim()) return;
+    autoSentRef.current = true;
+    pendingAutoSendRef.current = q.trim();
+    setInput(q.trim());
+    const clean = window.location.pathname;
+    window.history.replaceState({}, "", clean);
+  }, [initialStateReady]);
+
   const rotatingPlaceholders: Record<string, string[]> = {
     nl: ["Stel een vraag...", "Schrijf een e-mail...", "Leg iets uit...", "Maak een plan..."],
     de: ["Stell eine Frage...", "Schreib eine E-Mail...", "Erkläre etwas...", "Mach einen Plan..."],
@@ -1460,6 +1496,7 @@ const shouldSkipPersonalStateSync =
     it: ["Fai una domanda...", "Scrivi un'email...", "Spiega qualcosa...", "Fai un piano..."],
     tr: ["Bir soru sor...", "E-posta yaz...", "Bir şey açıkla...", "Plan yap..."],
     ar: ["اطرح سؤالاً...", "اكتب بريداً...", "اشرح شيئاً...", "ضع خطة..."],
+    hi: ["कुछ भी पूछें...", "ईमेल लिखें...", "कुछ समझाएं...", "योजना बनाएं..."],
     en: ["Ask anything...", "Write an email...", "Explain something...", "Make a plan..."],
   };
 
@@ -2724,6 +2761,31 @@ Do not mention that this is a new attempt.`,
     setLoading(false);
     setStreamController(null);
   };
+
+  // Trigger auto-send when pendingAutoSendRef is set
+  useEffect(() => {
+    if (!pendingAutoSendRef.current) return;
+    if (!initialStateReady) return;
+    const pending = pendingAutoSendRef.current;
+    pendingAutoSendRef.current = null;
+    // Small delay to let state settle
+    const timer = window.setTimeout(() => {
+      setInput(pending);
+      // Dispatch Enter on the input to trigger send
+      const el = inputRef.current;
+      if (el) {
+        el.focus();
+        const event = new KeyboardEvent("keydown", {
+          key: "Enter",
+          bubbles: true,
+          cancelable: true,
+        });
+        el.dispatchEvent(event);
+      }
+    }, 120);
+    return () => window.clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialStateReady]);
 
   const sendMessage = async () => {
     if (!input.trim() && !image) return;

@@ -45,6 +45,7 @@ function SectionFooter({
 
 export default function HomePage() {
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
+  const [homeChatInput, setHomeChatInput] = useState("");
 
   const lang = (() => {
     if (typeof navigator === "undefined") return "en";
@@ -55,18 +56,20 @@ export default function HomePage() {
     if (raw.startsWith("es")) return "es";
     if (raw.startsWith("pt")) return "pt";
     if (raw.startsWith("pap")) return "pap";
+    if (raw.startsWith("hi")) return "hi";
     return "en";
   })();
 
   const t = (key: string) => {
     const translations: Record<string, Record<string, string>> = {
       hero_title: {
-        nl: "AI die leert hoe jij werkt.",
-        de: "KI, die lernt, wie du arbeitest.",
-        fr: "Une IA qui apprend comment vous travaillez.",
-        es: "IA que aprende cómo trabajas.",
-        pap: "AI ku ta siña kon bo ta traha.",
-        en: "AI that learns how you work.",
+        nl: "AI die zich aanpast aan jou, niet andersom.",
+        de: "KI, die sich dir anpasst, nicht umgekehrt.",
+        fr: "Une IA qui s'adapte à vous, pas l'inverse.",
+        es: "IA que se adapta a ti, no al revés.",
+        pap: "AI ku ta adaptá na bo, no al revés.",
+        hi: "AI जो आपके अनुसार ढलती है, न कि उल्टा।",
+        en: "AI that adapts to you, not the other way around.",
       },
       hero_sub: {
         nl: "OpenLura is je adaptieve AI-werkruimte. Het onthoudt nuttige context, verbetert door feedback en helpt je sneller te werken met minder ruis.",
@@ -74,6 +77,7 @@ export default function HomePage() {
         fr: "OpenLura est votre espace de travail IA adaptatif. Il mémorise le contexte utile, s'améliore grâce aux retours et vous aide à avancer plus vite.",
         es: "OpenLura es tu espacio de trabajo de IA adaptativo. Recuerda el contexto útil, mejora con el feedback y te ayuda a trabajar más rápido.",
         pap: "OpenLura ta bo workspace di AI adaptivo. E ta rekordá konteksto útil, ta mehora ku feedback i ta yudabo traha mas rápido.",
+        hi: "OpenLura आपका अनुकूली AI कार्यक्षेत्र है। यह उपयोगी संदर्भ याद रखता है, फीडबैक से सुधरता है और आपको कम शोर के साथ तेज़ी से काम करने में मदद करता है।",
         en: "OpenLura is your adaptive AI workspace. It remembers useful context, improves through feedback, and helps you move faster with less noise.",
       },
       btn_start_chat: {
@@ -82,6 +86,7 @@ export default function HomePage() {
         fr: "Démarrer le chat",
         es: "Iniciar chat",
         pap: "Kuminsá chat",
+        hi: "चैट शुरू करें",
         en: "Start chat",
       },
       btn_login: {
@@ -90,6 +95,7 @@ export default function HomePage() {
         fr: "Se connecter / Créer un compte",
         es: "Iniciar sesión / Crear cuenta",
         pap: "Login / Krea account",
+        hi: "लॉग इन / खाता बनाएं",
         en: "Log in / Create account",
       },
       btn_how_it_works: {
@@ -98,6 +104,7 @@ export default function HomePage() {
         fr: "Voir comment ça marche",
         es: "Ver cómo funciona",
         pap: "Mira kon e ta traha",
+        hi: "यह कैसे काम करता है",
         en: "See how it works",
       },
       btn_give_feedback: {
@@ -106,6 +113,7 @@ export default function HomePage() {
         fr: "Donner un avis",
         es: "Dar feedback",
         pap: "Duna feedback",
+        hi: "फीडबैक दें",
         en: "Give feedback",
       },
       btn_open_chat: {
@@ -114,6 +122,7 @@ export default function HomePage() {
         fr: "Ouvrir le chat",
         es: "Abrir chat",
         pap: "Habri chat",
+        hi: "चैट खोलें",
         en: "Open chat",
       },
       btn_back_to_top: {
@@ -122,6 +131,7 @@ export default function HomePage() {
         fr: "Retour en haut",
         es: "Volver arriba",
         pap: "Bai bèk ariba",
+        hi: "ऊपर जाएं",
         en: "Back to top",
       },
       cta_title: {
@@ -130,6 +140,7 @@ export default function HomePage() {
         fr: "Commencez là où la valeur est la plus forte : le chat.",
         es: "Empieza donde el valor es mayor: el chat.",
         pap: "Kuminsá kaminda e balor ta mas fuerte: e chat.",
+        hi: "जहाँ मूल्य सबसे अधिक है वहाँ से शुरू करें: चैट।",
         en: "Start where the value is strongest: the chat.",
       },
       cta_sub: {
@@ -138,6 +149,7 @@ export default function HomePage() {
         fr: "Ignorez le bruit, ouvrez l'espace de travail et laissez OpenLura vous aider à penser, écrire, planifier et avancer plus vite.",
         es: "Salta el ruido, abre el espacio de trabajo y deja que OpenLura te ayude a pensar, escribir, planificar y moverte más rápido.",
         pap: "Skip e ruido, habri e workspace i laga OpenLura yudabo pensa, skibi, plania i muebe mas lihe.",
+        hi: "शोर को छोड़ें, कार्यक्षेत्र खोलें और OpenLura को आपकी सोचने, लिखने, योजना बनाने और तेज़ी से आगे बढ़ने में मदद करने दें।",
         en: "Skip the noise, open the workspace, and let OpenLura help you think, write, plan, and move faster.",
       },
     };
@@ -268,14 +280,12 @@ export default function HomePage() {
             >
               {t("btn_start_chat")}
             </Link>
-
             <Link
               href="/personal-workspace"
               className="inline-flex h-12 w-full items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.04] px-6 text-sm font-medium text-white/88 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/30 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.99] sm:w-auto"
             >
               {t("btn_login")}
             </Link>
-
             <Link
               href="#how-it-works"
               className="inline-flex h-12 w-full items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.04] px-6 text-sm font-medium text-white/88 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/30 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.99] sm:w-auto"
@@ -284,7 +294,67 @@ export default function HomePage() {
             </Link>
           </div>
 
-          <div className="mt-8 flex flex-col items-start gap-3">
+          <div className="mt-4 flex flex-wrap gap-2">
+            <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/16 bg-emerald-400/8 px-3 py-1.5 text-[12px] font-medium text-emerald-300/80">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400/70" />
+              Free plan available
+            </div>
+          </div>
+
+          {/* HOMEPAGE CHAT ENTRY */}
+          <div className="mt-5 w-full max-w-4xl">
+            <div className="flex items-center gap-2 rounded-[18px] border border-white/20 bg-white/[0.08] px-3 py-2.5 shadow-[0_0_0_1px_rgba(59,130,246,0.10),0_4px_20px_rgba(0,0,0,0.20)] backdrop-blur-xl transition-[border-color,box-shadow] duration-200 focus-within:border-[#3b82f6]/50 focus-within:shadow-[0_0_0_1px_rgba(59,130,246,0.20),0_4px_24px_rgba(59,130,246,0.16)]">
+              <input
+                type="text"
+                value={homeChatInput}
+                onChange={(e) => setHomeChatInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && homeChatInput.trim()) {
+                    e.preventDefault();
+                    window.location.href = `/chat?q=${encodeURIComponent(homeChatInput.trim())}`;
+                  }
+                }}
+                placeholder={
+                  lang === "nl" ? "Hoe kan ik je helpen?" :
+                  lang === "hi" ? "\u092e\u0948\u0902 \u0906\u092a\u0915\u0940 \u0915\u0948\u0938\u0947 \u092e\u0926\u0926 \u0915\u0930 \u0938\u0915\u0924\u093e \u0939\u0942\u0901?" :
+                  "How can I assist you?"
+                }
+                className="flex-1 bg-transparent text-sm text-white outline-none placeholder:text-white/32"
+              />
+              <button
+                type="button"
+                disabled={!homeChatInput.trim()}
+                onClick={() => {
+                  if (homeChatInput.trim()) {
+                    window.location.href = `/chat?q=${encodeURIComponent(homeChatInput.trim())}`;
+                  }
+                }}
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] text-sm text-white shadow-[0_4px_12px_rgba(59,130,246,0.28)] transition-[transform,filter,opacity] duration-200 hover:brightness-110 active:scale-95 disabled:cursor-not-allowed disabled:opacity-30"
+              >
+                ↑
+              </button>
+            </div>
+            <div className="mt-2.5 flex flex-wrap gap-2">
+              {([
+                lang === "nl" ? "Help me een e-mail schrijven" : "Help me write an email",
+                lang === "nl" ? "Leg iets simpel uit" : "Explain something simply",
+                lang === "nl" ? "Plan iets voor me" : "Plan something for me",
+              ] as string[]).map((starter) => (
+                <button
+                  key={starter}
+                  type="button"
+                  onClick={() => {
+                    window.location.href = `/chat?q=${encodeURIComponent(starter)}`;
+                  }}
+                  className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] text-white/52 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color] duration-200 hover:border-[#3b82f6]/24 hover:bg-[#3b82f6]/10 hover:text-white/88 active:scale-95"
+                >
+                  {starter}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-6 flex flex-col items-start gap-3">
             <div className="flex flex-wrap gap-2">
               {chapterLinks.map((item) => (
                 <a
@@ -296,7 +366,6 @@ export default function HomePage() {
                 </a>
               ))}
             </div>
-
             <button
               type="button"
               onClick={() => setIsFeedbackOpen(true)}
