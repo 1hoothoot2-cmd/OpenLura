@@ -49,6 +49,7 @@ export default function ChatPage() {
     if (raw.startsWith("tr")) return "tr";
     if (raw.startsWith("ar")) return "ar";
     if (raw.startsWith("pap")) return "pap";
+    if (raw.startsWith("hi")) return "hi";
     return "en";
   });
 
@@ -60,6 +61,7 @@ export default function ChatPage() {
         fr: "OpenLura réfléchit...",
         es: "OpenLura está pensando...",
         pap: "OpenLura ta pensa...",
+        hi: "OpenLura सोच रहा है...",
         en: "OpenLura is thinking",
       },
       placeholder_empty: {
@@ -68,6 +70,7 @@ export default function ChatPage() {
         fr: "Posez une question...",
         es: "Haz una pregunta...",
         pap: "Hasi un pregunta...",
+        hi: "कुछ भी पूछें...",
         en: "Ask anything",
       },
       placeholder_active: {
@@ -76,6 +79,7 @@ export default function ChatPage() {
         fr: "Message à OpenLura...",
         es: "Mensaje a OpenLura...",
         pap: "Mensahe pa OpenLura...",
+        hi: "OpenLura को संदेश...",
         en: "Message OpenLura...",
       },
       placeholder_limit: {
@@ -84,6 +88,7 @@ export default function ChatPage() {
         fr: "Limite atteinte — passez à la version supérieure",
         es: "Límite alcanzado — actualiza para continuar",
         pap: "Limiet yega — upgrade pa sigui",
+        hi: "सीमा पहुंची — जारी रखने के लिए अपग्रेड करें",
         en: "Limit reached — upgrade to continue",
       },
       welcome_title: {
@@ -92,6 +97,7 @@ export default function ChatPage() {
         fr: userName ? `Bonjour ${userName} 👋` : "Sur quoi veux-tu travailler aujourd'hui ?",
         es: userName ? `Hola ${userName} 👋` : "¿En qué quieres trabajar hoy?",
         pap: userName ? `Halo ${userName} 👋` : "Kiko bo ke traha awe?",
+        hi: userName ? `नमस्ते ${userName} 👋` : "आज आप किस पर काम करना चाहते हैं?",
         en: userName ? `Hello ${userName} 👋` : "What do you want to work on today?",
       },
       welcome_sub: {
@@ -100,6 +106,7 @@ export default function ChatPage() {
         fr: userName ? "Comment puis-je t'aider aujourd'hui ?" : "Pose une question, télécharge une image, ou continue une discussion précédente.",
         es: userName ? "¿En qué puedo ayudarte hoy?" : "Haz una pregunta, sube una imagen o continúa un chat anterior.",
         pap: userName ? "Con ki mi por yudabo awe?" : "Hasi un pregunta, subi un imagen, of sigui ku un chat anterior.",
+        hi: userName ? "आज मैं आपकी कैसे मदद कर सकता हूँ?" : "कोई सवाल पूछें, इमेज अपलोड करें, या पिछली चैट जारी रखें।",
         en: userName ? "How can I help you today?" : "Ask a question, upload an image, or continue an earlier chat.",
       },
       starter_1: {
@@ -108,6 +115,7 @@ export default function ChatPage() {
         fr: "✍️ Écrire un e-mail",
         es: "✍️ Escribir un correo",
         pap: "✍️ Skirbi un email",
+        hi: "✍️ ईमेल लिखें",
         en: "✍️ Write an email",
       },
       starter_2: {
@@ -116,6 +124,7 @@ export default function ChatPage() {
         fr: "💡 Donner des idées",
         es: "💡 Dame ideas",
         pap: "💡 Dami ideanan",
+        hi: "💡 मुझे आइडिया दें",
         en: "💡 Give me ideas",
       },
       starter_3: {
@@ -124,6 +133,7 @@ export default function ChatPage() {
         fr: "🔍 Expliquer quelque chose",
         es: "🔍 Explicar algo",
         pap: "🔍 Splika algo",
+        hi: "🔍 कुछ समझाएं",
         en: "🔍 Explain something",
       },
       starter_4: {
@@ -132,6 +142,7 @@ export default function ChatPage() {
         fr: "📋 Faire un résumé",
         es: "📋 Hacer un resumen",
         pap: "📋 Hasi un samenvatting",
+        hi: "📋 सारांश बनाएं",
         en: "📋 Summarize text",
       },
       starter_5: {
@@ -140,6 +151,7 @@ export default function ChatPage() {
         fr: "🧠 Réfléchis avec moi",
         es: "🧠 Piensa conmigo",
         pap: "🧠 Pensa huntu ku mi",
+        hi: "🧠 मेरे साथ सोचें",
         en: "🧠 Think with me",
       },
       starter_6: {
@@ -148,6 +160,7 @@ export default function ChatPage() {
         fr: "✅ Créer une lijst de tâches",
         es: "✅ Crear una lista de tareas",
         pap: "✅ Hasi un lista di trabou",
+        hi: "✅ कार्य सूची बनाएं",
         en: "✅ Make a task list",
       },
     starter_1_prompt: {
@@ -156,6 +169,7 @@ export default function ChatPage() {
         fr: "Écris un e-mail professionnel pour planifier un rendez-vous. Donne-moi un exemple prêt à l'emploi.",
         es: "Escribe un correo profesional para concertar una cita. Dame un ejemplo listo para usar.",
         pap: "Skirbi un email profesional pa plania un cita. Dami un ehempel ku mi por usa mes awe.",
+        hi: "एक मीटिंग शेड्यूल करने के लिए एक पेशेवर ईमेल लिखें। मुझे एक तैयार उदाहरण दें जो मैं आज भेज सकूं।",
         en: "Write a professional email to schedule a meeting. Give me a ready-to-use example I can send today.",
       },
       starter_2_prompt: {
@@ -164,6 +178,7 @@ export default function ChatPage() {
         fr: "Donne-moi 5 idées concrètes pour aborder un projet ou une tâche de façon plus intéressante et efficace.",
         es: "Dame 5 ideas concretas para abordar un proyecto o tarea de forma más interesante y efectiva.",
         pap: "Dami 5 ideanan konkret pa ataka un proyecto of tarea di un manera mas interesante i efectivo.",
+        hi: "किसी प्रोजेक्ट या कार्य को अधिक रोचक और प्रभावी तरीके से करने के लिए मुझे 5 ठोस विचार दें।",
         en: "Give me 5 concrete ideas to approach a project or task in a more interesting and effective way.",
       },
       starter_3_prompt: {
@@ -172,6 +187,7 @@ export default function ChatPage() {
         fr: "Explique-moi un sujet complexe simplement, comme si tu l'expliquais à quelqu'un qui n'en a jamais entendu parler.",
         es: "Explícame un tema complejo de forma sencilla, como si se lo explicaras a alguien que nunca ha oído hablar de él.",
         pap: "Splika mi un topiko kompleks simpel, manera si bo ta splika e na algun ku nunka a tende di ne.",
+        hi: "किसी जटिल विषय को सरल भाषा में समझाएं, जैसे किसी ऐसे व्यक्ति को समझा रहे हों जिसने इसके बारे में कभी नहीं सुना। कोई रोचक विषय चुनें।",
         en: "Explain a complex topic simply, as if explaining it to someone who has never heard of it. Pick an interesting topic.",
       },
       starter_4_prompt: {
@@ -180,6 +196,7 @@ export default function ChatPage() {
         fr: "Colle un texte ci-dessous et je t'en ferai un résumé clair en 5 phrases maximum.",
         es: "Pega un texto a continuación y haré un resumen claro en máximo 5 frases.",
         pap: "Pega un teks aki abou i mi lo hasi un samenvatting kla di máximo 5 frasa.",
+        hi: "नीचे एक टेक्स्ट पेस्ट करें और मैं उसे अधिकतम 5 वाक्यों में स्पष्ट रूप से सारांशित करूंगा।",
         en: "Paste a text below and I'll summarize it clearly in 5 sentences or less.",
       },
       starter_5_prompt: {
@@ -188,6 +205,7 @@ export default function ChatPage() {
         fr: "Je veux réfléchir à une décision. Pose-moi les 3 questions les plus pertinentes pour structurer ma réflexion.",
         es: "Quiero reflexionar sobre una decisión. Hazme las 3 preguntas más relevantes para estructurar mis pensamientos.",
         pap: "Mi ke pensa riba un decision. Hasi mi e 3 pregunta mas relevante pa struktura mi pensamentu.",
+        hi: "मैं किसी निर्णय के बारे में सोचना चाहता हूं। मेरी सोच को व्यवस्थित करने में मदद के लिए मुझसे 3 सबसे प्रासंगिक प्रश्न पूछें।",
         en: "I want to think through a decision. Ask me the 3 most relevant questions to help structure my thinking.",
       },
       starter_6_prompt: {
@@ -196,6 +214,7 @@ export default function ChatPage() {
         fr: "Crée une liste de tâches structurée pour une journée productive. Divise en matin, après-midi et soir.",
         es: "Crea una lista de tareas para un día productivo. Divídela en mañana, tarde y noche con acciones concretas.",
         pap: "Hasi un lista di tarea strukturá pa un dia produktivo. Dividi den mainta, merdia i atardi.",
+        hi: "एक उत्पादक कार्यदिवस के लिए एक संरचित कार्य सूची बनाएं। इसे सुबह, दोपहर और शाम में ठोस कार्यों के साथ विभाजित करें।",
         en: "Create a structured task list for a productive workday. Split into morning, afternoon, and evening with concrete actions.",
       },
     };
@@ -205,6 +224,8 @@ export default function ChatPage() {
   const [chats, setChats] = useState<any[]>([]);
   const [activeChatId, setActiveChatId] = useState<number | null>(null);
   const [input, setInput] = useState("");
+  const autoSentRef = useRef(false);
+  const pendingAutoSendRef = useRef<string | null>(null);
 const [workflowPrefill, setWorkflowPrefill] = useState<{
   value: string;
   source: "prompt" | "result" | "message";
@@ -419,6 +440,173 @@ const [savingPrompt, setSavingPrompt] = useState(false);
 const [savePromptSuccess, setSavePromptSuccess] = useState(false);
 const [savePromptError, setSavePromptError] = useState("");
 
+// =============================
+// PHASE 9.1 — INTENT DETECTION
+// =============================
+
+type IntentType = "mail" | "plan" | "explain" | "code" | "list" | null;
+
+const detectIntent = (text: string): IntentType => {
+  const t = text.toLowerCase().trim();
+  if (!t || t.length < 3) return null;
+
+  if (/\b(mail|email|e-mail|schrijf.*mail|write.*email|send.*email|draft.*mail)\b/.test(t)) return "mail";
+  if (/\b(plan|planning|schedule|dag|week|agenda|rooster|structuur)\b/.test(t)) return "plan";
+  if (/\b(leg uit|explain|uitleg|wat is|hoe werkt|how does|what is|define|difference between|verschil)\b/.test(t)) return "explain";
+  if (/\b(code|script|function|component|schrijf.*code|write.*code|fix.*bug|debug|implement)\b/.test(t)) return "code";
+  if (/\b(lijst|list|overzicht|stappen|steps|items|opsomming|geef me een|give me a list)\b/.test(t)) return "list";
+
+  return null;
+};
+
+const INTENT_CONFIG: Record<NonNullable<IntentType>, { label: string; labelNl: string; prefix: string; prefixNl: string; emoji: string }> = {
+  mail: {
+    label: "Write email",
+    labelNl: "Mail schrijven",
+    prefix: "Write a professional email about: ",
+    prefixNl: "Schrijf een professionele mail over: ",
+    emoji: "✉️",
+  },
+  plan: {
+    label: "Make a plan",
+    labelNl: "Plan maken",
+    prefix: "Make a clear step-by-step plan for: ",
+    prefixNl: "Maak een helder stap-voor-stap plan voor: ",
+    emoji: "📋",
+  },
+  explain: {
+    label: "Explain clearly",
+    labelNl: "Uitleggen",
+    prefix: "Explain clearly and simply: ",
+    prefixNl: "Leg helder en simpel uit: ",
+    emoji: "💡",
+  },
+  code: {
+    label: "Write code",
+    labelNl: "Code schrijven",
+    prefix: "Write clean, well-commented code for: ",
+    prefixNl: "Schrijf nette, goed gedocumenteerde code voor: ",
+    emoji: "⌨️",
+  },
+  list: {
+    label: "Make a list",
+    labelNl: "Lijst maken",
+    prefix: "Give me a clear, numbered list of: ",
+    prefixNl: "Geef me een duidelijke, genummerde lijst van: ",
+    emoji: "📝",
+  },
+};
+
+const detectedIntent = detectIntent(input);
+
+// =============================
+// PHASE 9.2 — AGENDA ACTION
+// =============================
+
+const [pendingAgenda, setPendingAgenda] = useState<{
+  chatId: number;
+  title: string;
+  time: string;
+} | null>(null);
+
+const detectAgendaIntent = (userMsg: string): { title: string; time: string } | null => {
+  const t = userMsg.toLowerCase();
+  const hasIntent = /\b(plan|afspraak|agenda|reminder|zet in|voeg toe|herinner|blokkeer|pauze|meeting|vergadering|standup)\b/.test(t);
+  if (!hasIntent) return null;
+
+  const timeMatch = t.match(/\bom\s+(\d{1,2})[:.h]?(\d{2})?\b/) ||
+                    t.match(/\b(\d{1,2})[:.h](\d{2})?\s*(uur|u)?\b/);
+  let time = "";
+  if (timeMatch) {
+    const h = (timeMatch[1] || "0").padStart(2, "0");
+    const m = (timeMatch[2] || "00").padStart(2, "0");
+    time = `${h}:${m}`;
+  }
+
+  const title = userMsg
+    .replace(/^(plan|maak|zet|voeg toe|herinner me aan)\s+/i, "")
+    .replace(/\bom\s+\d{1,2}[:.h]?\d*\s*(uur|u)?\b/gi, "")
+    .replace(/\bvoor\s+(een\s+)?(uur|half\s+uur|dag|week)\b/gi, "")
+    .replace(/\bkomende\s+\w+\b/gi, "")
+    .trim();
+
+  return {
+    title: (title.charAt(0).toUpperCase() + title.slice(1)).slice(0, 80) || userMsg.slice(0, 80),
+    time,
+  };
+};
+
+const isAgendaConfirm = (text: string): boolean => {
+  const t = text.toLowerCase().trim();
+  const confirmWords = [
+    // NL
+    "ja", "ja graag", "ja doe het", "doe het", "doe maar", "graag", "doen",
+    "voeg toe", "toevoegen", "prima", "goed", "tuurlijk", "natuurlijk", "ok", "okay",
+    // EN
+    "yes", "yep", "sure", "do it", "add it", "please", "go ahead", "yeah", "absolutely",
+    // DE
+    "jep", "klar", "mach es", "füge hinzu", "bitte", "natürlich", "einverstanden",
+    // FR
+    "oui", "ouais", "vas-y", "ajoute", "ajouter", "bien sûr", "d'accord",
+    // ES
+    "sí", "si", "claro", "hazlo", "agregar", "añadir", "dale", "por favor", "adelante",
+    // IT
+    "sì", "certo", "fallo", "aggiungi", "va bene", "perfetto",
+    // TR
+    "evet", "tamam", "ekle", "yap", "tabii", "olur",
+    // PAP
+    "ta bon", "añadi", "hasi",
+    // HI
+    "हाँ", "हां", "जोड़ो", "ठीक है", "कर दो",
+    // AR
+    "نعم", "أضف", "حسنا", "موافق",
+  ];
+  const clean = t.replace(/[.!?]+$/, "");
+  return confirmWords.includes(clean);
+};
+
+const addToAgenda = (title: string, time: string) => {
+  try {
+    const AGENDA_KEY = "openlura_dashboard_agenda";
+    const existing = JSON.parse(localStorage.getItem(AGENDA_KEY) || "[]");
+    existing.push({
+      id: `${Date.now()}-${Math.random()}`,
+      time,
+      title,
+      done: false,
+      color: "blue",
+    });
+    localStorage.setItem(AGENDA_KEY, JSON.stringify(existing));
+  } catch {}
+};
+
+const applyIntent = (intent: NonNullable<IntentType>) => {
+  const config = INTENT_CONFIG[intent];
+  const isNl = detectedLang === "nl";
+  const prefix = isNl ? config.prefixNl : config.prefix;
+  const rawInput = input.trim();
+
+  // Als de input al met de prefix begint, niet dubbel toevoegen
+  if (rawInput.startsWith(prefix)) return;
+
+  // Strip eventuele andere intent-prefixen
+  const allPrefixes = Object.values(INTENT_CONFIG).flatMap(c => [c.prefix, c.prefixNl]);
+  let cleanedInput = rawInput;
+  for (const p of allPrefixes) {
+    if (cleanedInput.startsWith(p)) {
+      cleanedInput = cleanedInput.slice(p.length).trim();
+      break;
+    }
+  }
+
+  const next = prefix + cleanedInput;
+  setInput(next);
+  requestAnimationFrame(() => {
+    inputRef.current?.focus();
+    inputRef.current?.setSelectionRange(next.length, next.length);
+  });
+};
+
 const getLastUserPrompt = () => {
   const activeChat = chats.find(c => c.id === activeChatId);
   if (!activeChat) return "";
@@ -580,6 +768,8 @@ const incrementAnonUsage = (): { count: number; resetAt: number } => {
     return next;
   } catch { return { count: 0, resetAt: 0 }; }
 };
+
+const [isWaitingForFirstToken, setIsWaitingForFirstToken] = useState(false);
 
 const [usage, setUsage] = useState<{
   used: number;
@@ -1381,16 +1571,15 @@ const shouldSkipPersonalStateSync =
     deleteTargetChatId,
   ]);
 
+  const isNearBottomRef = useRef(true);
+
   useEffect(() => {
   const el = messagesRef.current;
   if (!el) return;
 
   const handleViewportResize = () => {
     requestAnimationFrame(() => {
-      el.scrollTo({
-        top: el.scrollHeight,
-        behavior: "auto",
-      });
+      el.scrollTo({ top: el.scrollHeight, behavior: "auto" });
     });
   };
 
@@ -1410,12 +1599,15 @@ const shouldSkipPersonalStateSync =
       (resolvedActiveChat?.messages?.length || 1) - 1
     ] || null;
 
-  requestAnimationFrame(() => {
-    el.scrollTo({
-      top: el.scrollHeight,
-      behavior: lastMessage?.isStreaming ? "auto" : "smooth",
+  if (isNearBottomRef.current) {
+    requestAnimationFrame(() => {
+      el.scrollTo({
+        top: el.scrollHeight,
+        behavior: lastMessage?.isStreaming ? "auto" : "smooth",
+      });
     });
-  });
+  }
+
   return () => {
     window.removeEventListener("resize", handleViewportResize);
   };
@@ -1426,8 +1618,11 @@ const shouldSkipPersonalStateSync =
     if (!el) return;
     const handleScroll = () => {
       const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+      isNearBottomRef.current = distanceFromBottom < 120;
       setShowScrollBottom(distanceFromBottom > 120);
     };
+    // Reset near-bottom on chat switch
+    isNearBottomRef.current = true;
     el.addEventListener("scroll", handleScroll, { passive: true });
     return () => el.removeEventListener("scroll", handleScroll);
   }, [activeChatId, initialStateReady]);
@@ -1445,6 +1640,21 @@ const shouldSkipPersonalStateSync =
     });
   }, [initialStateReady]);
 
+  // AUTO-SEND from homepage ?q= param
+  useEffect(() => {
+    if (!initialStateReady) return;
+    if (autoSentRef.current) return;
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const q = params.get("q");
+    if (!q || !q.trim()) return;
+    autoSentRef.current = true;
+    pendingAutoSendRef.current = q.trim();
+    setInput(q.trim());
+    const clean = window.location.pathname;
+    window.history.replaceState({}, "", clean);
+  }, [initialStateReady]);
+
   const rotatingPlaceholders: Record<string, string[]> = {
     nl: ["Stel een vraag...", "Schrijf een e-mail...", "Leg iets uit...", "Maak een plan..."],
     de: ["Stell eine Frage...", "Schreib eine E-Mail...", "Erkläre etwas...", "Mach einen Plan..."],
@@ -1453,6 +1663,7 @@ const shouldSkipPersonalStateSync =
     it: ["Fai una domanda...", "Scrivi un'email...", "Spiega qualcosa...", "Fai un piano..."],
     tr: ["Bir soru sor...", "E-posta yaz...", "Bir şey açıkla...", "Plan yap..."],
     ar: ["اطرح سؤالاً...", "اكتب بريداً...", "اشرح شيئاً...", "ضع خطة..."],
+    hi: ["कुछ भी पूछें...", "ईमेल लिखें...", "कुछ समझाएं...", "योजना बनाएं..."],
     en: ["Ask anything...", "Write an email...", "Explain something...", "Make a plan..."],
   };
 
@@ -1733,6 +1944,11 @@ const getOpenLuraRequestHeaders = (
   if (options?.personalEnv ?? isPersonalRoute) {
     headers["x-openlura-personal-env"] = "true";
   }
+
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (tz) headers["x-openlura-timezone"] = tz;
+  } catch {}
 
   return headers;
 };
@@ -2718,6 +2934,31 @@ Do not mention that this is a new attempt.`,
     setStreamController(null);
   };
 
+  // Trigger auto-send when pendingAutoSendRef is set
+  useEffect(() => {
+    if (!pendingAutoSendRef.current) return;
+    if (!initialStateReady) return;
+    const pending = pendingAutoSendRef.current;
+    pendingAutoSendRef.current = null;
+    // Small delay to let state settle
+    const timer = window.setTimeout(() => {
+      setInput(pending);
+      // Dispatch Enter on the input to trigger send
+      const el = inputRef.current;
+      if (el) {
+        el.focus();
+        const event = new KeyboardEvent("keydown", {
+          key: "Enter",
+          bubbles: true,
+          cancelable: true,
+        });
+        el.dispatchEvent(event);
+      }
+    }, 120);
+    return () => window.clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialStateReady]);
+
   const sendMessage = async () => {
     if (!input.trim() && !image) return;
 
@@ -2760,6 +3001,31 @@ Do not mention that this is a new attempt.`,
         setChats((prev) => [fallbackChat, ...prev]);
         setActiveChatId(currentChatId);
       }
+
+    // PHASE 9.2 — AGENDA CONFIRM INTERCEPTOR
+    if (
+      pendingAgenda &&
+      pendingAgenda.chatId === currentChatId &&
+      isAgendaConfirm(input.trim())
+    ) {
+      addToAgenda(pendingAgenda.title, pendingAgenda.time);
+      setPendingAgenda(null);
+
+      let updated = [...chats];
+      const index = updated.findIndex((c) => c.id === currentChatId);
+      if (index !== -1) {
+        updated[index].messages.push({ role: "user", content: input });
+        updated[index].messages.push({
+          role: "ai",
+          content: `✅ Toegevoegd aan je agenda${pendingAgenda.time ? ` voor ${pendingAgenda.time}` : ""}: "${pendingAgenda.title}". Je kunt het bekijken in je dashboard.`,
+          disableFeedback: true,
+        });
+        setChats([...updated]);
+      }
+      setInput("");
+      clearWorkflowPrefill();
+      return;
+    }
 
     const pendingImprovement = awaitingImprovement[currentChatId];
     const isImprovementReply = !!pendingImprovement && !!input.trim();
@@ -3147,6 +3413,7 @@ updated[index].messages.push({
 });
 
 setChats([...updated]);
+setIsWaitingForFirstToken(true);
 
     if (imageToSend) {
     }
@@ -3335,6 +3602,18 @@ updated[index].messages[
     setChats([...updated]);
 
         try {
+      let rafScheduled = false;
+
+      const flushToUI = () => {
+        updated[index].messages[updated[index].messages.length - 1] = {
+          ...updated[index].messages[updated[index].messages.length - 1],
+          content: aiText || "…",
+          isStreaming: !aiText.trim(),
+        };
+        setChats([...updated]);
+        rafScheduled = false;
+      };
+
       while (true) {
         const { done, value } = await reader!.read();
         if (done) break;
@@ -3348,16 +3627,18 @@ updated[index].messages[
 
         aiText += chunk;
 
-        updated[index].messages[
-          updated[index].messages.length - 1
-        ] = {
-          ...updated[index].messages[updated[index].messages.length - 1],
-          content: aiText || "…",
-          isStreaming: !aiText.trim(),
-        };
+        if (isWaitingForFirstToken) {
+          setIsWaitingForFirstToken(false);
+        }
 
-        setChats([...updated]);
+        if (!rafScheduled) {
+          rafScheduled = true;
+          requestAnimationFrame(flushToUI);
+        }
       }
+
+      // Ensure final state is always flushed
+      flushToUI();
     } catch (error: any) {
       if (error?.name !== "AbortError") {
         console.error("OpenLura chat stream failed:", error);
@@ -3384,7 +3665,30 @@ updated[index].messages[
 
     setChats([...updated]);
 
+    setIsWaitingForFirstToken(false);
     setStreamController(null);
+
+    // PHASE 9.2 — AGENDA INTENT CHECK
+    if (isPersonalRoute && rawInputToSend && !imageToSend) {
+      const agendaIntent = detectAgendaIntent(rawInputToSend);
+      if (agendaIntent && currentChatId !== null) {
+        setPendingAgenda({ chatId: currentChatId, title: agendaIntent.title, time: agendaIntent.time });
+        setChats(prev => prev.map(chat => {
+          if (chat.id !== currentChatId) return chat;
+          return {
+            ...chat,
+            messages: [
+              ...chat.messages,
+              {
+                role: "ai",
+                content: `📅 Wil je dit toevoegen aan je agenda${agendaIntent.time ? ` voor ${agendaIntent.time}` : ""}?`,
+                disableFeedback: true,
+              },
+            ],
+          };
+        }));
+      }
+    }
 
     // ✅ MEMORY SAVE
     if (
@@ -4454,7 +4758,9 @@ updated[index].messages[
             style={{ animationDelay: "240ms" }}
           />
         </span>
-        <span className="text-sm">{t("thinking")}</span>
+        <span className="text-sm">
+          {isWaitingForFirstToken ? t("thinking") : "..."}
+        </span>
       </span>
     ) : (
       <>
@@ -4841,6 +5147,23 @@ updated[index].messages[
   </div>
 )}
 
+{/* PHASE 9.1 — INTENT CHIPS */}
+{detectedIntent && !loading && (
+  <div className="flex items-center gap-2 px-1 pb-1">
+    <span className="text-[11px] text-white/32 shrink-0">
+      {detectedLang === "nl" ? "AI herkent:" : "AI detects:"}
+    </span>
+    <button
+      type="button"
+      onClick={() => applyIntent(detectedIntent)}
+      className="inline-flex items-center gap-1.5 rounded-full border border-[#3b82f6]/22 bg-[#3b82f6]/10 px-3 py-1 text-[11px] font-medium text-[#93c5fd] ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-[#3b82f6]/36 hover:bg-[#3b82f6]/18 hover:text-white hover:shadow-[0_6px_14px_rgba(59,130,246,0.18)] active:scale-[0.97]"
+    >
+      <span>{INTENT_CONFIG[detectedIntent].emoji}</span>
+      <span>{detectedLang === "nl" ? INTENT_CONFIG[detectedIntent].labelNl : INTENT_CONFIG[detectedIntent].label}</span>
+    </button>
+  </div>
+)}
+
 <textarea
   ref={inputRef}
   value={input}
@@ -4929,13 +5252,21 @@ updated[index].messages[
       </div>
 
       {isPersonalRoute ? (
-        <button
-          type="button"
-          onClick={handlePersonalLogout}
-          className="fixed right-4 top-[max(env(safe-area-inset-top),16px)] z-[60] hidden rounded-full border border-white/8 bg-white/[0.05] px-3.5 py-2 text-sm text-white/78 shadow-[0_12px_28px_rgba(0,0,0,0.18)] backdrop-blur-2xl ol-interactive transition-[transform,background-color,border-color,color,opacity,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.08] hover:text-white hover:shadow-[0_14px_30px_rgba(0,0,0,0.20)] active:scale-95 md:inline-flex"
-        >
-          Log out
-        </button>
+        <div className="fixed right-4 top-[max(env(safe-area-inset-top),16px)] z-[60] hidden items-center gap-2 md:flex">
+          <a
+            href="/personal-dashboard"
+            className="rounded-full border border-[#3b82f6]/22 bg-[#3b82f6]/10 px-3.5 py-2 text-sm text-[#93c5fd] shadow-[0_12px_28px_rgba(59,130,246,0.14)] backdrop-blur-2xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/36 hover:bg-[#3b82f6]/18 hover:text-white hover:shadow-[0_14px_30px_rgba(59,130,246,0.22)] active:scale-95"
+          >
+            Dashboard
+          </a>
+          <button
+            type="button"
+            onClick={handlePersonalLogout}
+            className="rounded-full border border-white/8 bg-white/[0.05] px-3.5 py-2 text-sm text-white/78 shadow-[0_12px_28px_rgba(0,0,0,0.18)] backdrop-blur-2xl ol-interactive transition-[transform,background-color,border-color,color,opacity,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.08] hover:text-white hover:shadow-[0_14px_30px_rgba(0,0,0,0.20)] active:scale-95"
+          >
+            Log out
+          </button>
+        </div>
       ) : (
         <div className="fixed right-4 top-[max(env(safe-area-inset-top),16px)] z-[60] hidden items-center gap-2 md:flex">
           <a
