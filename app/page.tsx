@@ -263,28 +263,25 @@ export default function HomePage() {
                 First month 25% off — use code <span className="font-semibold tracking-wide">LAUNCH25</span>
               </div>
 
-          <div className="mt-8 flex flex-col gap-3">
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             <Link
               href="/chat"
               className="inline-flex h-12 w-full items-center justify-center rounded-[18px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-6 text-sm font-medium text-white shadow-[0_12px_28px_rgba(59,130,246,0.24)] ol-interactive transition-[transform,filter,box-shadow] duration-200 hover:brightness-110 hover:shadow-[0_14px_32px_rgba(59,130,246,0.28)] active:scale-[0.99] sm:w-auto"
             >
               {t("btn_start_chat")}
             </Link>
-
-            <div className="flex gap-3">
-              <Link
-                href="/personal-workspace"
-                className="inline-flex h-12 flex-1 items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.04] px-4 text-sm font-medium text-white/88 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/30 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.99]"
-              >
-                {t("btn_login")}
-              </Link>
-              <Link
-                href="#how-it-works"
-                className="inline-flex h-12 flex-1 items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.04] px-4 text-sm font-medium text-white/88 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/30 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.99]"
-              >
-                {t("btn_how_it_works")}
-              </Link>
-            </div>
+            <Link
+              href="/personal-workspace"
+              className="inline-flex h-12 w-full items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.04] px-6 text-sm font-medium text-white/88 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/30 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.99] sm:w-auto"
+            >
+              {t("btn_login")}
+            </Link>
+            <Link
+              href="#how-it-works"
+              className="inline-flex h-12 w-full items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.04] px-6 text-sm font-medium text-white/88 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/30 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.99] sm:w-auto"
+            >
+              {t("btn_how_it_works")}
+            </Link>
           </div>
 
           {/* HOMEPAGE CHAT ENTRY */}
