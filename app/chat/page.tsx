@@ -509,31 +509,52 @@ const [pendingAgenda, setPendingAgenda] = useState<{
   time: string;
 } | null>(null);
 
-const detectAgendaIntent = (userMsg: string): { title: string; time: string } | null => {
-  const t = userMsg.toLowerCase();
-  const hasIntent = /\b(plan|afspraak|agenda|reminder|zet in|voeg toe|herinner|blokkeer|pauze|meeting|vergadering|standup)\b/.test(t);
+const detectAgendaIntent = (userMsg: string, aiMsg?: string): { title: string; time: string } | null => {
+  const combined = `${userMsg} ${aiMsg || ""}`.toLowerCase();
+
+  const hasIntent = /\b(plan|afspraak|agenda|reminder|zet in|voeg toe|herinner|blokkeer|pauze|meeting|vergadering|standup|blok|inplannen|inplan)\b/.test(combined);
   if (!hasIntent) return null;
 
-  const timeMatch = t.match(/\bom\s+(\d{1,2})[:.h]?(\d{2})?\b/) ||
-                    t.match(/\b(\d{1,2})[:.h](\d{2})?\s*(uur|u)?\b/);
-  let time = "";
-  if (timeMatch) {
-    const h = (timeMatch[1] || "0").padStart(2, "0");
-    const m = (timeMatch[2] || "00").padStart(2, "0");
-    time = `${h}:${m}`;
+  // Tijdextractie — eerst uit AI antwoord, dan uit user input
+  const extractTime = (text: string): string => {
+    const m =
+      text.match(/\b(\d{1,2}):(\d{2})\b/) ||
+      text.match(/\bom\s+(\d{1,2})[:.h]?(\d{2})?\b/i) ||
+      text.match(/\b(\d{1,2})\s*uur\b/i);
+    if (!m) return "";
+    const h = (m[1] || "0").padStart(2, "0");
+    const mn = (m[2] || "00").padStart(2, "0");
+    return `${h}:${mn}`;
+  };
+
+  const time = extractTime(aiMsg || "") || extractTime(userMsg);
+
+  // Titelextractie — pak het onderwerp uit AI antwoord als dat duidelijker is
+  let title = "";
+
+  // Probeer een herkenbaar concept uit het AI antwoord te halen
+  const aiLower = (aiMsg || "").toLowerCase();
+  const subjectMatches = aiLower.match(/(?:pauze|lunch|standup|meeting|vergadering|afspraak|blok|reminder|sessie|call|overleg)[^\n,.]*/i);
+  if (subjectMatches) {
+    title = subjectMatches[0].trim();
   }
 
-  const title = userMsg
-    .replace(/^(plan|maak|zet|voeg toe|herinner me aan)\s+/i, "")
-    .replace(/\bom\s+\d{1,2}[:.h]?\d*\s*(uur|u)?\b/gi, "")
-    .replace(/\bvoor\s+(een\s+)?(uur|half\s+uur|dag|week)\b/gi, "")
-    .replace(/\bkomende\s+\w+\b/gi, "")
-    .trim();
+  // Fallback: schoon de user input op
+  if (!title || title.length < 3) {
+    title = userMsg
+      .replace(/^(plan|maak|zet|voeg toe|herinner me aan|kan je|kun je|wil je|zet dit|dit)\s+/i, "")
+      .replace(/\bin\s+(mijn\s+)?agenda\b/gi, "")
+      .replace(/\bom\s+\d{1,2}[:.h]?\d*\s*(uur|u)?\b/gi, "")
+      .replace(/\bvoor\s+(een\s+)?(uur|half\s+uur|dag|week)\b/gi, "")
+      .replace(/\bkomende\s+\w+\b/gi, "")
+      .replace(/\belke\s+\w+\b/gi, "")
+      .trim();
+  }
 
-  return {
-    title: (title.charAt(0).toUpperCase() + title.slice(1)).slice(0, 80) || userMsg.slice(0, 80),
-    time,
-  };
+  title = (title.charAt(0).toUpperCase() + title.slice(1)).slice(0, 80);
+  if (!title || title.length < 3) return null;
+
+  return { title, time };
 };
 
 const isAgendaConfirm = (text: string): boolean => {
@@ -3670,7 +3691,7 @@ updated[index].messages[
 
     // PHASE 9.2 — AGENDA INTENT CHECK
     if (isPersonalRoute && rawInputToSend && !imageToSend) {
-      const agendaIntent = detectAgendaIntent(rawInputToSend);
+      const agendaIntent = detectAgendaIntent(rawInputToSend, aiText);
       if (agendaIntent && currentChatId !== null) {
         setPendingAgenda({ chatId: currentChatId, title: agendaIntent.title, time: agendaIntent.time });
         setChats(prev => prev.map(chat => {

@@ -84,7 +84,20 @@ const COLOR_BG: Record<AgendaItem["color"], string> = {
   amber:  "bg-amber-400/10 border-amber-400/20",
 };
 
+const COLOR_LEFT: Record<AgendaItem["color"], string> = {
+  blue:   "border-l-[#3b82f6]",
+  purple: "border-l-purple-400",
+  green:  "border-l-emerald-400",
+  amber:  "border-l-amber-400",
+};
+
 const COLORS: AgendaItem["color"][] = ["blue", "purple", "green", "amber"];
+
+function timeToMinutes(t: string): number {
+  if (!t) return 0;
+  const [h, m] = t.split(":").map(Number);
+  return (h || 0) * 60 + (m || 0);
+}
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
@@ -277,13 +290,90 @@ export default function PersonalDashboardPage() {
           </div>
         </div>
 
-        {/* Agenda card */}
-        <div className="rounded-[28px] border border-white/8 bg-white/[0.028] backdrop-blur-xl shadow-[0_20px_50px_rgba(0,0,0,0.20)]">
-
-          {/* Card header */}
+        {/* AGENDA TIJDLIJN */}
+        <div className="mb-6 rounded-[28px] border border-white/8 bg-white/[0.028] backdrop-blur-xl shadow-[0_20px_50px_rgba(0,0,0,0.20)]">
           <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-white/6">
             <div>
               <h2 className="text-base font-semibold text-white/88">Agenda vandaag</h2>
+              <p className="mt-0.5 text-xs text-white/32">
+                {items.filter(i => i.time && !i.done).length === 0
+                  ? "Niets ingepland"
+                  : `${items.filter(i => i.time && !i.done).length} afspraken`}
+              </p>
+            </div>
+          </div>
+
+          {/* Tijdlijn */}
+          <div className="px-6 py-4 overflow-y-auto max-h-[340px]">
+            {(() => {
+              const agendaItems = items
+                .filter(i => i.time)
+                .sort((a, b) => a.time.localeCompare(b.time));
+
+              if (agendaItems.length === 0) {
+                return (
+                  <div className="flex flex-col items-center justify-center py-8 text-center">
+                    <div className="mb-2 text-2xl opacity-20">🗓</div>
+                    <p className="text-sm text-white/28">Geen afspraken.</p>
+                    <p className="text-xs text-white/18 mt-1">Voeg een taak met tijd toe en het verschijnt hier.</p>
+                  </div>
+                );
+              }
+
+              const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+              return (
+                <div className="relative space-y-1">
+                  {agendaItems.map((item, idx) => {
+                    const itemMinutes = timeToMinutes(item.time);
+                    const isPast = itemMinutes < nowMinutes;
+                    const isNow = Math.abs(itemMinutes - nowMinutes) < 30;
+
+                    return (
+                      <div key={item.id} className="flex items-stretch gap-4 min-h-[52px]">
+                        {/* Tijd kolom */}
+                        <div className="flex flex-col items-end w-12 shrink-0 pt-1">
+                          <span className={`font-mono text-xs tabular-nums ${isPast ? "text-white/20" : isNow ? COLOR_TEXT[item.color] : "text-white/40"}`}>
+                            {item.time}
+                          </span>
+                        </div>
+
+                        {/* Lijn + dot */}
+                        <div className="flex flex-col items-center w-4 shrink-0">
+                          <div className={`mt-1.5 h-2.5 w-2.5 rounded-full shrink-0 ring-2 ring-offset-1 ring-offset-[#050510] ${COLOR_DOT[item.color]} ${isNow ? COLOR_RING[item.color] : "ring-transparent"} ${isPast ? "opacity-30" : ""}`} />
+                          {idx < agendaItems.length - 1 && (
+                            <div className="flex-1 w-px bg-white/6 mt-1" />
+                          )}
+                        </div>
+
+                        {/* Content */}
+                        <div className={`flex-1 pb-3 ${isPast ? "opacity-40" : ""}`}>
+                          <div className={`rounded-2xl border-l-2 px-3 py-2 ${COLOR_LEFT[item.color]} ${COLOR_BG[item.color]}`}>
+                            <p className={`text-sm font-medium ${item.done ? "line-through text-white/30" : "text-white/88"}`}>
+                              {item.title}
+                            </p>
+                            {isNow && !item.done && (
+                              <span className={`mt-0.5 inline-block text-[10px] font-medium uppercase tracking-wide ${COLOR_TEXT[item.color]}`}>
+                                Nu bezig
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+
+          {/* TAKEN CARD */}
+        <div className="rounded-[28px] border border-white/8 bg-white/[0.028] backdrop-blur-xl shadow-[0_20px_50px_rgba(0,0,0,0.20)]">
+          {/* Card header */}
+          <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-white/6">
+            <div>
+              <h2 className="text-base font-semibold text-white/88">Taken vandaag</h2>
               <p className="mt-0.5 text-xs text-white/32">
                 {openItems.length === 0
                   ? "Alles gedaan 🎉"
@@ -361,8 +451,8 @@ export default function PersonalDashboardPage() {
             {sortedItems.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-10 text-center">
                 <div className="mb-3 text-3xl opacity-30">📋</div>
-                <p className="text-sm text-white/28">Nog niets gepland.</p>
-                <p className="mt-1 text-xs text-white/18">Klik op + om iets toe te voegen.</p>
+                <p className="text-sm text-white/28">Geen taken voor vandaag.</p>
+                <p className="mt-1 text-xs text-white/18">Klik op + om een taak toe te voegen.</p>
               </div>
             ) : (
               <div className="space-y-1.5">
