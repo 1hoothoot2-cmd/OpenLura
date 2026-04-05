@@ -499,6 +499,87 @@ const INTENT_CONFIG: Record<NonNullable<IntentType>, { label: string; labelNl: s
 
 const detectedIntent = detectIntent(input);
 
+// =============================
+// PHASE 9.2 — AGENDA ACTION
+// =============================
+
+const [pendingAgenda, setPendingAgenda] = useState<{
+  chatId: number;
+  title: string;
+  time: string;
+} | null>(null);
+
+const detectAgendaIntent = (userMsg: string): { title: string; time: string } | null => {
+  const t = userMsg.toLowerCase();
+  const hasIntent = /\b(plan|afspraak|agenda|reminder|zet in|voeg toe|herinner|blokkeer|pauze|meeting|vergadering|standup)\b/.test(t);
+  if (!hasIntent) return null;
+
+  const timeMatch = t.match(/\bom\s+(\d{1,2})[:.h]?(\d{2})?\b/) ||
+                    t.match(/\b(\d{1,2})[:.h](\d{2})?\s*(uur|u)?\b/);
+  let time = "";
+  if (timeMatch) {
+    const h = (timeMatch[1] || "0").padStart(2, "0");
+    const m = (timeMatch[2] || "00").padStart(2, "0");
+    time = `${h}:${m}`;
+  }
+
+  const title = userMsg
+    .replace(/^(plan|maak|zet|voeg toe|herinner me aan)\s+/i, "")
+    .replace(/\bom\s+\d{1,2}[:.h]?\d*\s*(uur|u)?\b/gi, "")
+    .replace(/\bvoor\s+(een\s+)?(uur|half\s+uur|dag|week)\b/gi, "")
+    .replace(/\bkomende\s+\w+\b/gi, "")
+    .trim();
+
+  return {
+    title: (title.charAt(0).toUpperCase() + title.slice(1)).slice(0, 80) || userMsg.slice(0, 80),
+    time,
+  };
+};
+
+const isAgendaConfirm = (text: string): boolean => {
+  const t = text.toLowerCase().trim();
+  const confirmWords = [
+    // NL
+    "ja", "ja graag", "ja doe het", "doe het", "doe maar", "graag", "doen",
+    "voeg toe", "toevoegen", "prima", "goed", "tuurlijk", "natuurlijk", "ok", "okay",
+    // EN
+    "yes", "yep", "sure", "do it", "add it", "please", "go ahead", "yeah", "absolutely",
+    // DE
+    "jep", "klar", "mach es", "füge hinzu", "bitte", "natürlich", "einverstanden",
+    // FR
+    "oui", "ouais", "vas-y", "ajoute", "ajouter", "bien sûr", "d'accord",
+    // ES
+    "sí", "si", "claro", "hazlo", "agregar", "añadir", "dale", "por favor", "adelante",
+    // IT
+    "sì", "certo", "fallo", "aggiungi", "va bene", "perfetto",
+    // TR
+    "evet", "tamam", "ekle", "yap", "tabii", "olur",
+    // PAP
+    "ta bon", "añadi", "hasi",
+    // HI
+    "हाँ", "हां", "जोड़ो", "ठीक है", "कर दो",
+    // AR
+    "نعم", "أضف", "حسنا", "موافق",
+  ];
+  const clean = t.replace(/[.!?]+$/, "");
+  return confirmWords.includes(clean);
+};
+
+const addToAgenda = (title: string, time: string) => {
+  try {
+    const AGENDA_KEY = "openlura_dashboard_agenda";
+    const existing = JSON.parse(localStorage.getItem(AGENDA_KEY) || "[]");
+    existing.push({
+      id: `${Date.now()}-${Math.random()}`,
+      time,
+      title,
+      done: false,
+      color: "blue",
+    });
+    localStorage.setItem(AGENDA_KEY, JSON.stringify(existing));
+  } catch {}
+};
+
 const applyIntent = (intent: NonNullable<IntentType>) => {
   const config = INTENT_CONFIG[intent];
   const isNl = detectedLang === "nl";
@@ -2921,6 +3002,31 @@ Do not mention that this is a new attempt.`,
         setActiveChatId(currentChatId);
       }
 
+    // PHASE 9.2 — AGENDA CONFIRM INTERCEPTOR
+    if (
+      pendingAgenda &&
+      pendingAgenda.chatId === currentChatId &&
+      isAgendaConfirm(input.trim())
+    ) {
+      addToAgenda(pendingAgenda.title, pendingAgenda.time);
+      setPendingAgenda(null);
+
+      let updated = [...chats];
+      const index = updated.findIndex((c) => c.id === currentChatId);
+      if (index !== -1) {
+        updated[index].messages.push({ role: "user", content: input });
+        updated[index].messages.push({
+          role: "ai",
+          content: `✅ Toegevoegd aan je agenda${pendingAgenda.time ? ` voor ${pendingAgenda.time}` : ""}: "${pendingAgenda.title}". Je kunt het bekijken in je dashboard.`,
+          disableFeedback: true,
+        });
+        setChats([...updated]);
+      }
+      setInput("");
+      clearWorkflowPrefill();
+      return;
+    }
+
     const pendingImprovement = awaitingImprovement[currentChatId];
     const isImprovementReply = !!pendingImprovement && !!input.trim();
 
@@ -3561,6 +3667,28 @@ updated[index].messages[
 
     setIsWaitingForFirstToken(false);
     setStreamController(null);
+
+    // PHASE 9.2 — AGENDA INTENT CHECK
+    if (isPersonalRoute && rawInputToSend && !imageToSend) {
+      const agendaIntent = detectAgendaIntent(rawInputToSend);
+      if (agendaIntent && currentChatId !== null) {
+        setPendingAgenda({ chatId: currentChatId, title: agendaIntent.title, time: agendaIntent.time });
+        setChats(prev => prev.map(chat => {
+          if (chat.id !== currentChatId) return chat;
+          return {
+            ...chat,
+            messages: [
+              ...chat.messages,
+              {
+                role: "ai",
+                content: `📅 Wil je dit toevoegen aan je agenda${agendaIntent.time ? ` voor ${agendaIntent.time}` : ""}?`,
+                disableFeedback: true,
+              },
+            ],
+          };
+        }));
+      }
+    }
 
     // ✅ MEMORY SAVE
     if (
