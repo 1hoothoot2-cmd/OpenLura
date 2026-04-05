@@ -169,6 +169,7 @@ export default function ChatPage() {
         fr: "Écris un e-mail professionnel pour planifier un rendez-vous. Donne-moi un exemple prêt à l'emploi.",
         es: "Escribe un correo profesional para concertar una cita. Dame un ejemplo listo para usar.",
         pap: "Skirbi un email profesional pa plania un cita. Dami un ehempel ku mi por usa mes awe.",
+        hi: "एक मीटिंग शेड्यूल करने के लिए एक पेशेवर ईमेल लिखें। मुझे एक तैयार उदाहरण दें जो मैं आज भेज सकूं।",
         en: "Write a professional email to schedule a meeting. Give me a ready-to-use example I can send today.",
       },
       starter_2_prompt: {
@@ -177,6 +178,7 @@ export default function ChatPage() {
         fr: "Donne-moi 5 idées concrètes pour aborder un projet ou une tâche de façon plus intéressante et efficace.",
         es: "Dame 5 ideas concretas para abordar un proyecto o tarea de forma más interesante y efectiva.",
         pap: "Dami 5 ideanan konkret pa ataka un proyecto of tarea di un manera mas interesante i efectivo.",
+        hi: "किसी प्रोजेक्ट या कार्य को अधिक रोचक और प्रभावी तरीके से करने के लिए मुझे 5 ठोस विचार दें।",
         en: "Give me 5 concrete ideas to approach a project or task in a more interesting and effective way.",
       },
       starter_3_prompt: {
@@ -185,6 +187,7 @@ export default function ChatPage() {
         fr: "Explique-moi un sujet complexe simplement, comme si tu l'expliquais à quelqu'un qui n'en a jamais entendu parler.",
         es: "Explícame un tema complejo de forma sencilla, como si se lo explicaras a alguien que nunca ha oído hablar de él.",
         pap: "Splika mi un topiko kompleks simpel, manera si bo ta splika e na algun ku nunka a tende di ne.",
+        hi: "किसी जटिल विषय को सरल भाषा में समझाएं, जैसे किसी ऐसे व्यक्ति को समझा रहे हों जिसने इसके बारे में कभी नहीं सुना। कोई रोचक विषय चुनें।",
         en: "Explain a complex topic simply, as if explaining it to someone who has never heard of it. Pick an interesting topic.",
       },
       starter_4_prompt: {
@@ -193,6 +196,7 @@ export default function ChatPage() {
         fr: "Colle un texte ci-dessous et je t'en ferai un résumé clair en 5 phrases maximum.",
         es: "Pega un texto a continuación y haré un resumen claro en máximo 5 frases.",
         pap: "Pega un teks aki abou i mi lo hasi un samenvatting kla di máximo 5 frasa.",
+        hi: "नीचे एक टेक्स्ट पेस्ट करें और मैं उसे अधिकतम 5 वाक्यों में स्पष्ट रूप से सारांशित करूंगा।",
         en: "Paste a text below and I'll summarize it clearly in 5 sentences or less.",
       },
       starter_5_prompt: {
@@ -201,6 +205,7 @@ export default function ChatPage() {
         fr: "Je veux réfléchir à une décision. Pose-moi les 3 questions les plus pertinentes pour structurer ma réflexion.",
         es: "Quiero reflexionar sobre una decisión. Hazme las 3 preguntas más relevantes para estructurar mis pensamientos.",
         pap: "Mi ke pensa riba un decision. Hasi mi e 3 pregunta mas relevante pa struktura mi pensamentu.",
+        hi: "मैं किसी निर्णय के बारे में सोचना चाहता हूं। मेरी सोच को व्यवस्थित करने में मदद के लिए मुझसे 3 सबसे प्रासंगिक प्रश्न पूछें।",
         en: "I want to think through a decision. Ask me the 3 most relevant questions to help structure my thinking.",
       },
       starter_6_prompt: {
@@ -209,6 +214,7 @@ export default function ChatPage() {
         fr: "Crée une liste de tâches structurée pour une journée productive. Divise en matin, après-midi et soir.",
         es: "Crea una lista de tareas para un día productivo. Divídela en mañana, tarde y noche con acciones concretas.",
         pap: "Hasi un lista di tarea strukturá pa un dia produktivo. Dividi den mainta, merdia i atardi.",
+        hi: "एक उत्पादक कार्यदिवस के लिए एक संरचित कार्य सूची बनाएं। इसे सुबह, दोपहर और शाम में ठोस कार्यों के साथ विभाजित करें।",
         en: "Create a structured task list for a productive workday. Split into morning, afternoon, and evening with concrete actions.",
       },
     };
