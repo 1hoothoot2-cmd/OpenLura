@@ -2864,6 +2864,44 @@ export async function POST(req: Request) {
 
   const detectedLanguage = detectInputLanguage(message);
 
+  // CONVERSATION LOGGING — non-blocking, alleen als er een message is
+  if (message && supabaseUrl && supabaseServiceRoleKey) {
+    void (async () => {
+      try {
+        const logHeaders = new Headers();
+        logHeaders.set("Content-Type", "application/json");
+        logHeaders.set("apikey", supabaseServiceRoleKey);
+        logHeaders.set("Authorization", `Bearer ${supabaseServiceRoleKey}`);
+        logHeaders.set("Prefer", "return=minimal");
+
+        // Log de message
+        await fetch(`${supabaseUrl}/rest/v1/openlura_conversations_log`, {
+          method: "POST",
+          headers: logHeaders,
+          body: JSON.stringify({
+            user_id: req.headers.get("x-openlura-user-id") || null,
+            message: message.slice(0, 500),
+            language: detectedLanguage || "en",
+            source: isPersonalEnvironmentRequest(req) ? "personal" : "chat",
+          }),
+          cache: "no-store",
+        });
+
+        // Cleanup ouder dan 7 dagen
+        const deleteHeaders = new Headers();
+        deleteHeaders.set("apikey", supabaseServiceRoleKey);
+        deleteHeaders.set("Authorization", `Bearer ${supabaseServiceRoleKey}`);
+        const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+        await fetch(
+          `${supabaseUrl}/rest/v1/openlura_conversations_log?created_at=lt.${cutoff}`,
+          { method: "DELETE", headers: deleteHeaders, cache: "no-store" }
+        );
+      } catch {
+        // logging mag nooit de chat breken
+      }
+    })();
+  }
+
   if (!message && !image) {
     return new Response("Empty request", {
       status: 400,
