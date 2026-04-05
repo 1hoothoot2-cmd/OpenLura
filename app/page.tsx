@@ -278,7 +278,6 @@ export default function HomePage() {
               >
                 {t("btn_login")}
               </Link>
-
               <Link
                 href="#how-it-works"
                 className="inline-flex h-12 flex-1 items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.04] px-4 text-sm font-medium text-white/88 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/30 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.99]"
@@ -288,30 +287,8 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="mt-8 flex flex-col items-start gap-3">
-            <div className="flex flex-wrap gap-2">
-              {chapterLinks.map((item) => (
-                <a
-                  key={item.href}
-                  href={item.href}
-                  className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[12px] font-medium text-white/62 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-[#3b82f6]/26 hover:bg-[#3b82f6]/10 hover:text-white hover:shadow-[0_10px_24px_rgba(59,130,246,0.14)]"
-                >
-                  {item.label}
-                </a>
-              ))}
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setIsFeedbackOpen(true)}
-              className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[12px] font-medium text-white/56 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-amber-400/26 hover:bg-amber-400/10 hover:text-amber-200 hover:shadow-[0_10px_24px_rgba(251,191,36,0.12)]"
-            >
-              {t("btn_give_feedback")}
-            </button>
-          </div>
-
           {/* HOMEPAGE CHAT ENTRY */}
-          <div className="mt-8 w-full max-w-4xl">
+          <div className="mt-5 w-full max-w-4xl">
             <div className="flex items-center gap-2 rounded-[18px] border border-white/20 bg-white/[0.08] px-3 py-2.5 shadow-[0_0_0_1px_rgba(59,130,246,0.10),0_4px_20px_rgba(0,0,0,0.20)] backdrop-blur-xl transition-[border-color,box-shadow] duration-200 focus-within:border-[#3b82f6]/50 focus-within:shadow-[0_0_0_1px_rgba(59,130,246,0.20),0_4px_24px_rgba(59,130,246,0.16)]">
               <input
                 type="text"
@@ -325,7 +302,7 @@ export default function HomePage() {
                 }}
                 placeholder={
                   lang === "nl" ? "Hoe kan ik je helpen?" :
-                  lang === "hi" ? "मैं आपकी कैसे मदद कर सकता हूँ?" :
+                  lang === "hi" ? "\u092e\u0948\u0902 \u0906\u092a\u0915\u0940 \u0915\u0948\u0938\u0947 \u092e\u0926\u0926 \u0915\u0930 \u0938\u0915\u0924\u093e \u0939\u0942\u0901?" :
                   "How can I assist you?"
                 }
                 className="flex-1 bg-transparent text-sm text-white outline-none placeholder:text-white/32"
@@ -363,7 +340,29 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="mt-10 grid w-full max-w-4xl gap-3.5 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-6 flex flex-col items-start gap-3">
+            <div className="flex flex-wrap gap-2">
+              {chapterLinks.map((item) => (
+                <a
+                  key={item.href}
+                  href={item.href}
+                  className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[12px] font-medium text-white/62 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-[#3b82f6]/26 hover:bg-[#3b82f6]/10 hover:text-white hover:shadow-[0_10px_24px_rgba(59,130,246,0.14)]"
+                >
+                  {item.label}
+                </a>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsFeedbackOpen(true)}
+              className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[12px] font-medium text-white/56 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-amber-400/26 hover:bg-amber-400/10 hover:text-amber-200 hover:shadow-[0_10px_24px_rgba(251,191,36,0.12)]"
+            >
+              {t("btn_give_feedback")}
+            </button>
+          </div>
+        </div>
+
+                    <div className="mt-10 grid w-full max-w-4xl gap-3.5 sm:grid-cols-2 xl:grid-cols-3">
             <Link
               href="/chat"
               className="rounded-[22px] border border-white/10 bg-white/[0.03] px-4 py-4.5 text-left backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-white/14 hover:bg-white/[0.05] hover:shadow-[0_12px_28px_rgba(0,0,0,0.14)]"
@@ -394,7 +393,6 @@ export default function HomePage() {
               </div>
             </Link>
           </div>
-        </div>
 
           <div className="mt-14 h-px w-full max-w-5xl bg-gradient-to-r from-transparent via-white/10 to-transparent sm:mt-16" />
 
