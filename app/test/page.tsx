@@ -38,21 +38,29 @@ export default function ChatPage() {
   const [showNamePopup, setShowNamePopup] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
 
-  const [detectedLang, setDetectedLang] = useState(() => {
-    if (typeof navigator === "undefined") return "en";
-    const raw = (navigator.language || "en").toLowerCase();
-    if (raw.startsWith("nl")) return "nl";
-    if (raw.startsWith("de")) return "de";
-    if (raw.startsWith("fr")) return "fr";
-    if (raw.startsWith("es")) return "es";
-    if (raw.startsWith("pt")) return "pt";
-    if (raw.startsWith("it")) return "it";
-    if (raw.startsWith("tr")) return "tr";
-    if (raw.startsWith("ar")) return "ar";
-    if (raw.startsWith("pap")) return "pap";
-    if (raw.startsWith("hi")) return "hi";
-    return "en";
-  });
+const getBrowserLanguage = () => {
+  if (typeof navigator === "undefined") return "en";
+
+  const raw = (navigator.language || "en").toLowerCase();
+
+  if (raw.startsWith("nl")) return "nl";
+  if (raw.startsWith("de")) return "de";
+  if (raw.startsWith("fr")) return "fr";
+  if (raw.startsWith("es")) return "es";
+  if (raw.startsWith("pt")) return "pt";
+  if (raw.startsWith("it")) return "it";
+  if (raw.startsWith("tr")) return "tr";
+  if (raw.startsWith("ar")) return "ar";
+  if (raw.startsWith("pap")) return "pap";
+  if (raw.startsWith("hi")) return "hi";
+
+  return "en";
+};
+
+const [detectedLang, setDetectedLang] = useState(getBrowserLanguage);
+
+// apart van UI-taal: dit is de taal die we meesturen voor voice input
+const [voiceInputLang, setVoiceInputLang] = useState(getBrowserLanguage);
 
   const t = (key: string) => {
     const translations: Record<string, Record<string, string>> = {
@@ -3751,7 +3759,10 @@ setIsWaitingForFirstToken(true);
 
     const responseVariant = res.headers.get("X-OpenLura-Variant") || "unknown";
     const responseLang = res.headers.get("X-OpenLura-Lang");
-    if (responseLang) setDetectedLang(responseLang);
+if (responseLang) {
+  const normalizedResponseLang = String(responseLang).toLowerCase().slice(0, 2);
+  setDetectedLang(normalizedResponseLang);
+}
     const responseSourcesHeader = res.headers.get("X-OpenLura-Sources");
         let responseSources: any[] = [];
     try {
@@ -5502,6 +5513,11 @@ updated[index].messages[
 
         mediaRecorder.onstop = async () => {
           stream.getTracks().forEach((t) => t.stop());
+
+          // Stop Web Speech live preview
+          (window as any).__olSpeechRecognition?.stop();
+          (window as any).__olSpeechRecognition = null;
+
           setVoiceListening(false);
           setInput("⏳ Verwerken...");
 
@@ -5513,20 +5529,55 @@ updated[index].messages[
           const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/mp4";
           const blob = new Blob(chunks, { type: mimeType });
 
-          // Stuur naar Whisper via onze backend
           try {
             const form = new FormData();
             form.append("audio", blob, "audio.webm");
-            form.append("lang", detectedLang);
 
-            const res = await fetch("/api/voice", {
-              method: "POST",
-              body: form,
-            });
+const resolvedVoiceLang =
+  (voiceInputLang || "").trim().toLowerCase() ||
+  (detectedLang || "").trim().toLowerCase() ||
+  getBrowserLanguage();
 
-            if (!res.ok) return;
-            const data = await res.json();
-            const transcript = (data.text || "").trim();
+form.append("lang", "nl");
+
+console.log("VOICE submit", {
+  voiceInputLang,
+  detectedLang,
+  browserLang: getBrowserLanguage(),
+  resolvedVoiceLang,
+  blobType: blob.type,
+  blobSize: blob.size,
+});
+
+const res = await fetch("/api/voice", {
+  method: "POST",
+  body: form,
+});
+
+           if (!res.ok) {
+  const errText = await res.text();
+  console.error("Voice route failed:", errText);
+  setInput("");
+  return;
+}
+
+const data = await res.json();
+
+console.log("VOICE response", {
+  requestedLanguage: data.requestedLanguage,
+  detectedLanguage: data.detectedLanguage,
+  textLength: (data.text || "").length,
+});
+
+if (data.requestedLanguage) {
+  setVoiceInputLang(String(data.requestedLanguage).toLowerCase());
+}
+
+if (data.detectedLanguage) {
+  setDetectedLang(String(data.detectedLanguage).toLowerCase());
+}
+
+const transcript = (data.text || "").trim();
             if (transcript) {
               setInput(transcript);
             } else {
@@ -5534,10 +5585,32 @@ updated[index].messages[
             }
           } catch (err) {
             console.error("Whisper transcription failed:", err);
+            setInput("");
           }
         };
 
         mediaRecorder.start();
+
+        // Web Speech live preview tijdens opname
+        const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        if (SR) {
+          const rec = new SR();
+          rec.lang = navigator.language || "nl-NL";
+          rec.continuous = true;
+          rec.interimResults = true;
+          (window as any).__olSpeechRecognition = rec;
+
+          rec.onresult = (e: any) => {
+            let text = "";
+            for (let i = 0; i < e.results.length; i++) {
+              text += e.results[i][0].transcript;
+            }
+            setInput(text);
+          };
+
+          rec.onerror = () => {};
+          rec.start();
+        }
       } catch (err) {
         console.error("Mic access failed:", err);
         setVoiceListening(false);
