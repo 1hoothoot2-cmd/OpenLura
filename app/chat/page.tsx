@@ -5497,18 +5497,37 @@ updated[index].messages[
         detectedLang === "ar" ? "ar-SA" :
         detectedLang === "hi" ? "hi-IN" :
         "en-US";
-      rec.interimResults = false;
+      rec.interimResults = true;
       rec.maxAlternatives = 1;
       (window as any).__olVoiceRecognition = rec;
+      (window as any).__olVoiceBaseInput = input;
       setVoiceListening(true);
       rec.start();
       rec.onresult = (e: any) => {
-        const transcript = e.results[0][0].transcript;
-        setInput((prev) => prev ? prev + " " + transcript : transcript);
-        setVoiceListening(false);
+        let interim = "";
+        let final = "";
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          const t = e.results[i][0].transcript;
+          if (e.results[i].isFinal) {
+            final += t;
+          } else {
+            interim += t;
+          }
+        }
+        const base = (window as any).__olVoiceBaseInput || "";
+        if (final) {
+          const next = base ? base + " " + final : final;
+          (window as any).__olVoiceBaseInput = next;
+          setInput(next);
+        } else if (interim) {
+          setInput(base ? base + " " + interim : interim);
+        }
       };
       rec.onerror = () => setVoiceListening(false);
-      rec.onend = () => setVoiceListening(false);
+      rec.onend = () => {
+        setVoiceListening(false);
+        delete (window as any).__olVoiceBaseInput;
+      };
     }}
     className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full border ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 active:scale-95 ${
       voiceListening
