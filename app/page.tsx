@@ -829,7 +829,6 @@ export default function HomePage() {
                 onClick={() => {
                   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
                   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-                  alert(`url: ${supabaseUrl} | key: ${supabaseKey}`);
                   if (!supabaseUrl || !supabaseKey) return;
                   const redirectTo = `${window.location.origin}/auth/callback`;
                   window.location.href = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirectTo)}&apikey=${supabaseKey}`;
