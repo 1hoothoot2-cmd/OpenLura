@@ -826,7 +826,16 @@ export default function HomePage() {
 
               <button
                 type="button"
-                onClick={handleGoogleLogin}
+                onClick={() => {
+                  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+                  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+                  if (!supabaseUrl || !supabaseKey) {
+                    alert("Login config missing. Contact support.");
+                    return;
+                  }
+                  const redirectTo = `${window.location.origin}/auth/callback`;
+                  window.location.href = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirectTo)}&apikey=${supabaseKey}`;
+                }}
                 className="flex w-full items-center justify-center gap-3 rounded-[16px] border border-white/10 bg-white/[0.05] px-5 py-3 text-sm font-medium text-white/88 transition-[background-color,border-color] duration-150 hover:border-white/16 hover:bg-white/[0.09]"
               >
                 <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
