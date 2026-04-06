@@ -11,7 +11,7 @@ export default function PhotoStudioPage() {
     fetch("/api/auth", { method: "GET", credentials: "same-origin" })
       .then(r => r.json())
       .then(d => {
-        if (!d?.user) { router.replace("/personal-workspace"); return; }
+        if (!d?.authenticated) { router.replace("/personal-workspace"); return; }
         setAuthChecked(true);
       })
       .catch(() => router.replace("/personal-workspace"));

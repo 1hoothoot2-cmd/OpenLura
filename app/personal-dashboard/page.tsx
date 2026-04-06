@@ -120,13 +120,23 @@ export default function PersonalDashboardPage() {
     { id: "chat", emoji: "💬", title: "Chat", desc: "Open je AI werkruimte", href: "/personal-workspace" },
     { id: "workspace", emoji: "🧠", title: "Persoonlijke omgeving", desc: "Jouw privé AI omgeving", href: "/persoonlijke-omgeving" },
     { id: "subscription", emoji: "💳", title: "Abonnement", desc: "Beheer je plan", href: "/api/stripe/portal" },
+    { id: "photo-studio", emoji: "🎨", title: "Photo Studio", desc: "Genereer afbeeldingen met AI", href: "/photo-studio" },
   ];
 
   const [cards, setCards] = useState(() => {
     if (typeof window === "undefined") return DEFAULT_CARDS;
     try {
       const raw = localStorage.getItem(CARDS_KEY);
-      return raw ? JSON.parse(raw) : DEFAULT_CARDS;
+      if (!raw) return DEFAULT_CARDS;
+      const parsed = JSON.parse(raw);
+      // Inject photo-studio if missing (new card added after cache)
+      const hasPhotoStudio = parsed.some((c: any) => c.id === "photo-studio");
+      if (!hasPhotoStudio) {
+        const updated = [...parsed, { id: "photo-studio", emoji: "🎨", title: "Photo Studio", desc: "Genereer afbeeldingen met AI", href: "/photo-studio" }];
+        localStorage.setItem(CARDS_KEY, JSON.stringify(updated));
+        return updated;
+      }
+      return parsed;
     } catch { return DEFAULT_CARDS; }
   });
   const [showNameModal, setShowNameModal] = useState(false);
