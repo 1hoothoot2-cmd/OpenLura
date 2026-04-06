@@ -16,7 +16,8 @@ export async function POST(req: NextRequest) {
     const whisperForm = new FormData();
     whisperForm.append("file", audio, "audio.webm");
     whisperForm.append("model", "whisper-1");
-    whisperForm.append("language", lang.slice(0, 2)); // "nl", "en", "de", etc.
+    whisperForm.append("language", lang.slice(0, 2));
+    whisperForm.append("task", "transcribe");
 
     const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
       method: "POST",
