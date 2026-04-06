@@ -272,70 +272,40 @@ export default function HomePage() {
         </div>
       </nav>
 
-      <div className="mx-auto w-full max-w-6xl px-6 py-14 sm:px-8 sm:py-16 lg:px-10 lg:py-20">
+      <div className="mx-auto w-full max-w-6xl px-4 pt-12 pb-0 sm:px-6 sm:pt-16 lg:px-8 lg:pt-20">
         <div className="w-full">
-          <div className="flex items-center gap-3">
-            <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[18px] border border-[#3b82f6]/18 bg-[radial-gradient(circle_at_30%_30%,rgba(96,165,250,0.16),rgba(29,78,216,0.06)_52%,transparent_78%)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03),0_10px_22px_rgba(29,78,216,0.12)]">
-  <img
-    src="/openlura-logo.png"
-    alt="OpenLura logo"
-    className="h-full w-full object-contain"
-  />
-</div>
-
-            <div className="min-w-0">
-              <div className="text-base font-semibold tracking-[-0.02em] text-white/94 sm:text-lg">
-                OpenLura
-              </div>
-              <div className="text-[10px] uppercase tracking-[0.18em] text-white/36 sm:text-[11px]">
-                Adaptive AI workspace
-              </div>
+          <div className="flex flex-wrap items-center gap-2 mb-6">
+            <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1 text-[12px] font-medium text-amber-200">
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-400/80" />
+              First month 25% off — code <span className="font-semibold">LAUNCH25</span>
+            </div>
+            <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/16 bg-emerald-400/8 px-3 py-1 text-[12px] font-medium text-emerald-300/80">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400/70" />
+              Free plan available
             </div>
           </div>
 
-          <h1 className="mt-5 max-w-4xl bg-gradient-to-r from-white via-white to-white/68 bg-clip-text text-4xl font-semibold tracking-tight text-transparent sm:mt-6 sm:text-5xl lg:text-6xl">
+          <h1 className="max-w-3xl bg-gradient-to-r from-white via-white to-white/68 bg-clip-text text-4xl font-semibold tracking-tight text-transparent sm:text-5xl lg:text-6xl">
             {t("hero_title")}
           </h1>
 
-              <p className="mt-4 max-w-2xl text-base leading-7 text-white/62 sm:mt-5 sm:text-lg">
-                {t("hero_sub")}
-              </p>
+          <p className="mt-4 max-w-xl text-base leading-7 text-white/58 sm:text-lg">
+            {t("hero_sub")}
+          </p>
 
-              <div className="mt-4 inline-flex max-w-fit items-center rounded-full border border-emerald-400/18 bg-emerald-400/10 px-3 py-1.5 text-[12px] font-medium text-emerald-200 backdrop-blur-xl">
-                Your account owns your workspace, history, and continuity.
-              </div>
-
-              <div className="mt-3 inline-flex max-w-fit items-center gap-2 rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1.5 text-[12px] font-medium text-amber-200 backdrop-blur-xl">
-                <span className="h-1.5 w-1.5 rounded-full bg-amber-400/80" />
-                First month 25% off — use code <span className="font-semibold tracking-wide">LAUNCH25</span>
-              </div>
-
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+          <div className="mt-7 flex flex-wrap gap-3">
             <Link
               href="/chat"
-              className="inline-flex h-12 w-full items-center justify-center rounded-[18px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-6 text-sm font-medium text-white shadow-[0_12px_28px_rgba(59,130,246,0.24)] ol-interactive transition-[transform,filter,box-shadow] duration-200 hover:brightness-110 hover:shadow-[0_14px_32px_rgba(59,130,246,0.28)] active:scale-[0.99] sm:w-auto"
+              className="inline-flex h-10 items-center justify-center rounded-full bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-5 text-sm font-medium text-white shadow-[0_8px_20px_rgba(59,130,246,0.28)] transition-[filter,box-shadow] duration-150 hover:brightness-110 active:scale-[0.99]"
             >
               {t("btn_start_chat")}
             </Link>
             <Link
               href="/personal-workspace"
-              className="inline-flex h-12 w-full items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.04] px-6 text-sm font-medium text-white/88 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/30 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.99] sm:w-auto"
+              className="inline-flex h-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] px-5 text-sm font-medium text-white/80 backdrop-blur-xl transition-[background-color,border-color,color] duration-150 hover:border-white/16 hover:bg-white/[0.07] hover:text-white active:scale-[0.99]"
             >
-              {t("btn_login")}
+              Log in / Sign up
             </Link>
-            <Link
-              href="#how-it-works"
-              className="inline-flex h-12 w-full items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.04] px-6 text-sm font-medium text-white/88 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/30 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.99] sm:w-auto"
-            >
-              {t("btn_how_it_works")}
-            </Link>
-          </div>
-
-          <div className="mt-4 flex flex-wrap gap-2">
-            <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/16 bg-emerald-400/8 px-3 py-1.5 text-[12px] font-medium text-emerald-300/80">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400/70" />
-              Free plan available
-            </div>
           </div>
 
           {/* HOMEPAGE CHAT ENTRY */}
@@ -390,62 +360,94 @@ export default function HomePage() {
               ))}
             </div>
           </div>
-
-          <div className="mt-6 flex flex-col items-start gap-3">
-            <div className="flex flex-wrap gap-2">
-              {chapterLinks.map((item) => (
-                <a
-                  key={item.href}
-                  href={item.href}
-                  className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[12px] font-medium text-white/62 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-[#3b82f6]/26 hover:bg-[#3b82f6]/10 hover:text-white hover:shadow-[0_10px_24px_rgba(59,130,246,0.14)]"
-                >
-                  {item.label}
-                </a>
-              ))}
-            </div>
+         <div className="mt-4">
             <button
               type="button"
               onClick={() => setIsFeedbackOpen(true)}
-              className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[12px] font-medium text-white/56 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-amber-400/26 hover:bg-amber-400/10 hover:text-amber-200 hover:shadow-[0_10px_24px_rgba(251,191,36,0.12)]"
+              className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[12px] font-medium text-white/46 transition-[background-color,border-color,color] duration-150 hover:border-amber-400/24 hover:bg-amber-400/8 hover:text-amber-200"
             >
               {t("btn_give_feedback")}
             </button>
           </div>
         </div>
+          {/* PLANS */}
+          <section
+            id="plans"
+            className="section-panel scroll-mt-20 mt-14 w-full max-w-5xl sm:mt-16"
+          >
+            <div className="mb-8">
+              <h2 className="text-2xl font-semibold text-white/92">Plans</h2>
+              <p className="mt-2 text-sm text-white/46">Start free. Upgrade when ready.</p>
+            </div>
 
-                    <div className="mt-10 grid w-full max-w-4xl gap-3.5 sm:grid-cols-2 xl:grid-cols-3">
-            <Link
-              href="/chat"
-              className="rounded-[22px] border border-white/10 bg-white/[0.03] px-4 py-4.5 text-left backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-white/14 hover:bg-white/[0.05] hover:shadow-[0_12px_28px_rgba(0,0,0,0.14)]"
-            >
-              <div className="text-sm font-medium text-white">Start chat</div>
-              <div className="mt-1 text-sm leading-6 text-white/46">
-                Open the core assistant workspace.
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-6 backdrop-blur-xl sm:p-7">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className="text-lg font-semibold text-white">Free</div>
+                    <p className="mt-1 text-sm text-white/46">Try OpenLura with no setup.</p>
+                  </div>
+                  <span className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-white/50">
+                    Available now
+                  </span>
+                </div>
+                <div className="mt-5 flex items-baseline gap-1.5">
+                  <div className="text-3xl font-semibold text-white">€0</div>
+                  <div className="text-sm text-white/36">/month</div>
+                </div>
+                <div className="mt-5 space-y-2.5">
+                  <div className="flex items-center gap-2.5"><span className="h-1.5 w-1.5 rounded-full bg-white/40" /><p className="text-sm text-white/68">Core chat access</p></div>
+                  <div className="flex items-center gap-2.5"><span className="h-1.5 w-1.5 rounded-full bg-white/40" /><p className="text-sm text-white/68">Basic usage and exploration</p></div>
+                  <div className="flex items-center gap-2.5"><span className="h-1.5 w-1.5 rounded-full bg-white/40" /><p className="text-sm text-white/68">150 messages per month</p></div>
+                </div>
+                <Link
+                  href="/chat"
+                  className="mt-6 inline-flex w-full items-center justify-center rounded-[16px] border border-white/10 bg-white/[0.04] py-3 text-sm font-medium text-white/80 transition-[background-color,border-color,color] duration-150 hover:border-white/16 hover:bg-white/[0.07] hover:text-white"
+                >
+                  Start for free
+                </Link>
               </div>
-            </Link>
 
-            <Link
-              href="#how-it-works"
-              className="rounded-[20px] border border-white/10 bg-white/[0.03] px-4 py-4 text-left backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-[#3b82f6]/24 hover:bg-white/[0.05] hover:shadow-[0_10px_24px_rgba(59,130,246,0.10)]"
-            >
-              <div className="text-sm font-medium text-white">How it works</div>
-              <div className="mt-1 text-sm leading-6 text-white/46">
-                Learn how OpenLura adapts, remembers, and improves.
+              <div className="rounded-[24px] border border-blue-400/16 bg-gradient-to-b from-[#0d1733] to-[#0a1022] p-6 shadow-[0_18px_48px_rgba(29,78,216,0.14)] backdrop-blur-xl sm:p-7">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className="text-lg font-semibold text-white">Go</div>
+                    <p className="mt-1 text-sm text-white/46">For consistent usage and deeper workflows.</p>
+                  </div>
+                  <span className="inline-flex items-center rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-emerald-300">
+                    Available now
+                  </span>
+                </div>
+                <div className="mt-5 flex items-baseline gap-1.5">
+                  <div className="text-3xl font-semibold text-white">€4,99</div>
+                  <div className="text-sm text-white/36">/month</div>
+                </div>
+                <div className="mt-5 space-y-2.5">
+                  <div className="flex items-center gap-2.5"><span className="h-1.5 w-1.5 rounded-full bg-blue-300" /><p className="text-sm text-white/78">Unlimited messages per month</p></div>
+                  <div className="flex items-center gap-2.5"><span className="h-1.5 w-1.5 rounded-full bg-blue-300" /><p className="text-sm text-white/78">Deeper context and continuity</p></div>
+                  <div className="flex items-center gap-2.5"><span className="h-1.5 w-1.5 rounded-full bg-blue-300" /><p className="text-sm text-white/78">Expanded value as features grow</p></div>
+                </div>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const res = await fetch("/api/stripe/checkout", { method: "POST", credentials: "include" });
+                      if (res.status === 401) { router.push("/personal-workspace"); return; }
+                      const text = await res.text();
+                      const data = JSON.parse(text);
+                      if (data.url) window.location.href = data.url;
+                    } catch (err) {
+                      console.error("Stripe checkout error:", err);
+                    }
+                  }}
+                  className="mt-6 inline-flex w-full items-center justify-center rounded-[16px] border border-blue-400/20 bg-blue-400/10 py-3 text-sm font-medium text-blue-200 transition-[background-color,border-color,color] duration-150 hover:border-blue-400/30 hover:bg-blue-400/16 hover:text-white"
+                >
+                  Get started with Go
+                </button>
               </div>
-            </Link>
-
-            <Link
-              href="#use-cases"
-              className="rounded-[20px] border border-white/10 bg-white/[0.03] px-4 py-4 text-left backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-[#3b82f6]/24 hover:bg-white/[0.05] hover:shadow-[0_10px_24px_rgba(59,130,246,0.10)]"
-            >
-              <div className="text-sm font-medium text-white">Use cases</div>
-              <div className="mt-1 text-sm leading-6 text-white/46">
-                Explore what you can do with OpenLura.
-              </div>
-            </Link>
-          </div>
-
-          <div className="mt-14 h-px w-full max-w-5xl bg-gradient-to-r from-transparent via-white/10 to-transparent sm:mt-16" />
+            </div>
+            <SectionFooter nextHref="#how-it-works" nextLabel="How it works" />
+          </section>
 
           {/* PRODUCT OVERVIEW */}
           <section
@@ -579,72 +581,6 @@ export default function HomePage() {
                 </p>
               </div>
             </div>
-            <SectionFooter nextHref="#system-status" nextLabel="System status" />
-          </section>
-
-          {/* SYSTEM STATUS */}
-          <section
-            id="system-status"
-            className="section-panel scroll-mt-24 mt-14 w-full max-w-5xl sm:mt-16"
-          >
-            <div className="mb-6">
-              <h2 className="text-xl font-semibold text-white/92">
-                System status
-              </h2>
-              <p className="mt-2 max-w-2xl text-sm text-white/50">
-                A simple view of current product readiness across core OpenLura flows.
-              </p>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              <div className="rounded-[22px] border border-emerald-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="text-sm font-medium text-white">Chat workspace</div>
-                  <span className="inline-flex items-center rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
-                    Operational
-                  </span>
-                </div>
-                <p className="mt-2 text-sm leading-6 text-white/46">
-                  Core chat access and primary assistant flow are available.
-                </p>
-              </div>
-
-              <div className="rounded-[22px] border border-emerald-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="text-sm font-medium text-white">Learning systems</div>
-                  <span className="inline-flex items-center rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
-                    Operational
-                  </span>
-                </div>
-                <p className="mt-2 text-sm leading-6 text-white/46">
-                  Context, feedback foundations, and adaptive behavior are in place.
-                </p>
-              </div>
-
-              <div className="rounded-[22px] border border-amber-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="text-sm font-medium text-white">Feedback intake</div>
-                  <span className="inline-flex items-center rounded-full border border-amber-400/20 bg-amber-400/10 px-2.5 py-1 text-[11px] font-medium text-amber-300">
-                    In progress
-                  </span>
-                </div>
-                <p className="mt-2 text-sm leading-6 text-white/46">
-                  Feedback entry is live in the interface and backend wiring comes next.
-                </p>
-              </div>
-
-              <div className="rounded-[22px] border border-emerald-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="text-sm font-medium text-white">User ownership</div>
-                  <span className="inline-flex items-center rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
-                    Active focus
-                  </span>
-                </div>
-                <p className="mt-2 text-sm leading-6 text-white/46">
-                  OpenLura is being shaped so each signed-in user keeps a clearly separated workspace, history, and restore flow.
-                </p>
-              </div>
-            </div>
             <SectionFooter nextHref="#use-cases" nextLabel="Use cases" />
           </section>
 
@@ -705,320 +641,7 @@ export default function HomePage() {
                 </p>
               </div>
             </div>
-            <SectionFooter nextHref="#why-openlura" nextLabel="Why OpenLura" />
-          </section>
-
-          {/* WHY OPENLURA */}
-          <section
-            id="why-openlura"
-            className="section-panel scroll-mt-24 mt-14 w-full max-w-5xl sm:mt-16"
-          >
-            <div className="mb-6">
-              <h2 className="text-xl font-semibold text-white/92">
-                Why OpenLura
-              </h2>
-              <p className="mt-2 max-w-2xl text-sm text-white/50">
-                Built for clarity, continuity, and a more useful AI experience over time.
-              </p>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-[22px] border border-amber-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
-                <div className="text-sm font-medium text-white">Less noise</div>
-                <p className="mt-2 text-sm leading-6 text-white/46">
-                  Focused help without unnecessary complexity or distracting product clutter.
-                </p>
-              </div>
-
-              <div className="rounded-[22px] border border-amber-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
-                <div className="text-sm font-medium text-white">Context that carries forward</div>
-                <p className="mt-2 text-sm leading-6 text-white/46">
-                  Conversations become more useful as context builds across continued use.
-                </p>
-              </div>
-
-              <div className="rounded-[22px] border border-amber-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
-                <div className="text-sm font-medium text-white">Improves through feedback</div>
-                <p className="mt-2 text-sm leading-6 text-white/46">
-                  Feedback helps shape a sharper, more aligned experience over time.
-                </p>
-              </div>
-
-              <div className="rounded-[22px] border border-amber-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
-                <div className="text-sm font-medium text-white">Designed for real work</div>
-                <p className="mt-2 text-sm leading-6 text-white/46">
-                  Made to support thinking, writing, planning, and everyday execution.
-                </p>
-              </div>
-            </div>
-            <SectionFooter nextHref="#plans" nextLabel="Plans" />
-          </section>
-
-          {/* PLANS */}
-          <section
-            id="plans"
-            className="section-panel scroll-mt-24 mt-14 w-full max-w-5xl sm:mt-16"
-          >
-            <div className="mb-6">
-              <h2 className="text-xl font-semibold text-white/92">
-                Plans
-              </h2>
-              <p className="mt-2 max-w-2xl text-sm text-white/50">
-                Start simple with Free or move deeper with Go as OpenLura evolves.
-              </p>
-            </div>
-
-            <div className="grid gap-4 lg:grid-cols-2">
-              <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-6 backdrop-blur-xl ol-surface sm:p-7">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <div className="text-lg font-semibold text-white">Free</div>
-                    <p className="mt-2 text-sm leading-6 text-white/50">
-                      A simple starting point for exploring the core OpenLura experience.
-                    </p>
-                  </div>
-
-                  <span className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-white/60">
-                    Available now
-                  </span>
-                </div>
-
-                <div className="mt-4">
-                    <div className="flex items-baseline gap-1.5">
-                      <div className="text-2xl font-semibold text-white">€0</div>
-                      <div className="text-sm text-white/40">/maand</div>
-                    </div>
-                  </div>
-
-                  <div className="mt-6 space-y-3">
-                  <div className="flex items-start gap-3">
-                    <span className="mt-1 h-2 w-2 rounded-full bg-white/50" />
-                    <p className="text-sm leading-6 text-white/72">
-                      Core chat access
-                    </p>
-                  </div>
-
-                  <div className="flex items-start gap-3">
-                    <span className="mt-1 h-2 w-2 rounded-full bg-white/50" />
-                    <p className="text-sm leading-6 text-white/72">
-                      Basic usage and product exploration
-                    </p>
-                  </div>
-
-                  <div className="flex items-start gap-3">
-                    <span className="mt-1 h-2 w-2 rounded-full bg-white/50" />
-                    <p className="text-sm leading-6 text-white/72">
-                      Clean starting flow with no extra setup
-                    </p>
-                  </div>
-
-                  <div className="flex items-start gap-3">
-                    <span className="mt-1 h-2 w-2 rounded-full bg-white/50" />
-                    <p className="text-sm leading-6 text-white/72">
-                      Good for getting familiar with OpenLura
-                    </p>
-                  </div>
-
-                  <div className="flex items-start gap-3">
-                    <span className="mt-1 h-2 w-2 rounded-full bg-white/30" />
-                    <p className="text-sm leading-6 text-white/46">
-                      150 messages per month
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-[24px] border border-blue-400/16 bg-gradient-to-b from-[#0d1733] to-[#0a1022] p-6 shadow-[0_18px_40px_rgba(29,78,216,0.12)] backdrop-blur-xl ol-surface sm:p-7">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <div className="flex items-baseline gap-2">
-                      <div className="text-lg font-semibold text-white">Go</div>
-                      <div className="text-2xl font-semibold text-white">€4,99</div>
-                      <div className="text-sm text-white/40">/maand</div>
-                    </div>
-                    <p className="mt-2 text-sm leading-6 text-white/50">
-                      Built for more consistent usage, deeper workflows, and a stronger product experience over time.
-                    </p>
-                  </div>
-
-                  <span className="inline-flex items-center rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-emerald-300">
-                    Available now
-                  </span>
-                </div>
-
-                <div className="mt-6 space-y-3">
-                  <div className="flex items-start gap-3">
-                    <span className="mt-1 h-2 w-2 rounded-full bg-blue-300" />
-                    <p className="text-sm leading-6 text-white/78">
-                      More capable overall experience
-                    </p>
-                  </div>
-
-                  <div className="flex items-start gap-3">
-                    <span className="mt-1 h-2 w-2 rounded-full bg-blue-300" />
-                    <p className="text-sm leading-6 text-white/78">
-                      Better depth for repeat usage and ongoing work
-                    </p>
-                  </div>
-
-                  <div className="flex items-start gap-3">
-                    <span className="mt-1 h-2 w-2 rounded-full bg-blue-300" />
-                    <p className="text-sm leading-6 text-white/78">
-                      Expanded product value as features continue to grow
-                    </p>
-                  </div>
-
-                  <div className="flex items-start gap-3">
-                    <span className="mt-1 h-2 w-2 rounded-full bg-blue-300" />
-                    <p className="text-sm leading-6 text-white/78">
-                      Designed for users who want more from OpenLura over time
-                    </p>
-                  </div>
-
-                  <div className="flex items-start gap-3">
-                    <span className="mt-1 h-2 w-2 rounded-full bg-blue-300" />
-                    <p className="text-sm leading-6 text-white/78">
-                      Unlimited messages per month
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-6">
-                    <button
-                    type="button"
-                    onClick={async () => {
-                      try {
-                        const res = await fetch("/api/stripe/checkout", { method: "POST", credentials: "include" });
-                        if (res.status === 401) {
-                          router.push("/personal-workspace");
-                          return;
-                        }
-                        const text = await res.text();
-                        const data = JSON.parse(text);
-                        if (data.url) window.location.href = data.url;
-                      } catch (err) {
-                        console.error("Stripe checkout error:", err);
-                      }
-                    }}
-                    className="inline-flex w-full items-center justify-center rounded-[18px] border border-blue-400/20 bg-blue-400/10 px-5 py-3 text-sm font-medium text-blue-200 transition-[background-color,border-color,color] duration-200 hover:border-blue-400/30 hover:bg-blue-400/16 hover:text-white"
-                  >
-                    Get started with Go
-                  </button>
-                </div>
-              </div>
-            </div>
-            <SectionFooter nextHref="#security" nextLabel="Security" />
-          </section>
-
-          {/* SECURITY */}
-          <section
-            id="security"
-            className="section-panel scroll-mt-24 mt-14 w-full max-w-5xl sm:mt-16"
-          >
-            <div className="mb-6">
-              <h2 className="text-xl font-semibold text-white/92">
-                Security
-              </h2>
-              <p className="mt-2 max-w-2xl text-sm text-white/50">
-                Built with privacy, separation, and responsible product design in mind.
-              </p>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-[22px] border border-amber-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
-                <div className="text-sm font-medium text-white">Private by default</div>
-                <p className="mt-2 text-sm leading-6 text-white/46">
-                  Core product flows are designed to keep user interactions scoped and protected.
-                </p>
-              </div>
-
-              <div className="rounded-[22px] border border-amber-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
-                <div className="text-sm font-medium text-white">User-owned continuity</div>
-                <p className="mt-2 text-sm leading-6 text-white/46">
-                  Saved context, returning sessions, and workspace continuity are intended to stay tied to the account that created them.
-                </p>
-              </div>
-
-              <div className="rounded-[22px] border border-amber-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
-                <div className="text-sm font-medium text-white">Separated environments</div>
-                <p className="mt-2 text-sm leading-6 text-white/46">
-                  Clear boundaries help keep users, data, and product contexts properly separated.
-                </p>
-              </div>
-
-              <div className="rounded-[22px] border border-amber-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
-                <div className="text-sm font-medium text-white">Access-aware design</div>
-                <p className="mt-2 text-sm leading-6 text-white/46">
-                  Sensitive flows are approached with controlled access and product safety in mind.
-                </p>
-              </div>
-
-              <div className="rounded-[22px] border border-amber-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
-                <div className="text-sm font-medium text-white">Security-first foundation</div>
-                <p className="mt-2 text-sm leading-6 text-white/46">
-                  Protection is built into the product foundation rather than added later.
-                </p>
-              </div>
-            </div>
-            <SectionFooter nextHref="#account-flow" nextLabel="Account flow" />
-          </section>
-
-          {/* ACCOUNT FLOW */}
-          <section
-            id="account-flow"
-            className="section-panel scroll-mt-24 mt-14 w-full max-w-5xl sm:mt-16"
-          >
-            <div className="mb-6">
-              <h2 className="text-xl font-semibold text-white/92">
-                Account flow
-              </h2>
-              <p className="mt-2 max-w-2xl text-sm text-white/50">
-                A simple path from getting started to using OpenLura with more continuity over time.
-              </p>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-[22px] border border-amber-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
-                <div className="mb-3 inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-sm font-medium text-white/78">
-                  1
-                </div>
-                <div className="text-sm font-medium text-white">Start</div>
-                <p className="mt-2 text-sm leading-6 text-white/46">
-                  OpenLura is easy to try and explore from the first visit.
-                </p>
-              </div>
-
-              <div className="rounded-[22px] border border-amber-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
-                <div className="mb-3 inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-sm font-medium text-white/78">
-                  2
-                </div>
-                <div className="text-sm font-medium text-white">Create your account</div>
-                <p className="mt-2 text-sm leading-6 text-white/46">
-                  Set up access when you want a more consistent experience over time.
-                </p>
-              </div>
-
-              <div className="rounded-[22px] border border-amber-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
-                <div className="mb-3 inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-sm font-medium text-white/78">
-                  3
-                </div>
-                <div className="text-sm font-medium text-white">Keep your flow going</div>
-                <p className="mt-2 text-sm leading-6 text-white/46">
-                  Return to the same workspace and continue with more continuity tied to your own account.
-                </p>
-              </div>
-
-              <div className="rounded-[22px] border border-amber-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
-                <div className="mb-3 inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-sm font-medium text-white/78">
-                  4
-                </div>
-                <div className="text-sm font-medium text-white">Grow over time</div>
-                <p className="mt-2 text-sm leading-6 text-white/46">
-                  As OpenLura evolves, the experience becomes more useful and more connected without losing account ownership boundaries.
-                </p>
-              </div>
-            </div>
-            <SectionFooter nextHref="#changelog" nextLabel="Changelog" />
+            <SectionFooter nextHref="#roadmap" nextLabel="Roadmap" />
           </section>
 
           {/* CHANGELOG */}
