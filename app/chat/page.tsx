@@ -1211,8 +1211,12 @@ const isReplaceableStarterChat = (chat: any) => {
               if (typeof p.name === "string" && p.name.trim()) {
                 setUserName(p.name.trim());
               } else {
-                // Geen naam bekend → popup tonen
                 setShowNamePopup(true);
+              }
+
+              // Herstel opgeslagen taalvoorkeur
+              if (typeof p.lang === "string" && p.lang.trim()) {
+                setDetectedLang(p.lang.trim());
               }
             } else {
               setShowNamePopup(true);
@@ -1573,6 +1577,7 @@ const shouldSkipPersonalStateSync =
                 memoryEnabled: chatSettings.memoryEnabled,
                 preferences: settingsPreferences,
                 ...(userName ? { name: userName } : {}),
+                lang: detectedLang,
               },
             }),
           });

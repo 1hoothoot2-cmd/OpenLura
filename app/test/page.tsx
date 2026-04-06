@@ -57,7 +57,7 @@ const getBrowserLanguage = () => {
   return "en";
 };
 
-const [detectedLang, setDetectedLang] = useState(getBrowserLanguage);
+const [detectedLang, setDetectedLang] = useState(() => getBrowserLanguage());
 
 // apart van UI-taal: dit is de taal die we meesturen voor voice input
 const [voiceInputLang, setVoiceInputLang] = useState(getBrowserLanguage);
@@ -478,6 +478,18 @@ const extractContextFromConversation = (messages: any[]): string[] => {
   if (userMessages.some(m => /\b(meer detail|uitgebreid|dieper|volledig)\b/i.test(m))) context.push("Vraagt soms om meer detail");
 
   return context;
+};
+
+// =============================
+// PHASE 9.5 — ACTION OUTPUT DETECTOR
+// =============================
+
+const detectActionOutput = (content: string): "mail" | "plan" | "list" | null => {
+  const t = content.toLowerCase();
+  if (/\b(onderwerp:|subject:|assunto:|betreff:|objet:|asunto:|dear |beste |geachte |prezado|dear |regards|atenciosamente|groet|met vriendelijke|van:|to:|cc:)\b/.test(t)) return "mail";
+  if (/\b(stap \d|step \d|fase \d|\d\.\s|dag \d|week \d)\b/.test(t) && content.length > 200) return "plan";
+  if ((/\n[-•*]\s/.test(content) || /\n\d+\.\s/.test(content)) && content.split("\n").length > 4) return "list";
+  return null;
 };
 
 // =============================
@@ -1199,8 +1211,12 @@ const isReplaceableStarterChat = (chat: any) => {
               if (typeof p.name === "string" && p.name.trim()) {
                 setUserName(p.name.trim());
               } else {
-                // Geen naam bekend → popup tonen
                 setShowNamePopup(true);
+              }
+
+              // Herstel opgeslagen taalvoorkeur
+              if (typeof p.lang === "string" && p.lang.trim()) {
+                setDetectedLang(p.lang.trim());
               }
             } else {
               setShowNamePopup(true);
@@ -1561,6 +1577,7 @@ const shouldSkipPersonalStateSync =
                 memoryEnabled: chatSettings.memoryEnabled,
                 preferences: settingsPreferences,
                 ...(userName ? { name: userName } : {}),
+                lang: detectedLang,
               },
             }),
           });
@@ -3766,8 +3783,9 @@ setIsWaitingForFirstToken(true);
     }
 
     const responseVariant = res.headers.get("X-OpenLura-Variant") || "unknown";
+    // Taal alleen updaten als browser taal onbekend/en is — voorkom override door AI response
     const responseLang = res.headers.get("X-OpenLura-Lang");
-if (responseLang) {
+if (responseLang && detectedLang === "en") {
   const normalizedResponseLang = String(responseLang).toLowerCase().slice(0, 2);
   setDetectedLang(normalizedResponseLang);
 }
@@ -5241,6 +5259,39 @@ updated[index].messages[
                                   </span>
                                 )}
                               </div>
+
+                {/* PHASE 9.5 — ACTION OUTPUT */}
+                {!msg.isStreaming && !msg.disableFeedback && (() => {
+                  const action = detectActionOutput(String(msg.content || ""));
+                  if (!action) return null;
+
+                  const actionConfig = {
+                    mail: { label: detectedLang === "nl" ? "✉️ Kopieer mail" : "✉️ Copy email", icon: "✉️" },
+                    plan: { label: detectedLang === "nl" ? "📋 Kopieer plan" : "📋 Copy plan", icon: "📋" },
+                    list: { label: detectedLang === "nl" ? "📝 Kopieer lijst" : "📝 Copy list", icon: "📝" },
+                  };
+
+                  const cfg = actionConfig[action];
+                  const keyId = `action-${renderedChatId}-${originalIndex}`;
+
+                  return (
+                    <div className="mt-2 px-0.5 md:px-2">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText(String(msg.content || ""));
+                            setFeedbackUI((prev) => ({ ...prev, [keyId]: "✓ Gekopieerd" }));
+                            setTimeout(() => setFeedbackUI((prev) => { const c = { ...prev }; delete c[keyId]; return c; }), 1400);
+                          } catch {}
+                        }}
+                        className="inline-flex items-center gap-2 rounded-full border border-[#3b82f6]/22 bg-[#3b82f6]/10 px-4 py-2 text-[12px] font-medium text-[#93c5fd] ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-[#3b82f6]/36 hover:bg-[#3b82f6]/18 hover:text-white hover:shadow-[0_6px_14px_rgba(59,130,246,0.18)] active:scale-[0.97]"
+                      >
+                        {feedbackUI[keyId] || cfg.label}
+                      </button>
+                    </div>
+                  );
+                })()}
 
                 {Array.isArray(msg.sources) && msg.sources.length > 0 && (
           <div className="mt-2 w-full max-w-[90%] space-y-2.5 px-0.5 md:mt-3 md:max-w-[78%] md:px-2">
