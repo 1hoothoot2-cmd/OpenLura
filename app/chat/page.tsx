@@ -4436,6 +4436,28 @@ updated[index].messages[
           </div>
         </div>
 
+        {/* Taal instelling */}
+        <div>
+          <div className="mb-2.5 text-[11px] uppercase tracking-[0.14em] text-white/34">Taal / Language</div>
+          <div className="grid grid-cols-3 gap-2">
+            {([["nl", "🇳🇱 Nederlands"], ["en", "🇬🇧 English"], ["de", "🇩🇪 Deutsch"], ["fr", "🇫🇷 Français"], ["es", "🇪🇸 Español"], ["pt", "🇵🇹 Português"]] as const).map(([code, label]) => (
+              <button key={code} type="button"
+                onClick={() => {
+                  setDetectedLang(code);
+                  try { localStorage.setItem("openlura_ui_lang", code); } catch {}
+                }}
+                className={`rounded-2xl border px-3 py-2 text-left text-[12px] transition-all duration-150 ${
+                  detectedLang === code
+                    ? "border-white/20 bg-white/[0.08] text-white"
+                    : "border-white/8 bg-white/[0.03] text-white/50 hover:border-white/12 hover:bg-white/[0.05] hover:text-white/70"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Memory toggle */}
         <button type="button"
           onClick={() => setChatSettings((prev) => ({ ...prev, memoryEnabled: !prev.memoryEnabled }))}
