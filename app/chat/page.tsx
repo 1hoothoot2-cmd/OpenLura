@@ -32,6 +32,7 @@ export default function ChatPage() {
     ? "openlura_personal_memory"
     : makeUserBoundStorageKey("openlura_memory");
   const [personalStateLoaded, setPersonalStateLoaded] = useState(false);
+  const [voiceListening, setVoiceListening] = useState(false);
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [userName, setUserName] = useState<string | null>(null);
   const [showNamePopup, setShowNamePopup] = useState(false);
@@ -3845,6 +3846,31 @@ updated[index].messages[
     // PHASE 9.3 — context opslaan na response
     autoSaveContext(updated[index].messages);
 
+    // PHASE 9.4 — TTS: spreek AI antwoord voor (alleen personal, alleen als tekst kort genoeg)
+    if (
+      isPersonalRoute &&
+      aiText.trim() &&
+      aiText.length < 400 &&
+      typeof window !== "undefined" &&
+      "speechSynthesis" in window
+    ) {
+      window.speechSynthesis.cancel();
+      const utt = new SpeechSynthesisUtterance(aiText.trim());
+      utt.lang =
+        detectedLang === "nl" ? "nl-NL" :
+        detectedLang === "de" ? "de-DE" :
+        detectedLang === "fr" ? "fr-FR" :
+        detectedLang === "es" ? "es-ES" :
+        detectedLang === "it" ? "it-IT" :
+        detectedLang === "tr" ? "tr-TR" :
+        detectedLang === "ar" ? "ar-SA" :
+        detectedLang === "hi" ? "hi-IN" :
+        "en-US";
+      utt.rate = 1.05;
+      utt.pitch = 1;
+      window.speechSynthesis.speak(utt);
+    }
+
     // PHASE 9.2 — AGENDA INTENT CHECK
     if (isPersonalRoute && rawInputToSend && !imageToSend) {
       const agendaIntent = detectAgendaIntent(rawInputToSend, aiText);
@@ -5449,6 +5475,56 @@ updated[index].messages[
   enterKeyHint="send"
   rows={1}
 />
+
+{/* 9.4 — VOICE INPUT */}
+{typeof window !== "undefined" && ("SpeechRecognition" in window || "webkitSpeechRecognition" in window) && (
+  <button
+    type="button"
+    onClick={() => {
+      if (voiceListening) {
+        (window as any).__olVoiceRecognition?.stop();
+        return;
+      }
+      const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      const rec = new SR();
+      rec.lang =
+        detectedLang === "nl" ? "nl-NL" :
+        detectedLang === "de" ? "de-DE" :
+        detectedLang === "fr" ? "fr-FR" :
+        detectedLang === "es" ? "es-ES" :
+        detectedLang === "it" ? "it-IT" :
+        detectedLang === "tr" ? "tr-TR" :
+        detectedLang === "ar" ? "ar-SA" :
+        detectedLang === "hi" ? "hi-IN" :
+        "en-US";
+      rec.interimResults = false;
+      rec.maxAlternatives = 1;
+      (window as any).__olVoiceRecognition = rec;
+      setVoiceListening(true);
+      rec.start();
+      rec.onresult = (e: any) => {
+        const transcript = e.results[0][0].transcript;
+        setInput((prev) => prev ? prev + " " + transcript : transcript);
+        setVoiceListening(false);
+      };
+      rec.onerror = () => setVoiceListening(false);
+      rec.onend = () => setVoiceListening(false);
+    }}
+    className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full border ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 active:scale-95 ${
+      voiceListening
+        ? "border-red-400/40 bg-red-500/18 text-red-300 shadow-[0_0_0_3px_rgba(239,68,68,0.14)] animate-pulse"
+        : "border-white/8 bg-white/[0.035] text-white/52 hover:border-white/14 hover:bg-white/[0.07] hover:text-white"
+    }`}
+    aria-label={voiceListening ? "Stop opname" : "Spreek een bericht"}
+  >
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="9" y="3" width="6" height="11" rx="3"/>
+      <path d="M5 10a7 7 0 0 0 14 0"/>
+      <line x1="12" y1="19" x2="12" y2="23"/>
+      <line x1="8" y1="23" x2="16" y2="23"/>
+    </svg>
+  </button>
+)}
 
 <button
   type="button"
