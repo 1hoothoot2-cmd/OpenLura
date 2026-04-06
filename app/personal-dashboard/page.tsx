@@ -117,7 +117,7 @@ export default function PersonalDashboardPage() {
   const CARDS_KEY = "openlura_dashboard_cards";
   const DEFAULT_CARDS = [
     { id: "agenda", emoji: "📅", title: "Agenda", desc: "Bekijk en plan je dag", href: "/personal-dashboard" },
-    { id: "chat", emoji: "💬", title: "Chat", desc: "Open je AI werkruimte", href: "/chat" },
+    { id: "chat", emoji: "💬", title: "Chat", desc: "Open je AI werkruimte", href: "/personal-workspace" },
     { id: "workspace", emoji: "🧠", title: "Persoonlijke omgeving", desc: "Jouw privé AI omgeving", href: "/persoonlijke-omgeving" },
     { id: "subscription", emoji: "💳", title: "Abonnement", desc: "Beheer je plan", href: "/personal-workspace" },
   ];
@@ -290,7 +290,7 @@ export default function PersonalDashboardPage() {
             <div className="text-[10px] uppercase tracking-[0.16em] text-white/32">Personal Dashboard</div>
           </div>
         </div>
-       <a href="/chat" className="flex items-center gap-2 rounded-full bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-4 py-2 text-sm font-medium text-white shadow-[0_4px_14px_rgba(59,130,246,0.28)] transition-[filter,box-shadow] duration-150 hover:brightness-110 active:scale-[0.97]">
+       <a href="/personal-workspace" className="flex items-center gap-2 rounded-full bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-4 py-2 text-sm font-medium text-white shadow-[0_4px_14px_rgba(59,130,246,0.28)] transition-[filter,box-shadow] duration-150 hover:brightness-110 active:scale-[0.97]">
             <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
             </svg>
