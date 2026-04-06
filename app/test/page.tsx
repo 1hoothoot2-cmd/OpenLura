@@ -508,7 +508,7 @@ const [pendingAgenda, setPendingAgenda] = useState<{
   title: string;
   time: string;
   date?: string;
-  repeat?: "daily" | "weekly" | null;
+  repeat?: "daily" | "weekly" | "workdays" | "mwf" | null;
 } | null>(null);
 
 const detectAgendaIntent = (userMsg: string, aiMsg?: string): { title: string; time: string } | null => {
@@ -595,7 +595,7 @@ const isAgendaConfirm = (text: string): boolean => {
   return confirmWords.includes(clean);
 };
 
-const addToAgenda = (title: string, time: string, dateStr?: string, repeat?: "daily" | "weekly" | null) => {
+const addToAgenda = (title: string, time: string, dateStr?: string, repeat?: "daily" | "weekly" | "workdays" | "mwf" | null) => {
   try {
     const AGENDA_KEY = "openlura_dashboard_agenda";
     const existing = JSON.parse(localStorage.getItem(AGENDA_KEY) || "[]");
@@ -619,6 +619,46 @@ const addToAgenda = (title: string, time: string, dateStr?: string, repeat?: "da
           done: false,
           color: "blue",
         });
+      }
+    } else if (repeat === "workdays") {
+      // Maandag t/m vrijdag voor 6 weken
+      const start = new Date(startDate + "T00:00:00");
+      let count = 0;
+      for (let i = 0; count < 30; i++) {
+        const d = new Date(start);
+        d.setDate(d.getDate() + i);
+        const day = d.getDay();
+        if (day >= 1 && day <= 5) {
+          existing.push({
+            id: `${Date.now()}-${Math.random()}-${i}`,
+            date: toStr(d),
+            time,
+            title,
+            done: false,
+            color: "blue",
+          });
+          count++;
+        }
+      }
+    } else if (repeat === "mwf") {
+      // Maandag, woensdag, vrijdag voor 6 weken
+      const start = new Date(startDate + "T00:00:00");
+      let count = 0;
+      for (let i = 0; count < 24; i++) {
+        const d = new Date(start);
+        d.setDate(d.getDate() + i);
+        const day = d.getDay();
+        if (day === 1 || day === 3 || day === 5) {
+          existing.push({
+            id: `${Date.now()}-${Math.random()}-${i}`,
+            date: toStr(d),
+            time,
+            title,
+            done: false,
+            color: "blue",
+          });
+          count++;
+        }
       }
     } else if (repeat === "weekly") {
       // 12 weken aanmaken
@@ -3084,6 +3124,8 @@ Do not mention that this is a new attempt.`,
       const repeatLabel =
         pendingAgenda.repeat === "daily" ? " — dagelijks voor de komende 30 dagen" :
         pendingAgenda.repeat === "weekly" ? " — wekelijks voor de komende 12 weken" :
+        pendingAgenda.repeat === "workdays" ? " — elke werkdag (ma t/m vr) voor 6 weken" :
+        pendingAgenda.repeat === "mwf" ? " — maandag, woensdag en vrijdag voor 6 weken" :
         "";
 
       let updated = [...chats];
@@ -3778,14 +3820,16 @@ updated[index].messages[
 
         const extractedDate = extractDate(rawInputToSend);
 
-        const detectRepeat = (text: string): "daily" | "weekly" | null => {
-          const t = text.toLowerCase();
-          if (/\belke\s+dag\b|\bdagelijks\b|\bevery\s+day\b|\bdaily\b|\bchaque\s+jour\b|\btodos\s+los\s+d[ií]as\b/.test(t)) return "daily";
-          if (/\belke\s+week\b|\bwekelijks\b|\bevery\s+week\b|\bweekly\b|\bchaque\s+semaine\b|\btodas\s+las\s+semanas\b/.test(t)) return "weekly";
+        const detectRepeat = (text: string, ai?: string): "daily" | "weekly" | "workdays" | "mwf" | null => {
+          const t = `${text} ${ai || ""}`.toLowerCase();
+          if (/\belke\s+dag\b|\bdagelijks\b|\bevery\s+day\b|\bdaily\b|\belk\s+dag\b/.test(t)) return "daily";
+          if (/\belke\s+werkdag\b|\bwerkdagen\b|\bevery\s+workday\b|\bmaandag\s+t[\/]?m\s+vrijdag\b/.test(t)) return "workdays";
+          if (/\bmaandag.*woensdag.*vrijdag\b|\bma.*wo.*vr\b|\bom\s+de\s+dag\b|\bevery\s+other\s+day\b/.test(t)) return "mwf";
+          if (/\belke\s+week\b|\bwekelijks\b|\bevery\s+week\b|\bweekly\b/.test(t)) return "weekly";
           return null;
         };
 
-        const repeat = detectRepeat(rawInputToSend);
+        const repeat = detectRepeat(rawInputToSend, aiText);
         setPendingAgenda({ chatId: currentChatId, title: agendaIntent.title, time: agendaIntent.time, date: extractedDate, repeat });
         setChats(prev => prev.map(chat => {
           if (chat.id !== currentChatId) return chat;
