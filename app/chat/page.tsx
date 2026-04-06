@@ -3137,6 +3137,13 @@ Do not mention that this is a new attempt.`,
   const sendMessage = async () => {
     if (!input.trim() && !image) return;
 
+    // Stop mic als die nog actief is
+    if (voiceListening) {
+      (window as any).__olMediaRecorder?.stop();
+      (window as any).__olSpeechRecognition?.stop();
+      setVoiceListening(false);
+    }
+
     if (!isPersonalRoute) {
       const anonUsage = getAnonUsage();
       if (anonUsage.count >= ANON_MSG_LIMIT) {
@@ -3857,30 +3864,7 @@ updated[index].messages[
     // PHASE 9.3 — context opslaan na response
     autoSaveContext(updated[index].messages);
 
-    // PHASE 9.4 — TTS: spreek AI antwoord voor (alleen personal, alleen als tekst kort genoeg)
-    if (
-      isPersonalRoute &&
-      aiText.trim() &&
-      aiText.length < 400 &&
-      typeof window !== "undefined" &&
-      "speechSynthesis" in window
-    ) {
-      window.speechSynthesis.cancel();
-      const utt = new SpeechSynthesisUtterance(aiText.trim());
-      utt.lang =
-        detectedLang === "nl" ? "nl-NL" :
-        detectedLang === "de" ? "de-DE" :
-        detectedLang === "fr" ? "fr-FR" :
-        detectedLang === "es" ? "es-ES" :
-        detectedLang === "it" ? "it-IT" :
-        detectedLang === "tr" ? "tr-TR" :
-        detectedLang === "ar" ? "ar-SA" :
-        detectedLang === "hi" ? "hi-IN" :
-        "en-US";
-      utt.rate = 1.05;
-      utt.pitch = 1;
-      window.speechSynthesis.speak(utt);
-    }
+    // PHASE 9.4 — TTS: uitgeschakeld, wordt vervangen door AI conversation systeem
 
     // PHASE 9.2 — AGENDA INTENT CHECK
     if (isPersonalRoute && rawInputToSend && !imageToSend) {
