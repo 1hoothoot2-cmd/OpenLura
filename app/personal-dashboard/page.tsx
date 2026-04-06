@@ -129,9 +129,29 @@ export default function PersonalDashboardPage() {
       return raw ? JSON.parse(raw) : DEFAULT_CARDS;
     } catch { return DEFAULT_CARDS; }
   });
+  const [showNameModal, setShowNameModal] = useState(false);
+  const [nameInput, setNameInput] = useState("");
+  const [nameSaving, setNameSaving] = useState(false);
   const [editingCardId, setEditingCardId] = useState<string | null>(null);
   const [editCardTitle, setEditCardTitle] = useState("");
   const [editCardEmoji, setEditCardEmoji] = useState("");
+
+  async function saveName() {
+    const name = nameInput.trim();
+    if (!name) return;
+    setNameSaving(true);
+    try {
+      await fetch("/api/personal-state", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json", "x-openlura-personal-env": "true" },
+        body: JSON.stringify({ profile: { name } }),
+      });
+      setUserName(name);
+      setShowNameModal(false);
+    } catch {}
+    finally { setNameSaving(false); }
+  }
 
   function saveCards(updated: typeof DEFAULT_CARDS) {
     setCards(updated);
@@ -172,7 +192,13 @@ export default function PersonalDashboardPage() {
           if (sr?.ok) {
             const sd = await sr.json().catch(() => null);
             const name = sd?.profile?.name || sd?.state?.profile?.name;
-            if (name) setUserName(name);
+            if (name) {
+              setUserName(name);
+            } else {
+              setShowNameModal(true);
+            }
+          } else {
+            setShowNameModal(true);
           }
         } else {
           router.replace("/login");
@@ -614,6 +640,52 @@ export default function PersonalDashboardPage() {
           </div>
         </div>
       </div>
+
+      {showNameModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" />
+          <div className="relative z-10 w-full max-w-sm rounded-[24px] border border-white/10 bg-[#0b0b17] p-7 shadow-[0_24px_80px_rgba(0,0,0,0.50)]">
+            <div className="mb-1 text-2xl">👋</div>
+            <h2 className="text-lg font-semibold text-white/92">
+              {typeof navigator !== "undefined" && navigator.language?.startsWith("nl")
+                ? "Hoe mag ik je noemen?"
+                : typeof navigator !== "undefined" && navigator.language?.startsWith("de")
+                ? "Wie darf ich dich nennen?"
+                : typeof navigator !== "undefined" && navigator.language?.startsWith("fr")
+                ? "Comment puis-je vous appeler?"
+                : typeof navigator !== "undefined" && navigator.language?.startsWith("es")
+                ? "¿Cómo te llamas?"
+                : "What's your name?"}
+            </h2>
+            <p className="mt-1 text-sm text-white/40">
+              {typeof navigator !== "undefined" && navigator.language?.startsWith("nl")
+                ? "OpenLura gebruikt je naam om je persoonlijk te begroeten."
+                : "OpenLura uses your name to greet you personally."}
+            </p>
+            <input
+              type="text"
+              value={nameInput}
+              onChange={e => setNameInput(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") saveName(); }}
+              placeholder={typeof navigator !== "undefined" && navigator.language?.startsWith("nl") ? "Jouw naam" : "Your name"}
+              autoFocus
+              className="mt-5 w-full rounded-[14px] border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-white outline-none placeholder:text-white/28 transition-colors focus:border-white/20"
+            />
+            <button
+              type="button"
+              onClick={saveName}
+              disabled={!nameInput.trim() || nameSaving}
+              className="mt-3 w-full rounded-[14px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] py-3 text-sm font-medium text-white shadow-[0_8px_20px_rgba(59,130,246,0.24)] transition-[filter,opacity] duration-150 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {nameSaving
+                ? "..."
+                : typeof navigator !== "undefined" && navigator.language?.startsWith("nl")
+                ? "Doorgaan"
+                : "Continue"}
+            </button>
+          </div>
+        </div>
+      )}
 
       <style jsx global>{`
         @keyframes fadeIn {
