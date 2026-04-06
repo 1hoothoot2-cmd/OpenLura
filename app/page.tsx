@@ -4,18 +4,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState, useMemo, useCallback } from "react";
 
-const chapterLinks = [
-  { href: "#how-it-works", label: "How it works" },
-  { href: "#roadmap", label: "Roadmap" },
-  { href: "#system-status", label: "System status" },
-  { href: "#use-cases", label: "Use cases" },
-  { href: "#why-openlura", label: "Why OpenLura" },
-  { href: "#plans", label: "Plans" },
-  { href: "#security", label: "Security" },
-  { href: "#account-flow", label: "Account flow" },
-  { href: "#changelog", label: "Changelog" },
-];
-
 function SectionFooter({
   nextHref,
   nextLabel,
@@ -714,62 +702,34 @@ export default function HomePage() {
             <SectionFooter />
           </section>
 
-          <div className="mt-16 w-full max-w-5xl sm:mt-20">
-            <div className="overflow-hidden rounded-[28px] border border-[#3b82f6]/14 bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.16),transparent_38%),rgba(255,255,255,0.03)] p-6 shadow-[0_20px_48px_rgba(0,0,0,0.18)] backdrop-blur-xl sm:p-7">
-              <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-                <div className="max-w-2xl">
-                  <div className="flex items-center gap-3">
-                    <div className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[18px] border border-[#3b82f6]/18 bg-[radial-gradient(circle_at_30%_30%,rgba(96,165,250,0.16),rgba(29,78,216,0.06)_52%,transparent_78%)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03),0_10px_22px_rgba(29,78,216,0.12)]">
-  <img
-    src="/openlura-logo.png"
-    alt="OpenLura logo"
-    className="h-full w-full object-contain"
-  />
-</div>
-
-                    <div className="inline-flex items-center rounded-full border border-[#3b82f6]/18 bg-[#3b82f6]/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.16em] text-blue-300">
-                      Ready to try OpenLura
-                    </div>
-                  </div>
-                  <h2 className="mt-4 text-2xl font-semibold text-white/95 sm:text-3xl">
-                    {t("cta_title")}
-                  </h2>
-
-                  <p className="mt-3 text-sm leading-6 text-white/58 sm:text-base">
-                    {t("cta_sub")}
-                  </p>
-                </div>
-
-                <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-                  <Link
-                    href="/chat"
-                    className="inline-flex h-12 w-full items-center justify-center rounded-[18px] bg-gradient-to-r from-[#1d4ed8] via-[#2563eb] to-[#3b82f6] px-6 text-sm font-medium text-white shadow-[0_14px_34px_rgba(59,130,246,0.28)] ol-interactive transition-[transform,filter,box-shadow] duration-200 hover:-translate-y-[1px] hover:brightness-110 hover:shadow-[0_18px_40px_rgba(59,130,246,0.34)] active:scale-[0.99] sm:w-auto"
-                  >
-                    {t("btn_open_chat")}
-                  </Link>
-
-                  <Link
-                    href="/personal-workspace"
-                    className="inline-flex h-12 w-full items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.04] px-6 text-sm font-medium text-white/86 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/14 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.10)] active:scale-[0.99] sm:w-auto"
-                  >
-                    {t("btn_login")}
-                  </Link>
-
-                  <button
-                    type="button"
-                    onClick={() => setIsFeedbackOpen(true)}
-                    className="inline-flex h-12 w-full items-center justify-center rounded-[18px] border border-amber-400/16 bg-amber-400/10 px-6 text-sm font-medium text-amber-200 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-amber-400/24 hover:bg-amber-400/14 hover:text-amber-100 hover:shadow-[0_10px_24px_rgba(251,191,36,0.12)] active:scale-[0.99] sm:w-auto"
-                  >
-                    {t("btn_give_feedback")}
-                  </button>
-
-                  <a
-                    href="#top"
-                    className="inline-flex h-12 w-full items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.04] px-6 text-sm font-medium text-white/86 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/14 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.10)] active:scale-[0.99] sm:w-auto"
-                  >
-                    {t("btn_back_to_top")}
-                  </a>
-                </div>
+          <div className="mt-20 w-full max-w-5xl sm:mt-24">
+            <div className="rounded-[24px] border border-[#3b82f6]/14 bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.10),transparent_50%),rgba(255,255,255,0.02)] p-8 sm:p-10">
+              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-blue-400/70">Ready to start</p>
+              <h2 className="mt-3 text-2xl font-semibold text-white/92 sm:text-3xl">
+                {t("cta_title")}
+              </h2>
+              <p className="mt-3 max-w-xl text-sm leading-7 text-white/50">
+                {t("cta_sub")}
+              </p>
+              <div className="mt-7 flex flex-wrap gap-3">
+                <Link
+                  href="/chat"
+                  className="inline-flex h-10 items-center justify-center rounded-full bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-6 text-sm font-medium text-white shadow-[0_8px_20px_rgba(59,130,246,0.28)] transition-[filter,box-shadow] duration-150 hover:brightness-110"
+                >
+                  {t("btn_open_chat")}
+                </Link>
+                <Link
+                  href="/personal-workspace"
+                  className="inline-flex h-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] px-6 text-sm font-medium text-white/80 transition-[background-color,border-color,color] duration-150 hover:border-white/16 hover:bg-white/[0.07] hover:text-white"
+                >
+                  {t("btn_login")}
+                </Link>
+                
+                  href="#top"
+                  className="inline-flex h-10 items-center justify-center rounded-full border border-white/8 px-5 text-sm font-medium text-white/36 transition-colors duration-150 hover:text-white/60"
+                <a> 
+                  ↑ Top
+                </a>
               </div>
             </div>
           </div>
