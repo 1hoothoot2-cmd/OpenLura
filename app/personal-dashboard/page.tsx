@@ -835,13 +835,29 @@ export default function PersonalDashboardPage() {
                     </div>
                   ))}
                 </div>
-                <button
-                  type="button"
-                  onClick={async () => { setShowSubscriptionModal(false); await handleUpgradeClick(); }}
-                  className="w-full rounded-[14px] border border-white/10 bg-white/[0.04] py-3 text-sm text-white/60 hover:text-white hover:bg-white/[0.08] transition-all"
-                >
-                  {t("manage_sub", lang)}
-                </button>
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={async () => { setShowSubscriptionModal(false); await handleUpgradeClick(); }}
+                    className="w-full rounded-[14px] border border-white/10 bg-white/[0.04] py-3 text-sm text-white/60 hover:text-white hover:bg-white/[0.08] transition-all"
+                  >
+                    {t("manage_sub", lang)}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setShowSubscriptionModal(false);
+                      try {
+                        const r = await fetch("/api/stripe/portal", { method: "POST", credentials: "include" });
+                        const d = await r.json();
+                        if (d.url) window.location.href = d.url;
+                      } catch {}
+                    }}
+                    className="w-full rounded-[14px] border border-red-400/20 bg-red-400/[0.04] py-3 text-sm text-red-400/70 hover:text-red-300 hover:bg-red-400/[0.08] transition-all"
+                  >
+                    Abonnement opzeggen
+                  </button>
+                </div>
               </>
             )}
           </div>
