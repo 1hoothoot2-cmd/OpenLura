@@ -105,6 +105,7 @@ export default function PersonalDashboardPage() {
   const [authChecked, setAuthChecked] = useState(false);
   const [authed, setAuthed] = useState(false);
   const [userName, setUserName] = useState<string | null>(null);
+  const [userTier, setUserTier] = useState<"free" | "pro" | "admin">("free");
   const [now, setNow] = useState(new Date());
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -118,7 +119,7 @@ export default function PersonalDashboardPage() {
   const DEFAULT_CARDS = [
     { id: "agenda", emoji: "📅", title: "Agenda", desc: "Bekijk en plan je dag", href: "/personal-dashboard" },
     { id: "chat", emoji: "💬", title: "Chat", desc: "Open je AI werkruimte", href: "/personal-workspace" },
-    { id: "workspace", emoji: "🧠", title: "Persoonlijke omgeving", desc: "Jouw privé AI omgeving", href: "/persoonlijke-omgeving" },
+    { id: "workspace", emoji: "💬", title: "Chat", desc: "Open je persoonlijke AI chat", href: "/personal-workspace" },
     { id: "subscription", emoji: "💳", title: "Abonnement", desc: "Beheer je plan", href: "/api/stripe/portal" },
     { id: "photo-studio", emoji: "🎨", title: "Photo Studio", desc: "Genereer afbeeldingen met AI", href: "/photo-studio" },
   ];
@@ -174,6 +175,14 @@ export default function PersonalDashboardPage() {
     setEditCardEmoji(card.emoji);
   }
 
+  async function handleUpgradeClick() {
+    try {
+      const r = await fetch("/api/stripe/checkout", { method: "POST", credentials: "include" });
+      const d = await r.json();
+      if (d.url) window.location.href = d.url;
+    } catch {}
+  }
+
   function saveCardEdit(id: string) {
     saveCards(cards.map((c: typeof DEFAULT_CARDS[0]) =>
       c.id === id ? { ...c, title: editCardTitle, emoji: editCardEmoji } : c
@@ -202,11 +211,10 @@ export default function PersonalDashboardPage() {
           if (sr?.ok) {
             const sd = await sr.json().catch(() => null);
             const name = sd?.profile?.name || sd?.state?.profile?.name;
-            if (name) {
-              setUserName(name);
-            } else {
-              setShowNameModal(true);
-            }
+            if (name) setUserName(name);
+            else setShowNameModal(true);
+            const tier = sd?.usageStats?.tier || sd?.usage_stats?.tier;
+            if (tier === "pro" || tier === "admin") setUserTier(tier);
           } else {
             setShowNameModal(true);
           }
@@ -371,21 +379,45 @@ export default function PersonalDashboardPage() {
                 </div>
               ) : (
                 <>
-                  <a href={card.href} className="block">
-                    <div className="text-2xl mb-2">{card.emoji}</div>
-                    <div className="text-sm font-medium text-white/88">{card.title}</div>
-                    <div className="mt-0.5 text-xs text-white/36 leading-4">{card.desc}</div>
-                  </a>
-                  <button
-                    type="button"
-                    onClick={() => startEditCard(card)}
-                    className="absolute right-2.5 top-2.5 h-6 w-6 flex items-center justify-center rounded-full text-white/20 opacity-0 group-hover:opacity-100 transition-all hover:bg-white/[0.08] hover:text-white/60"
-                    title="Bewerken"
-                  >
-                    <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
-                      <path d="M11.5 2.5l2 2L5 13H3v-2L11.5 2.5z" />
-                    </svg>
-                  </button>
+                  {/* Blur overlay voor locked cards */}
+                  {(card.id === "agenda" || card.id === "photo-studio") && userTier === "free" ? (
+                    <>
+                      <div className="block select-none pointer-events-none opacity-40">
+                        <div className="text-2xl mb-2">{card.emoji}</div>
+                        <div className="text-sm font-medium text-white/88">{card.title}</div>
+                        <div className="mt-0.5 text-xs text-white/36 leading-4">{card.desc}</div>
+                      </div>
+                      <div className="absolute inset-0 rounded-[18px] backdrop-blur-[2px] bg-black/30 flex flex-col items-center justify-center gap-1.5">
+                        <span className="text-xs font-medium text-white/70">🔒 Go</span>
+                        
+                          <button
+                          type="button"
+                          onClick={handleUpgradeClick}
+                          className="rounded-full bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-3 py-1 text-[11px] font-medium text-white hover:brightness-110 transition-all"
+                        >
+                          Upgrade
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <a href={card.href} className="block">
+                      <div className="text-2xl mb-2">{card.emoji}</div>
+                      <div className="text-sm font-medium text-white/88">{card.title}</div>
+                      <div className="mt-0.5 text-xs text-white/36 leading-4">{card.desc}</div>
+                    </a>
+                  )}
+                  {userTier !== "free" && (
+                    <button
+                      type="button"
+                      onClick={() => startEditCard(card)}
+                      className="absolute right-2.5 top-2.5 h-6 w-6 flex items-center justify-center rounded-full text-white/20 opacity-0 group-hover:opacity-100 transition-all hover:bg-white/[0.08] hover:text-white/60"
+                      title="Bewerken"
+                    >
+                      <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+                        <path d="M11.5 2.5l2 2L5 13H3v-2L11.5 2.5z" />
+                      </svg>
+                    </button>
+                  )}
                 </>
               )}
             </div>
