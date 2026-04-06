@@ -3701,10 +3701,10 @@ setIsWaitingForFirstToken(true);
                 msg.content !== "Analyzing image..." &&
                 msg.content !== "🤖 Wat kan ik beter doen?"
             )
-            .slice(-12)
+            .slice(-8)
             .map((msg: any) => ({
               role: msg.role,
-              content: msg.content,
+              content: String(msg.content).slice(0, 1200),
               image: msg.image ? true : undefined,
             })),
         }),

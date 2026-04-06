@@ -2628,30 +2628,21 @@ ${input.sharedStyleInstructionBlock}
 RUNTIME OVERRIDE PROFILE:
 ${input.runtimeOverrideInstructionBlock}
 
-GLOBAL LEARNING:
+${input.currentGlobalFeedbackSnapshot.length > 0 ? `GLOBAL LEARNING:
 Total sessions: ${input.currentGlobalFeedbackSnapshot.length}
 
 Common failed patterns (avoid these types of responses):
 ${input.currentGlobalFeedbackSnapshot
-  .filter(
-    (f: any) => f.type === "down" || f.source === "idea_feedback_learning"
-  )
+  .filter((f: any) => f.type === "down" || f.source === "idea_feedback_learning")
   .slice(0, 5)
-  .map(
-    (f: any) => {
-      const text = (f.userMessage || f.message || "").slice(0, 80);
-      return `- "${text}"`;
-    }
-  )
-  .join("\n") || "none"}
+  .map((f: any) => `- "${(f.userMessage || f.message || "").slice(0, 80)}"`)
+  .join("\n") || "none"}` : ""}
 
-DETECTED FEEDBACK PATTERNS:
-${input.detectedFeedbackPatterns || "none"}
+${input.detectedFeedbackPatterns ? `DETECTED FEEDBACK PATTERNS:\n${input.detectedFeedbackPatterns}` : ""}
 
-ACTIVE LEARNING RULES:
-${input.activeLearningRules || "none"}
+${input.activeLearningRules ? `ACTIVE LEARNING RULES:\n${input.activeLearningRules}` : ""}
 
-GLOBAL AI LEARNING (CONSENSUS ENGINE):
+${(input.globalSignals.shorter > 0 || input.globalSignals.clearer > 0 || input.globalSignals.structure > 0) ? `GLOBAL AI LEARNING (CONSENSUS ENGINE):
 - Shorter answers pressure: ${input.globalSignals.shorter}
 - Clearer explanations pressure: ${input.globalSignals.clearer}
 - Better structure pressure: ${input.globalSignals.structure}
@@ -2659,13 +2650,11 @@ GLOBAL AI LEARNING (CONSENSUS ENGINE):
 CONSENSUS RULES:
 - If a consensus signal is above 5, apply it strongly
 - If a consensus signal is between 2 and 5, apply it lightly
-- If consensus signals conflict, choose a balanced middle ground
+- If consensus signals conflict, choose a balanced middle ground` : ""}
 
-GLOBAL LEARNING (all users):
-${input.injectedLearningRules || "none"}
+${input.injectedLearningRules ? `GLOBAL LEARNING (all users):\n${input.injectedLearningRules}` : ""}
 
-PERSONAL CONTEXT (single user bias):
-${input.personalLayerLength > 0 ? "present" : "none"}
+${input.personalLayerLength > 0 ? "PERSONAL CONTEXT (single user bias): present" : ""}
 
 RUNTIME LEARNING PRIORITY:
 - personal learning active: ${input.isPersonalEnvironment ? "yes" : "no"}
@@ -2678,17 +2667,12 @@ USAGE SNAPSHOT:
 - tier: ${input.usageLimitSnapshot.tier}
 - limit exceeded: ${input.usageLimitSnapshot.exceeded ? "yes" : "no"}
 
-SUCCESSFUL PATTERNS (completed items):
+${input.completedFeedback.length > 0 ? `SUCCESSFUL PATTERNS (completed items):
 ${input.completedFeedback
-  .filter(
-    (f: any) =>
-      f.type === "up" ||
-      f.type === "improve" ||
-      f.source === "idea_feedback_learning"
-  )
+  .filter((f: any) => f.type === "up" || f.type === "improve" || f.source === "idea_feedback_learning")
   .slice(0, 3)
   .map((f: any) => `- ${(f.userMessage || f.message || "").slice(0, 80)}`)
-  .join("\n") || "none"}
+  .join("\n") || "none"}` : ""}
 
 ADAPTATION RULES:
 - If users prefer shorter answers, reduce filler and get to the point faster
@@ -3237,12 +3221,12 @@ ${personalRecentIssues.join("\n") || "none"}
             typeof msg.content === "string" &&
             msg.content.trim()
         )
-        .slice(-12)
+        .slice(-8)
         .map(
           (msg: any) => {
             const prefix = msg.role === "user" ? "User" : "Assistant";
             const imageNote = msg.image ? " [had image attached]" : "";
-            return `${prefix}${imageNote}: ${msg.content.trim()}`;
+            return `${prefix}${imageNote}: ${msg.content.trim().slice(0, 1200)}`;
           }
         )
         .join("\n\n")
