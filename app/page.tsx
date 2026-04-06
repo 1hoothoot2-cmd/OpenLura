@@ -35,7 +35,56 @@ function SectionFooter({
 export default function HomePage() {
   const router = useRouter();
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
+  const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [homeChatInput, setHomeChatInput] = useState("");
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
+  const [loginLoading, setLoginLoading] = useState(false);
+
+  function resetLoginModal() {
+    setIsLoginOpen(false);
+    setLoginEmail("");
+    setLoginPassword("");
+    setLoginError("");
+    setLoginLoading(false);
+  }
+
+  async function handleEmailLogin(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setLoginLoading(true);
+    setLoginError("");
+    try {
+      const res = await fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          action: "login",
+          username: loginEmail.trim(),
+          password: loginPassword,
+        }),
+      });
+      if (!res.ok) {
+        setLoginError("Invalid email or password.");
+        return;
+      }
+      router.push("/personal-dashboard");
+    } catch {
+      setLoginError("Something went wrong. Try again.");
+    } finally {
+      setLoginLoading(false);
+    }
+  }
+
+  function handleGoogleLogin() {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!supabaseUrl || !supabaseKey) return;
+    const redirectTo = `${window.location.origin}/auth/callback`;
+    const url = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirectTo)}&apikey=${supabaseKey}`;
+    window.location.href = url;
+  }
 
   const lang = useMemo(() => {
     if (typeof navigator === "undefined") return "en";
@@ -244,12 +293,13 @@ export default function HomePage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <Link
-              href="/personal-workspace"
+            <button
+              type="button"
+              onClick={() => setIsLoginOpen(true)}
               className="hidden rounded-full border border-white/10 bg-white/[0.04] px-4 py-1.5 text-[13px] font-medium text-white/80 transition-colors duration-150 hover:border-white/16 hover:bg-white/[0.07] hover:text-white sm:inline-flex"
             >
               Log in
-            </Link>
+            </button>
             <Link
               href="/chat"
               className="inline-flex rounded-full bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-4 py-1.5 text-[13px] font-medium text-white shadow-[0_4px_14px_rgba(59,130,246,0.28)] transition-[filter,box-shadow] duration-150 hover:brightness-110"
@@ -281,18 +331,34 @@ export default function HomePage() {
             {t("hero_sub")}
           </p>
 
-          <div className="mt-7 flex flex-wrap gap-3">
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-stretch">
+            <button
+              type="button"
+              onClick={() => setIsLoginOpen(true)}
+              className="group relative flex flex-col items-start rounded-[20px] border border-[#3b82f6]/24 bg-gradient-to-b from-[#0d1733] to-[#0a1022] px-5 py-4 text-left shadow-[0_8px_28px_rgba(29,78,216,0.16)] transition-[border-color,box-shadow] duration-150 hover:border-[#3b82f6]/40 hover:shadow-[0_12px_36px_rgba(29,78,216,0.22)] sm:w-56"
+            >
+              <span className="mb-2 inline-flex items-center rounded-full border border-[#3b82f6]/20 bg-[#3b82f6]/10 px-2.5 py-0.5 text-[11px] font-medium uppercase tracking-[0.12em] text-blue-300">
+                Personal
+              </span>
+              <span className="text-sm font-semibold text-white">Log in to your dashboard</span>
+              <span className="mt-1 text-[12px] leading-5 text-white/46">Your workspace, history, and AI — all in one place.</span>
+              <span className="mt-3 text-[12px] font-medium text-blue-400 group-hover:text-blue-300 transition-colors duration-150">Sign in →</span>
+            </button>
+
+            <div className="flex items-center justify-center">
+              <span className="text-[12px] text-white/24 sm:rotate-0">or</span>
+            </div>
+
             <Link
               href="/chat"
-              className="inline-flex h-10 items-center justify-center rounded-full bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-5 text-sm font-medium text-white shadow-[0_8px_20px_rgba(59,130,246,0.28)] transition-[filter,box-shadow] duration-150 hover:brightness-110 active:scale-[0.99]"
+              className="group relative flex flex-col items-start rounded-[20px] border border-white/10 bg-white/[0.03] px-5 py-4 text-left transition-[border-color,background-color] duration-150 hover:border-white/16 hover:bg-white/[0.05] sm:w-56"
             >
-              {t("btn_start_chat")}
-            </Link>
-            <Link
-              href="/personal-workspace"
-              className="inline-flex h-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] px-5 text-sm font-medium text-white/80 backdrop-blur-xl transition-[background-color,border-color,color] duration-150 hover:border-white/16 hover:bg-white/[0.07] hover:text-white active:scale-[0.99]"
-            >
-              Log in / Sign up
+              <span className="mb-2 inline-flex items-center rounded-full border border-emerald-400/16 bg-emerald-400/8 px-2.5 py-0.5 text-[11px] font-medium uppercase tracking-[0.12em] text-emerald-300/80">
+                Free
+              </span>
+              <span className="text-sm font-semibold text-white">Try the chat</span>
+              <span className="mt-1 text-[12px] leading-5 text-white/46">No account needed. Start asking, writing, and planning.</span>
+              <span className="mt-3 text-[12px] font-medium text-white/40 group-hover:text-white/70 transition-colors duration-150">Open chat →</span>
             </Link>
           </div>
 
@@ -729,7 +795,96 @@ export default function HomePage() {
             </div>
           </div>
         </div>
-                 {isFeedbackOpen && (
+                 {isLoginOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+            <button
+              type="button"
+              aria-label="Close login modal"
+              onClick={resetLoginModal}
+              className="absolute inset-0 bg-black/75 backdrop-blur-sm"
+            />
+            <div className="relative z-10 w-full max-w-md rounded-[28px] border border-white/10 bg-[#0b0b17] p-7 shadow-[0_24px_80px_rgba(0,0,0,0.50)]">
+              <button
+                type="button"
+                aria-label="Close"
+                onClick={resetLoginModal}
+                className="absolute right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white/50 transition-colors duration-150 hover:bg-white/[0.08] hover:text-white"
+              >
+                ×
+              </button>
+
+              <div className="mb-6 text-center">
+                <div className="mx-auto mb-4 flex h-10 w-10 items-center justify-center overflow-hidden rounded-[12px] border border-[#3b82f6]/20 bg-[radial-gradient(circle_at_30%_30%,rgba(96,165,250,0.18),rgba(29,78,216,0.06)_52%,transparent_78%)]">
+                  <img src="/openlura-logo.png" alt="OpenLura" className="h-full w-full object-contain" />
+                </div>
+                <h2 className="text-xl font-semibold text-white/92">Welcome to OpenLura</h2>
+                <p className="mt-1.5 text-sm text-white/46">Sign in to your personal workspace</p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleGoogleLogin}
+                className="flex w-full items-center justify-center gap-3 rounded-[16px] border border-white/10 bg-white/[0.05] px-5 py-3 text-sm font-medium text-white/88 transition-[background-color,border-color] duration-150 hover:border-white/16 hover:bg-white/[0.09]"
+              >
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                  <path d="M17.64 9.205c0-.639-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615Z" fill="#4285F4"/>
+                  <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18Z" fill="#34A853"/>
+                  <path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332Z" fill="#FBBC05"/>
+                  <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58Z" fill="#EA4335"/>
+                </svg>
+                Continue with Google
+              </button>
+
+              <div className="my-5 flex items-center gap-3">
+                <div className="h-px flex-1 bg-white/8" />
+                <span className="text-[12px] text-white/30">or</span>
+                <div className="h-px flex-1 bg-white/8" />
+              </div>
+
+              <form onSubmit={handleEmailLogin} className="space-y-3">
+                <input
+                  type="email"
+                  value={loginEmail}
+                  onChange={(e) => setLoginEmail(e.target.value)}
+                  placeholder="Email address"
+                  required
+                  className="w-full rounded-[14px] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none placeholder:text-white/30 transition-colors duration-150 focus:border-white/20"
+                />
+                <input
+                  type="password"
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  placeholder="Password"
+                  required
+                  className="w-full rounded-[14px] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none placeholder:text-white/30 transition-colors duration-150 focus:border-white/20"
+                />
+
+                {loginError && (
+                  <p className="rounded-[12px] border border-rose-400/20 bg-rose-400/10 px-4 py-2.5 text-sm text-rose-200">
+                    {loginError}
+                  </p>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={loginLoading}
+                  className="w-full rounded-[14px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] py-3 text-sm font-medium text-white shadow-[0_8px_20px_rgba(59,130,246,0.24)] transition-[filter,opacity] duration-150 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {loginLoading ? "Signing in..." : "Continue with email"}
+                </button>
+              </form>
+
+              <p className="mt-5 text-center text-[12px] text-white/30">
+                No account yet?{" "}
+                <a href="/personal-workspace" className="text-blue-400/80 hover:text-blue-300 transition-colors duration-150">
+                  Create one here
+                </a>
+              </p>
+            </div>
+          </div>
+        )}
+
+        {isFeedbackOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
             <button
               type="button"
