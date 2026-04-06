@@ -1,6 +1,6 @@
 "use client";
 import Sidebar from "@/components/chat/Sidebar";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { usePathname } from "next/navigation";
 function safeParseJson<T>(raw: string | null, fallback: T): T {
   if (!raw) return fallback;
@@ -62,7 +62,7 @@ const [detectedLang, setDetectedLang] = useState(() => getBrowserLanguage());
 // apart van UI-taal: dit is de taal die we meesturen voor voice input
 const [voiceInputLang, setVoiceInputLang] = useState(getBrowserLanguage);
 
-  const t = (key: string) => {
+  const t = useMemo(() => {
     const translations: Record<string, Record<string, string>> = {
       thinking: {
         nl: "OpenLura denkt na...",
@@ -228,8 +228,8 @@ const [voiceInputLang, setVoiceInputLang] = useState(getBrowserLanguage);
       },
     };
 
-    return translations[key]?.[detectedLang] ?? translations[key]?.["en"] ?? key;
-  };
+    return (key: string) => translations[key]?.[detectedLang] ?? translations[key]?.["en"] ?? key;
+  }, [detectedLang, userName]);
   const [chats, setChats] = useState<any[]>([]);
   const [activeChatId, setActiveChatId] = useState<number | null>(null);
   const [input, setInput] = useState("");
@@ -1975,7 +1975,7 @@ const shouldSkipPersonalStateSync =
 
     const pollId = window.setInterval(() => {
       loadPersonalStateFromServer(false);
-    }, 5000);
+    }, 30000);
 
     window.addEventListener("focus", handleWindowFocus);
     document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -3877,7 +3877,6 @@ updated[index].messages[
 
     setChats([...updated]);
 
-    setIsWaitingForFirstToken(false);
     setStreamController(null);
 
     // PHASE 9.3 — context opslaan na response
@@ -4431,6 +4430,28 @@ updated[index].messages[
               >
                 <div className="text-sm font-medium">{opt === "default" ? "Default" : opt === "concise" ? "Kort" : opt === "structured" ? "Gestructureerd" : "Uitgebreid"}</div>
                 <div className="text-[11px] text-white/32 mt-0.5">{opt === "default" ? "Gebalanceerd" : opt === "concise" ? "Zo compact mogelijk" : opt === "structured" ? "Met duidelijke opbouw" : "Meer context & diepte"}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Taal instelling */}
+        <div>
+          <div className="mb-2.5 text-[11px] uppercase tracking-[0.14em] text-white/34">Taal / Language</div>
+          <div className="grid grid-cols-3 gap-2">
+            {([["nl", "🇳🇱 Nederlands"], ["en", "🇬🇧 English"], ["de", "🇩🇪 Deutsch"], ["fr", "🇫🇷 Français"], ["es", "🇪🇸 Español"], ["pt", "🇵🇹 Português"]] as const).map(([code, label]) => (
+              <button key={code} type="button"
+                onClick={() => {
+                  setDetectedLang(code);
+                  try { localStorage.setItem("openlura_ui_lang", code); } catch {}
+                }}
+                className={`rounded-2xl border px-3 py-2 text-left text-[12px] transition-all duration-150 ${
+                  detectedLang === code
+                    ? "border-white/20 bg-white/[0.08] text-white"
+                    : "border-white/8 bg-white/[0.03] text-white/50 hover:border-white/12 hover:bg-white/[0.05] hover:text-white/70"
+                }`}
+              >
+                {label}
               </button>
             ))}
           </div>
