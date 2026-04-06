@@ -338,30 +338,30 @@ export default function HomePage() {
             <button
               type="button"
               onClick={() => setIsLoginOpen(true)}
-              className="group relative flex flex-col items-start rounded-[20px] border border-[#3b82f6]/24 bg-gradient-to-b from-[#0d1733] to-[#0a1022] px-5 py-4 text-left shadow-[0_8px_28px_rgba(29,78,216,0.16)] transition-[border-color,box-shadow] duration-150 hover:border-[#3b82f6]/40 hover:shadow-[0_12px_36px_rgba(29,78,216,0.22)] sm:w-56"
+              className="group relative flex flex-col items-start rounded-[22px] border border-[#3b82f6]/24 bg-gradient-to-b from-[#0d1733] to-[#0a1022] px-6 py-6 text-left shadow-[0_8px_28px_rgba(29,78,216,0.16)] transition-[border-color,box-shadow] duration-150 hover:border-[#3b82f6]/40 hover:shadow-[0_12px_36px_rgba(29,78,216,0.22)] sm:w-72"
             >
-              <span className="mb-2 inline-flex items-center rounded-full border border-[#3b82f6]/20 bg-[#3b82f6]/10 px-2.5 py-0.5 text-[11px] font-medium uppercase tracking-[0.12em] text-blue-300">
+              <span className="mb-3 inline-flex items-center rounded-full border border-[#3b82f6]/20 bg-[#3b82f6]/10 px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-blue-300">
                 Personal
               </span>
-              <span className="text-sm font-semibold text-white">Log in to your dashboard</span>
-              <span className="mt-1 text-[12px] leading-5 text-white/46">Your workspace, history, and AI — all in one place.</span>
-              <span className="mt-3 text-[12px] font-medium text-blue-400 group-hover:text-blue-300 transition-colors duration-150">Sign in →</span>
+              <span className="text-base font-semibold text-white">Log in to your dashboard</span>
+              <span className="mt-2 text-sm leading-6 text-white/46">Your workspace, history, and AI — all in one place.</span>
+              <span className="mt-4 text-sm font-medium text-blue-400 group-hover:text-blue-300 transition-colors duration-150">Sign in →</span>
             </button>
 
-            <div className="flex items-center justify-center">
-              <span className="text-[12px] text-white/24 sm:rotate-0">or</span>
+            <div className="flex items-center justify-center px-1">
+              <span className="text-[12px] text-white/24">or</span>
             </div>
 
             <Link
               href="/chat"
-              className="group relative flex flex-col items-start rounded-[20px] border border-white/10 bg-white/[0.03] px-5 py-4 text-left transition-[border-color,background-color] duration-150 hover:border-white/16 hover:bg-white/[0.05] sm:w-56"
+              className="group relative flex flex-col items-start rounded-[22px] border border-white/10 bg-white/[0.03] px-6 py-6 text-left transition-[border-color,background-color] duration-150 hover:border-white/16 hover:bg-white/[0.05] sm:w-72"
             >
-              <span className="mb-2 inline-flex items-center rounded-full border border-emerald-400/16 bg-emerald-400/8 px-2.5 py-0.5 text-[11px] font-medium uppercase tracking-[0.12em] text-emerald-300/80">
+              <span className="mb-3 inline-flex items-center rounded-full border border-emerald-400/16 bg-emerald-400/8 px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-emerald-300/80">
                 Free
               </span>
-              <span className="text-sm font-semibold text-white">Try the chat</span>
-              <span className="mt-1 text-[12px] leading-5 text-white/46">No account needed. Start asking, writing, and planning.</span>
-              <span className="mt-3 text-[12px] font-medium text-white/40 group-hover:text-white/70 transition-colors duration-150">Open chat →</span>
+              <span className="text-base font-semibold text-white">Try the chat</span>
+              <span className="mt-2 text-sm leading-6 text-white/46">No account needed. Start asking, writing, and planning.</span>
+              <span className="mt-4 text-sm font-medium text-white/40 group-hover:text-white/70 transition-colors duration-150">Open chat →</span>
             </Link>
           </div>
 

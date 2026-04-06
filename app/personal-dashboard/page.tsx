@@ -226,12 +226,22 @@ export default function PersonalDashboardPage() {
             <div className="text-[10px] uppercase tracking-[0.16em] text-white/32">Personal Dashboard</div>
           </div>
         </div>
-        <a href="/personal-workspace" className="flex items-center gap-2 rounded-full border border-[#3b82f6]/22 bg-[#3b82f6]/10 px-4 py-2 text-sm text-[#93c5fd] transition-all duration-200 hover:border-[#3b82f6]/40 hover:bg-[#3b82f6]/18 hover:text-white active:scale-[0.97]">
-          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-          </svg>
-          Chat
-        </a>
+       <a href="/chat" className="flex items-center gap-2 rounded-full bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-4 py-2 text-sm font-medium text-white shadow-[0_4px_14px_rgba(59,130,246,0.28)] transition-[filter,box-shadow] duration-150 hover:brightness-110 active:scale-[0.97]">
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+            Open chat
+          </a>
+          <button
+            type="button"
+            onClick={async () => {
+              await fetch("/api/auth", { method: "DELETE", credentials: "same-origin" }).catch(() => null);
+              router.push("/");
+            }}
+            className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-medium text-white/60 transition-[background-color,border-color,color] duration-150 hover:border-white/16 hover:bg-white/[0.07] hover:text-white active:scale-[0.97]"
+          >
+            Log out
+          </button>
       </header>
 
       {/* Body */}
