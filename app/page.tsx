@@ -272,7 +272,7 @@ export default function HomePage() {
         </div>
       </nav>
 
-      <div className="mx-auto w-full max-w-6xl px-4 pt-12 pb-0 sm:px-6 sm:pt-16 lg:px-8 lg:pt-20">
+      <div className="mx-auto w-full max-w-6xl px-4 pt-14 pb-0 sm:px-6 sm:pt-20 lg:px-8 lg:pt-24">
         <div className="w-full">
           <div className="flex flex-wrap items-center gap-2 mb-6">
             <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1 text-[12px] font-medium text-amber-200">
@@ -373,7 +373,7 @@ export default function HomePage() {
           {/* PLANS */}
           <section
             id="plans"
-            className="section-panel scroll-mt-20 mt-14 w-full max-w-5xl sm:mt-16"
+            className="section-panel scroll-mt-20 mt-24 w-full max-w-5xl sm:mt-28"
           >
             <div className="mb-8">
               <h2 className="text-2xl font-semibold text-white/92">Plans</h2>
