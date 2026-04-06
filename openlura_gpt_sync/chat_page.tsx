@@ -1,6 +1,6 @@
 "use client";
 import Sidebar from "@/components/chat/Sidebar";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { usePathname } from "next/navigation";
 function safeParseJson<T>(raw: string | null, fallback: T): T {
   if (!raw) return fallback;
@@ -62,7 +62,7 @@ const [detectedLang, setDetectedLang] = useState(() => getBrowserLanguage());
 // apart van UI-taal: dit is de taal die we meesturen voor voice input
 const [voiceInputLang, setVoiceInputLang] = useState(getBrowserLanguage);
 
-  const t = (key: string) => {
+  const t = useMemo(() => {
     const translations: Record<string, Record<string, string>> = {
       thinking: {
         nl: "OpenLura denkt na...",
@@ -228,8 +228,8 @@ const [voiceInputLang, setVoiceInputLang] = useState(getBrowserLanguage);
       },
     };
 
-    return translations[key]?.[detectedLang] ?? translations[key]?.["en"] ?? key;
-  };
+    return (key: string) => translations[key]?.[detectedLang] ?? translations[key]?.["en"] ?? key;
+  }, [detectedLang, userName]);
   const [chats, setChats] = useState<any[]>([]);
   const [activeChatId, setActiveChatId] = useState<number | null>(null);
   const [input, setInput] = useState("");
@@ -1975,7 +1975,7 @@ const shouldSkipPersonalStateSync =
 
     const pollId = window.setInterval(() => {
       loadPersonalStateFromServer(false);
-    }, 5000);
+    }, 30000);
 
     window.addEventListener("focus", handleWindowFocus);
     document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -3701,10 +3701,10 @@ setIsWaitingForFirstToken(true);
                 msg.content !== "Analyzing image..." &&
                 msg.content !== "🤖 Wat kan ik beter doen?"
             )
-            .slice(-12)
+            .slice(-8)
             .map((msg: any) => ({
               role: msg.role,
-              content: msg.content,
+              content: String(msg.content).slice(0, 1200),
               image: msg.image ? true : undefined,
             })),
         }),
@@ -3877,7 +3877,6 @@ updated[index].messages[
 
     setChats([...updated]);
 
-    setIsWaitingForFirstToken(false);
     setStreamController(null);
 
     // PHASE 9.3 — context opslaan na response

@@ -2628,30 +2628,21 @@ ${input.sharedStyleInstructionBlock}
 RUNTIME OVERRIDE PROFILE:
 ${input.runtimeOverrideInstructionBlock}
 
-GLOBAL LEARNING:
+${input.currentGlobalFeedbackSnapshot.length > 0 ? `GLOBAL LEARNING:
 Total sessions: ${input.currentGlobalFeedbackSnapshot.length}
 
 Common failed patterns (avoid these types of responses):
 ${input.currentGlobalFeedbackSnapshot
-  .filter(
-    (f: any) => f.type === "down" || f.source === "idea_feedback_learning"
-  )
+  .filter((f: any) => f.type === "down" || f.source === "idea_feedback_learning")
   .slice(0, 5)
-  .map(
-    (f: any) => {
-      const text = (f.userMessage || f.message || "").slice(0, 80);
-      return `- "${text}"`;
-    }
-  )
-  .join("\n") || "none"}
+  .map((f: any) => `- "${(f.userMessage || f.message || "").slice(0, 80)}"`)
+  .join("\n") || "none"}` : ""}
 
-DETECTED FEEDBACK PATTERNS:
-${input.detectedFeedbackPatterns || "none"}
+${input.detectedFeedbackPatterns ? `DETECTED FEEDBACK PATTERNS:\n${input.detectedFeedbackPatterns}` : ""}
 
-ACTIVE LEARNING RULES:
-${input.activeLearningRules || "none"}
+${input.activeLearningRules ? `ACTIVE LEARNING RULES:\n${input.activeLearningRules}` : ""}
 
-GLOBAL AI LEARNING (CONSENSUS ENGINE):
+${(input.globalSignals.shorter > 0 || input.globalSignals.clearer > 0 || input.globalSignals.structure > 0) ? `GLOBAL AI LEARNING (CONSENSUS ENGINE):
 - Shorter answers pressure: ${input.globalSignals.shorter}
 - Clearer explanations pressure: ${input.globalSignals.clearer}
 - Better structure pressure: ${input.globalSignals.structure}
@@ -2659,13 +2650,11 @@ GLOBAL AI LEARNING (CONSENSUS ENGINE):
 CONSENSUS RULES:
 - If a consensus signal is above 5, apply it strongly
 - If a consensus signal is between 2 and 5, apply it lightly
-- If consensus signals conflict, choose a balanced middle ground
+- If consensus signals conflict, choose a balanced middle ground` : ""}
 
-GLOBAL LEARNING (all users):
-${input.injectedLearningRules || "none"}
+${input.injectedLearningRules ? `GLOBAL LEARNING (all users):\n${input.injectedLearningRules}` : ""}
 
-PERSONAL CONTEXT (single user bias):
-${input.personalLayerLength > 0 ? "present" : "none"}
+${input.personalLayerLength > 0 ? "PERSONAL CONTEXT (single user bias): present" : ""}
 
 RUNTIME LEARNING PRIORITY:
 - personal learning active: ${input.isPersonalEnvironment ? "yes" : "no"}
@@ -2678,17 +2667,12 @@ USAGE SNAPSHOT:
 - tier: ${input.usageLimitSnapshot.tier}
 - limit exceeded: ${input.usageLimitSnapshot.exceeded ? "yes" : "no"}
 
-SUCCESSFUL PATTERNS (completed items):
+${input.completedFeedback.length > 0 ? `SUCCESSFUL PATTERNS (completed items):
 ${input.completedFeedback
-  .filter(
-    (f: any) =>
-      f.type === "up" ||
-      f.type === "improve" ||
-      f.source === "idea_feedback_learning"
-  )
+  .filter((f: any) => f.type === "up" || f.type === "improve" || f.source === "idea_feedback_learning")
   .slice(0, 3)
   .map((f: any) => `- ${(f.userMessage || f.message || "").slice(0, 80)}`)
-  .join("\n") || "none"}
+  .join("\n") || "none"}` : ""}
 
 ADAPTATION RULES:
 - If users prefer shorter answers, reduce filler and get to the point faster
@@ -3237,12 +3221,12 @@ ${personalRecentIssues.join("\n") || "none"}
             typeof msg.content === "string" &&
             msg.content.trim()
         )
-        .slice(-12)
+        .slice(-8)
         .map(
           (msg: any) => {
             const prefix = msg.role === "user" ? "User" : "Assistant";
             const imageNote = msg.image ? " [had image attached]" : "";
-            return `${prefix}${imageNote}: ${msg.content.trim()}`;
+            return `${prefix}${imageNote}: ${msg.content.trim().slice(0, 1200)}`;
           }
         )
         .join("\n\n")
@@ -3581,11 +3565,19 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
     structure: 0,
   };
 
+  const [globalFeedbackData, abFeedbackData] = await Promise.all([
+    fetchSupabaseGlobalFeedbackRows(
+      "select=message,type,user_id&user_id=is.null",
+      "Global learning fetch failed:"
+    ).catch(() => []),
+    fetchSupabaseGlobalFeedbackRows(
+      "select=type,source,user_id&user_id=is.null",
+      "A/B feedback fetch failed:"
+    ).catch(() => []),
+  ]);
+
   try {
-    const feedbackData = await fetchSupabaseGlobalFeedbackRows(
-  "select=message,type,user_id&user_id=is.null",
-  "Global learning fetch failed:"
-);
+    const feedbackData = globalFeedbackData;
 
       feedbackData
         .filter((f: any) => !f.user_id && f.userScope !== "personal")
@@ -3614,12 +3606,7 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
     let responseVariant = "A";
 
   try {
-    const feedbackData = await fetchSupabaseGlobalFeedbackRows(
-  "select=type,source,user_id&user_id=is.null",
-  "A/B feedback fetch failed:"
-);
-
-    const globalAbFeedback = feedbackData.filter(
+    const globalAbFeedback = abFeedbackData.filter(
       (f: any) => !f.user_id && f.userScope !== "personal"
     );
 
@@ -3768,7 +3755,7 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
     });
 
     if ((shouldPersistRuntimeMemory || shouldPersistUsageStats) && personalUserId && accessToken) {
-      await persistSupabasePersonalMemory({
+      void persistSupabasePersonalMemory({
         userId: personalUserId,
         accessToken,
         memory: runtimePersonalMemory,
@@ -4103,6 +4090,7 @@ Do not use web search for this path.`,
     const response = await openai.responses.create({
     model: "gpt-4.1-mini",
     store: false,
+    stream: !shouldUseWebSearch,
     tools: shouldUseWebSearch ? [{ type: "web_search_preview" }] : [],
     include: shouldUseWebSearch ? ["web_search_call.action.sources"] : [],
     text: {
@@ -4177,23 +4165,53 @@ Do not use web search for this path.`,
       ],
     } as any);
 
-        let aiText =
-    response.output_text ||
-    (response.output || [])
-      .flatMap((item: any) =>
-        item.type === "message" ? item.content || [] : []
-      )
-      .map((part: any) => {
-        if (part.type !== "output_text") return "";
+        let aiText = "";
 
-        if (typeof part.text === "string") return part.text;
-        if (typeof part.text?.value === "string") return part.text.value;
-        if (typeof part.value === "string") return part.value;
+    if (shouldUseWebSearch) {
+      // Non-streaming voor web search (bronnen nodig)
+      aiText = (response as any).output_text ||
+        ((response as any).output || [])
+          .flatMap((item: any) => item.type === "message" ? item.content || [] : [])
+          .map((part: any) => {
+            if (part.type !== "output_text") return "";
+            if (typeof part.text === "string") return part.text;
+            if (typeof part.text?.value === "string") return part.text.value;
+            if (typeof part.value === "string") return part.value;
+            return "";
+          })
+          .join("")
+          .trim();
+    } else {
+      // Streaming — direct naar client
+      const encoder = new TextEncoder();
+      const chunks: string[] = [];
 
-        return "";
-      })
-      .join("")
-      .trim();
+      const streamResponse = new Response(
+        new ReadableStream({
+          async start(controller) {
+            for await (const event of response as any) {
+              const delta = event?.delta || event?.choices?.[0]?.delta?.content || "";
+              if (delta) {
+                chunks.push(delta);
+                controller.enqueue(encoder.encode(delta));
+              }
+            }
+            controller.close();
+          },
+        }),
+        {
+          headers: buildNoStoreTextHeaders({
+            "X-OpenLura-Variant": responseVariant,
+            "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
+            "X-OpenLura-Lang": detectedLanguage,
+            ...buildRateLimitHeaders(rateLimit),
+            ...buildUsageHeaders(usageLimitSnapshot),
+          }),
+        }
+      );
+
+      return streamResponse;
+    }
 
   const isPaidUser = isPersonalEnvironment && usageLimitSnapshot.tier !== "free";
 

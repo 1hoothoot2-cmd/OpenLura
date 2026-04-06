@@ -113,6 +113,64 @@ export default function PersonalDashboardPage() {
   const [calYear, setCalYear] = useState(new Date().getFullYear());
   const [calMonth, setCalMonth] = useState(new Date().getMonth());
 
+  // ── Quick cards ───────────────────────────────────────────────────────────
+  const CARDS_KEY = "openlura_dashboard_cards";
+  const DEFAULT_CARDS = [
+    { id: "agenda", emoji: "📅", title: "Agenda", desc: "Bekijk en plan je dag", href: "/personal-dashboard" },
+    { id: "chat", emoji: "💬", title: "Chat", desc: "Open je AI werkruimte", href: "/personal-workspace" },
+    { id: "workspace", emoji: "🧠", title: "Persoonlijke omgeving", desc: "Jouw privé AI omgeving", href: "/persoonlijke-omgeving" },
+    { id: "subscription", emoji: "💳", title: "Abonnement", desc: "Beheer je plan", href: "/api/stripe/portal" },
+  ];
+
+  const [cards, setCards] = useState(() => {
+    if (typeof window === "undefined") return DEFAULT_CARDS;
+    try {
+      const raw = localStorage.getItem(CARDS_KEY);
+      return raw ? JSON.parse(raw) : DEFAULT_CARDS;
+    } catch { return DEFAULT_CARDS; }
+  });
+  const [showNameModal, setShowNameModal] = useState(false);
+  const [nameInput, setNameInput] = useState("");
+  const [nameSaving, setNameSaving] = useState(false);
+  const [editingCardId, setEditingCardId] = useState<string | null>(null);
+  const [editCardTitle, setEditCardTitle] = useState("");
+  const [editCardEmoji, setEditCardEmoji] = useState("");
+
+  async function saveName() {
+    const name = nameInput.trim();
+    if (!name) return;
+    setNameSaving(true);
+    try {
+      await fetch("/api/personal-state", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json", "x-openlura-personal-env": "true" },
+        body: JSON.stringify({ profile: { name } }),
+      });
+      setUserName(name);
+      setShowNameModal(false);
+    } catch {}
+    finally { setNameSaving(false); }
+  }
+
+  function saveCards(updated: typeof DEFAULT_CARDS) {
+    setCards(updated);
+    try { localStorage.setItem(CARDS_KEY, JSON.stringify(updated)); } catch {}
+  }
+
+  function startEditCard(card: typeof DEFAULT_CARDS[0]) {
+    setEditingCardId(card.id);
+    setEditCardTitle(card.title);
+    setEditCardEmoji(card.emoji);
+  }
+
+  function saveCardEdit(id: string) {
+    saveCards(cards.map((c: typeof DEFAULT_CARDS[0]) =>
+      c.id === id ? { ...c, title: editCardTitle, emoji: editCardEmoji } : c
+    ));
+    setEditingCardId(null);
+  }
+
   // Add form
   const [addOpen, setAddOpen] = useState(false);
   const [newTitle, setNewTitle] = useState("");
@@ -134,7 +192,13 @@ export default function PersonalDashboardPage() {
           if (sr?.ok) {
             const sd = await sr.json().catch(() => null);
             const name = sd?.profile?.name || sd?.state?.profile?.name;
-            if (name) setUserName(name);
+            if (name) {
+              setUserName(name);
+            } else {
+              setShowNameModal(true);
+            }
+          } else {
+            setShowNameModal(true);
           }
         } else {
           router.replace("/login");
@@ -226,12 +290,22 @@ export default function PersonalDashboardPage() {
             <div className="text-[10px] uppercase tracking-[0.16em] text-white/32">Personal Dashboard</div>
           </div>
         </div>
-        <a href="/personal-workspace" className="flex items-center gap-2 rounded-full border border-[#3b82f6]/22 bg-[#3b82f6]/10 px-4 py-2 text-sm text-[#93c5fd] transition-all duration-200 hover:border-[#3b82f6]/40 hover:bg-[#3b82f6]/18 hover:text-white active:scale-[0.97]">
-          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-          </svg>
-          Chat
-        </a>
+       <a href="/personal-workspace" className="flex items-center gap-2 rounded-full bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-4 py-2 text-sm font-medium text-white shadow-[0_4px_14px_rgba(59,130,246,0.28)] transition-[filter,box-shadow] duration-150 hover:brightness-110 active:scale-[0.97]">
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+            Open chat
+          </a>
+          <button
+            type="button"
+            onClick={async () => {
+              await fetch("/api/auth", { method: "DELETE", credentials: "same-origin" }).catch(() => null);
+              router.push("/");
+            }}
+            className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-medium text-white/60 transition-[background-color,border-color,color] duration-150 hover:border-white/16 hover:bg-white/[0.07] hover:text-white active:scale-[0.97]"
+          >
+            Log out
+          </button>
       </header>
 
       {/* Body */}
@@ -249,6 +323,63 @@ export default function PersonalDashboardPage() {
           <div className="font-mono text-2xl tabular-nums text-[#3b82f6]/60 tracking-tight">
             {formatClock(now)}
           </div>
+        </div>
+
+        {/* Quick access cards */}
+        <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {cards.map((card: typeof DEFAULT_CARDS[0]) => (
+            <div key={card.id} className="group relative rounded-[18px] border border-white/8 bg-white/[0.025] p-4 transition-[border-color,background-color] duration-150 hover:border-white/14 hover:bg-white/[0.04]">
+              {editingCardId === card.id ? (
+                <div className="flex flex-col gap-2">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={editCardEmoji}
+                      onChange={e => setEditCardEmoji(e.target.value)}
+                      className="w-10 rounded-lg border border-white/10 bg-white/[0.06] px-2 py-1 text-sm text-white outline-none text-center"
+                      maxLength={2}
+                    />
+                    <input
+                      type="text"
+                      value={editCardTitle}
+                      onChange={e => setEditCardTitle(e.target.value)}
+                      onKeyDown={e => { if (e.key === "Enter") saveCardEdit(card.id); if (e.key === "Escape") setEditingCardId(null); }}
+                      className="flex-1 rounded-lg border border-white/10 bg-white/[0.06] px-2 py-1 text-sm text-white outline-none"
+                      autoFocus
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => saveCardEdit(card.id)}
+                      className="flex-1 rounded-lg bg-[#3b82f6]/20 py-1 text-xs text-blue-300 hover:bg-[#3b82f6]/30 transition-colors">
+                      Opslaan
+                    </button>
+                    <button type="button" onClick={() => setEditingCardId(null)}
+                      className="flex-1 rounded-lg bg-white/[0.04] py-1 text-xs text-white/40 hover:bg-white/[0.08] transition-colors">
+                      Annuleren
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <a href={card.href} className="block">
+                    <div className="text-2xl mb-2">{card.emoji}</div>
+                    <div className="text-sm font-medium text-white/88">{card.title}</div>
+                    <div className="mt-0.5 text-xs text-white/36 leading-4">{card.desc}</div>
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => startEditCard(card)}
+                    className="absolute right-2.5 top-2.5 h-6 w-6 flex items-center justify-center rounded-full text-white/20 opacity-0 group-hover:opacity-100 transition-all hover:bg-white/[0.08] hover:text-white/60"
+                    title="Bewerken"
+                  >
+                    <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+                      <path d="M11.5 2.5l2 2L5 13H3v-2L11.5 2.5z" />
+                    </svg>
+                  </button>
+                </>
+              )}
+            </div>
+          ))}
         </div>
 
         {/* Main grid: calendar left, day detail right */}
@@ -509,6 +640,52 @@ export default function PersonalDashboardPage() {
           </div>
         </div>
       </div>
+
+      {showNameModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" />
+          <div className="relative z-10 w-full max-w-sm rounded-[24px] border border-white/10 bg-[#0b0b17] p-7 shadow-[0_24px_80px_rgba(0,0,0,0.50)]">
+            <div className="mb-1 text-2xl">👋</div>
+            <h2 className="text-lg font-semibold text-white/92">
+              {typeof navigator !== "undefined" && navigator.language?.startsWith("nl")
+                ? "Hoe mag ik je noemen?"
+                : typeof navigator !== "undefined" && navigator.language?.startsWith("de")
+                ? "Wie darf ich dich nennen?"
+                : typeof navigator !== "undefined" && navigator.language?.startsWith("fr")
+                ? "Comment puis-je vous appeler?"
+                : typeof navigator !== "undefined" && navigator.language?.startsWith("es")
+                ? "¿Cómo te llamas?"
+                : "What's your name?"}
+            </h2>
+            <p className="mt-1 text-sm text-white/40">
+              {typeof navigator !== "undefined" && navigator.language?.startsWith("nl")
+                ? "OpenLura gebruikt je naam om je persoonlijk te begroeten."
+                : "OpenLura uses your name to greet you personally."}
+            </p>
+            <input
+              type="text"
+              value={nameInput}
+              onChange={e => setNameInput(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") saveName(); }}
+              placeholder={typeof navigator !== "undefined" && navigator.language?.startsWith("nl") ? "Jouw naam" : "Your name"}
+              autoFocus
+              className="mt-5 w-full rounded-[14px] border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-white outline-none placeholder:text-white/28 transition-colors focus:border-white/20"
+            />
+            <button
+              type="button"
+              onClick={saveName}
+              disabled={!nameInput.trim() || nameSaving}
+              className="mt-3 w-full rounded-[14px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] py-3 text-sm font-medium text-white shadow-[0_8px_20px_rgba(59,130,246,0.24)] transition-[filter,opacity] duration-150 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {nameSaving
+                ? "..."
+                : typeof navigator !== "undefined" && navigator.language?.startsWith("nl")
+                ? "Doorgaan"
+                : "Continue"}
+            </button>
+          </div>
+        </div>
+      )}
 
       <style jsx global>{`
         @keyframes fadeIn {
