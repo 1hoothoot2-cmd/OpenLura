@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { useRouter } from "next/navigation";
+import { FormEvent, useState, useMemo, useCallback } from "react";
 
 const chapterLinks = [
   { href: "#how-it-works", label: "How it works" },
@@ -44,24 +45,24 @@ function SectionFooter({
 }
 
 export default function HomePage() {
+  const router = useRouter();
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [homeChatInput, setHomeChatInput] = useState("");
 
-  const lang = (() => {
+  const lang = useMemo(() => {
     if (typeof navigator === "undefined") return "en";
     const raw = (navigator.language || "en").toLowerCase();
+    if (raw.startsWith("pap")) return "pap";
     if (raw.startsWith("nl")) return "nl";
     if (raw.startsWith("de")) return "de";
     if (raw.startsWith("fr")) return "fr";
     if (raw.startsWith("es")) return "es";
     if (raw.startsWith("pt")) return "pt";
-    if (raw.startsWith("pap")) return "pap";
     if (raw.startsWith("hi")) return "hi";
     return "en";
-  })();
+  }, []);
 
-  const t = (key: string) => {
-    const translations: Record<string, Record<string, string>> = {
+  const translations = useMemo<Record<string, Record<string, string>>>(() => ({
       hero_title: {
         nl: "AI die zich aanpast aan jou, niet andersom.",
         de: "KI, die sich dir anpasst, nicht umgekehrt.",
@@ -152,9 +153,11 @@ export default function HomePage() {
         hi: "शोर को छोड़ें, कार्यक्षेत्र खोलें और OpenLura को आपकी सोचने, लिखने, योजना बनाने और तेज़ी से आगे बढ़ने में मदद करने दें।",
         en: "Skip the noise, open the workspace, and let OpenLura help you think, write, plan, and move faster.",
       },
-    };
+    }), []);
+
+  const t = useCallback((key: string) => {
     return translations[key]?.[lang] ?? translations[key]?.["en"] ?? key;
-  };
+  }, [translations, lang]);
   const [feedbackSubject, setFeedbackSubject] = useState("");
   const [feedbackDetails, setFeedbackDetails] = useState("");
   const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
@@ -311,7 +314,7 @@ export default function HomePage() {
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && homeChatInput.trim()) {
                     e.preventDefault();
-                    window.location.href = `/chat?q=${encodeURIComponent(homeChatInput.trim())}`;
+                    router.push(`/chat?q=${encodeURIComponent(homeChatInput.trim())}`);
                   }
                 }}
                 placeholder={
@@ -326,7 +329,7 @@ export default function HomePage() {
                 disabled={!homeChatInput.trim()}
                 onClick={() => {
                   if (homeChatInput.trim()) {
-                    window.location.href = `/chat?q=${encodeURIComponent(homeChatInput.trim())}`;
+                    router.push(`/chat?q=${encodeURIComponent(homeChatInput.trim())}`);
                   }
                 }}
                 className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] text-sm text-white shadow-[0_4px_12px_rgba(59,130,246,0.28)] transition-[transform,filter,opacity] duration-200 hover:brightness-110 active:scale-95 disabled:cursor-not-allowed disabled:opacity-30"
@@ -344,7 +347,7 @@ export default function HomePage() {
                   key={starter}
                   type="button"
                   onClick={() => {
-                    window.location.href = `/chat?q=${encodeURIComponent(starter)}`;
+                    router.push(`/chat?q=${encodeURIComponent(starter)}`);
                   }}
                   className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] text-white/52 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color] duration-200 hover:border-[#3b82f6]/24 hover:bg-[#3b82f6]/10 hover:text-white/88 active:scale-95"
                 >
@@ -506,11 +509,11 @@ export default function HomePage() {
                 </p>
               </div>
 
-              <div className="rounded-[22px] border border-amber-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
+              <div className="rounded-[22px] border border-emerald-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-sm font-medium text-white">Experience</div>
-                  <span className="inline-flex items-center rounded-full border border-amber-400/20 bg-amber-400/10 px-2.5 py-1 text-[11px] font-medium text-amber-300">
-                    In progress
+                  <span className="inline-flex items-center rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
+                    Complete
                   </span>
                 </div>
                 <p className="mt-2 text-sm leading-6 text-white/46">
@@ -518,11 +521,11 @@ export default function HomePage() {
                 </p>
               </div>
 
-              <div className="rounded-[22px] border border-amber-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
+              <div className="rounded-[22px] border border-emerald-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-sm font-medium text-white">Personal AI</div>
-                  <span className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[11px] font-medium text-white/60">
-                    Coming next
+                  <span className="inline-flex items-center rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
+                    Complete
                   </span>
                 </div>
                 <p className="mt-2 text-sm leading-6 text-white/46">
@@ -533,12 +536,12 @@ export default function HomePage() {
               <div className="rounded-[22px] border border-amber-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-sm font-medium text-white">Expansion</div>
-                  <span className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[11px] font-medium text-white/60">
-                    Future
+                  <span className="inline-flex items-center rounded-full border border-amber-400/20 bg-amber-400/10 px-2.5 py-1 text-[11px] font-medium text-amber-300">
+                    In progress
                   </span>
                 </div>
                 <p className="mt-2 text-sm leading-6 text-white/46">
-                  Voice, image tools, and mobile apps.
+                  Image generation, mobile apps, and language learning.
                 </p>
               </div>
             </div>
@@ -852,13 +855,11 @@ export default function HomePage() {
                     onClick={async () => {
                       try {
                         const res = await fetch("/api/stripe/checkout", { method: "POST", credentials: "include" });
-                        console.log("Stripe checkout status:", res.status);
                         if (res.status === 401) {
-                          window.location.href = "/personal-workspace";
+                          router.push("/personal-workspace");
                           return;
                         }
                         const text = await res.text();
-                        console.log("Stripe checkout response:", text);
                         const data = JSON.parse(text);
                         if (data.url) window.location.href = data.url;
                       } catch (err) {
@@ -1009,16 +1010,16 @@ export default function HomePage() {
                     </div>
 
                     <h2 className="mt-4 text-xl font-semibold text-white/92">
-                      Productization & personal workspace
+                      Performance, billing & personal workspace
                     </h2>
 
                     <p className="mt-2 text-sm leading-6 text-white/50">
-                      OpenLura now includes onboarding, personal accounts with name memory, URL improvements, and a polished first-run experience.
+                      OpenLura now includes faster responses, personal accounts with billing, onboarding, and a polished product experience end-to-end.
                     </p>
                   </div>
 
                   <div className="text-sm text-white/42">
-                    Phase 4.85
+                    Phase 4.9
                   </div>
                 </div>
 
@@ -1026,28 +1027,28 @@ export default function HomePage() {
                   <div className="rounded-[20px] border border-white/10 bg-white/[0.02] p-4">
                     <div className="text-sm font-medium text-white">Personal workspace</div>
                     <p className="mt-2 text-sm leading-6 text-white/46">
-                      Users get a private workspace at /personal-workspace with account-bound memory and history.
-                    </p>
-                  </div>
-
-                  <div className="rounded-[20px] border border-white/10 bg-white/[0.02] p-4">
-                    <div className="text-sm font-medium text-white">Name onboarding</div>
-                    <p className="mt-2 text-sm leading-6 text-white/46">
-                      First-time users are welcomed by name — the AI remembers and uses it naturally.
-                    </p>
-                  </div>
-
-                  <div className="rounded-[20px] border border-white/10 bg-white/[0.02] p-4">
-                    <div className="text-sm font-medium text-white">UX polish</div>
-                    <p className="mt-2 text-sm leading-6 text-white/46">
-                      Starter chips, rotating placeholders, scroll-to-bottom, and inline chat rename all ship in this phase.
+                      Private workspace at /personal-workspace with account-bound memory, history, and continuity.
                     </p>
                   </div>
 
                   <div className="rounded-[20px] border border-white/10 bg-white/[0.02] p-4">
                     <div className="text-sm font-medium text-white">Billing & plans</div>
                     <p className="mt-2 text-sm leading-6 text-white/46">
-                      Stripe integration, Go plan, and usage tracking are live for personal account holders.
+                      Stripe integration, Free and Go plans, and usage tracking live for all account holders.
+                    </p>
+                  </div>
+
+                  <div className="rounded-[20px] border border-white/10 bg-white/[0.02] p-4">
+                    <div className="text-sm font-medium text-white">Performance upgrade</div>
+                    <p className="mt-2 text-sm leading-6 text-white/46">
+                      Faster first response, streaming improvements, and reduced latency across the full chat flow.
+                    </p>
+                  </div>
+
+                  <div className="rounded-[20px] border border-white/10 bg-white/[0.02] p-4">
+                    <div className="text-sm font-medium text-white">UX polish</div>
+                    <p className="mt-2 text-sm leading-6 text-white/46">
+                      Starter chips, rotating placeholders, scroll-to-bottom, inline rename, and homepage chat entry all live.
                     </p>
                   </div>
                 </div>

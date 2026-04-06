@@ -32,26 +32,35 @@ export default function ChatPage() {
     ? "openlura_personal_memory"
     : makeUserBoundStorageKey("openlura_memory");
   const [personalStateLoaded, setPersonalStateLoaded] = useState(false);
+  const [voiceListening, setVoiceListening] = useState(false);
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [userName, setUserName] = useState<string | null>(null);
   const [showNamePopup, setShowNamePopup] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
 
-  const [detectedLang, setDetectedLang] = useState(() => {
-    if (typeof navigator === "undefined") return "en";
-    const raw = (navigator.language || "en").toLowerCase();
-    if (raw.startsWith("nl")) return "nl";
-    if (raw.startsWith("de")) return "de";
-    if (raw.startsWith("fr")) return "fr";
-    if (raw.startsWith("es")) return "es";
-    if (raw.startsWith("pt")) return "pt";
-    if (raw.startsWith("it")) return "it";
-    if (raw.startsWith("tr")) return "tr";
-    if (raw.startsWith("ar")) return "ar";
-    if (raw.startsWith("pap")) return "pap";
-    if (raw.startsWith("hi")) return "hi";
-    return "en";
-  });
+const getBrowserLanguage = () => {
+  if (typeof navigator === "undefined") return "en";
+
+  const raw = (navigator.language || "en").toLowerCase();
+
+  if (raw.startsWith("nl")) return "nl";
+  if (raw.startsWith("de")) return "de";
+  if (raw.startsWith("fr")) return "fr";
+  if (raw.startsWith("es")) return "es";
+  if (raw.startsWith("pt")) return "pt";
+  if (raw.startsWith("it")) return "it";
+  if (raw.startsWith("tr")) return "tr";
+  if (raw.startsWith("ar")) return "ar";
+  if (raw.startsWith("pap")) return "pap";
+  if (raw.startsWith("hi")) return "hi";
+
+  return "en";
+};
+
+const [detectedLang, setDetectedLang] = useState(() => getBrowserLanguage());
+
+// apart van UI-taal: dit is de taal die we meesturen voor voice input
+const [voiceInputLang, setVoiceInputLang] = useState(getBrowserLanguage);
 
   const t = (key: string) => {
     const translations: Record<string, Record<string, string>> = {
@@ -439,6 +448,49 @@ const downloadMarkdown = () => {
 const [savingPrompt, setSavingPrompt] = useState(false);
 const [savePromptSuccess, setSavePromptSuccess] = useState(false);
 const [savePromptError, setSavePromptError] = useState("");
+
+// =============================
+// PHASE 9.3 — CONTEXT EXTRACTOR
+// =============================
+
+const extractContextFromConversation = (messages: any[]): string[] => {
+  const context: string[] = [];
+  const userMessages = messages
+    .filter((m: any) => m.role === "user" && typeof m.content === "string" && m.content.trim().length > 8)
+    .map((m: any) => m.content.trim());
+
+  if (userMessages.length === 0) return context;
+
+  // Taal voorkeur
+  const nlCount = userMessages.filter(m => /\b(ik|de|het|een|en|van|is|dat|dit|voor|met)\b/i.test(m)).length;
+  if (nlCount > userMessages.length * 0.5) context.push("Voorkeurstaal: Nederlands");
+
+  // Topics
+  if (userMessages.some(m => /\b(mail|email|e-mail)\b/i.test(m))) context.push("Schrijft regelmatig e-mails");
+  if (userMessages.some(m => /\b(code|script|function|debug|component)\b/i.test(m))) context.push("Werkt met code");
+  if (userMessages.some(m => /\b(plan|agenda|schema|rooster|dag|week)\b/i.test(m))) context.push("Plant taken en agenda");
+  if (userMessages.some(m => /\b(uitleg|explain|wat is|hoe werkt|how does)\b/i.test(m))) context.push("Vraagt regelmatig om uitleg");
+  if (userMessages.some(m => /\b(lijst|list|stappen|steps|overzicht)\b/i.test(m))) context.push("Vraagt vaak om lijsten en overzichten");
+  if (userMessages.some(m => /\b(samenvatting|summary|kort|beknopt)\b/i.test(m))) context.push("Houdt van korte samenvattingen");
+
+  // Stijl voorkeur
+  if (userMessages.some(m => /\b(kort|korter|beknopt|snel|simpel)\b/i.test(m))) context.push("Voorkeur voor korte antwoorden");
+  if (userMessages.some(m => /\b(meer detail|uitgebreid|dieper|volledig)\b/i.test(m))) context.push("Vraagt soms om meer detail");
+
+  return context;
+};
+
+// =============================
+// PHASE 9.5 — ACTION OUTPUT DETECTOR
+// =============================
+
+const detectActionOutput = (content: string): "mail" | "plan" | "list" | null => {
+  const t = content.toLowerCase();
+  if (/\b(onderwerp:|subject:|assunto:|betreff:|objet:|asunto:|dear |beste |geachte |prezado|dear |regards|atenciosamente|groet|met vriendelijke|van:|to:|cc:)\b/.test(t)) return "mail";
+  if (/\b(stap \d|step \d|fase \d|\d\.\s|dag \d|week \d)\b/.test(t) && content.length > 200) return "plan";
+  if ((/\n[-•*]\s/.test(content) || /\n\d+\.\s/.test(content)) && content.split("\n").length > 4) return "list";
+  return null;
+};
 
 // =============================
 // PHASE 9.1 — INTENT DETECTION
@@ -1159,8 +1211,12 @@ const isReplaceableStarterChat = (chat: any) => {
               if (typeof p.name === "string" && p.name.trim()) {
                 setUserName(p.name.trim());
               } else {
-                // Geen naam bekend → popup tonen
                 setShowNamePopup(true);
+              }
+
+              // Herstel opgeslagen taalvoorkeur
+              if (typeof p.lang === "string" && p.lang.trim()) {
+                setDetectedLang(p.lang.trim());
               }
             } else {
               setShowNamePopup(true);
@@ -1521,6 +1577,7 @@ const shouldSkipPersonalStateSync =
                 memoryEnabled: chatSettings.memoryEnabled,
                 preferences: settingsPreferences,
                 ...(userName ? { name: userName } : {}),
+                lang: detectedLang,
               },
             }),
           });
@@ -3069,8 +3126,41 @@ Do not mention that this is a new attempt.`,
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialStateReady]);
 
+  // =============================
+  // PHASE 9.3 — AUTO CONTEXT SAVE
+  // =============================
+  const autoSaveContext = (chatMessages: any[]) => {
+    if (!chatSettings.memoryEnabled) return;
+    const extracted = extractContextFromConversation(chatMessages);
+    if (extracted.length === 0) return;
+
+    setMemory((prev) => {
+      const next = [...prev];
+      for (const item of extracted) {
+        const exists = next.find((m) => m.text === item);
+        if (!exists) {
+          next.push({ text: item, weight: 0.7 });
+        } else {
+          const idx = next.findIndex((m) => m.text === item);
+          if (idx !== -1) {
+            next[idx] = { ...next[idx], weight: Math.min(next[idx].weight + 0.05, 1) };
+          }
+        }
+      }
+      return next.slice(-30);
+    });
+  };
+
   const sendMessage = async () => {
     if (!input.trim() && !image) return;
+
+    // Stop mic als die nog actief is
+    if (voiceListening) {
+      (window as any).__olMediaRecorder?.stop();
+      (window as any).__olSpeechRecognition?.stop();
+      setVoiceListening(false);
+      setInput("");
+    }
 
     if (!isPersonalRoute) {
       const anonUsage = getAnonUsage();
@@ -3440,7 +3530,8 @@ Only give the improved answer directly.`,
       setLoading(false);
       return;
     }
-        if (!input && !image) return;
+
+    if (!input && !image) return;
 
     if (upgradeNotice.visible) {
       setUpgradeNotice({
@@ -3692,8 +3783,12 @@ setIsWaitingForFirstToken(true);
     }
 
     const responseVariant = res.headers.get("X-OpenLura-Variant") || "unknown";
+    // Taal alleen updaten als browser taal onbekend/en is — voorkom override door AI response
     const responseLang = res.headers.get("X-OpenLura-Lang");
-    if (responseLang) setDetectedLang(responseLang);
+if (responseLang && detectedLang === "en") {
+  const normalizedResponseLang = String(responseLang).toLowerCase().slice(0, 2);
+  setDetectedLang(normalizedResponseLang);
+}
     const responseSourcesHeader = res.headers.get("X-OpenLura-Sources");
         let responseSources: any[] = [];
     try {
@@ -3784,6 +3879,11 @@ updated[index].messages[
 
     setIsWaitingForFirstToken(false);
     setStreamController(null);
+
+    // PHASE 9.3 — context opslaan na response
+    autoSaveContext(updated[index].messages);
+
+    // PHASE 9.4 — TTS: uitgeschakeld, wordt vervangen door AI conversation systeem
 
     // PHASE 9.2 — AGENDA INTENT CHECK
     if (isPersonalRoute && rawInputToSend && !imageToSend) {
@@ -4331,6 +4431,28 @@ updated[index].messages[
               >
                 <div className="text-sm font-medium">{opt === "default" ? "Default" : opt === "concise" ? "Kort" : opt === "structured" ? "Gestructureerd" : "Uitgebreid"}</div>
                 <div className="text-[11px] text-white/32 mt-0.5">{opt === "default" ? "Gebalanceerd" : opt === "concise" ? "Zo compact mogelijk" : opt === "structured" ? "Met duidelijke opbouw" : "Meer context & diepte"}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Taal instelling */}
+        <div>
+          <div className="mb-2.5 text-[11px] uppercase tracking-[0.14em] text-white/34">Taal / Language</div>
+          <div className="grid grid-cols-3 gap-2">
+            {([["nl", "🇳🇱 Nederlands"], ["en", "🇬🇧 English"], ["de", "🇩🇪 Deutsch"], ["fr", "🇫🇷 Français"], ["es", "🇪🇸 Español"], ["pt", "🇵🇹 Português"]] as const).map(([code, label]) => (
+              <button key={code} type="button"
+                onClick={() => {
+                  setDetectedLang(code);
+                  try { localStorage.setItem("openlura_ui_lang", code); } catch {}
+                }}
+                className={`rounded-2xl border px-3 py-2 text-left text-[12px] transition-all duration-150 ${
+                  detectedLang === code
+                    ? "border-white/20 bg-white/[0.08] text-white"
+                    : "border-white/8 bg-white/[0.03] text-white/50 hover:border-white/12 hover:bg-white/[0.05] hover:text-white/70"
+                }`}
+              >
+                {label}
               </button>
             ))}
           </div>
@@ -5160,6 +5282,39 @@ updated[index].messages[
                                 )}
                               </div>
 
+                {/* PHASE 9.5 — ACTION OUTPUT */}
+                {!msg.isStreaming && !msg.disableFeedback && (() => {
+                  const action = detectActionOutput(String(msg.content || ""));
+                  if (!action) return null;
+
+                  const actionConfig = {
+                    mail: { label: detectedLang === "nl" ? "✉️ Kopieer mail" : "✉️ Copy email", icon: "✉️" },
+                    plan: { label: detectedLang === "nl" ? "📋 Kopieer plan" : "📋 Copy plan", icon: "📋" },
+                    list: { label: detectedLang === "nl" ? "📝 Kopieer lijst" : "📝 Copy list", icon: "📝" },
+                  };
+
+                  const cfg = actionConfig[action];
+                  const keyId = `action-${renderedChatId}-${originalIndex}`;
+
+                  return (
+                    <div className="mt-2 px-0.5 md:px-2">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText(String(msg.content || ""));
+                            setFeedbackUI((prev) => ({ ...prev, [keyId]: "✓ Gekopieerd" }));
+                            setTimeout(() => setFeedbackUI((prev) => { const c = { ...prev }; delete c[keyId]; return c; }), 1400);
+                          } catch {}
+                        }}
+                        className="inline-flex items-center gap-2 rounded-full border border-[#3b82f6]/22 bg-[#3b82f6]/10 px-4 py-2 text-[12px] font-medium text-[#93c5fd] ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-[#3b82f6]/36 hover:bg-[#3b82f6]/18 hover:text-white hover:shadow-[0_6px_14px_rgba(59,130,246,0.18)] active:scale-[0.97]"
+                      >
+                        {feedbackUI[keyId] || cfg.label}
+                      </button>
+                    </div>
+                  );
+                })()}
+
                 {Array.isArray(msg.sources) && msg.sources.length > 0 && (
           <div className="mt-2 w-full max-w-[90%] space-y-2.5 px-0.5 md:mt-3 md:max-w-[78%] md:px-2">
             <div className="flex items-center gap-2 px-0.5">
@@ -5389,6 +5544,178 @@ updated[index].messages[
   enterKeyHint="send"
   rows={1}
 />
+
+{/* 9.4 — VOICE INPUT (Whisper) */}
+{typeof window !== "undefined" && !!navigator.mediaDevices && (
+  <button
+    type="button"
+    onClick={async () => {
+      if (voiceListening) {
+        (window as any).__olMediaRecorder?.stop();
+        return;
+      }
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mediaRecorder = new MediaRecorder(stream, {
+          mimeType: MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/mp4",
+        });
+        const chunks: BlobPart[] = [];
+
+        (window as any).__olMediaRecorder = mediaRecorder;
+        setVoiceListening(true);
+
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) chunks.push(e.data);
+        };
+
+        mediaRecorder.onstop = async () => {
+          stream.getTracks().forEach((t) => t.stop());
+
+          // Stop Web Speech live preview
+          (window as any).__olSpeechRecognition?.stop();
+          (window as any).__olSpeechRecognition = null;
+
+          setVoiceListening(false);
+          setInput("⏳ Verwerken...");
+
+          if (chunks.length === 0) {
+            setInput("");
+            return;
+          }
+
+          const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/mp4";
+          const blob = new Blob(chunks, { type: mimeType });
+
+          try {
+            const form = new FormData();
+            form.append("audio", blob, "audio.webm");
+
+const resolvedVoiceLang =
+  (voiceInputLang || "").trim().toLowerCase() ||
+  (detectedLang || "").trim().toLowerCase() ||
+  getBrowserLanguage();
+
+form.append("lang", "nl");
+
+console.log("VOICE submit", {
+  voiceInputLang,
+  detectedLang,
+  browserLang: getBrowserLanguage(),
+  resolvedVoiceLang,
+  blobType: blob.type,
+  blobSize: blob.size,
+});
+
+const res = await fetch("/api/voice", {
+  method: "POST",
+  body: form,
+});
+
+           if (!res.ok) {
+  const errText = await res.text();
+  console.error("Voice route failed:", errText);
+  setInput("");
+  return;
+}
+
+const data = await res.json();
+
+console.log("VOICE response", {
+  requestedLanguage: data.requestedLanguage,
+  detectedLanguage: data.detectedLanguage,
+  textLength: (data.text || "").length,
+});
+
+if (data.requestedLanguage) {
+  setVoiceInputLang(String(data.requestedLanguage).toLowerCase());
+}
+
+if (data.detectedLanguage) {
+  setDetectedLang(String(data.detectedLanguage).toLowerCase());
+}
+
+const transcript = (data.text || "").trim();
+            if (transcript) {
+              setInput(transcript);
+            } else {
+              setInput("");
+            }
+          } catch (err) {
+            console.error("Whisper transcription failed:", err);
+            setInput("");
+          }
+        };
+
+        mediaRecorder.start();
+
+        // Web Speech live preview tijdens opname
+        const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        if (SR) {
+          const rec = new SR();
+          const browserLang = getBrowserLanguage();
+          rec.lang =
+            browserLang === "nl" ? "nl-NL" :
+            browserLang === "de" ? "de-DE" :
+            browserLang === "fr" ? "fr-FR" :
+            browserLang === "es" ? "es-ES" :
+            browserLang === "it" ? "it-IT" :
+            browserLang === "tr" ? "tr-TR" :
+            browserLang === "ar" ? "ar-SA" :
+            browserLang === "hi" ? "hi-IN" :
+            browserLang === "pt" ? "pt-PT" :
+            "nl-NL";
+          rec.continuous = true;
+          rec.interimResults = true;
+          (window as any).__olSpeechRecognition = rec;
+
+          rec.onresult = (e: any) => {
+            let text = "";
+            for (let i = 0; i < e.results.length; i++) {
+              text += e.results[i][0].transcript;
+            }
+            setInput(text);
+          };
+
+          rec.onerror = () => {
+            // Web Speech niet beschikbaar (Android) — toon opname indicator
+            setInput("🎙️ Opname bezig...");
+          };
+
+          rec.onstart = () => {
+            // Web Speech werkt — geen fallback nodig
+          };
+
+          try {
+            rec.start();
+          } catch {
+            // Web Speech start mislukt (Android) — toon indicator
+            setInput("🎙️ Opname bezig...");
+          }
+        } else {
+          // Web Speech niet beschikbaar — toon indicator
+          setInput("🎙️ Opname bezig...");
+        }
+      } catch (err) {
+        console.error("Mic access failed:", err);
+        setVoiceListening(false);
+      }
+    }}
+    className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full border ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 active:scale-95 ${
+      voiceListening
+        ? "border-red-400/40 bg-red-500/18 text-red-300 shadow-[0_0_0_3px_rgba(239,68,68,0.14)] animate-pulse"
+        : "border-white/8 bg-white/[0.035] text-white/52 hover:border-white/14 hover:bg-white/[0.07] hover:text-white"
+    }`}
+    aria-label={voiceListening ? "Stop opname" : "Spreek een bericht"}
+  >
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="9" y="3" width="6" height="11" rx="3"/>
+      <path d="M5 10a7 7 0 0 0 14 0"/>
+      <line x1="12" y1="19" x2="12" y2="23"/>
+      <line x1="8" y1="23" x2="16" y2="23"/>
+    </svg>
+  </button>
+)}
 
 <button
   type="button"

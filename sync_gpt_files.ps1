@@ -19,6 +19,7 @@ $filesToSync = @(
     @{ Source = "app\api\personal-state\route.ts"; Destination = "personal_state_route.ts" },
     @{ Source = "app\api\prompts\route.ts"; Destination = "prompts_route.ts" },
     @{ Source = "app\auth\callback\page.tsx"; Destination = "auth_callback_page.tsx" },
+    @{ Source = "app\api\voice\route.ts"; Destination = "voice_route.ts" },
     
     # PAGES
     @{ Source = "app\analytics\page.tsx"; Destination = "analytics_page.tsx" },
