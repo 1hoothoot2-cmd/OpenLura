@@ -5487,6 +5487,8 @@ updated[index].messages[
       }
       const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       const rec = new SR();
+
+      // Taal: gebruik detectedLang (al correct bepaald bij load via browser/server)
       rec.lang =
         detectedLang === "nl" ? "nl-NL" :
         detectedLang === "de" ? "de-DE" :
@@ -5496,62 +5498,47 @@ updated[index].messages[
         detectedLang === "tr" ? "tr-TR" :
         detectedLang === "ar" ? "ar-SA" :
         detectedLang === "hi" ? "hi-IN" :
+        detectedLang === "pt" ? "pt-PT" :
         "en-US";
+
       rec.interimResults = true;
       rec.continuous = true;
       rec.maxAlternatives = 1;
 
-      // taal direct uit browser halen, niet uit React state
-      const rawLang = (navigator.language || "en").toLowerCase();
-      rec.lang =
-        rawLang.startsWith("nl") ? "nl-NL" :
-        rawLang.startsWith("de") ? "de-DE" :
-        rawLang.startsWith("fr") ? "fr-FR" :
-        rawLang.startsWith("es") ? "es-ES" :
-        rawLang.startsWith("it") ? "it-IT" :
-        rawLang.startsWith("tr") ? "tr-TR" :
-        rawLang.startsWith("ar") ? "ar-SA" :
-        rawLang.startsWith("hi") ? "hi-IN" :
-        rawLang.startsWith("pt") ? "pt-PT" :
-        "en-US";
-
+      // Accumulator: bijhouden wat al definitief is
+      let confirmedText = input;
       (window as any).__olVoiceRecognition = rec;
-      (window as any).__olVoiceBaseInput = input;
       setVoiceListening(true);
       rec.start();
 
       rec.onresult = (e: any) => {
-        let interim = "";
-        let final = "";
+        let interimText = "";
         for (let i = e.resultIndex; i < e.results.length; i++) {
-          const t = e.results[i][0].transcript;
+          const transcript = e.results[i][0].transcript;
           if (e.results[i].isFinal) {
-            final += t;
+            confirmedText = confirmedText
+              ? confirmedText.trimEnd() + " " + transcript.trim()
+              : transcript.trim();
           } else {
-            interim += t;
+            interimText += transcript;
           }
         }
-        const base = (window as any).__olVoiceBaseInput || "";
-        if (final) {
-          const next = base ? base + " " + final.trim() : final.trim();
-          (window as any).__olVoiceBaseInput = next;
-          setInput(next);
-        } else if (interim) {
-          setInput(base ? base + " " + interim : interim);
-        }
+        // Toon bevestigde tekst + live interim
+        const display = interimText
+          ? confirmedText
+            ? confirmedText.trimEnd() + " " + interimText
+            : interimText
+          : confirmedText;
+        setInput(display);
       };
 
       rec.onerror = (e: any) => {
-        // 'no-speech' niet als fout behandelen — gewoon doorgaan
         if (e.error === "no-speech") return;
         setVoiceListening(false);
-        delete (window as any).__olVoiceBaseInput;
       };
 
       rec.onend = () => {
-        // bij continuous=true: onend betekent dat de user zelf stopte
         setVoiceListening(false);
-        delete (window as any).__olVoiceBaseInput;
       };
     }}
     className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full border ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 active:scale-95 ${
