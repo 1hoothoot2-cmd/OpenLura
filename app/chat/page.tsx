@@ -5595,7 +5595,18 @@ const transcript = (data.text || "").trim();
         const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
         if (SR) {
           const rec = new SR();
-          rec.lang = navigator.language || "nl-NL";
+          const browserLang = getBrowserLanguage();
+          rec.lang =
+            browserLang === "nl" ? "nl-NL" :
+            browserLang === "de" ? "de-DE" :
+            browserLang === "fr" ? "fr-FR" :
+            browserLang === "es" ? "es-ES" :
+            browserLang === "it" ? "it-IT" :
+            browserLang === "tr" ? "tr-TR" :
+            browserLang === "ar" ? "ar-SA" :
+            browserLang === "hi" ? "hi-IN" :
+            browserLang === "pt" ? "pt-PT" :
+            "nl-NL";
           rec.continuous = true;
           rec.interimResults = true;
           (window as any).__olSpeechRecognition = rec;
