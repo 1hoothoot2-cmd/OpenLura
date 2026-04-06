@@ -118,8 +118,7 @@ export default function PersonalDashboardPage() {
   const CARDS_KEY = "openlura_dashboard_cards";
   const DEFAULT_CARDS = [
     { id: "agenda", emoji: "📅", title: "Agenda", desc: "Bekijk en plan je dag", href: "/personal-dashboard" },
-    { id: "chat", emoji: "💬", title: "Chat", desc: "Open je AI werkruimte", href: "/personal-workspace" },
-    { id: "workspace", emoji: "💬", title: "Chat", desc: "Open je persoonlijke AI chat", href: "/personal-workspace" },
+    { id: "workspace", emoji: "💬", title: "Chat", desc: "Open je AI werkruimte", href: "/personal-workspace" },
     { id: "subscription", emoji: "💳", title: "Abonnement", desc: "Beheer je plan", href: "/api/stripe/portal" },
     { id: "photo-studio", emoji: "🎨", title: "Photo Studio", desc: "Genereer afbeeldingen met AI", href: "/photo-studio" },
   ];
@@ -131,13 +130,14 @@ export default function PersonalDashboardPage() {
       if (!raw) return DEFAULT_CARDS;
       const parsed = JSON.parse(raw);
       // Inject photo-studio if missing (new card added after cache)
-      const hasPhotoStudio = parsed.some((c: any) => c.id === "photo-studio");
-      if (!hasPhotoStudio) {
-        const updated = [...parsed, { id: "photo-studio", emoji: "🎨", title: "Photo Studio", desc: "Genereer afbeeldingen met AI", href: "/photo-studio" }];
-        localStorage.setItem(CARDS_KEY, JSON.stringify(updated));
-        return updated;
+      // Verwijder dubbele "chat" kaart indien aanwezig
+      let updated = parsed.filter((c: any) => c.id !== "chat");
+      // Inject photo-studio indien ontbreekt
+      if (!updated.some((c: any) => c.id === "photo-studio")) {
+        updated = [...updated, { id: "photo-studio", emoji: "🎨", title: "Photo Studio", desc: "Genereer afbeeldingen met AI", href: "/photo-studio" }];
       }
-      return parsed;
+      localStorage.setItem(CARDS_KEY, JSON.stringify(updated));
+      return updated;
     } catch { return DEFAULT_CARDS; }
   });
   const [showNameModal, setShowNameModal] = useState(false);
