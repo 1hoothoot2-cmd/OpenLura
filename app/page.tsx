@@ -372,6 +372,7 @@ export default function HomePage() {
                 type="text"
                 value={homeChatInput}
                 onChange={(e) => setHomeChatInput(e.target.value)}
+                onFocus={() => router.prefetch("/chat")}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && homeChatInput.trim()) {
                     e.preventDefault();
@@ -407,6 +408,7 @@ export default function HomePage() {
                 <button
                   key={starter}
                   type="button"
+                  onMouseEnter={() => router.prefetch("/chat")}
                   onClick={() => {
                     router.push(`/chat?q=${encodeURIComponent(starter)}`);
                   }}
