@@ -3142,6 +3142,7 @@ Do not mention that this is a new attempt.`,
       (window as any).__olMediaRecorder?.stop();
       (window as any).__olSpeechRecognition?.stop();
       setVoiceListening(false);
+      setInput("");
     }
 
     if (!isPersonalRoute) {
@@ -5603,8 +5604,24 @@ const transcript = (data.text || "").trim();
             setInput(text);
           };
 
-          rec.onerror = () => {};
-          rec.start();
+          rec.onerror = () => {
+            // Web Speech niet beschikbaar (Android) — toon opname indicator
+            setInput("🎙️ Opname bezig...");
+          };
+
+          rec.onstart = () => {
+            // Web Speech werkt — geen fallback nodig
+          };
+
+          try {
+            rec.start();
+          } catch {
+            // Web Speech start mislukt (Android) — toon indicator
+            setInput("🎙️ Opname bezig...");
+          }
+        } else {
+          // Web Speech niet beschikbaar — toon indicator
+          setInput("🎙️ Opname bezig...");
         }
       } catch (err) {
         console.error("Mic access failed:", err);
