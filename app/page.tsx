@@ -238,6 +238,40 @@ export default function HomePage() {
       id="top"
       className="min-h-screen overflow-x-hidden bg-[#050510] text-white"
     >
+      {/* STICKY NAV */}
+      <nav className="sticky top-0 z-40 w-full border-b border-white/[0.06] bg-[#050510]/90 backdrop-blur-xl">
+        <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-[10px] border border-[#3b82f6]/20 bg-[radial-gradient(circle_at_30%_30%,rgba(96,165,250,0.18),rgba(29,78,216,0.06)_52%,transparent_78%)]">
+              <img src="/openlura-logo.png" alt="OpenLura" className="h-full w-full object-contain" />
+            </div>
+            <span className="text-sm font-semibold tracking-[-0.02em] text-white/90">OpenLura</span>
+          </div>
+
+          <div className="hidden items-center gap-1 md:flex">
+            <a href="#plans" className="rounded-full px-3 py-1.5 text-[13px] font-medium text-white/58 transition-colors duration-150 hover:bg-white/[0.05] hover:text-white">Plans</a>
+            <a href="#how-it-works" className="rounded-full px-3 py-1.5 text-[13px] font-medium text-white/58 transition-colors duration-150 hover:bg-white/[0.05] hover:text-white">How it works</a>
+            <a href="#roadmap" className="rounded-full px-3 py-1.5 text-[13px] font-medium text-white/58 transition-colors duration-150 hover:bg-white/[0.05] hover:text-white">Roadmap</a>
+            <a href="#changelog" className="rounded-full px-3 py-1.5 text-[13px] font-medium text-white/58 transition-colors duration-150 hover:bg-white/[0.05] hover:text-white">Changelog</a>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Link
+              href="/personal-workspace"
+              className="hidden rounded-full border border-white/10 bg-white/[0.04] px-4 py-1.5 text-[13px] font-medium text-white/80 transition-colors duration-150 hover:border-white/16 hover:bg-white/[0.07] hover:text-white sm:inline-flex"
+            >
+              Log in
+            </Link>
+            <Link
+              href="/chat"
+              className="inline-flex rounded-full bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-4 py-1.5 text-[13px] font-medium text-white shadow-[0_4px_14px_rgba(59,130,246,0.28)] transition-[filter,box-shadow] duration-150 hover:brightness-110"
+            >
+              Start chat
+            </Link>
+          </div>
+        </div>
+      </nav>
+
       <div className="mx-auto w-full max-w-6xl px-6 py-14 sm:px-8 sm:py-16 lg:px-10 lg:py-20">
         <div className="w-full">
           <div className="flex items-center gap-3">
