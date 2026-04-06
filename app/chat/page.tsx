@@ -5498,11 +5498,28 @@ updated[index].messages[
         detectedLang === "hi" ? "hi-IN" :
         "en-US";
       rec.interimResults = true;
+      rec.continuous = true;
       rec.maxAlternatives = 1;
+
+      // taal direct uit browser halen, niet uit React state
+      const rawLang = (navigator.language || "en").toLowerCase();
+      rec.lang =
+        rawLang.startsWith("nl") ? "nl-NL" :
+        rawLang.startsWith("de") ? "de-DE" :
+        rawLang.startsWith("fr") ? "fr-FR" :
+        rawLang.startsWith("es") ? "es-ES" :
+        rawLang.startsWith("it") ? "it-IT" :
+        rawLang.startsWith("tr") ? "tr-TR" :
+        rawLang.startsWith("ar") ? "ar-SA" :
+        rawLang.startsWith("hi") ? "hi-IN" :
+        rawLang.startsWith("pt") ? "pt-PT" :
+        "en-US";
+
       (window as any).__olVoiceRecognition = rec;
       (window as any).__olVoiceBaseInput = input;
       setVoiceListening(true);
       rec.start();
+
       rec.onresult = (e: any) => {
         let interim = "";
         let final = "";
@@ -5516,15 +5533,23 @@ updated[index].messages[
         }
         const base = (window as any).__olVoiceBaseInput || "";
         if (final) {
-          const next = base ? base + " " + final : final;
+          const next = base ? base + " " + final.trim() : final.trim();
           (window as any).__olVoiceBaseInput = next;
           setInput(next);
         } else if (interim) {
           setInput(base ? base + " " + interim : interim);
         }
       };
-      rec.onerror = () => setVoiceListening(false);
+
+      rec.onerror = (e: any) => {
+        // 'no-speech' niet als fout behandelen — gewoon doorgaan
+        if (e.error === "no-speech") return;
+        setVoiceListening(false);
+        delete (window as any).__olVoiceBaseInput;
+      };
+
       rec.onend = () => {
+        // bij continuous=true: onend betekent dat de user zelf stopte
         setVoiceListening(false);
         delete (window as any).__olVoiceBaseInput;
       };

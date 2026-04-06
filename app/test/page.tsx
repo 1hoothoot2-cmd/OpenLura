@@ -32,6 +32,7 @@ export default function ChatPage() {
     ? "openlura_personal_memory"
     : makeUserBoundStorageKey("openlura_memory");
   const [personalStateLoaded, setPersonalStateLoaded] = useState(false);
+  const [voiceListening, setVoiceListening] = useState(false);
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [userName, setUserName] = useState<string | null>(null);
   const [showNamePopup, setShowNamePopup] = useState(false);
@@ -439,6 +440,37 @@ const downloadMarkdown = () => {
 const [savingPrompt, setSavingPrompt] = useState(false);
 const [savePromptSuccess, setSavePromptSuccess] = useState(false);
 const [savePromptError, setSavePromptError] = useState("");
+
+// =============================
+// PHASE 9.3 — CONTEXT EXTRACTOR
+// =============================
+
+const extractContextFromConversation = (messages: any[]): string[] => {
+  const context: string[] = [];
+  const userMessages = messages
+    .filter((m: any) => m.role === "user" && typeof m.content === "string" && m.content.trim().length > 8)
+    .map((m: any) => m.content.trim());
+
+  if (userMessages.length === 0) return context;
+
+  // Taal voorkeur
+  const nlCount = userMessages.filter(m => /\b(ik|de|het|een|en|van|is|dat|dit|voor|met)\b/i.test(m)).length;
+  if (nlCount > userMessages.length * 0.5) context.push("Voorkeurstaal: Nederlands");
+
+  // Topics
+  if (userMessages.some(m => /\b(mail|email|e-mail)\b/i.test(m))) context.push("Schrijft regelmatig e-mails");
+  if (userMessages.some(m => /\b(code|script|function|debug|component)\b/i.test(m))) context.push("Werkt met code");
+  if (userMessages.some(m => /\b(plan|agenda|schema|rooster|dag|week)\b/i.test(m))) context.push("Plant taken en agenda");
+  if (userMessages.some(m => /\b(uitleg|explain|wat is|hoe werkt|how does)\b/i.test(m))) context.push("Vraagt regelmatig om uitleg");
+  if (userMessages.some(m => /\b(lijst|list|stappen|steps|overzicht)\b/i.test(m))) context.push("Vraagt vaak om lijsten en overzichten");
+  if (userMessages.some(m => /\b(samenvatting|summary|kort|beknopt)\b/i.test(m))) context.push("Houdt van korte samenvattingen");
+
+  // Stijl voorkeur
+  if (userMessages.some(m => /\b(kort|korter|beknopt|snel|simpel)\b/i.test(m))) context.push("Voorkeur voor korte antwoorden");
+  if (userMessages.some(m => /\b(meer detail|uitgebreid|dieper|volledig)\b/i.test(m))) context.push("Vraagt soms om meer detail");
+
+  return context;
+};
 
 // =============================
 // PHASE 9.1 — INTENT DETECTION
@@ -3069,6 +3101,31 @@ Do not mention that this is a new attempt.`,
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialStateReady]);
 
+  // =============================
+  // PHASE 9.3 — AUTO CONTEXT SAVE
+  // =============================
+  const autoSaveContext = (chatMessages: any[]) => {
+    if (!chatSettings.memoryEnabled) return;
+    const extracted = extractContextFromConversation(chatMessages);
+    if (extracted.length === 0) return;
+
+    setMemory((prev) => {
+      const next = [...prev];
+      for (const item of extracted) {
+        const exists = next.find((m) => m.text === item);
+        if (!exists) {
+          next.push({ text: item, weight: 0.7 });
+        } else {
+          const idx = next.findIndex((m) => m.text === item);
+          if (idx !== -1) {
+            next[idx] = { ...next[idx], weight: Math.min(next[idx].weight + 0.05, 1) };
+          }
+        }
+      }
+      return next.slice(-30);
+    });
+  };
+
   const sendMessage = async () => {
     if (!input.trim() && !image) return;
 
@@ -3440,7 +3497,8 @@ Only give the improved answer directly.`,
       setLoading(false);
       return;
     }
-        if (!input && !image) return;
+
+    if (!input && !image) return;
 
     if (upgradeNotice.visible) {
       setUpgradeNotice({
@@ -3784,6 +3842,34 @@ updated[index].messages[
 
     setIsWaitingForFirstToken(false);
     setStreamController(null);
+
+    // PHASE 9.3 — context opslaan na response
+    autoSaveContext(updated[index].messages);
+
+    // PHASE 9.4 — TTS: spreek AI antwoord voor (alleen personal, alleen als tekst kort genoeg)
+    if (
+      isPersonalRoute &&
+      aiText.trim() &&
+      aiText.length < 400 &&
+      typeof window !== "undefined" &&
+      "speechSynthesis" in window
+    ) {
+      window.speechSynthesis.cancel();
+      const utt = new SpeechSynthesisUtterance(aiText.trim());
+      utt.lang =
+        detectedLang === "nl" ? "nl-NL" :
+        detectedLang === "de" ? "de-DE" :
+        detectedLang === "fr" ? "fr-FR" :
+        detectedLang === "es" ? "es-ES" :
+        detectedLang === "it" ? "it-IT" :
+        detectedLang === "tr" ? "tr-TR" :
+        detectedLang === "ar" ? "ar-SA" :
+        detectedLang === "hi" ? "hi-IN" :
+        "en-US";
+      utt.rate = 1.05;
+      utt.pitch = 1;
+      window.speechSynthesis.speak(utt);
+    }
 
     // PHASE 9.2 — AGENDA INTENT CHECK
     if (isPersonalRoute && rawInputToSend && !imageToSend) {
@@ -5389,6 +5475,100 @@ updated[index].messages[
   enterKeyHint="send"
   rows={1}
 />
+
+{/* 9.4 — VOICE INPUT */}
+{typeof window !== "undefined" && ("SpeechRecognition" in window || "webkitSpeechRecognition" in window) && (
+  <button
+    type="button"
+    onClick={() => {
+      if (voiceListening) {
+        (window as any).__olVoiceRecognition?.stop();
+        return;
+      }
+      const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      const rec = new SR();
+      rec.lang =
+        detectedLang === "nl" ? "nl-NL" :
+        detectedLang === "de" ? "de-DE" :
+        detectedLang === "fr" ? "fr-FR" :
+        detectedLang === "es" ? "es-ES" :
+        detectedLang === "it" ? "it-IT" :
+        detectedLang === "tr" ? "tr-TR" :
+        detectedLang === "ar" ? "ar-SA" :
+        detectedLang === "hi" ? "hi-IN" :
+        "en-US";
+      rec.interimResults = true;
+      rec.continuous = true;
+      rec.maxAlternatives = 1;
+
+      // taal direct uit browser halen, niet uit React state
+      const rawLang = (navigator.language || "en").toLowerCase();
+      rec.lang =
+        rawLang.startsWith("nl") ? "nl-NL" :
+        rawLang.startsWith("de") ? "de-DE" :
+        rawLang.startsWith("fr") ? "fr-FR" :
+        rawLang.startsWith("es") ? "es-ES" :
+        rawLang.startsWith("it") ? "it-IT" :
+        rawLang.startsWith("tr") ? "tr-TR" :
+        rawLang.startsWith("ar") ? "ar-SA" :
+        rawLang.startsWith("hi") ? "hi-IN" :
+        rawLang.startsWith("pt") ? "pt-PT" :
+        "en-US";
+
+      (window as any).__olVoiceRecognition = rec;
+      (window as any).__olVoiceBaseInput = input;
+      setVoiceListening(true);
+      rec.start();
+
+      rec.onresult = (e: any) => {
+        let interim = "";
+        let final = "";
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          const t = e.results[i][0].transcript;
+          if (e.results[i].isFinal) {
+            final += t;
+          } else {
+            interim += t;
+          }
+        }
+        const base = (window as any).__olVoiceBaseInput || "";
+        if (final) {
+          const next = base ? base + " " + final.trim() : final.trim();
+          (window as any).__olVoiceBaseInput = next;
+          setInput(next);
+        } else if (interim) {
+          setInput(base ? base + " " + interim : interim);
+        }
+      };
+
+      rec.onerror = (e: any) => {
+        // 'no-speech' niet als fout behandelen — gewoon doorgaan
+        if (e.error === "no-speech") return;
+        setVoiceListening(false);
+        delete (window as any).__olVoiceBaseInput;
+      };
+
+      rec.onend = () => {
+        // bij continuous=true: onend betekent dat de user zelf stopte
+        setVoiceListening(false);
+        delete (window as any).__olVoiceBaseInput;
+      };
+    }}
+    className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full border ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 active:scale-95 ${
+      voiceListening
+        ? "border-red-400/40 bg-red-500/18 text-red-300 shadow-[0_0_0_3px_rgba(239,68,68,0.14)] animate-pulse"
+        : "border-white/8 bg-white/[0.035] text-white/52 hover:border-white/14 hover:bg-white/[0.07] hover:text-white"
+    }`}
+    aria-label={voiceListening ? "Stop opname" : "Spreek een bericht"}
+  >
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="9" y="3" width="6" height="11" rx="3"/>
+      <path d="M5 10a7 7 0 0 0 14 0"/>
+      <line x1="12" y1="19" x2="12" y2="23"/>
+      <line x1="8" y1="23" x2="16" y2="23"/>
+    </svg>
+  </button>
+)}
 
 <button
   type="button"
