@@ -5513,6 +5513,11 @@ updated[index].messages[
 
         mediaRecorder.onstop = async () => {
           stream.getTracks().forEach((t) => t.stop());
+
+          // Stop Web Speech live preview
+          (window as any).__olSpeechRecognition?.stop();
+          (window as any).__olSpeechRecognition = null;
+
           setVoiceListening(false);
           setInput("⏳ Verwerken...");
 
@@ -5585,6 +5590,27 @@ const transcript = (data.text || "").trim();
         };
 
         mediaRecorder.start();
+
+        // Web Speech live preview tijdens opname
+        const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        if (SR) {
+          const rec = new SR();
+          rec.lang = navigator.language || "nl-NL";
+          rec.continuous = true;
+          rec.interimResults = true;
+          (window as any).__olSpeechRecognition = rec;
+
+          rec.onresult = (e: any) => {
+            let text = "";
+            for (let i = 0; i < e.results.length; i++) {
+              text += e.results[i][0].transcript;
+            }
+            setInput(text);
+          };
+
+          rec.onerror = () => {};
+          rec.start();
+        }
       } catch (err) {
         console.error("Mic access failed:", err);
         setVoiceListening(false);
