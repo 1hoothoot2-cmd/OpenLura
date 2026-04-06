@@ -144,6 +144,7 @@ export default function PersonalDashboardPage() {
   const [nameInput, setNameInput] = useState("");
   const [nameSaving, setNameSaving] = useState(false);
   const [editingCardId, setEditingCardId] = useState<string | null>(null);
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   const [editCardTitle, setEditCardTitle] = useState("");
   const [editCardEmoji, setEditCardEmoji] = useState("");
 
@@ -176,11 +177,7 @@ export default function PersonalDashboardPage() {
   }
 
   async function handleSubscriptionClick() {
-    try {
-      const r = await fetch("/api/stripe/portal", { method: "POST", credentials: "include" });
-      const d = await r.json();
-      if (d.url) window.location.href = d.url;
-    } catch {}
+    setShowSubscriptionModal(true);
   }
 
   async function handleUpgradeClick() {
@@ -739,6 +736,73 @@ export default function PersonalDashboardPage() {
                 ? "Doorgaan"
                 : "Continue"}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Subscription modal */}
+      {showSubscriptionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowSubscriptionModal(false)} />
+          <div className="relative z-10 w-full max-w-sm rounded-[24px] border border-white/10 bg-[#0b0b17] p-7 shadow-[0_24px_80px_rgba(0,0,0,0.60)]">
+            <button type="button" onClick={() => setShowSubscriptionModal(false)} className="absolute right-4 top-4 h-7 w-7 flex items-center justify-center rounded-full border border-white/8 text-white/40 hover:text-white hover:bg-white/[0.06] transition-all">×</button>
+
+            {userTier === "free" ? (
+              <>
+                <div className="mb-1 text-2xl">⚡</div>
+                <h2 className="text-lg font-semibold text-white/92">Upgrade naar Go</h2>
+                <p className="mt-1 text-sm text-white/40 mb-5">Ontgrendel alle functies van OpenLura.</p>
+                <div className="space-y-2.5 mb-6">
+                  {[
+                    { icon: "📅", text: "Agenda & planning" },
+                    { icon: "🎨", text: "Photo Studio — 100 punten/maand" },
+                    { icon: "🧠", text: "Persoonlijk AI geheugen" },
+                    { icon: "⚡", text: "Snellere antwoorden" },
+                    { icon: "💬", text: "Onbeperkte chats" },
+                  ].map(f => (
+                    <div key={f.text} className="flex items-center gap-3 rounded-[14px] border border-white/6 bg-white/[0.03] px-4 py-2.5">
+                      <span className="text-base">{f.icon}</span>
+                      <span className="text-sm text-white/72">{f.text}</span>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={async () => { setShowSubscriptionModal(false); await handleUpgradeClick(); }}
+                  className="w-full rounded-[14px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] py-3 text-sm font-medium text-white shadow-[0_8px_20px_rgba(59,130,246,0.24)] hover:brightness-110 transition-all"
+                >
+                  Upgrade naar Go →
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="mb-1 text-2xl">✅</div>
+                <h2 className="text-lg font-semibold text-white/92">Go Plan actief</h2>
+                <p className="mt-1 text-sm text-white/40 mb-5">Je hebt toegang tot alle functies.</p>
+                <div className="space-y-2.5 mb-6">
+                  {[
+                    { icon: "📅", text: "Agenda & planning" },
+                    { icon: "🎨", text: "Photo Studio — 100 punten/maand" },
+                    { icon: "🧠", text: "Persoonlijk AI geheugen" },
+                    { icon: "⚡", text: "Snellere antwoorden" },
+                    { icon: "💬", text: "Onbeperkte chats" },
+                  ].map(f => (
+                    <div key={f.text} className="flex items-center gap-3 rounded-[14px] border border-emerald-400/12 bg-emerald-400/[0.04] px-4 py-2.5">
+                      <span className="text-base">{f.icon}</span>
+                      <span className="text-sm text-white/72">{f.text}</span>
+                      <span className="ml-auto text-emerald-400 text-xs">✓</span>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={async () => { setShowSubscriptionModal(false); await handleUpgradeClick(); }}
+                  className="w-full rounded-[14px] border border-white/10 bg-white/[0.04] py-3 text-sm text-white/60 hover:text-white hover:bg-white/[0.08] transition-all"
+                >
+                  Abonnement beheren
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
