@@ -5476,70 +5476,67 @@ updated[index].messages[
   rows={1}
 />
 
-{/* 9.4 — VOICE INPUT */}
-{typeof window !== "undefined" && ("SpeechRecognition" in window || "webkitSpeechRecognition" in window) && (
+{/* 9.4 — VOICE INPUT (Whisper) */}
+{typeof window !== "undefined" && !!navigator.mediaDevices && (
   <button
     type="button"
-    onClick={() => {
+    onClick={async () => {
       if (voiceListening) {
-        (window as any).__olVoiceRecognition?.stop();
+        (window as any).__olMediaRecorder?.stop();
         return;
       }
-      const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      const rec = new SR();
 
-      // Taal: gebruik detectedLang (al correct bepaald bij load via browser/server)
-      rec.lang =
-        detectedLang === "nl" ? "nl-NL" :
-        detectedLang === "de" ? "de-DE" :
-        detectedLang === "fr" ? "fr-FR" :
-        detectedLang === "es" ? "es-ES" :
-        detectedLang === "it" ? "it-IT" :
-        detectedLang === "tr" ? "tr-TR" :
-        detectedLang === "ar" ? "ar-SA" :
-        detectedLang === "hi" ? "hi-IN" :
-        detectedLang === "pt" ? "pt-PT" :
-        "en-US";
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mediaRecorder = new MediaRecorder(stream, {
+          mimeType: MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/mp4",
+        });
+        const chunks: BlobPart[] = [];
 
-      rec.interimResults = true;
-      rec.continuous = true;
-      rec.maxAlternatives = 1;
+        (window as any).__olMediaRecorder = mediaRecorder;
+        setVoiceListening(true);
 
-      // Accumulator: bijhouden wat al definitief is
-      let confirmedText = input;
-      (window as any).__olVoiceRecognition = rec;
-      setVoiceListening(true);
-      rec.start();
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) chunks.push(e.data);
+        };
 
-      rec.onresult = (e: any) => {
-        let interimText = "";
-        for (let i = e.resultIndex; i < e.results.length; i++) {
-          const transcript = e.results[i][0].transcript;
-          if (e.results[i].isFinal) {
-            confirmedText = confirmedText
-              ? confirmedText.trimEnd() + " " + transcript.trim()
-              : transcript.trim();
-          } else {
-            interimText += transcript;
+        mediaRecorder.onstop = async () => {
+          // Stop alle tracks
+          stream.getTracks().forEach((t) => t.stop());
+          setVoiceListening(false);
+
+          if (chunks.length === 0) return;
+
+          const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/mp4";
+          const blob = new Blob(chunks, { type: mimeType });
+
+          // Stuur naar Whisper via onze backend
+          try {
+            const form = new FormData();
+            form.append("audio", blob, "audio.webm");
+            form.append("lang", detectedLang);
+
+            const res = await fetch("/api/voice", {
+              method: "POST",
+              body: form,
+            });
+
+            if (!res.ok) return;
+            const data = await res.json();
+            const transcript = (data.text || "").trim();
+            if (transcript) {
+              setInput((prev) => prev ? prev.trimEnd() + " " + transcript : transcript);
+            }
+          } catch (err) {
+            console.error("Whisper transcription failed:", err);
           }
-        }
-        // Toon bevestigde tekst + live interim
-        const display = interimText
-          ? confirmedText
-            ? confirmedText.trimEnd() + " " + interimText
-            : interimText
-          : confirmedText;
-        setInput(display);
-      };
+        };
 
-      rec.onerror = (e: any) => {
-        if (e.error === "no-speech") return;
+        mediaRecorder.start();
+      } catch (err) {
+        console.error("Mic access failed:", err);
         setVoiceListening(false);
-      };
-
-      rec.onend = () => {
-        setVoiceListening(false);
-      };
+      }
     }}
     className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full border ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 active:scale-95 ${
       voiceListening
