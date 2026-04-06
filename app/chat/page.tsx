@@ -486,7 +486,7 @@ const extractContextFromConversation = (messages: any[]): string[] => {
 
 const detectActionOutput = (content: string): "mail" | "plan" | "list" | null => {
   const t = content.toLowerCase();
-  if (/\b(onderwerp:|subject:|dear |beste |geachte |groet|regards|van:|to:|cc:)\b/.test(t)) return "mail";
+  if (/\b(onderwerp:|subject:|assunto:|betreff:|objet:|asunto:|dear |beste |geachte |prezado|dear |regards|atenciosamente|groet|met vriendelijke|van:|to:|cc:)\b/.test(t)) return "mail";
   if (/\b(stap \d|step \d|fase \d|\d\.\s|dag \d|week \d)\b/.test(t) && content.length > 200) return "plan";
   if ((/\n[-•*]\s/.test(content) || /\n\d+\.\s/.test(content)) && content.split("\n").length > 4) return "list";
   return null;
@@ -3778,8 +3778,9 @@ setIsWaitingForFirstToken(true);
     }
 
     const responseVariant = res.headers.get("X-OpenLura-Variant") || "unknown";
+    // Taal alleen updaten als browser taal onbekend/en is — voorkom override door AI response
     const responseLang = res.headers.get("X-OpenLura-Lang");
-if (responseLang) {
+if (responseLang && detectedLang === "en") {
   const normalizedResponseLang = String(responseLang).toLowerCase().slice(0, 2);
   setDetectedLang(normalizedResponseLang);
 }
