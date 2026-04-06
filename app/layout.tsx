@@ -75,6 +75,11 @@ export default async function RootLayout({
         <meta name="description" content={description} />
         <script
           async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6179971963487173"
+          crossOrigin="anonymous"
+        />
+        <script
+          async
           src="https://www.googletagmanager.com/gtag/js?id=AW-16726641191"
         />
         <script
