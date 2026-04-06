@@ -119,7 +119,7 @@ export default function PersonalDashboardPage() {
   const DEFAULT_CARDS = [
     { id: "agenda", emoji: "📅", title: "Agenda", desc: "Bekijk en plan je dag", href: "/personal-dashboard" },
     { id: "workspace", emoji: "💬", title: "Chat", desc: "Open je AI werkruimte", href: "/personal-workspace" },
-    { id: "subscription", emoji: "💳", title: "Abonnement", desc: "Beheer je plan", href: "/api/stripe/portal" },
+    { id: "subscription", emoji: "💳", title: "Abonnement", desc: "Beheer je plan", href: "#subscription" },
     { id: "photo-studio", emoji: "🎨", title: "Photo Studio", desc: "Genereer afbeeldingen met AI", href: "/photo-studio" },
   ];
 
@@ -173,6 +173,14 @@ export default function PersonalDashboardPage() {
     setEditingCardId(card.id);
     setEditCardTitle(card.title);
     setEditCardEmoji(card.emoji);
+  }
+
+  async function handleSubscriptionClick() {
+    try {
+      const r = await fetch("/api/stripe/portal", { method: "POST", credentials: "include" });
+      const d = await r.json();
+      if (d.url) window.location.href = d.url;
+    } catch {}
   }
 
   async function handleUpgradeClick() {
@@ -399,6 +407,12 @@ export default function PersonalDashboardPage() {
                         </button>
                       </div>
                     </>
+                  ) : card.id === "subscription" ? (
+                    <button type="button" onClick={handleSubscriptionClick} className="block w-full text-left">
+                      <div className="text-2xl mb-2">{card.emoji}</div>
+                      <div className="text-sm font-medium text-white/88">{card.title}</div>
+                      <div className="mt-0.5 text-xs text-white/36 leading-4">{card.desc}</div>
+                    </button>
                   ) : (
                     <a href={card.href} className="block">
                       <div className="text-2xl mb-2">{card.emoji}</div>
