@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 const MODELS = [
@@ -42,7 +42,7 @@ interface HistoryItem {
   created_at: string;
 }
 
-export default function PhotoStudioPage() {
+function PhotoStudioContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [authChecked, setAuthChecked] = useState(false);
@@ -376,5 +376,17 @@ export default function PhotoStudioPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function PhotoStudioPage() {
+  return (
+    <Suspense fallback={
+      <div className="fixed inset-0 flex items-center justify-center bg-[#050510] text-white">
+        <p className="text-white/40 text-sm">Laden...</p>
+      </div>
+    }>
+      <PhotoStudioContent />
+    </Suspense>
   );
 }
