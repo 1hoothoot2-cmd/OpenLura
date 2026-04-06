@@ -57,7 +57,7 @@ const getBrowserLanguage = () => {
   return "en";
 };
 
-const [detectedLang, setDetectedLang] = useState(getBrowserLanguage);
+const [detectedLang, setDetectedLang] = useState(() => getBrowserLanguage());
 
 // apart van UI-taal: dit is de taal die we meesturen voor voice input
 const [voiceInputLang, setVoiceInputLang] = useState(getBrowserLanguage);
