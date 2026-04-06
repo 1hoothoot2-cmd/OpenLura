@@ -5501,11 +5501,14 @@ updated[index].messages[
         };
 
         mediaRecorder.onstop = async () => {
-          // Stop alle tracks
           stream.getTracks().forEach((t) => t.stop());
           setVoiceListening(false);
+          setInput("⏳ Verwerken...");
 
-          if (chunks.length === 0) return;
+          if (chunks.length === 0) {
+            setInput("");
+            return;
+          }
 
           const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/mp4";
           const blob = new Blob(chunks, { type: mimeType });
@@ -5525,7 +5528,9 @@ updated[index].messages[
             const data = await res.json();
             const transcript = (data.text || "").trim();
             if (transcript) {
-              setInput((prev) => prev ? prev.trimEnd() + " " + transcript : transcript);
+              setInput(transcript);
+            } else {
+              setInput("");
             }
           } catch (err) {
             console.error("Whisper transcription failed:", err);
