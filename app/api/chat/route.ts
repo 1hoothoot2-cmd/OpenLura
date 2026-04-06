@@ -3581,11 +3581,19 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
     structure: 0,
   };
 
+  const [globalFeedbackData, abFeedbackData] = await Promise.all([
+    fetchSupabaseGlobalFeedbackRows(
+      "select=message,type,user_id&user_id=is.null",
+      "Global learning fetch failed:"
+    ).catch(() => []),
+    fetchSupabaseGlobalFeedbackRows(
+      "select=type,source,user_id&user_id=is.null",
+      "A/B feedback fetch failed:"
+    ).catch(() => []),
+  ]);
+
   try {
-    const feedbackData = await fetchSupabaseGlobalFeedbackRows(
-  "select=message,type,user_id&user_id=is.null",
-  "Global learning fetch failed:"
-);
+    const feedbackData = globalFeedbackData;
 
       feedbackData
         .filter((f: any) => !f.user_id && f.userScope !== "personal")
@@ -3614,12 +3622,7 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
     let responseVariant = "A";
 
   try {
-    const feedbackData = await fetchSupabaseGlobalFeedbackRows(
-  "select=type,source,user_id&user_id=is.null",
-  "A/B feedback fetch failed:"
-);
-
-    const globalAbFeedback = feedbackData.filter(
+    const globalAbFeedback = abFeedbackData.filter(
       (f: any) => !f.user_id && f.userScope !== "personal"
     );
 
@@ -3768,7 +3771,7 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
     });
 
     if ((shouldPersistRuntimeMemory || shouldPersistUsageStats) && personalUserId && accessToken) {
-      await persistSupabasePersonalMemory({
+      void persistSupabasePersonalMemory({
         userId: personalUserId,
         accessToken,
         memory: runtimePersonalMemory,
@@ -4103,6 +4106,7 @@ Do not use web search for this path.`,
     const response = await openai.responses.create({
     model: "gpt-4.1-mini",
     store: false,
+    stream: !shouldUseWebSearch,
     tools: shouldUseWebSearch ? [{ type: "web_search_preview" }] : [],
     include: shouldUseWebSearch ? ["web_search_call.action.sources"] : [],
     text: {
@@ -4177,23 +4181,53 @@ Do not use web search for this path.`,
       ],
     } as any);
 
-        let aiText =
-    response.output_text ||
-    (response.output || [])
-      .flatMap((item: any) =>
-        item.type === "message" ? item.content || [] : []
-      )
-      .map((part: any) => {
-        if (part.type !== "output_text") return "";
+        let aiText = "";
 
-        if (typeof part.text === "string") return part.text;
-        if (typeof part.text?.value === "string") return part.text.value;
-        if (typeof part.value === "string") return part.value;
+    if (shouldUseWebSearch) {
+      // Non-streaming voor web search (bronnen nodig)
+      aiText = (response as any).output_text ||
+        ((response as any).output || [])
+          .flatMap((item: any) => item.type === "message" ? item.content || [] : [])
+          .map((part: any) => {
+            if (part.type !== "output_text") return "";
+            if (typeof part.text === "string") return part.text;
+            if (typeof part.text?.value === "string") return part.text.value;
+            if (typeof part.value === "string") return part.value;
+            return "";
+          })
+          .join("")
+          .trim();
+    } else {
+      // Streaming — direct naar client
+      const encoder = new TextEncoder();
+      const chunks: string[] = [];
 
-        return "";
-      })
-      .join("")
-      .trim();
+      const streamResponse = new Response(
+        new ReadableStream({
+          async start(controller) {
+            for await (const event of response as any) {
+              const delta = event?.delta || event?.choices?.[0]?.delta?.content || "";
+              if (delta) {
+                chunks.push(delta);
+                controller.enqueue(encoder.encode(delta));
+              }
+            }
+            controller.close();
+          },
+        }),
+        {
+          headers: buildNoStoreTextHeaders({
+            "X-OpenLura-Variant": responseVariant,
+            "X-OpenLura-Sources": encodeURIComponent(JSON.stringify([])),
+            "X-OpenLura-Lang": detectedLanguage,
+            ...buildRateLimitHeaders(rateLimit),
+            ...buildUsageHeaders(usageLimitSnapshot),
+          }),
+        }
+      );
+
+      return streamResponse;
+    }
 
   const isPaidUser = isPersonalEnvironment && usageLimitSnapshot.tier !== "free";
 

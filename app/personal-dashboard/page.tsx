@@ -119,7 +119,7 @@ export default function PersonalDashboardPage() {
     { id: "agenda", emoji: "📅", title: "Agenda", desc: "Bekijk en plan je dag", href: "/personal-dashboard" },
     { id: "chat", emoji: "💬", title: "Chat", desc: "Open je AI werkruimte", href: "/personal-workspace" },
     { id: "workspace", emoji: "🧠", title: "Persoonlijke omgeving", desc: "Jouw privé AI omgeving", href: "/persoonlijke-omgeving" },
-    { id: "subscription", emoji: "💳", title: "Abonnement", desc: "Beheer je plan", href: "/personal-workspace" },
+    { id: "subscription", emoji: "💳", title: "Abonnement", desc: "Beheer je plan", href: "/api/stripe/portal" },
   ];
 
   const [cards, setCards] = useState(() => {
