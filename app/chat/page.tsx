@@ -507,6 +507,7 @@ const [pendingAgenda, setPendingAgenda] = useState<{
   chatId: number;
   title: string;
   time: string;
+  date?: string;
 } | null>(null);
 
 const detectAgendaIntent = (userMsg: string, aiMsg?: string): { title: string; time: string } | null => {
@@ -586,12 +587,15 @@ const isAgendaConfirm = (text: string): boolean => {
   return confirmWords.includes(clean);
 };
 
-const addToAgenda = (title: string, time: string) => {
+const addToAgenda = (title: string, time: string, dateStr?: string) => {
   try {
     const AGENDA_KEY = "openlura_dashboard_agenda";
     const existing = JSON.parse(localStorage.getItem(AGENDA_KEY) || "[]");
+    const today = new Date();
+    const fallbackDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
     existing.push({
       id: `${Date.now()}-${Math.random()}`,
+      date: dateStr || fallbackDate,
       time,
       title,
       done: false,
@@ -3029,7 +3033,7 @@ Do not mention that this is a new attempt.`,
       pendingAgenda.chatId === currentChatId &&
       isAgendaConfirm(input.trim())
     ) {
-      addToAgenda(pendingAgenda.title, pendingAgenda.time);
+      addToAgenda(pendingAgenda.title, pendingAgenda.time, pendingAgenda.date);
       setPendingAgenda(null);
 
       let updated = [...chats];
@@ -3693,7 +3697,33 @@ updated[index].messages[
     if (isPersonalRoute && rawInputToSend && !imageToSend) {
       const agendaIntent = detectAgendaIntent(rawInputToSend, aiText);
       if (agendaIntent && currentChatId !== null) {
-        setPendingAgenda({ chatId: currentChatId, title: agendaIntent.title, time: agendaIntent.time });
+        // Datum extractie uit user input
+        const extractDate = (text: string): string | undefined => {
+          const t = text.toLowerCase();
+          const now = new Date();
+          const pad = (n: number) => String(n).padStart(2, "0");
+          const toStr = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+          if (/\bmorgen\b|\btomorrow\b|\bdemain\b|\bmañana\b/.test(t)) {
+            const d = new Date(now); d.setDate(d.getDate() + 1); return toStr(d);
+          }
+          if (/\bovermorgen\b|\bday after tomorrow\b/.test(t)) {
+            const d = new Date(now); d.setDate(d.getDate() + 2); return toStr(d);
+          }
+          const weekdays = ["zondag","maandag","dinsdag","woensdag","donderdag","vrijdag","zaterdag"];
+          for (let i = 0; i < weekdays.length; i++) {
+            if (t.includes(weekdays[i]) || t.includes(["sunday","monday","tuesday","wednesday","thursday","friday","saturday"][i])) {
+              const d = new Date(now);
+              const diff = (i - d.getDay() + 7) % 7 || 7;
+              d.setDate(d.getDate() + diff);
+              return toStr(d);
+            }
+          }
+          return undefined;
+        };
+
+        const extractedDate = extractDate(rawInputToSend);
+        setPendingAgenda({ chatId: currentChatId, title: agendaIntent.title, time: agendaIntent.time, date: extractedDate });
         setChats(prev => prev.map(chat => {
           if (chat.id !== currentChatId) return chat;
           return {

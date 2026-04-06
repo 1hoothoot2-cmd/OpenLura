@@ -1171,7 +1171,7 @@ const [chatTitleDraft, setChatTitleDraft] = useState("");
                     setMobileMenu(false);
                     try {
                       const res = await fetch("/api/stripe/checkout", { method: "POST", credentials: "include" });
-                      if (res.status === 401) { window.location.href = "/persoonlijke-omgeving"; return; }
+                      if (res.status === 401) { window.location.href = "/personal-workspace"; return; }
                       const data = await res.json();
                       if (data.url) window.location.href = data.url;
                     } catch {}
@@ -1208,6 +1208,12 @@ const [chatTitleDraft, setChatTitleDraft] = useState("");
             >
               Mijn profiel
             </button>
+          )}
+
+          {isPersonalRoute && (
+            <a href="/personal-dashboard" onClick={() => setMobileMenu(false)} className="w-full rounded-2xl border border-[#3b82f6]/16 bg-[#3b82f6]/8 px-3 py-2.5 text-left text-sm text-[#93c5fd] ol-interactive transition-[background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/28 hover:bg-[#3b82f6]/14 hover:text-white active:scale-[0.985] flex items-center gap-2">
+              Dashboard
+            </a>
           )}
 
           {isPersonalRoute && (
