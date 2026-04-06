@@ -440,6 +440,283 @@ const [savingPrompt, setSavingPrompt] = useState(false);
 const [savePromptSuccess, setSavePromptSuccess] = useState(false);
 const [savePromptError, setSavePromptError] = useState("");
 
+// =============================
+// PHASE 9.1 — INTENT DETECTION
+// =============================
+
+type IntentType = "mail" | "plan" | "explain" | "code" | "list" | null;
+
+const detectIntent = (text: string): IntentType => {
+  const t = text.toLowerCase().trim();
+  if (!t || t.length < 3) return null;
+
+  if (/\b(mail|email|e-mail|schrijf.*mail|write.*email|send.*email|draft.*mail)\b/.test(t)) return "mail";
+  if (/\b(plan|planning|schedule|dag|week|agenda|rooster|structuur)\b/.test(t)) return "plan";
+  if (/\b(leg uit|explain|uitleg|wat is|hoe werkt|how does|what is|define|difference between|verschil)\b/.test(t)) return "explain";
+  if (/\b(code|script|function|component|schrijf.*code|write.*code|fix.*bug|debug|implement)\b/.test(t)) return "code";
+  if (/\b(lijst|list|overzicht|stappen|steps|items|opsomming|geef me een|give me a list)\b/.test(t)) return "list";
+
+  return null;
+};
+
+const INTENT_CONFIG: Record<NonNullable<IntentType>, { label: string; labelNl: string; prefix: string; prefixNl: string; emoji: string }> = {
+  mail: {
+    label: "Write email",
+    labelNl: "Mail schrijven",
+    prefix: "Write a professional email about: ",
+    prefixNl: "Schrijf een professionele mail over: ",
+    emoji: "✉️",
+  },
+  plan: {
+    label: "Make a plan",
+    labelNl: "Plan maken",
+    prefix: "Make a clear step-by-step plan for: ",
+    prefixNl: "Maak een helder stap-voor-stap plan voor: ",
+    emoji: "📋",
+  },
+  explain: {
+    label: "Explain clearly",
+    labelNl: "Uitleggen",
+    prefix: "Explain clearly and simply: ",
+    prefixNl: "Leg helder en simpel uit: ",
+    emoji: "💡",
+  },
+  code: {
+    label: "Write code",
+    labelNl: "Code schrijven",
+    prefix: "Write clean, well-commented code for: ",
+    prefixNl: "Schrijf nette, goed gedocumenteerde code voor: ",
+    emoji: "⌨️",
+  },
+  list: {
+    label: "Make a list",
+    labelNl: "Lijst maken",
+    prefix: "Give me a clear, numbered list of: ",
+    prefixNl: "Geef me een duidelijke, genummerde lijst van: ",
+    emoji: "📝",
+  },
+};
+
+const detectedIntent = detectIntent(input);
+
+// =============================
+// PHASE 9.2 — AGENDA ACTION
+// =============================
+
+const [pendingAgenda, setPendingAgenda] = useState<{
+  chatId: number;
+  title: string;
+  time: string;
+  date?: string;
+  repeat?: "daily" | "weekly" | "workdays" | "mwf" | null;
+} | null>(null);
+
+const detectAgendaIntent = (userMsg: string, aiMsg?: string): { title: string; time: string } | null => {
+  const combined = `${userMsg} ${aiMsg || ""}`.toLowerCase();
+
+  const hasIntent = /\b(plan|afspraak|agenda|reminder|zet in|voeg toe|herinner|blokkeer|pauze|meeting|vergadering|standup|blok|inplannen|inplan|elke dag|dagelijks)\b/.test(combined);
+  if (!hasIntent) return null;
+
+  // Tijdextractie — eerst uit AI antwoord, dan uit user input
+  const extractTime = (text: string): string => {
+    const m =
+      text.match(/\b(\d{1,2}):(\d{2})\b/) ||
+      text.match(/\bom\s+(\d{1,2})[:.h]?(\d{2})?\b/i) ||
+      text.match(/\b(\d{1,2})\s*uur\b/i);
+    if (!m) return "";
+    const h = (m[1] || "0").padStart(2, "0");
+    const mn = (m[2] || "00").padStart(2, "0");
+    return `${h}:${mn}`;
+  };
+
+  const time = extractTime(userMsg) || extractTime(aiMsg || "");
+
+  // Titelextractie — pak een herkenbaar concept uit AI antwoord
+  let title = "";
+  const aiLower = (aiMsg || "").toLowerCase();
+
+  // Zoek herkenbare woorden in AI antwoord
+  const subjectMatch = aiLower.match(/\b(pauze|lunch|standup|stand-up|meeting|vergadering|afspraak|blok|reminder|sessie|call|overleg|halfuur|half uur|dagelijks|werkpauze|middagpauze|ochtendpauze)[^\n,."')!?]*/i);
+  if (subjectMatch) {
+    title = subjectMatch[0].trim();
+  }
+
+  // Fallback: schoon de user input op
+  if (!title || title.length < 3) {
+    title = userMsg
+      .replace(/^(plan|maak|zet|voeg toe|herinner me aan|kan je|kun je|wil je|zet dit|dit|zou je|zou jij)\s+/i, "")
+      .replace(/\bvoor\s+elke\s+dag\b/gi, "")
+      .replace(/\bin\s+(mijn\s+)?agenda\b/gi, "")
+      .replace(/\bom\s+\d{1,2}[:.h]?\d*\s*(uur|u)?\b/gi, "")
+      .replace(/\bvoor\s+(een\s+)?(half\s+uur|uur|dag|week)\b/gi, "")
+      .replace(/\bkomende\s+\w+\b/gi, "")
+      .replace(/\belke\s+dag\b/gi, "")
+      .replace(/\bexact\b/gi, "")
+      .trim();
+  }
+
+  // Strip aanhalingstekens, haakjes, leestekens aan het einde
+  title = title
+    .replace(/^["'(]+|["')!?.]+$/g, "")
+    .trim();
+
+  title = (title.charAt(0).toUpperCase() + title.slice(1)).slice(0, 80);
+  if (!title || title.length < 2) return null;
+
+  return { title, time };
+};
+
+const isAgendaConfirm = (text: string): boolean => {
+  const t = text.toLowerCase().trim();
+  const confirmWords = [
+    // NL
+    "ja", "ja graag", "ja doe het", "doe het", "doe maar", "graag", "doen",
+    "voeg toe", "toevoegen", "prima", "goed", "tuurlijk", "natuurlijk", "ok", "okay",
+    // EN
+    "yes", "yep", "sure", "do it", "add it", "please", "go ahead", "yeah", "absolutely",
+    // DE
+    "jep", "klar", "mach es", "füge hinzu", "bitte", "natürlich", "einverstanden",
+    // FR
+    "oui", "ouais", "vas-y", "ajoute", "ajouter", "bien sûr", "d'accord",
+    // ES
+    "sí", "si", "claro", "hazlo", "agregar", "añadir", "dale", "por favor", "adelante",
+    // IT
+    "sì", "certo", "fallo", "aggiungi", "va bene", "perfetto",
+    // TR
+    "evet", "tamam", "ekle", "yap", "tabii", "olur",
+    // PAP
+    "ta bon", "añadi", "hasi",
+    // HI
+    "हाँ", "हां", "जोड़ो", "ठीक है", "कर दो",
+    // AR
+    "نعم", "أضف", "حسنا", "موافق",
+  ];
+  const clean = t.replace(/[.!?]+$/, "");
+  return confirmWords.includes(clean);
+};
+
+const addToAgenda = (title: string, time: string, dateStr?: string, repeat?: "daily" | "weekly" | "workdays" | "mwf" | null) => {
+  try {
+    const AGENDA_KEY = "openlura_dashboard_agenda";
+    const existing = JSON.parse(localStorage.getItem(AGENDA_KEY) || "[]");
+    const today = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const toStr = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const fallbackDate = toStr(today);
+    const startDate = dateStr || fallbackDate;
+
+    if (repeat === "daily") {
+      // 30 dagen aanmaken vanaf startdatum
+      const start = new Date(startDate + "T00:00:00");
+      for (let i = 0; i < 30; i++) {
+        const d = new Date(start);
+        d.setDate(d.getDate() + i);
+        existing.push({
+          id: `${Date.now()}-${Math.random()}-${i}`,
+          date: toStr(d),
+          time,
+          title,
+          done: false,
+          color: "blue",
+        });
+      }
+    } else if (repeat === "workdays") {
+      // Maandag t/m vrijdag voor 6 weken
+      const start = new Date(startDate + "T00:00:00");
+      let count = 0;
+      for (let i = 0; count < 30; i++) {
+        const d = new Date(start);
+        d.setDate(d.getDate() + i);
+        const day = d.getDay();
+        if (day >= 1 && day <= 5) {
+          existing.push({
+            id: `${Date.now()}-${Math.random()}-${i}`,
+            date: toStr(d),
+            time,
+            title,
+            done: false,
+            color: "blue",
+          });
+          count++;
+        }
+      }
+    } else if (repeat === "mwf") {
+      // Maandag, woensdag, vrijdag voor 6 weken
+      const start = new Date(startDate + "T00:00:00");
+      let count = 0;
+      for (let i = 0; count < 24; i++) {
+        const d = new Date(start);
+        d.setDate(d.getDate() + i);
+        const day = d.getDay();
+        if (day === 1 || day === 3 || day === 5) {
+          existing.push({
+            id: `${Date.now()}-${Math.random()}-${i}`,
+            date: toStr(d),
+            time,
+            title,
+            done: false,
+            color: "blue",
+          });
+          count++;
+        }
+      }
+    } else if (repeat === "weekly") {
+      // 12 weken aanmaken
+      const start = new Date(startDate + "T00:00:00");
+      for (let i = 0; i < 12; i++) {
+        const d = new Date(start);
+        d.setDate(d.getDate() + i * 7);
+        existing.push({
+          id: `${Date.now()}-${Math.random()}-${i}`,
+          date: toStr(d),
+          time,
+          title,
+          done: false,
+          color: "blue",
+        });
+      }
+    } else {
+      existing.push({
+        id: `${Date.now()}-${Math.random()}`,
+        date: startDate,
+        time,
+        title,
+        done: false,
+        color: "blue",
+      });
+    }
+
+    localStorage.setItem(AGENDA_KEY, JSON.stringify(existing));
+  } catch {}
+};
+
+const applyIntent = (intent: NonNullable<IntentType>) => {
+  const config = INTENT_CONFIG[intent];
+  const isNl = detectedLang === "nl";
+  const prefix = isNl ? config.prefixNl : config.prefix;
+  const rawInput = input.trim();
+
+  // Als de input al met de prefix begint, niet dubbel toevoegen
+  if (rawInput.startsWith(prefix)) return;
+
+  // Strip eventuele andere intent-prefixen
+  const allPrefixes = Object.values(INTENT_CONFIG).flatMap(c => [c.prefix, c.prefixNl]);
+  let cleanedInput = rawInput;
+  for (const p of allPrefixes) {
+    if (cleanedInput.startsWith(p)) {
+      cleanedInput = cleanedInput.slice(p.length).trim();
+      break;
+    }
+  }
+
+  const next = prefix + cleanedInput;
+  setInput(next);
+  requestAnimationFrame(() => {
+    inputRef.current?.focus();
+    inputRef.current?.setSelectionRange(next.length, next.length);
+  });
+};
+
 const getLastUserPrompt = () => {
   const activeChat = chats.find(c => c.id === activeChatId);
   if (!activeChat) return "";
@@ -1778,6 +2055,11 @@ const getOpenLuraRequestHeaders = (
     headers["x-openlura-personal-env"] = "true";
   }
 
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (tz) headers["x-openlura-timezone"] = tz;
+  } catch {}
+
   return headers;
 };
 
@@ -2830,6 +3112,38 @@ Do not mention that this is a new attempt.`,
         setActiveChatId(currentChatId);
       }
 
+    // PHASE 9.2 — AGENDA CONFIRM INTERCEPTOR
+    if (
+      pendingAgenda &&
+      pendingAgenda.chatId === currentChatId &&
+      isAgendaConfirm(input.trim())
+    ) {
+      addToAgenda(pendingAgenda.title, pendingAgenda.time, pendingAgenda.date, pendingAgenda.repeat);
+      setPendingAgenda(null);
+
+      const repeatLabel =
+        pendingAgenda.repeat === "daily" ? " — dagelijks voor de komende 30 dagen" :
+        pendingAgenda.repeat === "weekly" ? " — wekelijks voor de komende 12 weken" :
+        pendingAgenda.repeat === "workdays" ? " — elke werkdag (ma t/m vr) voor 6 weken" :
+        pendingAgenda.repeat === "mwf" ? " — maandag, woensdag en vrijdag voor 6 weken" :
+        "";
+
+      let updated = [...chats];
+      const index = updated.findIndex((c) => c.id === currentChatId);
+      if (index !== -1) {
+        updated[index].messages.push({ role: "user", content: input });
+        updated[index].messages.push({
+          role: "ai",
+          content: `✅ Toegevoegd aan je agenda${pendingAgenda.time ? ` voor ${pendingAgenda.time}` : ""}: "${pendingAgenda.title}"${repeatLabel}. Je kunt het bekijken in je dashboard.`,
+          disableFeedback: true,
+        });
+        setChats([...updated]);
+      }
+      setInput("");
+      clearWorkflowPrefill();
+      return;
+    }
+
     const pendingImprovement = awaitingImprovement[currentChatId];
     const isImprovementReply = !!pendingImprovement && !!input.trim();
 
@@ -3470,6 +3784,69 @@ updated[index].messages[
 
     setIsWaitingForFirstToken(false);
     setStreamController(null);
+
+    // PHASE 9.2 — AGENDA INTENT CHECK
+    if (isPersonalRoute && rawInputToSend && !imageToSend) {
+      const agendaIntent = detectAgendaIntent(rawInputToSend, aiText);
+      if (agendaIntent && currentChatId !== null) {
+        // Datum extractie uit user input
+        const extractDate = (text: string): string | undefined => {
+          const t = text.toLowerCase();
+          const now = new Date();
+          const pad = (n: number) => String(n).padStart(2, "0");
+          const toStr = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+          if (/\bmorgen\b|\btomorrow\b|\bdemain\b|\bmañana\b/.test(t)) {
+            const d = new Date(now); d.setDate(d.getDate() + 1); return toStr(d);
+          }
+          if (/\bovermorgen\b|\bday after tomorrow\b/.test(t)) {
+            const d = new Date(now); d.setDate(d.getDate() + 2); return toStr(d);
+          }
+          // Weekdag detectie — zoek komende dag (nooit vandaag zelf)
+          const weekdays = ["zondag","maandag","dinsdag","woensdag","donderdag","vrijdag","zaterdag"];
+          const weekdaysEn = ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"];
+          for (let i = 0; i < weekdays.length; i++) {
+            if (t.includes(weekdays[i]) || t.includes(weekdaysEn[i])) {
+              const d = new Date(now);
+              const todayDay = d.getDay(); // 0=zo, 1=ma, ...
+              let diff = (i - todayDay + 7) % 7;
+              if (diff === 0) diff = 7; // altijd volgende week als het vandaag is
+              d.setDate(d.getDate() + diff);
+              return toStr(d);
+            }
+          }
+          return undefined;
+        };
+
+        const extractedDate = extractDate(rawInputToSend);
+
+        const detectRepeat = (text: string, ai?: string): "daily" | "weekly" | "workdays" | "mwf" | null => {
+          const t = `${text} ${ai || ""}`.toLowerCase();
+          if (/\belke\s+dag\b|\bdagelijks\b|\bevery\s+day\b|\bdaily\b|\belk\s+dag\b/.test(t)) return "daily";
+          if (/\belke\s+werkdag\b|\bwerkdagen\b|\bevery\s+workday\b|\bmaandag\s+t[\/]?m\s+vrijdag\b/.test(t)) return "workdays";
+          if (/\bmaandag.*woensdag.*vrijdag\b|\bma.*wo.*vr\b|\bom\s+de\s+dag\b|\bevery\s+other\s+day\b/.test(t)) return "mwf";
+          if (/\belke\s+week\b|\bwekelijks\b|\bevery\s+week\b|\bweekly\b/.test(t)) return "weekly";
+          return null;
+        };
+
+        const repeat = detectRepeat(rawInputToSend, aiText);
+        setPendingAgenda({ chatId: currentChatId, title: agendaIntent.title, time: agendaIntent.time, date: extractedDate, repeat });
+        setChats(prev => prev.map(chat => {
+          if (chat.id !== currentChatId) return chat;
+          return {
+            ...chat,
+            messages: [
+              ...chat.messages,
+              {
+                role: "ai",
+                content: `📅 Wil je dit toevoegen aan je agenda${agendaIntent.time ? ` voor ${agendaIntent.time}` : ""}?`,
+                disableFeedback: true,
+              },
+            ],
+          };
+        }));
+      }
+    }
 
     // ✅ MEMORY SAVE
     if (
@@ -4928,6 +5305,23 @@ updated[index].messages[
   </div>
 )}
 
+{/* PHASE 9.1 — INTENT CHIPS */}
+{detectedIntent && !loading && (
+  <div className="flex items-center gap-2 px-1 pb-1">
+    <span className="text-[11px] text-white/32 shrink-0">
+      {detectedLang === "nl" ? "AI herkent:" : "AI detects:"}
+    </span>
+    <button
+      type="button"
+      onClick={() => applyIntent(detectedIntent)}
+      className="inline-flex items-center gap-1.5 rounded-full border border-[#3b82f6]/22 bg-[#3b82f6]/10 px-3 py-1 text-[11px] font-medium text-[#93c5fd] ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-[#3b82f6]/36 hover:bg-[#3b82f6]/18 hover:text-white hover:shadow-[0_6px_14px_rgba(59,130,246,0.18)] active:scale-[0.97]"
+    >
+      <span>{INTENT_CONFIG[detectedIntent].emoji}</span>
+      <span>{detectedLang === "nl" ? INTENT_CONFIG[detectedIntent].labelNl : INTENT_CONFIG[detectedIntent].label}</span>
+    </button>
+  </div>
+)}
+
 <textarea
   ref={inputRef}
   value={input}
@@ -5016,13 +5410,21 @@ updated[index].messages[
       </div>
 
       {isPersonalRoute ? (
-        <button
-          type="button"
-          onClick={handlePersonalLogout}
-          className="fixed right-4 top-[max(env(safe-area-inset-top),16px)] z-[60] hidden rounded-full border border-white/8 bg-white/[0.05] px-3.5 py-2 text-sm text-white/78 shadow-[0_12px_28px_rgba(0,0,0,0.18)] backdrop-blur-2xl ol-interactive transition-[transform,background-color,border-color,color,opacity,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.08] hover:text-white hover:shadow-[0_14px_30px_rgba(0,0,0,0.20)] active:scale-95 md:inline-flex"
-        >
-          Log out
-        </button>
+        <div className="fixed right-4 top-[max(env(safe-area-inset-top),16px)] z-[60] hidden items-center gap-2 md:flex">
+          <a
+            href="/personal-dashboard"
+            className="rounded-full border border-[#3b82f6]/22 bg-[#3b82f6]/10 px-3.5 py-2 text-sm text-[#93c5fd] shadow-[0_12px_28px_rgba(59,130,246,0.14)] backdrop-blur-2xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/36 hover:bg-[#3b82f6]/18 hover:text-white hover:shadow-[0_14px_30px_rgba(59,130,246,0.22)] active:scale-95"
+          >
+            Dashboard
+          </a>
+          <button
+            type="button"
+            onClick={handlePersonalLogout}
+            className="rounded-full border border-white/8 bg-white/[0.05] px-3.5 py-2 text-sm text-white/78 shadow-[0_12px_28px_rgba(0,0,0,0.18)] backdrop-blur-2xl ol-interactive transition-[transform,background-color,border-color,color,opacity,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.08] hover:text-white hover:shadow-[0_14px_30px_rgba(0,0,0,0.20)] active:scale-95"
+          >
+            Log out
+          </button>
+        </div>
       ) : (
         <div className="fixed right-4 top-[max(env(safe-area-inset-top),16px)] z-[60] hidden items-center gap-2 md:flex">
           <a

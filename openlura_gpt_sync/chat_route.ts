@@ -2408,12 +2408,36 @@ type OpenLuraRuntimePromptBuilderInput = {
   personalFeedbackContext: string;
   detectedLanguage: string;
   userName?: string;
+  userTimezone?: string;
 };
 
-function buildOpenLuraBasePrompt(detectedLanguage: string = "en", userName?: string) {
+function buildOpenLuraBasePrompt(detectedLanguage: string = "en", userName?: string, userTimezone?: string) {
+  const tz = userTimezone || "UTC";
+  const now = new Date();
+  const currentDateTime = now.toLocaleString("en-US", {
+    timeZone: tz,
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
   return `You are OpenLura.
 
 You improve yourself based on user feedback.
+
+CURRENT DATE & TIME: ${currentDateTime} (${tz})
+- You know exactly what day and time it is for this user. Never say you don't know the current date or time.
+- Use this naturally when relevant (planning, scheduling, "today is...", day-specific advice).
+
+AGENDA INTEGRATION:
+- You ARE connected to the user's personal dashboard agenda.
+- When a user asks you to plan, schedule, add, or remember something: confirm you will add it, then ask if they want to proceed.
+- NEVER say you cannot write to their agenda or calendar — you can.
+- After the user confirms (yes/ja/sure/etc), the system will automatically add it to their dashboard.
+- Always mention the item title and time clearly so the system can extract it.
 
 ${userName ? `The user's name is ${userName}. This is a confirmed fact — you know their name. Never say you don't know it. Use it naturally and sparingly, only when it feels warm and fitting.` : ""}
 
@@ -2529,10 +2553,10 @@ Be clear, useful, and direct.
 Avoid long structured sections unless needed.`;
   }
 
-  const basePrompt = buildOpenLuraBasePrompt(input.detectedLanguage);
+  const basePrompt = buildOpenLuraBasePrompt(input.detectedLanguage, undefined, input.userTimezone);
 
   return `
-${buildOpenLuraBasePrompt(input.detectedLanguage, input.userName)}
+${buildOpenLuraBasePrompt(input.detectedLanguage, input.userName, input.userTimezone)}
 
 GLOBAL FEEDBACK CONTEXT:
 ${input.feedbackContext}
@@ -2853,6 +2877,7 @@ export async function POST(req: Request) {
   } = body;
 
   const detectedLanguage = detectInputLanguage(message);
+  const userTimezone = req.headers.get("x-openlura-timezone") || "UTC";
 
   // CONVERSATION LOGGING — non-blocking, alleen als er een message is
   if (message && supabaseUrl && supabaseServiceRoleKey) {
@@ -4122,6 +4147,7 @@ Do not use web search for this path.`,
       feedbackContext,
       personalFeedbackContext,
       detectedLanguage,
+      userTimezone,
       userName: isPersonalEnvironment && personalState.profile
         ? (personalState.profile as any).name || undefined
         : undefined,

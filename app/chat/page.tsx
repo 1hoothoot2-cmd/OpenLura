@@ -441,6 +441,37 @@ const [savePromptSuccess, setSavePromptSuccess] = useState(false);
 const [savePromptError, setSavePromptError] = useState("");
 
 // =============================
+// PHASE 9.3 — CONTEXT EXTRACTOR
+// =============================
+
+const extractContextFromConversation = (messages: any[]): string[] => {
+  const context: string[] = [];
+  const userMessages = messages
+    .filter((m: any) => m.role === "user" && typeof m.content === "string" && m.content.trim().length > 8)
+    .map((m: any) => m.content.trim());
+
+  if (userMessages.length === 0) return context;
+
+  // Taal voorkeur
+  const nlCount = userMessages.filter(m => /\b(ik|de|het|een|en|van|is|dat|dit|voor|met)\b/i.test(m)).length;
+  if (nlCount > userMessages.length * 0.5) context.push("Voorkeurstaal: Nederlands");
+
+  // Topics
+  if (userMessages.some(m => /\b(mail|email|e-mail)\b/i.test(m))) context.push("Schrijft regelmatig e-mails");
+  if (userMessages.some(m => /\b(code|script|function|debug|component)\b/i.test(m))) context.push("Werkt met code");
+  if (userMessages.some(m => /\b(plan|agenda|schema|rooster|dag|week)\b/i.test(m))) context.push("Plant taken en agenda");
+  if (userMessages.some(m => /\b(uitleg|explain|wat is|hoe werkt|how does)\b/i.test(m))) context.push("Vraagt regelmatig om uitleg");
+  if (userMessages.some(m => /\b(lijst|list|stappen|steps|overzicht)\b/i.test(m))) context.push("Vraagt vaak om lijsten en overzichten");
+  if (userMessages.some(m => /\b(samenvatting|summary|kort|beknopt)\b/i.test(m))) context.push("Houdt van korte samenvattingen");
+
+  // Stijl voorkeur
+  if (userMessages.some(m => /\b(kort|korter|beknopt|snel|simpel)\b/i.test(m))) context.push("Voorkeur voor korte antwoorden");
+  if (userMessages.some(m => /\b(meer detail|uitgebreid|dieper|volledig)\b/i.test(m))) context.push("Vraagt soms om meer detail");
+
+  return context;
+};
+
+// =============================
 // PHASE 9.1 — INTENT DETECTION
 // =============================
 
@@ -3069,6 +3100,31 @@ Do not mention that this is a new attempt.`,
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialStateReady]);
 
+  // =============================
+  // PHASE 9.3 — AUTO CONTEXT SAVE
+  // =============================
+  const autoSaveContext = (chatMessages: any[]) => {
+    if (!chatSettings.memoryEnabled) return;
+    const extracted = extractContextFromConversation(chatMessages);
+    if (extracted.length === 0) return;
+
+    setMemory((prev) => {
+      const next = [...prev];
+      for (const item of extracted) {
+        const exists = next.find((m) => m.text === item);
+        if (!exists) {
+          next.push({ text: item, weight: 0.7 });
+        } else {
+          const idx = next.findIndex((m) => m.text === item);
+          if (idx !== -1) {
+            next[idx] = { ...next[idx], weight: Math.min(next[idx].weight + 0.05, 1) };
+          }
+        }
+      }
+      return next.slice(-30);
+    });
+  };
+
   const sendMessage = async () => {
     if (!input.trim() && !image) return;
 
@@ -3440,7 +3496,8 @@ Only give the improved answer directly.`,
       setLoading(false);
       return;
     }
-        if (!input && !image) return;
+
+    if (!input && !image) return;
 
     if (upgradeNotice.visible) {
       setUpgradeNotice({
@@ -3784,6 +3841,9 @@ updated[index].messages[
 
     setIsWaitingForFirstToken(false);
     setStreamController(null);
+
+    // PHASE 9.3 — context opslaan na response
+    autoSaveContext(updated[index].messages);
 
     // PHASE 9.2 — AGENDA INTENT CHECK
     if (isPersonalRoute && rawInputToSend && !imageToSend) {

@@ -24,7 +24,8 @@ $filesToSync = @(
     @{ Source = "app\analytics\page.tsx"; Destination = "analytics_page.tsx" },
     @{ Source = "app\personal-workspace\page.tsx"; Destination = "persoonlijke-omgeving_page.tsx" },
     @{ Source = "app\privacy\page.tsx"; Destination = "privacy_page.tsx" },
-    
+    @{ Source = "app\personal-dashboard\page.tsx"; Destination = "personal_dashboard_page.tsx" },
+
     # MEMORY FILES
     @{ Source = "OPENLURA_PROJECT_MEMORY.md"; Destination = "OPENLURA_PROJECT_MEMORY.md" },
     @{ Source = "OPENLURA_RULES.md"; Destination = "OPENLURA_RULES.md" },

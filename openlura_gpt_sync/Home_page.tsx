@@ -1325,6 +1325,20 @@ export default function HomePage() {
             Privacy policy
           </a>
         </div>
+
+        {/* AdSense — beperkt, alleen onderaan homepage */}
+        <div className="w-full border-t border-white/6 py-6 flex justify-center">
+          <ins
+            className="adsbygoogle"
+            style={{ display: "block", width: "100%", maxWidth: "728px", height: "90px" }}
+            data-ad-client="ca-pub-6179971963487173"
+            data-ad-slot="auto"
+            data-ad-format="horizontal"
+            data-full-width-responsive="true"
+          />
+          <script dangerouslySetInnerHTML={{ __html: "(adsbygoogle = window.adsbygoogle || []).push({});" }} />
+        </div>
+
     </main>
   );
 }
