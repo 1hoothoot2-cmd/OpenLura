@@ -80,7 +80,10 @@ export default function HomePage() {
   function handleGoogleLogin() {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (!supabaseUrl || !supabaseKey) return;
+    if (!supabaseUrl || !supabaseKey) {
+      console.error("Supabase env vars missing");
+      return;
+    }
     const redirectTo = `${window.location.origin}/auth/callback`;
     const url = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirectTo)}&apikey=${supabaseKey}`;
     window.location.href = url;
