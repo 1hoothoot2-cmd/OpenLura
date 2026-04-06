@@ -3,56 +3,16 @@ import { NextRequest, NextResponse } from "next/server";
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
-function normalizeLanguage(input: unknown): string {
-  if (typeof input !== "string") return "nl";
-
-  const cleaned = input.trim().toLowerCase();
-
-  if (!cleaned || cleaned === "undefined" || cleaned === "null") {
-    return "nl";
-  }
-
-  const short = cleaned.split("-")[0].slice(0, 2);
-
-  const allowed = new Set([
-    "nl",
-    "en",
-    "de",
-    "fr",
-    "es",
-    "it",
-    "pt",
-    "tr",
-    "ar",
-    "hi",
-    "ja",
-    "ko",
-    "sv",
-    "no",
-    "da",
-    "fi",
-    "pl",
-    "pap",
-  ]);
-
-  return allowed.has(short) ? short : "nl";
-}
-
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
 
     const audio = formData.get("audio");
-    const rawLang = formData.get("lang");
 
     if (!(audio instanceof File)) {
       return NextResponse.json({ error: "No audio" }, { status: 400 });
     }
 
-    const resolvedLang = normalizeLanguage(rawLang);
-
-    console.log("VOICE raw lang:", rawLang);
-    console.log("VOICE resolved lang:", resolvedLang);
     console.log("VOICE audio meta:", {
       name: audio.name,
       type: audio.type,
@@ -62,7 +22,6 @@ export async function POST(req: NextRequest) {
     const whisperForm = new FormData();
     whisperForm.append("file", audio, audio.name || "audio.webm");
     whisperForm.append("model", "whisper-1");
-    whisperForm.append("language", resolvedLang);
     whisperForm.append("task", "transcribe");
     whisperForm.append("response_format", "verbose_json");
 
@@ -91,7 +50,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       text: data.text || "",
       detectedLanguage: data.language || null,
-      requestedLanguage: resolvedLang,
     });
   } catch (error) {
     console.error("Voice route error:", error);
