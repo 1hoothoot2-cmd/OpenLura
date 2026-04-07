@@ -58,6 +58,8 @@ function PhotoStudioContent() {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [lightbox, setLightbox] = useState<HistoryItem | null>(null);
+  const [editImageUrl, setEditImageUrl] = useState<string | null>(null);
+  const [editImagePreview, setEditImagePreview] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/auth", { method: "GET", credentials: "same-origin" })
@@ -90,6 +92,18 @@ function PhotoStudioContent() {
     } catch {}
   }
 
+  function handleEditUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      setEditImagePreview(ev.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+    // Voor fal.ai hebben we een publieke URL nodig — gebruik de history URL of laat user een URL invoeren
+    setEditImageUrl(null); // wordt via URL input gezet
+  }
+
   async function loadStats() {
     try {
       const res = await fetch("/api/image-generate", { method: "GET", credentials: "same-origin" });
@@ -105,6 +119,8 @@ function PhotoStudioContent() {
     setImageUrl(null);
     setPrompt("");
     setError(null);
+    setEditImageUrl(null);
+    setEditImagePreview(null);
   }
 
   async function generate() {
@@ -117,7 +133,7 @@ function PhotoStudioContent() {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: prompt.trim(), model }),
+        body: JSON.stringify({ prompt: prompt.trim(), model, ...(editImageUrl ? { editImageUrl } : {}) }),
       });
       const data = await res.json();
       if (data?.code === "upgrade_required") {
@@ -259,6 +275,39 @@ function PhotoStudioContent() {
               </div>
             </div>
 
+            {/* Edit mode */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[11px] uppercase tracking-[0.16em] text-white/32">Bewerken (optioneel)</p>
+                {editImageUrl && (
+                  <button type="button" onClick={() => { setEditImageUrl(null); setEditImagePreview(null); }}
+                    className="text-[11px] text-white/36 hover:text-white/70 transition-colors">
+                    Verwijderen ×
+                  </button>
+                )}
+              </div>
+              {editImageUrl ? (
+                <div className="rounded-[16px] border border-blue-400/20 bg-blue-400/[0.04] p-3 flex items-center gap-3">
+                  <img src={editImageUrl} alt="Edit bron" className="h-16 w-16 rounded-[10px] object-cover border border-white/10" />
+                  <div>
+                    <p className="text-[12px] text-white/70">Foto wordt bewerkt</p>
+                    <p className="text-[11px] text-white/36 mt-0.5">Beschrijf de aanpassing in de prompt</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-[16px] border border-dashed border-white/10 bg-white/[0.02] px-4 py-3">
+                  <p className="text-[12px] text-white/36 mb-2">Plak een afbeelding URL om te bewerken:</p>
+                  <input
+                    type="url"
+                    placeholder="https://... (publieke afbeelding URL)"
+                    onChange={e => setEditImageUrl(e.target.value.trim() || null)}
+                    className="w-full bg-transparent text-sm text-white/70 outline-none placeholder:text-white/20 border-b border-white/8 pb-1 focus:border-white/20 transition-colors"
+                  />
+                  <p className="text-[10px] text-white/24 mt-2">Of klik op een foto in je geschiedenis → "Bewerken"</p>
+                </div>
+              )}
+            </div>
+
             {/* Prompt input */}
             <div>
               <p className="text-[11px] uppercase tracking-[0.16em] text-white/32 mb-3">Prompt</p>
@@ -393,6 +442,13 @@ function PhotoStudioContent() {
                 >
                   Download
                 </a>
+                <button
+                  type="button"
+                  onClick={() => { setEditImageUrl(lightbox.url); setLightbox(null); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                  className="rounded-[12px] border border-blue-400/20 bg-blue-400/[0.06] px-4 py-2 text-[13px] text-blue-300/70 hover:text-blue-200 hover:bg-blue-400/[0.12] transition-all"
+                >
+                  Bewerken
+                </button>
                 <button
                   type="button"
                   onClick={() => { deleteFromHistory(lightbox.id); setLightbox(null); }}

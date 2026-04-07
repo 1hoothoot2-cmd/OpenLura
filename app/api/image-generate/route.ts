@@ -35,12 +35,14 @@ function getCurrentMonthStr() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
 }
 
-async function generateWithFal(modelId: string, prompt: string): Promise<string> {
+async function generateWithFal(modelId: string, prompt: string, imageUrl?: string): Promise<string> {
   if (!FAL_KEY) throw new Error("FAL_KEY not configured");
+  const body: any = { prompt, num_images: 1, aspect_ratio: "1:1" };
+  if (imageUrl) body.image_urls = [imageUrl];
   const res = await fetch(`https://fal.run/${modelId}`, {
     method: "POST",
     headers: { "Authorization": `Key ${FAL_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt, num_images: 1, aspect_ratio: "1:1" }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`fal.ai error ${res.status}`);
   const data = await res.json();
@@ -95,6 +97,8 @@ export async function POST(req: Request) {
     const body = await req.json();
     const prompt = typeof body?.prompt === "string" ? body.prompt.trim().slice(0, 1000) : "";
     const model: Model = MODELS.includes(body?.model) ? body.model : "nano-banana-2";
+    const editImageUrl = typeof body?.editImageUrl === "string" ? body.editImageUrl.trim() : null;
+    const isEdit = !!editImageUrl;
 
     if (!prompt) {
       return NextResponse.json({ error: "Prompt required" }, { status: 400, headers: NO_STORE });
@@ -130,12 +134,13 @@ export async function POST(req: Request) {
     if (model === "dalle3") {
       url = await generateWithDallE(prompt);
     } else {
-      url = await generateWithFal(FAL_MODEL_IDS[model], prompt);
+      const falModel = isEdit ? `${FAL_MODEL_IDS[model]}/edit` : FAL_MODEL_IDS[model];
+      url = await generateWithFal(falModel, prompt, editImageUrl ?? undefined);
     }
 
     // Sla op + trek punten af
     const newPoints = currentPoints - cost;
-    const historyEntry = { id: crypto.randomUUID(), url, prompt, model, points: cost, created_at: new Date().toISOString() };
+    const historyEntry = { id: crypto.randomUUID(), url, prompt, model, points: cost, created_at: new Date().toISOString(), ...(isEdit ? { editedFrom: editImageUrl } : {}) };
     const existingHistory = Array.isArray(stats.photo_history) ? stats.photo_history : [];
     const newHistory = [historyEntry, ...existingHistory].slice(0, 50);
 
