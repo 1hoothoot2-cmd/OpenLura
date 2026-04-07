@@ -252,6 +252,145 @@ function detectAutoDebugSignals(input: {
   }));
 }
 
+// ─── IMPLICIT SIGNAL DETECTION ───────────────────────────────────────────────
+
+function detectImplicitConversationSignals(input: {
+  message: string;
+  recentMessages: { role: "user" | "ai"; content: string }[];
+}): {
+  reformulation: boolean;
+  followupDepth: boolean;
+  longSessionPositive: boolean;
+  sessionMessageCount: number;
+} {
+  const recentMsgs = Array.isArray(input.recentMessages) ? input.recentMessages : [];
+  const currentMsg = (input.message || "").toLowerCase().trim();
+
+  // Count total user messages in session
+  const sessionMessageCount = recentMsgs.filter(m => m.role === "user").length;
+
+  // Signal: Long session — user has sent 5+ messages = positive engagement
+  const longSessionPositive = sessionMessageCount >= 5;
+
+  // Signal: Follow-up depth — user asks a follow-up question on same topic
+  // Detected when current message is short (<40 chars) and references prior context
+  const lastAiMessage = [...recentMsgs].reverse().find(m => m.role === "ai");
+  const followupDepth =
+    !!lastAiMessage &&
+    currentMsg.length > 0 &&
+    currentMsg.length < 80 &&
+    sessionMessageCount >= 2 &&
+    !/(new topic|nieuw onderwerp|iets anders|something else)/i.test(currentMsg);
+
+  // Signal: Reformulation — user rephrases the same question (previous answer was likely bad)
+  const lastUserMessages = recentMsgs
+    .filter(m => m.role === "user")
+    .slice(-4)
+    .map(m => (m.content || "").toLowerCase().trim());
+
+  let reformulation = false;
+  for (const prev of lastUserMessages) {
+    if (!prev || prev === currentMsg) continue;
+    // Check word overlap — if 60%+ of words match, it's a reformulation
+    const prevWords = new Set(prev.split(/\s+/).filter(w => w.length >= 4));
+    const currWords = currentMsg.split(/\s+/).filter(w => w.length >= 4);
+    if (prevWords.size === 0 || currWords.length === 0) continue;
+    const matchCount = currWords.filter(w => prevWords.has(w)).length;
+    const overlapRatio = matchCount / Math.max(prevWords.size, currWords.length);
+    if (overlapRatio >= 0.6 && currentMsg !== prev) {
+      reformulation = true;
+      break;
+    }
+  }
+
+  return { reformulation, followupDepth, longSessionPositive, sessionMessageCount };
+}
+
+async function storeImplicitSignals(input: {
+  userMessage: string;
+  signals: ReturnType<typeof detectImplicitConversationSignals>;
+  userId: string | null;
+  isPersonalEnvironment: boolean;
+}) {
+  if (!supabaseUrl || !supabaseServiceRoleKey) return;
+  if (!input.signals.reformulation && !input.signals.followupDepth && !input.signals.longSessionPositive) return;
+
+  const rows: Record<string, unknown>[] = [];
+
+  if (input.signals.reformulation) {
+    rows.push({
+      chatId: null,
+      msgIndex: null,
+      type: "auto_debug",
+      message: "[medium] User reformulated the same question — previous answer may have been unclear or unhelpful.",
+      userMessage: input.userMessage.slice(0, 200) || null,
+      source: "auto_debug_reformulation__route_default__variant_implicit",
+      learningType: "content",
+      userScope: input.isPersonalEnvironment ? "personal" : "guest",
+      environment: input.isPersonalEnvironment ? "personal" : "default",
+      workflowKey: null,
+      workflowStatus: null,
+      user_id: input.isPersonalEnvironment ? input.userId : null,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  if (input.signals.followupDepth) {
+    rows.push({
+      chatId: null,
+      msgIndex: null,
+      type: "auto_debug",
+      message: "[low] User asked a follow-up — previous answer may have been incomplete or raised more questions.",
+      userMessage: input.userMessage.slice(0, 200) || null,
+      source: "auto_debug_followup_depth__route_default__variant_implicit",
+      learningType: "content",
+      userScope: input.isPersonalEnvironment ? "personal" : "guest",
+      environment: input.isPersonalEnvironment ? "personal" : "default",
+      workflowKey: null,
+      workflowStatus: null,
+      user_id: input.isPersonalEnvironment ? input.userId : null,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  if (input.signals.longSessionPositive) {
+    rows.push({
+      chatId: null,
+      msgIndex: null,
+      type: "up",
+      message: `Long session detected (${input.signals.sessionMessageCount} messages) — user is engaged and satisfied with the conversation.`,
+      userMessage: input.userMessage.slice(0, 200) || null,
+      source: "implicit_long_session",
+      learningType: "content",
+      userScope: input.isPersonalEnvironment ? "personal" : "guest",
+      environment: input.isPersonalEnvironment ? "personal" : "default",
+      workflowKey: null,
+      workflowStatus: null,
+      user_id: input.isPersonalEnvironment ? input.userId : null,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  if (rows.length === 0) return;
+
+  try {
+    const headers = new Headers();
+    headers.set("Content-Type", "application/json");
+    headers.set("apikey", supabaseServiceRoleKey);
+    headers.set("Authorization", `Bearer ${supabaseServiceRoleKey}`);
+    headers.set("Prefer", "return=minimal");
+
+    await fetch(`${supabaseUrl}/rest/v1/openlura_feedback`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(rows),
+      cache: "no-store",
+    });
+  } catch (error) {
+    console.error("Implicit signal store failed:", toSafeErrorMeta(error));
+  }
+}
+
 function buildCacheKey(input: {
   message: string;
   personalMemory?: string;
@@ -698,7 +837,7 @@ function classifyOpenLuraRoute(input: {
   const shouldUseWebSearch =
     !isSimpleImageAnalysis &&
     (!input.image ||
-      /restaurant|cafe|coffee|koffie|location|locatie|where|waar|address|adres|opening|open|review|route|travel|venue|place|plek|business|bedrijf|hotel|map|maps|near|dichtbij|best|beste|news|nieuws|welke plek|which place|waar is dit|where is this|welk restaurant|which restaurant|vind locatie|find location|zoek locatie|search location|hoe laat|hoelaat|what time|current time|tijd nu|lokale tijd|tijdzone|timezone|hoe laat is het|what time is it|verhuurder|verhuur|adressen van|website van|telefoonnummer|contact van|where can i find|waar kan ik|gym in de buurt|fitness in de buurt|basic fit|sportschool|winkel in de buurt|dónde|donde|dirección|direccion|horario|abierto|cerca de|qué hora|que hora|wie spät|wie spät ist|adresse|ouvert|quelle heure|près de|pres de|dove|indirizzo|orario|vicino|que horas|endereço|endereco|aberto|perto de|unda|kon late|ki ora|kaminda/i.test(
+      /restaurant|cafe|coffee|koffie|location|locatie|where|waar|address|adres|opening|open|review|route|travel|venue|place|plek|business|bedrijf|hotel|map|maps|near|dichtbij|best|beste|news|nieuws|welke plek|which place|waar is dit|where is this|welk restaurant|which restaurant|vind locatie|find location|zoek locatie|search location|hoe laat|hoelaat|what time|current time|tijd nu|lokale tijd|tijdzone|timezone|hoe laat is het|what time is it|verhuurder|verhuur|adressen van|website van|telefoonnummer|contact van|where can i find|waar kan ik|gym in de buurt|fitness in de buurt|basic fit|sportschool|winkel in de buurt|dónde|donde|dirección|direccion|horario|abierto|cerca de|qué hora|que hora|wie spät|wie spät ist|adresse|ouvert|quelle heure|près de|pres de|dove|indirizzo|orario|vicino|que horas|endereço|endereco|aberto|perto de|unda|kon late|ki ora|kaminda|what is|wat is|hoe werkt|how does|how do|explain|uitleggen|definitie|definition|betekenis|meaning|verschil tussen|difference between|vergelijk|compare|wat betekent|what does|waarom is|why is|how to|hoe kan ik|hoe maak|how do i|tutorial|gids|guide|stappen|steps|methode|method|techniek|technique|werkt niet|doesn't work|not working|fout|error|oplossing|solution|fix|actueel|actuele|latest|recent|2024|2025|2026|prijs|price|kosten|cost|hoeveel kost|how much|review|beoordelingen|ratings|beste|top|recommended|aanbevolen|populair|popular/i.test(
         normalizedMessage
       ));
 
@@ -3114,14 +3253,27 @@ export async function POST(req: Request) {
     .filter(Boolean)
     .slice(0, 5);
 
+    // Detect implicit learning signals — must run before implicitSignalContext
+    const implicitSignals = detectImplicitConversationSignals({
+      message: message || "",
+      recentMessages,
+    });
+
+    const implicitSignalContext = [
+      implicitSignals.reformulation && "- User reformulated the same question — previous answer was likely unclear. Improve clarity and directness.",
+      implicitSignals.followupDepth && "- User asked a follow-up — previous answer was incomplete. Add more depth and context.",
+      implicitSignals.longSessionPositive && `- Long session detected (${implicitSignals.sessionMessageCount} messages) — user is engaged. Maintain this quality and style.`,
+    ].filter(Boolean).join("\n");
+
     const feedbackContext =
-    globalLearningFeedback.length > 0
+    globalLearningFeedback.length > 0 || implicitSignalContext.length > 0
       ? `
 Likes: ${feedbackLikes}
 Dislikes: ${feedbackDislikes}
 
 Recent global issues:
 ${feedbackRecentIssues.join("\n") || "none"}
+${implicitSignalContext ? `\nIMPLICIT CONVERSATION SIGNALS:\n${implicitSignalContext}` : ""}
 `
       : "none";
 
@@ -3587,6 +3739,16 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
       !image &&
       isConversationDependentFollowUp(message || "") &&
       hasRecentConversationContext;
+
+    // Store implicit signals — fire and forget
+    if (implicitSignals.reformulation || implicitSignals.longSessionPositive) {
+      void storeImplicitSignals({
+        userMessage: message || "",
+        signals: implicitSignals,
+        userId: personalUserId,
+        isPersonalEnvironment,
+      });
+    }
 
     const updatedUsageStats = buildUpdatedUsageStats({
       existingUsageStats: personalState.usageStats,
