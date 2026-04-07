@@ -104,22 +104,22 @@ export default function HomePage() {
 
   const translations = useMemo<Record<string, Record<string, string>>>(() => ({
       hero_title: {
-        nl: "AI die zich aanpast aan jou, niet andersom.",
-        de: "KI, die sich dir anpasst, nicht umgekehrt.",
-        fr: "Une IA qui s'adapte à vous, pas l'inverse.",
-        es: "IA que se adapta a ti, no al revés.",
-        pap: "AI ku ta adaptá na bo, no al revés.",
-        hi: "AI जो आपके अनुसार ढलती है, न कि उल्टा।",
-        en: "AI that adapts to you, not the other way around.",
+        nl: "De AI die écht voor jou werkt.",
+        de: "Die KI, die wirklich für dich arbeitet.",
+        fr: "L'IA qui travaille vraiment pour vous.",
+        es: "La IA que realmente trabaja para ti.",
+        pap: "E AI ku ta traha bèrdèderamente pa bo.",
+        hi: "AI जो सच में आपके लिए काम करती है।",
+        en: "The AI that actually works for you.",
       },
       hero_sub: {
-        nl: "OpenLura is je adaptieve AI-werkruimte. Het onthoudt nuttige context, verbetert door feedback en helpt je sneller te werken met minder ruis.",
-        de: "OpenLura ist dein adaptiver KI-Arbeitsbereich. Er merkt sich nützlichen Kontext, verbessert sich durch Feedback und hilft dir, schneller zu arbeiten.",
-        fr: "OpenLura est votre espace de travail IA adaptatif. Il mémorise le contexte utile, s'améliore grâce aux retours et vous aide à avancer plus vite.",
-        es: "OpenLura es tu espacio de trabajo de IA adaptativo. Recuerda el contexto útil, mejora con el feedback y te ayuda a trabajar más rápido.",
-        pap: "OpenLura ta bo workspace di AI adaptivo. E ta rekordá konteksto útil, ta mehora ku feedback i ta yudabo traha mas rápido.",
-        hi: "OpenLura आपका अनुकूली AI कार्यक्षेत्र है। यह उपयोगी संदर्भ याद रखता है, फीडबैक से सुधरता है और आपको कम शोर के साथ तेज़ी से काम करने में मदद करता है।",
-        en: "OpenLura is your adaptive AI workspace. It remembers useful context, improves through feedback, and helps you move faster with less noise.",
+        nl: "Stel vragen, schrijf sneller, zoek het web — en hoe meer je OpenLura gebruikt, hoe beter het wordt.",
+        de: "Frag, schreib schneller, durchsuche das Web — und je mehr du OpenLura nutzt, desto besser wird es.",
+        fr: "Posez des questions, écrivez plus vite, cherchez sur le web — et plus vous utilisez OpenLura, mieux il devient.",
+        es: "Haz preguntas, escribe más rápido, busca en la web — y cuanto más uses OpenLura, mejor se vuelve.",
+        pap: "Hasi pregunta, skibi mas lihe, busca web — i mas ku bo usa OpenLura, mas mihó e ta bira.",
+        hi: "सवाल पूछें, तेज़ लिखें, वेब खोजें — और जितना ज़्यादा OpenLura इस्तेमाल करें, उतना बेहतर होता जाए।",
+        en: "Ask questions, write faster, search the web — and the more you use OpenLura, the better it gets.",
       },
       btn_start_chat: {
         nl: "Start chat",
@@ -345,6 +345,11 @@ export default function HomePage() {
               </span>
               <span className="text-base font-semibold text-white">Log in to your dashboard</span>
               <span className="mt-2 text-sm leading-6 text-white/46">Your workspace, history, and AI — all in one place.</span>
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                <span className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] text-white/46">Memory</span>
+                <span className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] text-white/46">Web search</span>
+                <span className="inline-flex items-center rounded-full border border-[#3b82f6]/20 bg-[#3b82f6]/8 px-2 py-0.5 text-[10px] text-blue-300/80">Photo Studio ✦</span>
+              </div>
               <span className="mt-4 text-sm font-medium text-blue-400 group-hover:text-blue-300 transition-colors duration-150">Sign in →</span>
             </button>
 
