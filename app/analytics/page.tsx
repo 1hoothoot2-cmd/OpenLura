@@ -405,14 +405,23 @@ if (resolvedUserId) {
   const complaintKeywords = [
     "korter",
     "te lang",
+    "shorter",
+    "too long",
     "duidelijker",
     "onduidelijk",
+    "clearer",
+    "unclear",
     "te vaag",
+    "vague",
     "meer context",
+    "more context",
     "te veel tekst",
     "andere structuur",
+    "structure",
     "niet goed",
     "verkeerd",
+    "wrong",
+    "incorrect",
   ];
 
     const topComplaints = useMemo(
@@ -473,12 +482,12 @@ if (resolvedUserId) {
           weightedCount: bugIdeas.length + bugNewCount * 2 + bugBezigCount,
           priority:
             bugIdeas.length + bugNewCount * 2 + bugBezigCount >= 8
-              ? "Hoog"
+              ? "High"
               : bugIdeas.length + bugNewCount * 2 + bugBezigCount >= 4
-              ? "Middel"
+              ? "Medium"
               : bugIdeas.length + bugNewCount * 2 + bugBezigCount >= 1
-              ? "Laag"
-              : "Geen",
+              ? "Low"
+              : "None",
         },
         {
           label: "AI feedback",
@@ -487,26 +496,26 @@ if (resolvedUserId) {
           weightedCount: learningPool.length + learningNewCount * 2 + learningBezigCount,
           priority:
             learningPool.length + learningNewCount * 2 + learningBezigCount >= 12
-              ? "Hoog"
+              ? "High"
               : learningPool.length + learningNewCount * 2 + learningBezigCount >= 6
-              ? "Middel"
+              ? "Medium"
               : learningPool.length + learningNewCount * 2 + learningBezigCount >= 1
-              ? "Laag"
-              : "Geen",
+              ? "Low"
+              : "None",
         },
         {
-          label: "Aanpassingen",
+          label: "Adjustments",
           count: adjustmentIdeas.length,
           type: "adjustment",
           weightedCount: adjustmentIdeas.length + adjustmentNewCount * 2 + adjustmentBezigCount,
           priority:
             adjustmentIdeas.length + adjustmentNewCount * 2 + adjustmentBezigCount >= 9
-              ? "Hoog"
+              ? "High"
               : adjustmentIdeas.length + adjustmentNewCount * 2 + adjustmentBezigCount >= 4
-              ? "Middel"
+              ? "Medium"
               : adjustmentIdeas.length + adjustmentNewCount * 2 + adjustmentBezigCount >= 1
-              ? "Laag"
-              : "Geen",
+              ? "Low"
+              : "None",
         },
       ].sort((a, b) => b.weightedCount - a.weightedCount),
     [
@@ -531,6 +540,7 @@ if (resolvedUserId) {
     nieuw: filteredFeedback.filter((f: any) => getResolvedStatus(f) === "nieuw").length,
     bezig: filteredFeedback.filter((f: any) => getResolvedStatus(f) === "bezig").length,
     klaar: filteredFeedback.filter((f: any) => getResolvedStatus(f) === "klaar").length,
+    // Note: database uses Dutch values (nieuw/bezig/klaar) — display only translated
   };
 
   const autoLearningItems = learningIdeas.filter(
@@ -546,18 +556,20 @@ if (resolvedUserId) {
 
   const activeLearningRules: string[] = [
     topComplaints.some(
-      (c) => c.keyword.includes("korter") || c.keyword.includes("te lang")
-    ) && "Kortere antwoorden actief",
+      (c) => c.keyword.includes("korter") || c.keyword.includes("te lang") ||
+             c.keyword.includes("shorter") || c.keyword.includes("too long")
+    ) && "Shorter answers active",
     topComplaints.some(
-      (c) => c.keyword.includes("duidelijker") || c.keyword.includes("onduidelijk")
-    ) && "Duidelijkere uitleg actief",
-    topComplaints.some((c) => c.keyword.includes("structuur")) &&
-      "Strakkere structuur actief",
-    topComplaints.some((c) => c.keyword.includes("te vaag")) &&
-      "Concretere antwoorden actief",
-    topComplaints.some((c) => c.keyword.includes("meer context")) &&
-      "Meer context actief",
-    priorityItems[0]?.type === "bug" && "Bug focus actief",
+      (c) => c.keyword.includes("duidelijker") || c.keyword.includes("onduidelijk") ||
+             c.keyword.includes("clearer") || c.keyword.includes("unclear")
+    ) && "Clearer explanations active",
+    topComplaints.some((c) => c.keyword.includes("structuur") || c.keyword.includes("structure")) &&
+      "Better structure active",
+    topComplaints.some((c) => c.keyword.includes("te vaag") || c.keyword.includes("vague")) &&
+      "More concrete answers active",
+    topComplaints.some((c) => c.keyword.includes("meer context") || c.keyword.includes("more context")) &&
+      "More context active",
+    priorityItems[0]?.type === "bug" && "Bug focus active",
   ].filter(Boolean) as string[];
 
     const learningWorkflowCounts = {
@@ -588,23 +600,33 @@ if (resolvedUserId) {
     .join(" ");
 
   const globalActiveLearningRules: string[] = [
-    (globalLearningText.includes("korter") || globalLearningText.includes("te lang")) &&
-      "Kortere antwoorden globaal actief",
-    (globalLearningText.includes("duidelijker") || globalLearningText.includes("onduidelijk")) &&
-      "Duidelijkere uitleg globaal actief",
-    globalLearningText.includes("structuur") && "Betere structuur globaal actief",
-    globalLearningText.includes("te vaag") && "Concretere antwoorden globaal actief",
-    globalLearningText.includes("meer context") && "Meer context globaal actief",
+    (globalLearningText.includes("korter") || globalLearningText.includes("te lang") ||
+     globalLearningText.includes("shorter") || globalLearningText.includes("too long")) &&
+      "Shorter answers active globally",
+    (globalLearningText.includes("duidelijker") || globalLearningText.includes("onduidelijk") ||
+     globalLearningText.includes("clearer") || globalLearningText.includes("unclear")) &&
+      "Clearer explanations active globally",
+    (globalLearningText.includes("structuur") || globalLearningText.includes("structure")) &&
+      "Better structure active globally",
+    (globalLearningText.includes("te vaag") || globalLearningText.includes("vague")) &&
+      "More concrete answers active globally",
+    (globalLearningText.includes("meer context") || globalLearningText.includes("more context")) &&
+      "More context active globally",
   ].filter(Boolean) as string[];
 
   const personalActiveLearningRules: string[] = [
-    (personalLearningText.includes("korter") || personalLearningText.includes("te lang")) &&
-      "Kortere antwoorden persoonlijk actief",
-    (personalLearningText.includes("duidelijker") || personalLearningText.includes("onduidelijk")) &&
-      "Duidelijkere uitleg persoonlijk actief",
-    personalLearningText.includes("structuur") && "Betere structuur persoonlijk actief",
-    personalLearningText.includes("te vaag") && "Concretere antwoorden persoonlijk actief",
-    personalLearningText.includes("meer context") && "Meer context persoonlijk actief",
+    (personalLearningText.includes("korter") || personalLearningText.includes("te lang") ||
+     personalLearningText.includes("shorter") || personalLearningText.includes("too long")) &&
+      "Shorter answers active personally",
+    (personalLearningText.includes("duidelijker") || personalLearningText.includes("onduidelijk") ||
+     personalLearningText.includes("clearer") || personalLearningText.includes("unclear")) &&
+      "Clearer explanations active personally",
+    (personalLearningText.includes("structuur") || personalLearningText.includes("structure")) &&
+      "Better structure active personally",
+    (personalLearningText.includes("te vaag") || personalLearningText.includes("vague")) &&
+      "More concrete answers active personally",
+    (personalLearningText.includes("meer context") || personalLearningText.includes("more context")) &&
+      "More context active personally",
   ].filter(Boolean) as string[];
 
   const globalWeightedSignals = {
@@ -662,37 +684,39 @@ if (resolvedUserId) {
 
     if (
       topComplaints.some(
-        (c) => c.keyword.includes("korter") || c.keyword.includes("te lang")
+        (c) => c.keyword.includes("korter") || c.keyword.includes("te lang") ||
+               c.keyword.includes("shorter") || c.keyword.includes("too long")
       )
     ) {
       pushAutoLearningInsight(
         "shorter_answers",
-        "AI antwoorden zijn vaak te lang, geef kortere en directere antwoorden"
+        "AI replies are often too long. Always prefer shorter, more direct answers. Cut filler aggressively."
       );
     }
 
     if (
       topComplaints.some(
-        (c) => c.keyword.includes("duidelijker") || c.keyword.includes("onduidelijk")
+        (c) => c.keyword.includes("duidelijker") || c.keyword.includes("onduidelijk") ||
+               c.keyword.includes("clearer") || c.keyword.includes("unclear")
       )
     ) {
       pushAutoLearningInsight(
         "clearer_explanations",
-        "Users willen duidelijkere uitleg en simpelere formulering in antwoorden"
+        "Users want clearer explanations and simpler wording. Avoid complex or vague phrasing."
       );
     }
 
-    if (topComplaints.some((c) => c.keyword.includes("structuur"))) {
+    if (topComplaints.some((c) => c.keyword.includes("structuur") || c.keyword.includes("structure"))) {
       pushAutoLearningInsight(
         "better_structure",
-        "Users willen een duidelijkere structuur en betere opbouw in antwoorden"
+        "Users want cleaner structure and better flow in answers. Use clear sections and logical ordering."
       );
     }
 
     if (priorityItems[0]?.type === "bug") {
       pushAutoLearningInsight(
         "bug_priority",
-        "Bugs hebben nu de hoogste prioriteit binnen analytics en moeten eerst opgepakt worden"
+        "Bug reports are the highest priority. Acknowledge issues clearly and be precise in responses."
       );
     }
   }, [
@@ -1051,7 +1075,7 @@ return () => {
           sessionStorage.removeItem(ANALYTICS_UNLOCK_STORAGE_KEY);
         }
 
-        setAuthError("Verkeerd wachtwoord");
+        setAuthError("Incorrect password");
         return;
       }
 
@@ -1065,7 +1089,7 @@ return () => {
       window.dispatchEvent(new Event("openlura_feedback_update"));
     } catch {
       setIsUnlocked(false);
-      setAuthError("Inloggen mislukt");
+      setAuthError("Login failed");
     }
   };
 
@@ -1169,7 +1193,7 @@ return () => {
         headers: getOpenLuraRequestHeaders(true, { includeUserId: false }),
         body: JSON.stringify({
           type: "idea",
-          message: "AI antwoorden zijn te lang, maak antwoorden korter en directer",
+          message: "AI replies are too long. Keep answers shorter and more direct. Cut unnecessary filler.",
           userMessage: "AI insight action",
           source: "idea_feedback_learning",
           learningType: "style",
@@ -1191,7 +1215,7 @@ return () => {
         headers: getOpenLuraRequestHeaders(true, { includeUserId: false }),
         body: JSON.stringify({
           type: "idea",
-          message: "Veel users willen duidelijkere structuur en helderdere opbouw in antwoorden",
+          message: "Users want clearer structure and better flow in answers. Use clean sections and logical ordering.",
           userMessage: "AI insight action",
           source: "idea_feedback_learning",
           learningType: "style",
@@ -1267,7 +1291,7 @@ return () => {
     return (
       <main className="min-h-screen bg-[#050510] text-white p-6 flex items-center justify-center">
         <div className="w-full max-w-sm bg-white/10 rounded-2xl p-6 text-center">
-          Analytics laden...
+          Loading analytics...
         </div>
       </main>
     );
@@ -1282,7 +1306,7 @@ return () => {
         >
           <h1 className="text-2xl mb-2">🔐 Analytics Admin</h1>
           <p className="text-sm opacity-60 mb-4">
-            Voer het wachtwoord in om analytics te openen
+            Enter the password to open analytics
           </p>
 
           <form
@@ -1301,7 +1325,7 @@ return () => {
                 if (authError) setAuthError("");
               }}
               className="w-full p-3 rounded-xl bg-white/10 mb-3 outline-none"
-              placeholder="Wachtwoord"
+              placeholder="Password"
             />
 
             {authError && (
@@ -1312,7 +1336,7 @@ return () => {
               type="submit"
               className="w-full p-3 bg-purple-500 rounded-xl"
             >
-              Ontgrendelen
+              Unlock
             </button>
           </form>
         </div>
@@ -1329,14 +1353,14 @@ return () => {
     onClick={() => downloadCSV(true)}
     className="text-xs px-3 py-1 bg-green-500/20 rounded-lg hover:bg-green-500/30 text-green-300"
   >
-    ↓ Deze week
+    ↓ This week
   </button>
 
   <button
     onClick={() => downloadCSV(false)}
     className="text-xs px-3 py-1 bg-white/10 rounded-lg hover:bg-white/20"
   >
-    ↓ Alles
+    ↓ All
   </button>
 
   <button
@@ -1379,7 +1403,7 @@ return () => {
   </div>
 
   <div className="p-4 bg-white/10 rounded-2xl">
-    <p className="text-xs opacity-60">Lokale items</p>
+    <p className="text-xs opacity-60">Local items</p>
     <p className="text-xl">{localFeedbackStats.total}</p>
   </div>
 
@@ -1399,7 +1423,7 @@ return () => {
   </div>
 
   <div className="p-4 bg-white/10 rounded-2xl">
-    <p className="text-xs opacity-60">Totaal zichtbaar</p>
+    <p className="text-xs opacity-60">Total visible</p>
     <p className="text-xl">{feedback.length}</p>
   </div>
 </div>
@@ -1412,7 +1436,7 @@ return () => {
       activeTab === "all" ? "bg-white/20 ring-1 ring-white/30" : "bg-white/10"
     }`}
   >
-    <p className="text-xs opacity-60">Totaal</p>
+    <p className="text-xs opacity-60">Total</p>
     <p className="text-xl">{feedback.length}</p>
   </button>
 
@@ -1422,7 +1446,7 @@ return () => {
       activeTab === "positive" ? "bg-green-500/30 ring-1 ring-green-300/40" : "bg-green-500/20"
     }`}
   >
-    <p className="text-xs opacity-60">👍 Positief</p>
+    <p className="text-xs opacity-60">👍 Positive</p>
     <p className="text-xl">{positiveFeedback.length}</p>
   </button>
 
@@ -1432,7 +1456,7 @@ return () => {
       activeTab === "negative" ? "bg-red-500/30 ring-1 ring-red-300/40" : "bg-red-500/20"
     }`}
   >
-    <p className="text-xs opacity-60">👎 Negatief</p>
+    <p className="text-xs opacity-60">👎 Negative</p>
     <p className="text-xl">{negativeFeedback.length}</p>
   </button>
 
@@ -1442,7 +1466,7 @@ return () => {
       activeTab === "improvement" ? "bg-yellow-500/30 ring-1 ring-yellow-300/40" : "bg-yellow-500/20"
     }`}
   >
-    <p className="text-xs opacity-60">🛠️ Verbeter</p>
+    <p className="text-xs opacity-60">🛠️ Improve</p>
     <p className="text-xl">{improvementFeedback.length}</p>
   </button>
 
@@ -1467,8 +1491,8 @@ return () => {
   </div>
 
     <div className="p-4 bg-white/10 rounded-xl">
-    <p className="text-xs opacity-60">🔥 Top prioriteit</p>
-    <p className="text-xl">{priorityItems[0]?.label || "Geen"}</p>
+    <p className="text-xs opacity-60">🔥 Top priority</p>
+    <p className="text-xl">{priorityItems[0]?.label || "None"}</p>
     <p className="text-xs opacity-60 mt-1">{priorityItems[0]?.priority || ""}</p>
   </div>
 
@@ -1478,7 +1502,7 @@ return () => {
       activeTab === "ideas" ? "bg-blue-500/30 ring-1 ring-blue-300/40" : "bg-blue-500/20"
     }`}
   >
-    <p className="text-xs opacity-60">💡 Ideeën</p>
+    <p className="text-xs opacity-60">💡 Ideas</p>
     <p className="text-xl">{ideaFeedback.length}</p>
   </button>
 
@@ -1495,19 +1519,19 @@ return () => {
     onClick={() => setActiveTab("negative")}
     className={`px-4 py-2 rounded-xl ${activeTab === "negative" ? "bg-red-400 text-black" : "bg-white/10 text-white"}`}
   >
-    Negatief
+    Negative
   </button>
   <button
     onClick={() => setActiveTab("positive")}
     className={`px-4 py-2 rounded-xl ${activeTab === "positive" ? "bg-green-400 text-black" : "bg-white/10 text-white"}`}
   >
-    Positief
+    Positive
   </button>
-    <button
+  <button
     onClick={() => setActiveTab("improvement")}
     className={`px-4 py-2 rounded-xl ${activeTab === "improvement" ? "bg-yellow-400 text-black" : "bg-white/10 text-white"}`}
   >
-    Verbeter
+    Improve
   </button>
   <button
     onClick={() => setActiveTab("auto_debug")}
@@ -1519,7 +1543,7 @@ return () => {
     onClick={() => setActiveTab("ideas")}
     className={`px-4 py-2 rounded-xl ${activeTab === "ideas" ? "bg-blue-400 text-black" : "bg-white/10 text-white"}`}
   >
-    Ideeën
+    Ideas
   </button>
 </div>
 
@@ -1529,7 +1553,7 @@ return () => {
       onClick={() => setIdeaFilter("all")}
       className={`px-4 py-2 rounded-xl ${ideaFilter === "all" ? "bg-blue-400 text-black" : "bg-white/10 text-white"}`}
     >
-      Alle ideeën ({ideaFeedback.length})
+      All ideas ({ideaFeedback.length})
     </button>
     <button
       onClick={() => setIdeaFilter("bug")}
@@ -1541,7 +1565,7 @@ return () => {
       onClick={() => setIdeaFilter("adjustment")}
       className={`px-4 py-2 rounded-xl ${ideaFilter === "adjustment" ? "bg-yellow-400 text-black" : "bg-white/10 text-white"}`}
     >
-      Aanpassingen ({adjustmentIdeas.length})
+      Adjustments ({adjustmentIdeas.length})
     </button>
     <button
       onClick={() => setIdeaFilter("learning")}
@@ -1557,13 +1581,13 @@ return () => {
     onClick={() => setWorkflowFilter("all")}
     className={`px-4 py-2 rounded-xl ${workflowFilter === "all" ? "bg-white text-black" : "bg-white/10 text-white"}`}
   >
-    Alles ({filteredFeedback.length})
+    All ({filteredFeedback.length})
   </button>
   <button
     onClick={() => setWorkflowFilter("nieuw")}
     className={`px-4 py-2 rounded-xl ${workflowFilter === "nieuw" ? "bg-blue-400 text-black" : "bg-white/10 text-white"}`}
   >
-    Nieuw ({feedback.filter((f: AnalyticsFeedbackItem) =>
+    New ({feedback.filter((f: AnalyticsFeedbackItem) =>
   matchesCurrentAnalyticsFilters(f, "nieuw")
 ).length})
   </button>
@@ -1571,7 +1595,7 @@ return () => {
     onClick={() => setWorkflowFilter("bezig")}
     className={`px-4 py-2 rounded-xl ${workflowFilter === "bezig" ? "bg-yellow-400 text-black" : "bg-white/10 text-white"}`}
   >
-    In behandeling ({feedback.filter((f: AnalyticsFeedbackItem) =>
+    In progress ({feedback.filter((f: AnalyticsFeedbackItem) =>
   matchesCurrentAnalyticsFilters(f, "bezig")
 ).length})
   </button>
@@ -1579,7 +1603,7 @@ return () => {
     onClick={() => setWorkflowFilter("klaar")}
     className={`px-4 py-2 rounded-xl ${workflowFilter === "klaar" ? "bg-green-400 text-black" : "bg-white/10 text-white"}`}
   >
-    Klaar ({feedback.filter((f: AnalyticsFeedbackItem) =>
+    Done ({feedback.filter((f: AnalyticsFeedbackItem) =>
   matchesCurrentAnalyticsFilters(f, "klaar")
 ).length})
   </button>
@@ -1590,7 +1614,7 @@ return () => {
     onClick={() => setLearningTypeFilter("all")}
     className={`px-4 py-2 rounded-xl ${learningTypeFilter === "all" ? "bg-white text-black" : "bg-white/10 text-white"}`}
   >
-    Alle learning
+    All learning
   </button>
   <button
     onClick={() => setLearningTypeFilter("style")}
@@ -1613,7 +1637,7 @@ return () => {
         onClick={() => setAutoDebugConfidenceFilter("all")}
         className={`px-4 py-2 rounded-xl ${autoDebugConfidenceFilter === "all" ? "bg-white text-black" : "bg-white/10 text-white"}`}
       >
-        Alle confidence
+        All confidence
       </button>
       <button
         onClick={() => setAutoDebugConfidenceFilter("high")}
@@ -1640,7 +1664,7 @@ return () => {
         onClick={() => setAutoDebugRouteFilter("all")}
         className={`px-4 py-2 rounded-xl ${autoDebugRouteFilter === "all" ? "bg-white text-black" : "bg-white/10 text-white"}`}
       >
-        Alle routes
+        All routes
       </button>
       <button
         onClick={() => setAutoDebugRouteFilter("fast_text")}
@@ -1673,7 +1697,7 @@ return () => {
         onClick={() => setAutoDebugSignalFilter("all")}
         className={`px-3 py-2 rounded-xl text-sm ${autoDebugSignalFilter === "all" ? "bg-white text-black" : "bg-white/10 text-white"}`}
       >
-        Alle signalen
+        All signals
       </button>
       <button
         onClick={() => setAutoDebugSignalFilter("casual_mismatch")}
@@ -1713,7 +1737,7 @@ return () => {
   <div className="p-4 bg-white/10 rounded-2xl">
     <h2 className="text-lg mb-3">🚨 Top complaints</h2>
     {topComplaints.length === 0 ? (
-      <p className="opacity-60 text-sm">Nog geen veelvoorkomende patronen.</p>
+      <p className="opacity-60 text-sm">No common patterns yet.</p>
     ) : (
       <div className="space-y-2">
         {topComplaints.map((item, i) => (
@@ -1730,15 +1754,15 @@ return () => {
     <h2 className="text-lg mb-3">🧪 AI debug</h2>
     <div className="space-y-2 text-sm">
       <div className="flex justify-between">
-        <span>Negatieve antwoorden</span>
+        <span>Negative replies</span>
         <span className="opacity-60">{negativeFeedback.length}</span>
       </div>
       <div className="flex justify-between">
-        <span>Verbeterfeedback</span>
+        <span>Improvement feedback</span>
         <span className="opacity-60">{improvementFeedback.length}</span>
       </div>
-            <div className="flex justify-between">
-        <span>Positieve antwoorden</span>
+      <div className="flex justify-between">
+        <span>Positive replies</span>
         <span className="opacity-60">{positiveFeedback.length}</span>
       </div>
       <div className="flex justify-between">
@@ -1746,7 +1770,7 @@ return () => {
         <span className="opacity-60">{bugIdeas.length}</span>
       </div>
       <div className="flex justify-between">
-        <span>Idea aanpassingen</span>
+        <span>Idea adjustments</span>
         <span className="opacity-60">{adjustmentIdeas.length}</span>
       </div>
       <div className="flex justify-between">
@@ -1760,7 +1784,7 @@ return () => {
     <h2 className="text-lg mb-3">🤖 Auto Debug</h2>
     <div className="space-y-2 text-sm">
       <div className="flex justify-between">
-        <span>Totaal signalen</span>
+        <span>Total signals</span>
         <span className="opacity-60">{autoDebugFeedback.length}</span>
       </div>
       <div className="flex justify-between">
@@ -1797,27 +1821,27 @@ return () => {
   </div>
 
     <div className="p-4 bg-white/10 rounded-2xl">
-    <h2 className="text-lg mb-3">📌 Actieve filter</h2>
+    <h2 className="text-lg mb-3">📌 Active filter</h2>
     <p className="text-sm opacity-80 mb-2">
-      {activeTab === "all" && "Je ziet nu alle feedback."}
-      {activeTab === "negative" && "Je ziet nu alleen negatieve antwoorden."}
-      {activeTab === "positive" && "Je ziet nu alleen positieve antwoorden."}
-            {activeTab === "improvement" && "Je ziet nu alleen verbeterfeedback van gebruikers."}
-      {activeTab === "auto_debug" && "Je ziet nu automatisch gedetecteerde product- en route-signalen, opgeschoond tegen korte duplicate herhaling."}
-      {activeTab === "ideas" && "Je ziet nu alleen ingestuurde ideeën en algemene feedback."}
+      {activeTab === "all" && "Showing all feedback."}
+      {activeTab === "negative" && "Showing negative feedback only."}
+      {activeTab === "positive" && "Showing positive feedback only."}
+      {activeTab === "improvement" && "Showing improvement feedback from users only."}
+      {activeTab === "auto_debug" && "Showing automatically detected product and route signals, deduplicated against recent entries."}
+      {activeTab === "ideas" && "Showing submitted ideas and general feedback only."}
     </p>
     <p className="text-xs opacity-60">
       {activeTab === "auto_debug"
         ? autoDebugConfidenceFilter === "all" &&
           autoDebugRouteFilter === "all" &&
           autoDebugSignalFilter === "all"
-          ? "Auto Debug filters staan op alles."
-          : `Auto Debug filters: confidence = ${autoDebugConfidenceFilter}, route = ${autoDebugRouteFilter}, signaal = ${autoDebugSignalFilter}.`
+          ? "Auto Debug filters set to all."
+          : `Auto Debug filters: confidence = ${autoDebugConfidenceFilter}, route = ${autoDebugRouteFilter}, signal = ${autoDebugSignalFilter}.`
         : learningTypeFilter === "all"
-        ? "Learning type filter staat op alles."
+        ? "Learning type filter is set to all."
         : learningTypeFilter === "style"
-        ? "Je filtert nu op stijlfeedback zoals tone, lengte, duidelijkheid en structuur."
-        : "Je filtert nu op contentfeedback zoals antwoordvorm en succesvolle antwoordpatronen."}
+        ? "Filtering on style feedback: tone, length, clarity, structure."
+        : "Filtering on content feedback: answer shape and successful response patterns."}
     </p>
   </div>
 
@@ -1839,15 +1863,15 @@ return () => {
     <h2 className="text-lg mb-3">🗂️ Workflow</h2>
     <div className="space-y-2 text-sm">
       <div className="flex justify-between">
-        <span>Nieuw</span>
+        <span>New</span>
         <span className="opacity-60">{workflowCounts.nieuw}</span>
       </div>
       <div className="flex justify-between">
-        <span>In behandeling</span>
+        <span>In progress</span>
         <span className="opacity-60">{workflowCounts.bezig}</span>
       </div>
       <div className="flex justify-between">
-        <span>Klaar</span>
+        <span>Done</span>
         <span className="opacity-60">{workflowCounts.klaar}</span>
       </div>
     </div>
@@ -1855,7 +1879,7 @@ return () => {
 </div>
 
 <div className="p-4 bg-white/10 rounded-2xl mb-6">
-  <h2 className="text-lg mb-3">🧭 Auto Debug signalen</h2>
+  <h2 className="text-lg mb-3">🧭 Auto Debug signals</h2>
 
   <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-3 text-sm">
     <div className="p-3 rounded-xl bg-white/5">
@@ -1908,7 +1932,7 @@ return () => {
 
   <div className="grid md:grid-cols-3 lg:grid-cols-6 gap-3 mb-4 text-sm">
     <div className="p-3 rounded-xl bg-white/5">
-      <p className="text-xs opacity-60 mb-1">Opgeslagen AI feedback</p>
+      <p className="text-xs opacity-60 mb-1">Saved AI feedback</p>
       <p className="text-lg">{learningPool.length}</p>
     </div>
     <div className="p-3 rounded-xl bg-white/5">
@@ -1928,16 +1952,16 @@ return () => {
       <p className="text-lg">{contentLearningCounts.total}</p>
     </div>
     <div className="p-3 rounded-xl bg-white/5">
-      <p className="text-xs opacity-60 mb-1">Actieve live rules</p>
+      <p className="text-xs opacity-60 mb-1">Active live rules</p>
       <p className="text-lg">{activeLearningRules.length}</p>
     </div>
   </div>
 
   <div className="grid md:grid-cols-2 gap-4 text-sm mb-4">
     <div className="p-3 rounded-xl bg-white/5">
-      <p className="text-xs opacity-60 mb-2">Globaal actief in alle chats</p>
+      <p className="text-xs opacity-60 mb-2">Active globally in all chats</p>
       {globalActiveLearningRules.length === 0 ? (
-        <p className="opacity-60">Nog geen globale/user learning rules.</p>
+        <p className="opacity-60">No global learning rules yet.</p>
       ) : (
         <div className="space-y-2">
           {globalActiveLearningRules.map((rule, i) => (
@@ -1948,9 +1972,9 @@ return () => {
     </div>
 
     <div className="p-3 rounded-xl bg-white/5">
-      <p className="text-xs opacity-60 mb-2">Persoonlijk / lokaal actief</p>
+      <p className="text-xs opacity-60 mb-2">Active personally / locally</p>
       {personalActiveLearningRules.length === 0 ? (
-        <p className="opacity-60">Nog geen persoonlijke learning rules.</p>
+        <p className="opacity-60">No personal learning rules yet.</p>
       ) : (
         <div className="space-y-2">
           {personalActiveLearningRules.map((rule, i) => (
@@ -1966,15 +1990,15 @@ return () => {
       <p className="text-xs opacity-60 mb-2">Style learning split</p>
       <div className="space-y-2">
         <div className="flex justify-between">
-          <span>Totaal</span>
+          <span>Total</span>
           <span className="opacity-60">{styleLearningCounts.total}</span>
         </div>
         <div className="flex justify-between">
-          <span>Globaal</span>
+          <span>Global</span>
           <span className="opacity-60">{styleLearningCounts.global}</span>
         </div>
         <div className="flex justify-between">
-          <span>Persoonlijk</span>
+          <span>Personal</span>
           <span className="opacity-60">{styleLearningCounts.personal}</span>
         </div>
       </div>
@@ -1984,15 +2008,15 @@ return () => {
       <p className="text-xs opacity-60 mb-2">Content learning split</p>
       <div className="space-y-2">
         <div className="flex justify-between">
-          <span>Totaal</span>
+          <span>Total</span>
           <span className="opacity-60">{contentLearningCounts.total}</span>
         </div>
         <div className="flex justify-between">
-          <span>Globaal</span>
+          <span>Global</span>
           <span className="opacity-60">{contentLearningCounts.global}</span>
         </div>
         <div className="flex justify-between">
-          <span>Persoonlijk</span>
+          <span>Personal</span>
           <span className="opacity-60">{contentLearningCounts.personal}</span>
         </div>
       </div>
@@ -2004,33 +2028,33 @@ return () => {
       <p className="text-xs opacity-60 mb-2">Global weighted signals</p>
       <div className="space-y-2">
         <div className="flex justify-between">
-          <span>Korter</span>
+          <span>Shorter</span>
           <span className="opacity-60">{globalWeightedSignals.shorter}</span>
         </div>
         <div className="flex justify-between">
-          <span>Duidelijker</span>
+          <span>Clearer</span>
           <span className="opacity-60">{globalWeightedSignals.clearer}</span>
         </div>
         <div className="flex justify-between">
-          <span>Structuur</span>
+          <span>Structure</span>
           <span className="opacity-60">{globalWeightedSignals.structure}</span>
         </div>
       </div>
       <div className="mt-3 pt-3 border-t border-white/10 space-y-2">
         <div className="flex justify-between">
-          <span>Korter confidence</span>
+          <span>Shorter confidence</span>
           <span className={getLearningConfidenceColor(getLearningConfidence(globalWeightedSignals.shorter))}>
             {getLearningConfidence(globalWeightedSignals.shorter)}
           </span>
         </div>
         <div className="flex justify-between">
-          <span>Duidelijker confidence</span>
+          <span>Clearer confidence</span>
           <span className={getLearningConfidenceColor(getLearningConfidence(globalWeightedSignals.clearer))}>
             {getLearningConfidence(globalWeightedSignals.clearer)}
           </span>
         </div>
         <div className="flex justify-between">
-          <span>Structuur confidence</span>
+          <span>Structure confidence</span>
           <span className={getLearningConfidenceColor(getLearningConfidence(globalWeightedSignals.structure))}>
             {getLearningConfidence(globalWeightedSignals.structure)}
           </span>
@@ -2042,33 +2066,33 @@ return () => {
       <p className="text-xs opacity-60 mb-2">Personal weighted signals</p>
       <div className="space-y-2">
         <div className="flex justify-between">
-          <span>Korter</span>
+          <span>Shorter</span>
           <span className="opacity-60">{personalWeightedSignals.shorter}</span>
         </div>
         <div className="flex justify-between">
-          <span>Duidelijker</span>
+          <span>Clearer</span>
           <span className="opacity-60">{personalWeightedSignals.clearer}</span>
         </div>
         <div className="flex justify-between">
-          <span>Structuur</span>
+          <span>Structure</span>
           <span className="opacity-60">{personalWeightedSignals.structure}</span>
         </div>
       </div>
       <div className="mt-3 pt-3 border-t border-white/10 space-y-2">
         <div className="flex justify-between">
-          <span>Korter confidence</span>
+          <span>Shorter confidence</span>
           <span className={getLearningConfidenceColor(getLearningConfidence(personalWeightedSignals.shorter))}>
             {getLearningConfidence(personalWeightedSignals.shorter)}
           </span>
         </div>
         <div className="flex justify-between">
-          <span>Duidelijker confidence</span>
+          <span>Clearer confidence</span>
           <span className={getLearningConfidenceColor(getLearningConfidence(personalWeightedSignals.clearer))}>
             {getLearningConfidence(personalWeightedSignals.clearer)}
           </span>
         </div>
         <div className="flex justify-between">
-          <span>Structuur confidence</span>
+          <span>Structure confidence</span>
           <span className={getLearningConfidenceColor(getLearningConfidence(personalWeightedSignals.structure))}>
             {getLearningConfidence(personalWeightedSignals.structure)}
           </span>
@@ -2080,15 +2104,15 @@ return () => {
       <p className="text-xs opacity-60 mb-2">AI learning workflow</p>
       <div className="space-y-2">
         <div className="flex justify-between">
-          <span>Nieuw</span>
+          <span>New</span>
           <span className="opacity-60">{learningWorkflowCounts.nieuw}</span>
         </div>
         <div className="flex justify-between">
-          <span>In behandeling</span>
+          <span>In progress</span>
           <span className="opacity-60">{learningWorkflowCounts.bezig}</span>
         </div>
         <div className="flex justify-between">
-          <span>Klaar</span>
+          <span>Done</span>
           <span className="opacity-60">{learningWorkflowCounts.klaar}</span>
         </div>
       </div>
@@ -2106,11 +2130,11 @@ return () => {
       <p className="text-xs opacity-60 mb-2">Variant A</p>
       <div className="space-y-2">
         <div className="flex justify-between">
-          <span>👍 Positief</span>
+          <span>👍 Positive</span>
           <span className="opacity-60">{variantAScore.up}</span>
         </div>
         <div className="flex justify-between">
-          <span>👎 Negatief</span>
+          <span>👎 Negative</span>
           <span className="opacity-60">{variantAScore.down}</span>
         </div>
       </div>
@@ -2120,11 +2144,11 @@ return () => {
       <p className="text-xs opacity-60 mb-2">Variant B</p>
       <div className="space-y-2">
         <div className="flex justify-between">
-          <span>👍 Positief</span>
+          <span>👍 Positive</span>
           <span className="opacity-60">{variantBScore.up}</span>
         </div>
         <div className="flex justify-between">
-          <span>👎 Negatief</span>
+          <span>👎 Negative</span>
           <span className="opacity-60">{variantBScore.down}</span>
         </div>
       </div>
@@ -2133,7 +2157,7 @@ return () => {
 </div>
 
 <div className="p-4 bg-white/10 rounded-2xl mb-6">
-  <h2 className="text-lg mb-3">🤖 AI Actie Suggesties</h2>
+  <h2 className="text-lg mb-3">🤖 AI Action Suggestions</h2>
 
   <div className="space-y-2 text-sm">
 
@@ -2142,39 +2166,39 @@ return () => {
         onClick={() => handleInsightAction("focus_bug")}
         className="block text-left w-full p-3 rounded-xl bg-red-500/20 hover:bg-red-500/30"
       >
-        🐞 Fix deze bug eerst (hoogste prioriteit)
+        🐞 Fix this bug first (highest priority)
       </button>
     )}
 
-        {topComplaints.some(c => c.keyword.includes("korter") || c.keyword.includes("te lang")) && (
+        {topComplaints.some(c => c.keyword.includes("korter") || c.keyword.includes("te lang") || c.keyword.includes("shorter") || c.keyword.includes("too long")) && (
       <button
         onClick={() => handleInsightAction("shorter_answers")}
         className="block text-left w-full p-3 rounded-xl bg-yellow-500/20 hover:bg-yellow-500/30"
       >
-        ✂️ AI antwoorden zijn te lang → maak ze korter
+        ✂️ AI replies are too long → make them shorter
       </button>
     )}
 
-        {topComplaints.some(c => c.keyword.includes("duidelijker") || c.keyword.includes("onduidelijk")) && (
+        {topComplaints.some(c => c.keyword.includes("duidelijker") || c.keyword.includes("onduidelijk") || c.keyword.includes("clearer") || c.keyword.includes("unclear")) && (
       <button
         onClick={() => handleInsightAction("clearer_structure")}
         className="block text-left w-full p-3 rounded-xl bg-blue-500/20 hover:bg-blue-500/30"
       >
-        🧠 Users willen duidelijkere uitleg
+        🧠 Users want clearer explanations
       </button>
     )}
 
-    {topComplaints.some(c => c.keyword.includes("structuur")) && (
+    {topComplaints.some(c => c.keyword.includes("structuur") || c.keyword.includes("structure")) && (
       <button
         onClick={() => handleInsightAction("clearer_structure")}
         className="block text-left w-full p-3 rounded-xl bg-purple-500/20 hover:bg-purple-500/30"
       >
-        📐 Verbeter de structuur van antwoorden
+        📐 Improve the structure of answers
       </button>
     )}
 
     {negativeFeedback.length > positiveFeedback.length && (
-      <p>📉 Meer negatieve dan positieve feedback → herzie AI output</p>
+      <p>📉 More negative than positive feedback → review AI output</p>
     )}
 
   </div>
@@ -2194,11 +2218,11 @@ return () => {
 
         <p className="text-xs opacity-60 mb-1">
       {f.type === "improve"
-        ? "Verbeterfeedback"
+        ? "Improvement feedback"
         : f.type === "auto_debug"
-        ? "Auto Debug signaal"
+        ? "Auto Debug signal"
         : f.type === "idea"
-        ? "Idee / Feedback"
+        ? "Idea / Feedback"
         : "User"}
     </p>
     <p className="mb-3">
@@ -2243,14 +2267,14 @@ return () => {
             ? "🐞 Bug"
             : f.source === "idea_feedback_learning"
             ? "🧠 AI feedback"
-            : "💡 Aanpassing"
-          : "🛠️ Verbeter feedback"}
+            : "💡 Adjustment"
+          : "🛠️ Improvement feedback"}
         {f.type === "auto_debug" && (
           <span className="ml-2 text-xs opacity-70">
             {autoDebugConfidenceFilter === "all" &&
             autoDebugRouteFilter === "all" &&
             autoDebugSignalFilter === "all"
-              ? "• filters: alles"
+              ? "• filters: all"
               : `• ${autoDebugConfidenceFilter} / ${autoDebugRouteFilter} / ${autoDebugSignalFilter}`}
           </span>
         )}
@@ -2262,9 +2286,9 @@ return () => {
           onChange={(e) => updateItemStatus(itemKey, e.target.value)}
           className="px-3 py-1 rounded-lg bg-white/10 text-white text-sm [&>option]:text-black"
         >
-          <option value="nieuw">Nieuw</option>
-          <option value="bezig">In behandeling</option>
-          <option value="klaar">Klaar</option>
+          <option value="nieuw">New</option>
+          <option value="bezig">In progress</option>
+          <option value="klaar">Done</option>
         </select>
 
         <span className="text-xs opacity-50">

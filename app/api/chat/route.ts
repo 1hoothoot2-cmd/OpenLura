@@ -1852,14 +1852,14 @@ async function fetchSupabasePersonalFeedbackRows(input: {
 
 async function getRecentServerFeedback() {
   const primary = await fetchSupabaseGlobalFeedbackRows(
-    "select=type,message,userMessage,source,timestamp,user_id&user_id=is.null&order=timestamp.desc&limit=30",
+    "select=type,message,userMessage,source,timestamp,user_id&user_id=is.null&order=timestamp.desc&limit=80",
     "OpenLura server feedback fetch failed:"
   );
 
   if (primary.length > 0) return primary;
 
   return fetchSupabaseGlobalFeedbackRows(
-    "select=type,message,userMessage,source,timestamp&user_id=is.null&order=timestamp.desc&limit=30",
+    "select=type,message,userMessage,source,timestamp&user_id=is.null&order=timestamp.desc&limit=80",
     "OpenLura server feedback fallback fetch failed:"
   );
 }
@@ -3288,7 +3288,7 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
     (f: any) =>
       f.type === "workflow_status" &&
       f.source === "analytics_workflow" &&
-      f.message === "done"
+      (f.message === "klaar" || f.message === "done")
   );
 
   const negativeFeedbackTexts = effectiveFeedback

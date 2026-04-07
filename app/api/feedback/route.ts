@@ -854,11 +854,19 @@ function inferIdeaSource(
   if (
     rawMessage.includes("bug") ||
     rawMessage.includes("werkt niet") ||
+    rawMessage.includes("doesn't work") ||
+    rawMessage.includes("does not work") ||
+    rawMessage.includes("not working") ||
     rawMessage.includes("error") ||
     rawMessage.includes("fout") ||
     rawMessage.includes("crash") ||
+    rawMessage.includes("broken") ||
     rawMessage.includes("stuk") ||
-    rawMessage.includes("kapot")
+    rawMessage.includes("kapot") ||
+    rawMessage.includes("fix") ||
+    rawMessage.includes("kaputt") ||
+    rawMessage.includes("ne fonctionne pas") ||
+    rawMessage.includes("no funciona")
   ) {
     return "idea_bug";
   }
@@ -870,7 +878,15 @@ function inferIdeaSource(
     rawMessage.includes("maak") ||
     rawMessage.includes("zet") ||
     rawMessage.includes("verander") ||
-    rawMessage.includes("wijzig")
+    rawMessage.includes("wijzig") ||
+    rawMessage.includes("add") ||
+    rawMessage.includes("change") ||
+    rawMessage.includes("adjust") ||
+    rawMessage.includes("update") ||
+    rawMessage.includes("modify") ||
+    rawMessage.includes("ajouter") ||
+    rawMessage.includes("agregar") ||
+    rawMessage.includes("hinzufügen")
   ) {
     return "idea_adjustment";
   }
@@ -882,7 +898,18 @@ function inferIdeaSource(
     rawMessage.includes("korter") ||
     rawMessage.includes("duidelijker") ||
     rawMessage.includes("beter") ||
-    rawMessage.includes("leren")
+    rawMessage.includes("leren") ||
+    rawMessage.includes("shorter") ||
+    rawMessage.includes("clearer") ||
+    rawMessage.includes("better") ||
+    rawMessage.includes("learn") ||
+    rawMessage.includes("improve") ||
+    rawMessage.includes("response") ||
+    rawMessage.includes("answer") ||
+    rawMessage.includes("reply") ||
+    rawMessage.includes("plus court") ||
+    rawMessage.includes("más corto") ||
+    rawMessage.includes("kürzer")
   ) {
     return "idea_feedback_learning";
   }
@@ -951,7 +978,7 @@ export async function POST(req: Request) {
 
   if (!safeSecretEquals(submittedPassword, analyticsAdminPassword)) {
     return NextResponse.json(
-      { success: false, error: "Verkeerd wachtwoord" },
+      { success: false, error: "Incorrect password" },
       {
         status: 401,
         headers: buildHeadersWithRateLimit(rateLimit),
@@ -1113,7 +1140,7 @@ try {
         feedbackTableUrl,
         supabaseServiceRoleKey,
         entry: persistedEntry,
-        errorLabel: "Workflow status opslaan mislukt:",
+        errorLabel: "Workflow status save failed:",
       });
     }
   } else {
@@ -1121,7 +1148,7 @@ try {
       feedbackTableUrl,
       supabaseServiceRoleKey,
       entry: persistedEntry,
-      errorLabel: "Feedback opslaan mislukt:",
+      errorLabel: "Feedback save failed:",
     });
   }
 
@@ -1145,10 +1172,10 @@ try {
   return NextResponse.json(
     {
       success: false,
-      error:
-        data.action === "update_workflow_status"
-          ? "Workflow status opslaan mislukt"
-          : "Feedback opslaan mislukt",
+     error:
+          data.action === "update_workflow_status"
+            ? "Workflow status save failed"
+            : "Feedback save failed",
     },
     {
       status: 500,
@@ -1162,7 +1189,7 @@ try {
     return NextResponse.json(
       {
         success: false,
-        error: "Feedback opslaan mislukt",
+        error: "Feedback save failed",
       },
       {
         status: 500,
@@ -1196,7 +1223,7 @@ export async function GET(req: Request) {
       return NextResponse.json(
         {
           success: false,
-          error: "Feedback ophalen mislukt",
+          error: "Feedback fetch failed",
         },
         {
           status: 500,
@@ -1288,7 +1315,7 @@ return NextResponse.json(normalizedRows, {
     return NextResponse.json(
       {
         success: false,
-        error: "Feedback ophalen mislukt",
+        error: "Feedback fetch failed",
       },
       {
         status: 500,
@@ -1328,7 +1355,7 @@ export async function DELETE(req: Request) {
     return NextResponse.json(
       {
         success: false,
-        error: "Analytics logout mislukt",
+        error: "Analytics logout failed",
       },
       {
         status: 500,
