@@ -5043,7 +5043,7 @@ updated[index].messages[
       </span>
     ) : (
       <>
-        {tokenizeMessageContent(msg.content).map((part: string, idx: number) => {
+{tokenizeMessageContent(msg.content.replace("[PHOTO_STUDIO_SUGGEST]", "").trim()).map((part: string, idx: number) => {
           const isUrl = isUrlToken(part);
 
           if (isUrl) {
@@ -5071,6 +5071,22 @@ updated[index].messages[
             </span>
           );
         })}
+
+        {msg.content.includes("[PHOTO_STUDIO_SUGGEST]") && !msg.isStreaming && (
+          <div className="mt-3 flex items-center gap-2 rounded-[14px] border border-blue-400/20 bg-blue-400/[0.06] px-4 py-3">
+            <span className="text-lg">🎨</span>
+            <div className="flex-1">
+              <p className="text-[13px] font-medium text-blue-200">Photo Studio</p>
+              <p className="text-[11px] text-white/40">Bewerk je afbeelding met AI</p>
+            </div>
+            <a
+              href="/photo-studio"
+              className="rounded-[10px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-3 py-1.5 text-[12px] font-medium text-white hover:brightness-110 transition-all"
+            >
+              Openen →
+            </a>
+          </div>
+        )}
 
         {msg.isStreaming && msg.content !== "…" && (
           <span
