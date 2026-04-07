@@ -156,3 +156,37 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: err?.message || "Generation failed" }, { status: 500, headers: NO_STORE });
   }
 }
+
+export async function DELETE(req: Request) {
+  try {
+    const identity = await resolveOpenLuraRequestIdentity(req);
+    if (!identity.isAuthenticated || !identity.userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: NO_STORE });
+    }
+
+    const body = await req.json();
+    const id = typeof body?.id === "string" ? body.id : null;
+    if (!id) return NextResponse.json({ error: "ID required" }, { status: 400, headers: NO_STORE });
+
+    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+    const { data } = await supabase
+      .from(personalStateTable)
+      .select("usage_stats")
+      .eq("user_id", identity.userId)
+      .single();
+
+    const stats = (data?.usage_stats as any) || {};
+    const history = Array.isArray(stats.photo_history) ? stats.photo_history : [];
+    const newHistory = history.filter((item: any) => item.id !== id);
+
+    await supabase.from(personalStateTable).upsert({
+      user_id: identity.userId,
+      usage_stats: { ...stats, photo_history: newHistory },
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "user_id" });
+
+    return NextResponse.json({ success: true }, { headers: NO_STORE });
+  } catch (err: any) {
+    return NextResponse.json({ error: "Failed" }, { status: 500, headers: NO_STORE });
+  }
+}

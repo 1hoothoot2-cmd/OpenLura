@@ -57,6 +57,7 @@ function PhotoStudioContent() {
   const [buyingCredits, setBuyingCredits] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [lightbox, setLightbox] = useState<HistoryItem | null>(null);
 
   useEffect(() => {
     fetch("/api/auth", { method: "GET", credentials: "same-origin" })
@@ -75,6 +76,19 @@ function PhotoStudioContent() {
       loadStats();
     }
   }, [searchParams]);
+
+  async function deleteFromHistory(id: string) {
+    setHistory(prev => prev.filter(item => item.id !== id));
+    // Sync naar server
+    try {
+      await fetch("/api/image-generate", {
+        method: "DELETE",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+    } catch {}
+  }
 
   async function loadStats() {
     try {
@@ -314,22 +328,32 @@ function PhotoStudioContent() {
           {/* RIGHT: History */}
           {showHistory && (
             <div>
-              <p className="text-[11px] uppercase tracking-[0.16em] text-white/32 mb-3">Geschiedenis</p>
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[11px] uppercase tracking-[0.16em] text-white/32">Geschiedenis</p>
+                <span className="text-[11px] text-white/24">{history.length} foto's</span>
+              </div>
               {history.length === 0 ? (
                 <div className="rounded-[20px] border border-dashed border-white/8 px-4 py-8 text-center">
+                  <p className="text-2xl mb-2 opacity-20">🎨</p>
                   <p className="text-sm text-white/28">Nog geen afbeeldingen gegenereerd.</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-2">
                   {history.map(item => (
-                    <div key={item.id} className="group relative rounded-[14px] overflow-hidden border border-white/8 aspect-square">
-                      <img src={item.url} alt={item.prompt} className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-2">
-                        <p className="text-[10px] text-white/80 line-clamp-2">{item.prompt}</p>
-                        <div className="flex items-center justify-between mt-1">
-                          <span className="text-[10px] text-white/40">{item.model}</span>
-                          <a href={item.url} target="_blank" rel="noopener noreferrer"
-                            className="text-[10px] text-blue-300 hover:text-white">↗</a>
+                    <div key={item.id} className="group relative rounded-[14px] overflow-hidden border border-white/8 aspect-square cursor-pointer"
+                      onClick={() => setLightbox(item)}>
+                      <img src={item.url} alt={item.prompt} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-2.5">
+                        <p className="text-[10px] text-white/90 line-clamp-2 leading-3.5">{item.prompt}</p>
+                        <div className="flex items-center justify-between mt-1.5">
+                          <span className="text-[10px] text-white/40">{item.points}pt</span>
+                          <button
+                            type="button"
+                            onClick={e => { e.stopPropagation(); deleteFromHistory(item.id); }}
+                            className="h-5 w-5 flex items-center justify-center rounded-full bg-red-500/80 hover:bg-red-500 transition-colors"
+                          >
+                            <svg viewBox="0 0 14 14" className="h-2.5 w-2.5" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round"><path d="M2 2l10 10M12 2L2 12" /></svg>
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -340,6 +364,54 @@ function PhotoStudioContent() {
           )}
         </div>
       </div>
+
+      {/* Lightbox */}
+      {lightbox && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4" onClick={() => setLightbox(null)}>
+          <div className="absolute inset-0 bg-black/85 backdrop-blur-md" />
+          <div className="relative z-10 w-full max-w-2xl" onClick={e => e.stopPropagation()}>
+            <div className="rounded-[24px] overflow-hidden border border-white/10 shadow-[0_32px_80px_rgba(0,0,0,0.80)]">
+              <img src={lightbox.url} alt={lightbox.prompt} className="w-full object-cover" />
+            </div>
+            <div className="mt-4 flex items-start justify-between gap-4">
+              <div className="flex-1">
+                <p className="text-sm text-white/80 leading-5">{lightbox.prompt}</p>
+                <div className="flex items-center gap-3 mt-2">
+                  <span className="text-[11px] text-white/36">{lightbox.model}</span>
+                  <span className="text-[11px] text-white/36">·</span>
+                  <span className="text-[11px] text-white/36">{lightbox.points}pt</span>
+                  <span className="text-[11px] text-white/36">·</span>
+                  <span className="text-[11px] text-white/36">{new Date(lightbox.created_at).toLocaleDateString()}</span>
+                </div>
+              </div>
+              <div className="flex gap-2 shrink-0">
+                <a
+                  href={lightbox.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-[12px] border border-white/10 bg-white/[0.06] px-4 py-2 text-[13px] text-white/70 hover:text-white hover:bg-white/[0.10] transition-all"
+                >
+                  Download
+                </a>
+                <button
+                  type="button"
+                  onClick={() => { deleteFromHistory(lightbox.id); setLightbox(null); }}
+                  className="rounded-[12px] border border-red-400/20 bg-red-400/[0.06] px-4 py-2 text-[13px] text-red-400/70 hover:text-red-300 hover:bg-red-400/[0.12] transition-all"
+                >
+                  Verwijderen
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLightbox(null)}
+                  className="rounded-[12px] border border-white/10 bg-white/[0.04] px-3 py-2 text-white/40 hover:text-white transition-all"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Credits modal */}
       {showCreditsModal && (
