@@ -5,8 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 const MODELS = [
   { id: "dalle3", label: "DALL-E 3", badge: "OpenAI", color: "emerald", points: 2 },
-  { id: "nano-banana", label: "Nano Banana", badge: "Snel", color: "blue", points: 2 },
-  { id: "nano-banana-2", label: "Nano Banana 2", badge: "Scherp", color: "purple", points: 5 },
+  { id: "nano-banana", label: "Nano Banana", badge: "Fast", color: "blue", points: 2 },
+  { id: "nano-banana-2", label: "Nano Banana 2", badge: "Sharp", color: "purple", points: 5 },
   { id: "nano-banana-pro", label: "Nano Banana Pro", badge: "Max", color: "amber", points: 10 },
 ] as const;
 
@@ -74,14 +74,14 @@ function PhotoStudioContent() {
 
   useEffect(() => {
     if (searchParams.get("credits") === "success") {
-      setSuccessMsg("Credits toegevoegd! Je saldo is bijgewerkt.");
+      setSuccessMsg("Credits added! Your balance has been updated.");
       loadStats();
     }
   }, [searchParams]);
 
   async function deleteFromHistory(id: string) {
     setHistory(prev => prev.filter(item => item.id !== id));
-    // Sync naar server
+    // Sync to server
     try {
       await fetch("/api/image-generate", {
         method: "DELETE",
@@ -92,17 +92,7 @@ function PhotoStudioContent() {
     } catch {}
   }
 
-  function handleEditUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = ev => {
-      setEditImagePreview(ev.target?.result as string);
-    };
-    reader.readAsDataURL(file);
-    // Voor fal.ai hebben we een publieke URL nodig — gebruik de history URL of laat user een URL invoeren
-    setEditImageUrl(null); // wordt via URL input gezet
-  }
+  // handleEditUpload removed — upload logic is handled inline in the file input onChange
 
   async function uploadToFalStorage(file: File) {
     try {
@@ -117,11 +107,11 @@ function PhotoStudioContent() {
         const data = await res.json();
         if (data.url) setEditImageUrl(data.url);
       } else {
-        setError("Upload mislukt. Probeer een URL te plakken.");
+        setError("Upload failed. Try pasting a URL instead.");
         setEditImagePreview(null);
       }
     } catch {
-      setError("Upload mislukt. Probeer een URL te plakken.");
+      setError("Upload failed. Try pasting a URL instead.");
       setEditImagePreview(null);
     }
   }
@@ -163,12 +153,12 @@ function PhotoStudioContent() {
         return;
       }
       if (data?.code === "no_points") {
-        setError("Geen credits meer. Koop extra credits om door te gaan.");
+        setError("No credits left. Buy more credits to continue.");
         setShowCreditsModal(true);
         setPoints(data.points ?? 0);
         return;
       }
-      if (!res.ok) { setError(data?.error || "Generatie mislukt"); return; }
+      if (!res.ok) { setError(data?.error || "Generation failed"); return; }
       setImageUrl(data.url);
       setPoints(data.points);
       setHistory(prev => [{
@@ -180,7 +170,7 @@ function PhotoStudioContent() {
         created_at: new Date().toISOString(),
       }, ...prev].slice(0, 50));
     } catch {
-      setError("Verbindingsfout, probeer opnieuw.");
+      setError("Connection error, please try again.");
     } finally {
       setLoading(false);
     }
@@ -205,7 +195,7 @@ function PhotoStudioContent() {
   if (!authChecked) {
     return (
       <div className="fixed inset-0 flex items-center justify-center bg-[#050510] text-white">
-        <p className="text-white/40 text-sm">Laden...</p>
+        <p className="text-white/40 text-sm">Loading...</p>
       </div>
     );
   }
@@ -249,7 +239,7 @@ function PhotoStudioContent() {
             type="button"
             onClick={() => setShowHistory(v => !v)}
             className="h-8 w-8 flex items-center justify-center rounded-xl border border-white/8 bg-white/[0.04] text-white/50 hover:text-white hover:bg-white/[0.08] transition-all"
-            title="Geschiedenis"
+            title="History"
           >
             <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg>
           </button>
@@ -300,28 +290,28 @@ function PhotoStudioContent() {
             {/* Edit mode */}
             <div>
               <div className="flex items-center justify-between mb-3">
-                <p className="text-[11px] uppercase tracking-[0.16em] text-white/32">Bewerken (optioneel)</p>
+                <p className="text-[11px] uppercase tracking-[0.16em] text-white/32">Edit image (optional)</p>
                 {editImageUrl && (
                   <button type="button" onClick={() => { setEditImageUrl(null); setEditImagePreview(null); }}
                     className="text-[11px] text-white/36 hover:text-white/70 transition-colors">
-                    Verwijderen ×
+                    Remove ×
                   </button>
                 )}
               </div>
               {editImageUrl ? (
                 <div className="rounded-[16px] border border-blue-400/20 bg-blue-400/[0.04] p-3 flex items-center gap-3">
-                  <img src={editImageUrl} alt="Edit bron" className="h-16 w-16 rounded-[10px] object-cover border border-white/10" />
+                  <img src={editImageUrl} alt="Edit source" className="h-16 w-16 rounded-[10px] object-cover border border-white/10" />
                   <div>
-                    <p className="text-[12px] text-white/70">Foto wordt bewerkt</p>
-                    <p className="text-[11px] text-white/36 mt-0.5">Beschrijf de aanpassing in de prompt</p>
+                    <p className="text-[12px] text-white/70">Image will be edited</p>
+                    <p className="text-[11px] text-white/36 mt-0.5">Describe the edit in your prompt</p>
                   </div>
                 </div>
               ) : (
                 <div className="rounded-[16px] border border-dashed border-white/10 bg-white/[0.02] px-4 py-4 space-y-3">
-                  {/* Upload knop */}
+                  {/* Upload button */}
                   <label className="flex items-center justify-center gap-2 w-full rounded-[12px] border border-white/10 bg-white/[0.04] px-4 py-3 cursor-pointer hover:bg-white/[0.07] hover:border-white/16 transition-all">
                     <svg viewBox="0 0 24 24" className="h-4 w-4 text-white/50" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                    <span className="text-[13px] text-white/60">Afbeelding uploaden</span>
+                    <span className="text-[13px] text-white/60">Upload image</span>
                     <input
                       type="file"
                       accept="image/*"
@@ -329,12 +319,12 @@ function PhotoStudioContent() {
                       onChange={async e => {
                         const file = e.target.files?.[0];
                         if (!file) return;
-                        // Convert naar base64 data URL voor preview
+                        // Convert to base64 data URL for preview
                         const reader = new FileReader();
                         reader.onload = ev => {
                           const dataUrl = ev.target?.result as string;
                           setEditImagePreview(dataUrl);
-                          // Upload naar fal.ai storage voor publieke URL
+                          // Upload to fal.ai storage for public URL
                           uploadToFalStorage(file);
                         };
                         reader.readAsDataURL(file);
@@ -344,13 +334,13 @@ function PhotoStudioContent() {
 
                   <div className="flex items-center gap-2">
                     <div className="flex-1 h-px bg-white/8" />
-                    <span className="text-[10px] text-white/24">of</span>
+                    <span className="text-[10px] text-white/24">or</span>
                     <div className="flex-1 h-px bg-white/8" />
                   </div>
 
                   {/* URL input */}
                   <div>
-                    <p className="text-[11px] text-white/36 mb-1.5">Plak een publieke afbeelding URL:</p>
+                    <p className="text-[11px] text-white/36 mb-1.5">Paste a public image URL:</p>
                     <input
                       type="url"
                       placeholder="https://..."
@@ -359,12 +349,12 @@ function PhotoStudioContent() {
                     />
                   </div>
 
-                  {/* Preview als bezig met uploaden */}
+                  {/* Preview while uploading */}
                   {editImagePreview && !editImageUrl && (
                     <div className="flex items-center gap-3 rounded-[12px] border border-white/8 bg-white/[0.03] p-2.5">
                       <img src={editImagePreview} alt="Preview" className="h-12 w-12 rounded-[8px] object-cover" />
                       <div>
-                        <p className="text-[12px] text-white/60">Uploaden...</p>
+                        <p className="text-[12px] text-white/60">Uploading...</p>
                         <div className="mt-1 h-1 w-24 rounded-full bg-white/10 overflow-hidden">
                           <div className="h-full w-1/2 bg-blue-400 animate-pulse rounded-full" />
                         </div>
@@ -372,7 +362,7 @@ function PhotoStudioContent() {
                     </div>
                   )}
 
-                  <p className="text-[10px] text-white/24">Of klik op een foto in je geschiedenis → "Bewerken"</p>
+                  <p className="text-[10px] text-white/24">Or click a photo in your history → "Edit"</p>
                 </div>
               )}
             </div>
@@ -385,12 +375,12 @@ function PhotoStudioContent() {
                   value={prompt}
                   onChange={e => setPrompt(e.target.value)}
                   onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) generate(); }}
-                  placeholder="Beschrijf de afbeelding die je wil genereren..."
+                  placeholder="Describe the image you want to generate..."
                   rows={4}
                   className="w-full bg-transparent px-5 py-4 text-sm text-white/85 placeholder:text-white/24 outline-none resize-none"
                 />
                 <div className="flex items-center justify-between px-4 py-3 border-t border-white/6">
-                  <span className="text-[11px] text-white/24">{prompt.length}/1000 · kost {activeModel.points}pt</span>
+                  <span className="text-[11px] text-white/24">{prompt.length}/1000 · costs {activeModel.points}pt</span>
                   <button
                     type="button"
                     onClick={canGenerate ? generate : () => setShowCreditsModal(true)}
@@ -401,7 +391,7 @@ function PhotoStudioContent() {
                         : "bg-red-500/80 hover:bg-red-500"
                     }`}
                   >
-                    {loading ? "Genereren..." : canGenerate ? "Genereer →" : "Credits op →"}
+                    {loading ? "Generating..." : canGenerate ? "Generate →" : "Out of credits →"}
                   </button>
                 </div>
               </div>
@@ -418,14 +408,14 @@ function PhotoStudioContent() {
             {loading && (
               <div className="rounded-[20px] border border-white/8 bg-white/[0.02] aspect-square max-w-lg mx-auto flex flex-col items-center justify-center gap-3">
                 <div className="h-8 w-8 rounded-full border-2 border-white/10 border-t-blue-400 animate-spin" />
-                <p className="text-sm text-white/40">Genereren met {activeModel.label}... ({activeModel.points}pt)</p>
+                <p className="text-sm text-white/40">Generating with {activeModel.label}... ({activeModel.points}pt)</p>
               </div>
             )}
 
             {/* Result */}
             {imageUrl && !loading && (
               <div className="space-y-3">
-                <p className="text-[11px] uppercase tracking-[0.16em] text-white/32">Resultaat</p>
+                <p className="text-[11px] uppercase tracking-[0.16em] text-white/32">Result</p>
                 <div className="rounded-[20px] overflow-hidden border border-white/8">
                   <img src={imageUrl} alt={prompt} className="w-full object-cover" />
                 </div>
@@ -436,7 +426,7 @@ function PhotoStudioContent() {
                   </a>
                   <button type="button" onClick={handleReset}
                     className="rounded-[12px] border border-white/10 bg-white/[0.04] px-4 py-2 text-[13px] text-white/70 hover:text-white hover:bg-white/[0.08] transition-all">
-                    Nieuwe afbeelding
+                    New image
                   </button>
                 </div>
               </div>
@@ -447,13 +437,13 @@ function PhotoStudioContent() {
           {showHistory && (
             <div>
               <div className="flex items-center justify-between mb-3">
-                <p className="text-[11px] uppercase tracking-[0.16em] text-white/32">Geschiedenis</p>
-                <span className="text-[11px] text-white/24">{history.length} foto's</span>
+                <p className="text-[11px] uppercase tracking-[0.16em] text-white/32">History</p>
+                <span className="text-[11px] text-white/24">{history.length} images</span>
               </div>
               {history.length === 0 ? (
                 <div className="rounded-[20px] border border-dashed border-white/8 px-4 py-8 text-center">
                   <p className="text-2xl mb-2 opacity-20">🎨</p>
-                  <p className="text-sm text-white/28">Nog geen afbeeldingen gegenereerd.</p>
+                  <p className="text-sm text-white/28">No images generated yet.</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-2">
@@ -516,14 +506,14 @@ function PhotoStudioContent() {
                   onClick={() => { setEditImageUrl(lightbox.url); setLightbox(null); window.scrollTo({ top: 0, behavior: "smooth" }); }}
                   className="rounded-[12px] border border-blue-400/20 bg-blue-400/[0.06] px-4 py-2 text-[13px] text-blue-300/70 hover:text-blue-200 hover:bg-blue-400/[0.12] transition-all"
                 >
-                  Bewerken
+                  Edit
                 </button>
                 <button
                   type="button"
                   onClick={() => { deleteFromHistory(lightbox.id); setLightbox(null); }}
                   className="rounded-[12px] border border-red-400/20 bg-red-400/[0.06] px-4 py-2 text-[13px] text-red-400/70 hover:text-red-300 hover:bg-red-400/[0.12] transition-all"
                 >
-                  Verwijderen
+                  Delete
                 </button>
                 <button
                   type="button"
@@ -549,8 +539,8 @@ function PhotoStudioContent() {
             </button>
             <div className="mb-1 text-2xl">⚡</div>
             <h2 className="text-lg font-semibold text-white/92">Photo Credits</h2>
-            <p className="mt-1 text-sm text-white/40 mb-2">Huidig saldo: <span className={`font-semibold ${(points ?? 0) < 10 ? "text-red-400" : "text-emerald-400"}`}>{points ?? 0} credits</span></p>
-            <p className="text-xs text-white/30 mb-5">Go plan: 100 credits/maand gratis. Extra credits koop je hieronder.</p>
+            <p className="mt-1 text-sm text-white/40 mb-2">Current balance: <span className={`font-semibold ${(points ?? 0) < 10 ? "text-red-400" : "text-emerald-400"}`}>{points ?? 0} credits</span></p>
+            <p className="text-xs text-white/30 mb-5">Go plan: 100 credits/month included. Buy extra credits below.</p>
             <div className="space-y-2 mb-4">
               {CREDIT_PACKAGES.map(pkg => (
                 <button
@@ -568,7 +558,7 @@ function PhotoStudioContent() {
                 </button>
               ))}
             </div>
-            <p className="text-[10px] text-white/20 text-center">Credits verlopen niet. Go plan reset maandelijks naar 100.</p>
+            <p className="text-[10px] text-white/20 text-center">Credits never expire. Go plan resets to 100 monthly.</p>
           </div>
         </div>
       )}
@@ -580,7 +570,7 @@ export default function PhotoStudioPage() {
   return (
     <Suspense fallback={
       <div className="fixed inset-0 flex items-center justify-center bg-[#050510] text-white">
-        <p className="text-white/40 text-sm">Laden...</p>
+        <p className="text-white/40 text-sm">Loading...</p>
       </div>
     }>
       <PhotoStudioContent />

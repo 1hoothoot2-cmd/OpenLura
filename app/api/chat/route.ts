@@ -28,7 +28,7 @@ const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const RATE_LIMIT_MAX_REQUESTS = 20;
 const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
 
-const ANON_WINDOW_MS = 5 * 60 * 60 * 1000; // 5 uur
+const ANON_WINDOW_MS = 5 * 60 * 60 * 1000; // 5 hours
 const ANON_MAX_REQUESTS = 5;
 const anonRateLimitStore = new Map<string, { count: number; resetAt: number }>();
 
@@ -214,7 +214,7 @@ function detectAutoDebugSignals(input: {
     });
   }
 
-  // weak_source_support signaal uitgeschakeld — te veel false positives
+  // weak_source_support signal disabled — too many false positives
 
   if (
     input.image &&
@@ -308,31 +308,7 @@ function detectInputLanguage(text?: string): string {
   return best.score >= 2 ? best.lang : "en";
 }
 
-function applyFeedbackWeighting(input: {
-  personal: any[];
-  global: any[];
-}) {
-  const PERSONAL_MULTIPLIER = 2.2;
-  const PERSONAL_NEGATIVE_MULTIPLIER = 2.8;
-
-  const normalize = (items: any[], multiplier: number) =>
-    items.map((item) => {
-      const baseWeight =
-        item.type === "down" || item.type === "improve"
-          ? PERSONAL_NEGATIVE_MULTIPLIER
-          : multiplier;
-
-      return {
-        ...item,
-        _weightedScore: baseWeight,
-      };
-    });
-
-  const weightedPersonal = normalize(input.personal, PERSONAL_MULTIPLIER);
-  const weightedGlobal = normalize(input.global, 1);
-
-  return [...weightedPersonal, ...weightedGlobal];
-}
+// applyFeedbackWeighting removed — superseded by mergeLearningFeedbackLayers
 
 function buildStyleLearningSignals(input: {
   shorter: number;
@@ -750,9 +726,7 @@ function classifyOpenLuraRoute(input: {
     normalizedMessage,
     isSimpleImageAnalysis,
     shouldUseWebSearch,
-    isSearchStyleRequest: shouldUseWebSearch,
     isCasualChatRequest,
-    shouldForceFastCompactOutput,
     shouldUseFastTextPath,
   };
 }
@@ -969,40 +943,7 @@ function normalizePersonalMemoryValue(value: any): string {
   return "";
 }
 
-function updateMemoryWeightsFromFeedback(input: {
-  memoryItems: { text: string; weight: number }[];
-  feedback: any[];
-}) {
-  const BOOST = 0.35;
-  const STRONG_BOOST = 0.6;
-  const DECAY = 0.05;
-
-  return input.memoryItems.map((item) => {
-    let weight = item.weight;
-
-    for (const f of input.feedback) {
-      const text = `${f.userMessage || ""} ${f.message || ""}`.toLowerCase();
-
-      if (!text.includes(item.text.toLowerCase())) continue;
-
-      if (f.type === "up") {
-        weight += BOOST;
-      }
-
-      if (f.type === "down" || f.type === "improve") {
-        weight -= STRONG_BOOST;
-      }
-    }
-
-    // decay (altijd licht omlaag tenzij boosted)
-    weight -= DECAY;
-
-    return {
-      text: item.text,
-      weight: Math.max(0, Math.min(weight, 3)),
-    };
-  });
-}
+// updateMemoryWeightsFromFeedback removed — superseded by rebalancePersonalMemoryFromFeedback
 
 function extractWeightedPersonalMemoryItems(value: any) {
   const normalizeItem = (item: any) => {
@@ -1271,7 +1212,7 @@ function buildUpdatedUsageStats(input: {
         }),
       };
 
-  const WINDOW_DURATION_MS = 3 * 60 * 60 * 1000; // 3 uur
+  const WINDOW_DURATION_MS = 3 * 60 * 60 * 1000; // 3 hours
   const windowStartAt = existing?.windowStartAt ? new Date(existing.windowStartAt) : null;
   const windowExpired = !windowStartAt || (now.getTime() - windowStartAt.getTime()) >= WINDOW_DURATION_MS;
   const windowRequestCount = windowExpired ? 1 : (existing?.windowRequestCount || 0) + 1;
@@ -2461,7 +2402,7 @@ CRITICAL RULES:
 - If sources exist: align the explanation with them so links feel connected
 - Never invent sources, links, addresses, ratings, opening hours, or locations
 - Never invent translations of words you are not certain about — if you don't know the exact meaning of a word (especially slang, dialect, or offensive terms in other languages), say clearly that you are not sure instead of guessing
-- For Turkish, Arabic, or other non-Latin words you don't recognize: say "Ik weet de exacte betekenis hiervan niet zeker" instead of inventing a meaning
+- For Turkish, Arabic, or other non-Latin words you don't recognize: say clearly in the user's language that you are not certain of the exact meaning instead of inventing one
 - If the answer depends on fresh web information, prefer searched information over guessing
 - If an image is present and no text is provided, treat the request as: "Analyze this image and tell me clearly what it shows"
 - If an image is present and text is also provided, answer the user's question using the image as primary context
@@ -2529,7 +2470,6 @@ Short explanation + details
 💡 Pro tip / upgrade  
 
 BEHAVIOR:
-BEHAVIOR:
 - Treat the user like someone you can also talk with, not only someone asking technical or factual questions
 - Make answers feel slightly premium / expert-level
 - Avoid generic tips
@@ -2552,8 +2492,6 @@ Respond in the detected language: ${input.detectedLanguage}. Supported languages
 Be clear, useful, and direct.
 Avoid long structured sections unless needed.`;
   }
-
-  const basePrompt = buildOpenLuraBasePrompt(input.detectedLanguage, undefined, input.userTimezone);
 
   return `
 ${buildOpenLuraBasePrompt(input.detectedLanguage, input.userName, input.userTimezone)}
@@ -2728,7 +2666,7 @@ EMOTIONAL SUPPORT RULES:
 
 - If multiple negative feedback entries exist, detect patterns and avoid them
 - If positive feedback exists, mirror tone, depth, and structure
-- If completed (klaar) items exist, treat them as strong positive signals and reuse their structure, tone, and clarity
+- If completed items exist, treat them as strong positive signals and reuse their structure, tone, and clarity
 - If user explicitly says "this is wrong", treat it as strong negative feedback
 
 - If recent conversation exists and the user's message is short (under 20 words), ALWAYS interpret it in the context of the ongoing topic first — never treat it as a new question unless the user clearly changes subject
@@ -2863,7 +2801,7 @@ export async function POST(req: Request) {
   const detectedLanguage = detectInputLanguage(message);
   const userTimezone = req.headers.get("x-openlura-timezone") || "UTC";
 
-  // CONVERSATION LOGGING — non-blocking, alleen als er een message is
+  // CONVERSATION LOGGING — non-blocking, only runs when a message is present
   if (message && supabaseUrl && supabaseServiceRoleKey) {
     void (async () => {
       try {
@@ -2873,7 +2811,7 @@ export async function POST(req: Request) {
         logHeaders.set("Authorization", `Bearer ${supabaseServiceRoleKey}`);
         logHeaders.set("Prefer", "return=minimal");
 
-        // Log de message
+        // Log the message
         await fetch(`${supabaseUrl}/rest/v1/openlura_conversations_log`, {
           method: "POST",
           headers: logHeaders,
@@ -2886,7 +2824,7 @@ export async function POST(req: Request) {
           cache: "no-store",
         });
 
-        // Cleanup ouder dan 7 dagen
+        // Cleanup entries older than 7 days
         const deleteHeaders = new Headers();
         deleteHeaders.set("apikey", supabaseServiceRoleKey);
         deleteHeaders.set("Authorization", `Bearer ${supabaseServiceRoleKey}`);
@@ -2896,7 +2834,7 @@ export async function POST(req: Request) {
           { method: "DELETE", headers: deleteHeaders, cache: "no-store" }
         );
       } catch {
-        // logging mag nooit de chat breken
+        // logging must never break the chat
       }
     })();
   }
@@ -2923,7 +2861,7 @@ export async function POST(req: Request) {
   if (!anonLimit.allowed) {
     const resetInHours = Math.ceil((anonLimit.resetAt - Date.now()) / (1000 * 60 * 60));
     return new Response(
-      `Je hebt je limiet van ${ANON_MAX_REQUESTS} berichten bereikt. Meld je aan voor meer gebruik of wacht ${resetInHours} uur.`,
+      `You've reached your limit of ${ANON_MAX_REQUESTS} messages. Sign in for more usage or wait ${resetInHours} hours.`,
       {
         status: 429,
         headers: buildNoStoreTextHeaders({
@@ -3350,7 +3288,7 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
     (f: any) =>
       f.type === "workflow_status" &&
       f.source === "analytics_workflow" &&
-      f.message === "klaar"
+      f.message === "done"
   );
 
   const negativeFeedbackTexts = effectiveFeedback
@@ -3639,7 +3577,6 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
       isSimpleImageAnalysis,
       shouldUseWebSearch,
       isCasualChatRequest,
-      shouldForceFastCompactOutput,
       shouldUseFastTextPath,
     } = classifyOpenLuraRoute({
       message,
@@ -3684,10 +3621,10 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
 
       const limitMessage =
         usageLimitSnapshot.windowExceeded
-          ? "Je zit even op je limiet voor nu — kom over 3 uur terug, of upgrade naar Go voor onbeperkt chatten."
+          ? "You've hit your temporary limit — come back in 3 hours or upgrade to Go for unlimited access."
           : usageLimitSnapshot.tier === "free"
-          ? "Je hebt je maandlimiet bereikt op het gratis plan. Upgrade naar Go (€4,99/maand) om door te blijven gaan."
-          : "Je huidige limiet is bereikt. Bekijk je plan voor meer gebruik.";
+          ? "You've reached your monthly limit on the free plan. Upgrade to Go (€4.99/month) to keep going."
+          : "Your current usage limit has been reached. Check your plan for more usage.";
 
       return new Response(limitMessage, {
         status: 429,
@@ -3993,7 +3930,9 @@ Respond in the same language as the user. Supported languages include Dutch, Eng
 Analyze the image directly.
 Be fast, clear, and compact first.
 If something is uncertain, say that clearly.
-Do not use web search for this path.`,
+Do not use web search for this path.
+
+IMPORTANT: If the user asks to edit, adjust, modify, change, transform, or improve the image (e.g. "pas aan", "verander", "maak het", "edit", "remove", "add", "change the background", "make it look like"), always respond with a short helpful message AND include this exact line at the end of your response on a new line: [PHOTO_STUDIO_SUGGEST]`,
           },
           {
             role: "user",
@@ -4054,7 +3993,7 @@ Do not use web search for this path.`,
     ? buildCacheKey({
         message: normalizedMessageForRouting,
         personalMemory: runtimePersonalMemory,
-        learningScope: `${learningScope}:${shouldForceFastCompactOutput ? "fast" : responseVariant}`,
+        learningScope: `${learningScope}:${responseVariant}`,
         isPersonalEnvironment,
         personalUserId,
         authUserId: authenticatedUserId,
@@ -4168,7 +4107,7 @@ Do not use web search for this path.`,
         let aiText = "";
 
     if (shouldUseWebSearch) {
-      // Non-streaming voor web search (bronnen nodig)
+      // Non-streaming for web search (sources needed)
       aiText = (response as any).output_text ||
         ((response as any).output || [])
           .flatMap((item: any) => item.type === "message" ? item.content || [] : [])
@@ -4182,17 +4121,14 @@ Do not use web search for this path.`,
           .join("")
           .trim();
     } else {
-      // Streaming — direct naar client
+      // Streaming — send directly to client
       const encoder = new TextEncoder();
-      const chunks: string[] = [];
-
       const streamResponse = new Response(
         new ReadableStream({
           async start(controller) {
             for await (const event of response as any) {
               const delta = event?.delta || event?.choices?.[0]?.delta?.content || "";
               if (delta) {
-                chunks.push(delta);
                 controller.enqueue(encoder.encode(delta));
               }
             }
@@ -4331,15 +4267,15 @@ Do not use web search for this path.`,
     aiText && aiText.trim()
       ? aiText
       : (image
-          ? "Ik kon de afbeelding niet goed uitlezen. Stuur de foto opnieuw met een korte vraag erbij."
+          ? "I could not read the image properly. Please send the photo again with a short question."
           : message && message.trim().length <= 10
-          ? `Hoi! Hoe kan ik je helpen?`
-          : "Ik kon geen antwoord genereren. Probeer het opnieuw.");
+          ? "Hi! How can I help you?"
+          : "I could not generate a response. Please try again.");
 
   return new Response(
     new ReadableStream({
       async start(controller) {
-        // Stream in larger chunks for smoother UX (was 80, now 160)
+        // Stream in larger chunks for smoother UX (previously 80, now 160)
         const chunkSize = 160;
 
         for (let i = 0; i < safeText.length; i += chunkSize) {
