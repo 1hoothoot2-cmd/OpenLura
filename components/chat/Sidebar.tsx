@@ -78,7 +78,7 @@ function AnonUsageIndicator() {
           style={{ width: `${Math.min((count / limit) * 100, 100)}%` }}
         />
       </div>
-      <span className="text-[10px] text-white/36 shrink-0">{count}/{limit} berichten</span>
+      <span className="text-[10px] text-white/36 shrink-0">{count}/{limit} messages</span>
     </div>
   );
 }
@@ -579,7 +579,7 @@ const [chatTitleDraft, setChatTitleDraft] = useState("");
 
       <button
         type="button"
-        aria-label="Chat opties"
+        aria-label="Chat options"
         aria-expanded={isMenuOpen}
         onClick={(e) => {
           e.stopPropagation();
@@ -763,7 +763,7 @@ const [chatTitleDraft, setChatTitleDraft] = useState("");
                       onClick={() => createNewChat()}
                       className="w-full text-left text-white/40 hover:text-white/70 transition-colors"
                     >
-                      + Start je eerste chat
+                      + Start your first chat
                     </button>
                   ) : "No chats found"}
                 </div>
@@ -992,7 +992,7 @@ const [chatTitleDraft, setChatTitleDraft] = useState("");
               ) : (
                 <div className={emptyStateClass}>
                   {isPersonalRoute
-                    ? "Sla berichten op via ⋯"
+                    ? "Save prompts via ⋯"
                     : "No saved prompts yet"}
                 </div>
               )}
@@ -1001,15 +1001,15 @@ const [chatTitleDraft, setChatTitleDraft] = useState("");
 
           {!isPersonalRoute && (
             <div className="rounded-[20px] border border-[#3b82f6]/14 bg-[#3b82f6]/[0.04] px-3 py-3">
-              <div className="text-[11px] font-medium text-[#bfdbfe] mb-1">✨ Persoonlijke omgeving</div>
-              <p className="text-[11px] text-white/46 leading-5 mb-2.5">Meld je aan voor opgeslagen prompts, cross-device geheugen en meer.</p>
+              <div className="text-[11px] font-medium text-[#bfdbfe] mb-1">✨ Personal workspace</div>
+              <p className="text-[11px] text-white/46 leading-5 mb-2.5">Sign in for saved prompts, cross-device memory and more.</p>
               <AnonUsageIndicator />
               <button
                 type="button"
                 onClick={() => { setMobileMenu(false); window.location.href = "/login"; }}
                 className="w-full rounded-xl bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-3 py-2 text-[12px] font-medium text-white mt-2"
               >
-                Aanmelden →
+                Sign in →
               </button>
             </div>
           )}
