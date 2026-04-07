@@ -318,7 +318,7 @@ export default function HomePage() {
           <div className="flex flex-wrap items-center gap-2 mb-6">
             <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1 text-[12px] font-medium text-amber-200">
               <span className="h-1.5 w-1.5 rounded-full bg-amber-400/80" />
-              First month 25% off — code <span className="font-semibold">LAUNCH25</span>
+              Launch offer — first month 25% off with code <span className="font-semibold">LAUNCH25</span>
             </div>
             <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/16 bg-emerald-400/8 px-3 py-1 text-[12px] font-medium text-emerald-300/80">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400/70" />
@@ -483,8 +483,11 @@ export default function HomePage() {
                 </div>
                 <div className="mt-5 space-y-2.5">
                   <div className="flex items-center gap-2.5"><span className="h-1.5 w-1.5 rounded-full bg-blue-300" /><p className="text-sm text-white/78">Unlimited messages per month</p></div>
-                  <div className="flex items-center gap-2.5"><span className="h-1.5 w-1.5 rounded-full bg-blue-300" /><p className="text-sm text-white/78">Deeper context and continuity</p></div>
-                  <div className="flex items-center gap-2.5"><span className="h-1.5 w-1.5 rounded-full bg-blue-300" /><p className="text-sm text-white/78">Expanded value as features grow</p></div>
+                  <div className="flex items-center gap-2.5"><span className="h-1.5 w-1.5 rounded-full bg-blue-300" /><p className="text-sm text-white/78">Web search — real sources, live info</p></div>
+                  <div className="flex items-center gap-2.5"><span className="h-1.5 w-1.5 rounded-full bg-blue-300" /><p className="text-sm text-white/78">Personal workspace with memory</p></div>
+                  <div className="flex items-center gap-2.5"><span className="h-1.5 w-1.5 rounded-full bg-blue-300" /><p className="text-sm text-white/78">Image upload & analysis</p></div>
+                  <div className="flex items-center gap-2.5"><span className="h-1.5 w-1.5 rounded-full bg-blue-300" /><p className="text-sm text-white/78">AI that adapts to your feedback</p></div>
+                  <div className="flex items-center gap-2.5"><span className="h-1.5 w-1.5 rounded-full bg-blue-300" /><p className="text-sm text-white/78">Photo Studio — generate & edit images with AI</p></div>
                 </div>
                 <button
                   type="button"
@@ -528,7 +531,7 @@ export default function HomePage() {
                   Learns from context
                 </div>
                 <p className="mt-2 text-sm leading-6 text-white/46 break-normal">
-                  Understands your conversations and builds useful context over time.
+                  Remembers what matters across your conversations and uses it to give sharper answers.
                 </p>
               </div>
 
@@ -537,7 +540,34 @@ export default function HomePage() {
                   Improves with feedback
                 </div>
                 <p className="mt-2 text-sm leading-6 text-white/46 break-normal">
-                  Uses your feedback to continuously refine how it responds.
+                  Thumbs up, thumbs down — every signal shapes how OpenLura responds to you next time.
+                </p>
+              </div>
+
+              <div className="min-w-0 rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
+                <div className="text-sm font-medium text-white">
+                  Search with real sources
+                </div>
+                <p className="mt-2 text-sm leading-6 text-white/46 break-normal">
+                  Pulls live web results when needed — with actual links, not guesses.
+                </p>
+              </div>
+
+              <div className="min-w-0 rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
+                <div className="text-sm font-medium text-white">
+                  Image upload & analysis
+                </div>
+                <p className="mt-2 text-sm leading-6 text-white/46 break-normal">
+                  Send a photo, screenshot, or document and get a direct, useful response.
+                </p>
+              </div>
+
+              <div className="min-w-0 rounded-[22px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
+                <div className="text-sm font-medium text-white">
+                  Photo Studio
+                </div>
+                <p className="mt-2 text-sm leading-6 text-white/46 break-normal">
+                  Generate and edit images with AI — directly inside your workspace.
                 </p>
               </div>
 
@@ -546,7 +576,7 @@ export default function HomePage() {
                   Personal by design
                 </div>
                 <p className="mt-2 text-sm leading-6 text-white/46 break-normal">
-                  Adapts to your style, preferences, and workflows.
+                  Your private workspace keeps memory, history, and AI behavior separate from everyone else.
                 </p>
               </div>
             </div>
@@ -624,7 +654,7 @@ export default function HomePage() {
                   </span>
                 </div>
                 <p className="mt-2 text-sm leading-6 text-white/46">
-                  Private AI environments tailored to each user.
+                  Private workspace with account-bound memory, chat history, and personal AI behavior.
                 </p>
               </div>
 
@@ -636,7 +666,7 @@ export default function HomePage() {
                   </span>
                 </div>
                 <p className="mt-2 text-sm leading-6 text-white/46">
-                  Image generation, mobile apps, and language learning.
+                  Photo Studio live. Voice, mobile apps, and deeper personalization next.
                 </p>
               </div>
             </div>
@@ -700,7 +730,7 @@ export default function HomePage() {
                 </p>
               </div>
             </div>
-            <SectionFooter nextHref="#roadmap" nextLabel="Roadmap" />
+            <SectionFooter nextHref="#changelog" nextLabel="Changelog" />
           </section>
 
           {/* CHANGELOG */}
@@ -726,45 +756,45 @@ export default function HomePage() {
                     </div>
 
                     <h2 className="mt-4 text-xl font-semibold text-white/92">
-                      Performance, billing & personal workspace
+                      Photo Studio, polish & stability
                     </h2>
 
                     <p className="mt-2 text-sm leading-6 text-white/50">
-                      OpenLura now includes faster responses, personal accounts with billing, onboarding, and a polished product experience end-to-end.
+                      OpenLura Phase 5 brings Photo Studio, a smoother overall UX, faster rendering, and a more complete product experience end-to-end.
                     </p>
                   </div>
 
                   <div className="text-sm text-white/42">
-                    Phase 4.9
+                    Phase 5
                   </div>
                 </div>
 
                 <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                   <div className="rounded-[20px] border border-white/10 bg-white/[0.02] p-4">
-                    <div className="text-sm font-medium text-white">Personal workspace</div>
+                    <div className="text-sm font-medium text-white">Photo Studio</div>
                     <p className="mt-2 text-sm leading-6 text-white/46">
-                      Private workspace at /personal-workspace with account-bound memory, history, and continuity.
+                      Generate and edit images with AI — live inside the workspace for Go users.
                     </p>
                   </div>
 
                   <div className="rounded-[20px] border border-white/10 bg-white/[0.02] p-4">
-                    <div className="text-sm font-medium text-white">Billing & plans</div>
+                    <div className="text-sm font-medium text-white">UX improvements</div>
                     <p className="mt-2 text-sm leading-6 text-white/46">
-                      Stripe integration, Free and Go plans, and usage tracking live for all account holders.
+                      Smoother loading states, better error handling, faster input response, and mobile fixes.
                     </p>
                   </div>
 
                   <div className="rounded-[20px] border border-white/10 bg-white/[0.02] p-4">
-                    <div className="text-sm font-medium text-white">Performance upgrade</div>
+                    <div className="text-sm font-medium text-white">Go plan clarity</div>
                     <p className="mt-2 text-sm leading-6 text-white/46">
-                      Faster first response, streaming improvements, and reduced latency across the full chat flow.
+                      Go plan now shows all concrete features — web search, memory, image tools, and Photo Studio.
                     </p>
                   </div>
 
                   <div className="rounded-[20px] border border-white/10 bg-white/[0.02] p-4">
-                    <div className="text-sm font-medium text-white">UX polish</div>
+                    <div className="text-sm font-medium text-white">Stability</div>
                     <p className="mt-2 text-sm leading-6 text-white/46">
-                      Starter chips, rotating placeholders, scroll-to-bottom, inline rename, and homepage chat entry all live.
+                      Fixed hydration issues, AdSense inline script, and nav footer link ordering.
                     </p>
                   </div>
                 </div>
@@ -789,12 +819,17 @@ export default function HomePage() {
                 >
                   {t("btn_open_chat")}
                 </Link>
-                <Link
-                  href="/personal-workspace"
-                  className="inline-flex h-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] px-6 text-sm font-medium text-white/80 transition-[background-color,border-color,color] duration-150 hover:border-white/16 hover:bg-white/[0.07] hover:text-white"
-                >
-                  {t("btn_login")}
-                </Link>
+                <div className="rounded-[22px] border border-emerald-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-medium text-white">Personal AI</div>
+                  <span className="inline-flex items-center rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
+                    Complete
+                  </span>
+                </div>
+                <p className="mt-2 text-sm leading-6 text-white/46">
+                  Private workspace with account-bound memory, chat history, and personal AI behavior.
+                </p>
+              </div>
 
               </div>
             </div>
@@ -1115,7 +1150,6 @@ export default function HomePage() {
             data-ad-format="horizontal"
             data-full-width-responsive="true"
           />
-          <script dangerouslySetInnerHTML={{ __html: "(adsbygoogle = window.adsbygoogle || []).push({});" }} />
         </div>
 
     </main>
