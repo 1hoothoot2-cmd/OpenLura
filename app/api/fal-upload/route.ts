@@ -23,31 +23,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No file" }, { status: 400, headers: NO_STORE });
     }
 
-    // Upload naar fal.ai storage
+    // Converteer naar base64 data URI — fal.ai accepteert dit direct
     const bytes = await file.arrayBuffer();
-    const res = await fetch("https://fal.run/fal-ai/storage/upload", {
-      method: "POST",
-      headers: {
-        "Authorization": `Key ${FAL_KEY}`,
-        "Content-Type": file.type || "image/jpeg",
-      },
-      body: bytes,
-    });
+    const base64 = Buffer.from(bytes).toString("base64");
+    const mimeType = file.type || "image/jpeg";
+    const dataUrl = `data:${mimeType};base64,${base64}`;
 
-    if (!res.ok) {
-      const err = await res.text();
-      console.error("Fal upload error:", err);
-      return NextResponse.json({ error: "Upload failed" }, { status: 500, headers: NO_STORE });
-    }
-
-    const data = await res.json();
-    const url = data?.url || data?.access_url;
-
-    if (!url) {
-      return NextResponse.json({ error: "No URL returned" }, { status: 500, headers: NO_STORE });
-    }
-
-    return NextResponse.json({ url }, { headers: NO_STORE });
+    return NextResponse.json({ url: dataUrl }, { headers: NO_STORE });
   } catch (err: any) {
     console.error("Fal upload failed:", err?.message);
     return NextResponse.json({ error: "Upload failed" }, { status: 500, headers: NO_STORE });
