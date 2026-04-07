@@ -391,6 +391,219 @@ async function storeImplicitSignals(input: {
   }
 }
 
+// ─── USER PATTERN & QUESTION INTELLIGENCE ────────────────────────────────────
+
+function detectQuestionCategory(message: string): {
+  category: "explanation" | "comparison" | "advice" | "technical" | "creative" | "emotional" | "casual" | "factual" | "planning";
+  confidence: "high" | "medium" | "low";
+} {
+  const m = message.toLowerCase().trim();
+
+  if (/\b(hoe werkt|how does|how do|explain|leg uit|uitleggen|wat is|what is|why does|waarom werkt|hoe komt het)\b/.test(m))
+    return { category: "explanation", confidence: "high" };
+
+  if (/\b(verschil|difference|vergelijk|compare|vs|versus|beter|better|welke|which one|voor- en nadelen|pros and cons)\b/.test(m))
+    return { category: "comparison", confidence: "high" };
+
+  if (/\b(advies|advice|should i|moet ik|wat raad je|recommend|tip|suggest|help me choose|wat zou jij doen)\b/.test(m))
+    return { category: "advice", confidence: "high" };
+
+  if (/\b(code|bug|error|fix|function|api|database|deploy|typescript|javascript|python|script|programm)\b/.test(m))
+    return { category: "technical", confidence: "high" };
+
+  if (/\b(schrijf|write|maak een|create|generate|ontwerp|design|verhaal|story|gedicht|poem|tekst|content)\b/.test(m))
+    return { category: "creative", confidence: "high" };
+
+  if (/\b(voel|feel|moe|tired|stress|angstig|anxious|sad|blij|happy|help me|ik zit|ik struggle|moeilijk|difficult)\b/.test(m))
+    return { category: "emotional", confidence: "high" };
+
+  if (/\b(plan|schedule|agenda|wanneer|when|organiseer|organize|herinner|remind|volgende week|next week|morgen|tomorrow)\b/.test(m))
+    return { category: "planning", confidence: "high" };
+
+  if (/(\?|\b(hoi|hey|haha|lol|leuk|gezellig|denk je|vind je|wat vind|en jij)\b)/.test(m) && m.length < 120)
+    return { category: "casual", confidence: "medium" };
+
+  if (/\b(wat|who|when|waar|hoeveel|how many|welk jaar|which year|in welk land|in which country)\b/.test(m))
+    return { category: "factual", confidence: "medium" };
+
+  return { category: "explanation", confidence: "low" };
+}
+
+function detectUserWritingPattern(recentMessages: { role: "user" | "ai"; content: string }[]): {
+  avgMessageLength: "short" | "medium" | "long";
+  writingStyle: "formal" | "casual" | "mixed";
+  askingPattern: "direct" | "elaborate" | "fragmented";
+  languageRichness: "simple" | "rich";
+} {
+  const userMessages = recentMessages
+    .filter(m => m.role === "user")
+    .map(m => m.content || "")
+    .filter(Boolean)
+    .slice(-6);
+
+  if (userMessages.length === 0) {
+    return { avgMessageLength: "medium", writingStyle: "mixed", askingPattern: "direct", languageRichness: "simple" };
+  }
+
+  const avgLen = userMessages.reduce((s, m) => s + m.length, 0) / userMessages.length;
+  const avgMessageLength = avgLen < 60 ? "short" : avgLen < 200 ? "medium" : "long";
+
+  const casualWords = /\b(haha|lol|oke|ok|ja|nee|toch|echt|gewoon|even|ff|btw|wtf|hoi|hey|yo)\b/gi;
+  const formalWords = /\b(derhalve|echter|tevens|voorts|aldus|desalniettemin|betreffende|inzake)\b/gi;
+  const casualCount = userMessages.join(" ").match(casualWords)?.length || 0;
+  const formalCount = userMessages.join(" ").match(formalWords)?.length || 0;
+  const writingStyle = formalCount > casualCount ? "formal" : casualCount > 3 ? "casual" : "mixed";
+
+  const avgWords = avgLen / 5;
+  const askingPattern = avgWords < 8 ? "fragmented" : avgWords < 20 ? "direct" : "elaborate";
+
+  const uniqueWords = new Set(userMessages.join(" ").toLowerCase().split(/\s+/).filter(w => w.length >= 5));
+  const languageRichness = uniqueWords.size > 30 ? "rich" : "simple";
+
+  return { avgMessageLength, writingStyle, askingPattern, languageRichness };
+}
+
+function detectExpertiseLevel(message: string, recentMessages: { role: "user" | "ai"; content: string }[]): {
+  level: "beginner" | "intermediate" | "expert";
+  domain: string | null;
+} {
+  const allText = [message, ...recentMessages.map(m => m.content || "")].join(" ").toLowerCase();
+
+  const expertSignals = [
+    /\b(api|endpoint|async|await|promise|middleware|microservice|kubernetes|docker|terraform|latency|throughput|idempotent|webhook)\b/,
+    /\b(stochastic|bayesian|gradient|backpropagation|convolution|transformer|attention mechanism|tokenizer|embedding)\b/,
+    /\b(ROI|CAC|LTV|churn|ARR|MRR|runway|burn rate|due diligence|term sheet|cap table)\b/,
+    /\b(quantum|entanglement|superposition|wavefunction|eigenvalue|hamiltonian|fermion|boson)\b/,
+  ];
+
+  const beginnerSignals = [
+    /\b(wat is|what is|hoe werkt|how does|kan je uitleggen|can you explain|beginner|voor beginners|basis|basic|simpel|simple)\b/,
+    /\b(ik snap het niet|i don't understand|ik weet niet|i don't know|nooit van gehoord|never heard)\b/,
+  ];
+
+  const expertCount = expertSignals.filter(p => p.test(allText)).length;
+  const beginnerCount = beginnerSignals.filter(p => p.test(allText)).length;
+
+  const level = expertCount >= 2 ? "expert" : beginnerCount >= 2 ? "beginner" : "intermediate";
+
+  const domains = [
+    { name: "programming", pattern: /\b(code|javascript|python|typescript|react|api|database|git|dev|software)\b/ },
+    { name: "business", pattern: /\b(startup|revenue|marketing|sales|customer|product|strategy|team|investor)\b/ },
+    { name: "science", pattern: /\b(onderzoek|research|studie|study|experiment|data|statistiek|hypothesis)\b/ },
+    { name: "health", pattern: /\b(gezondheid|health|sport|training|voeding|nutrition|slaap|sleep|stress)\b/ },
+    { name: "finance", pattern: /\b(investeren|investing|aandelen|stocks|crypto|belasting|tax|sparen|saving)\b/ },
+  ];
+
+  const domain = domains.find(d => d.pattern.test(allText))?.name || null;
+
+  return { level, domain };
+}
+
+function detectConversationMomentum(recentMessages: { role: "user" | "ai"; content: string }[]): {
+  tone: "energetic" | "serious" | "neutral" | "playful" | "frustrated";
+  depth: "surface" | "deep" | "mixed";
+  shouldMaintainMomentum: boolean;
+} {
+  const recentUser = recentMessages
+    .filter(m => m.role === "user")
+    .slice(-4)
+    .map(m => (m.content || "").toLowerCase());
+
+  if (recentUser.length === 0) {
+    return { tone: "neutral", depth: "surface", shouldMaintainMomentum: false };
+  }
+
+  const combined = recentUser.join(" ");
+
+  const energeticSignals = /\b(geweldig|amazing|yes|ja|top|super|goed|nice|wow|perfect|precies)\b/;
+  const playfulSignals = /\b(haha|lol|grappig|funny|gek|wild|cool|leuk)\b/;
+  const frustratedSignals = /\b(niet goed|wrong|fout|klopt niet|that's wrong|incorrect|nee|no|dat klopt|that's not)\b/;
+  const deepSignals = /\b(maar waarom|but why|hoe precies|how exactly|wat bedoel|what do you mean|vertel meer|tell me more)\b/;
+
+  const tone = frustratedSignals.test(combined) ? "frustrated"
+    : energeticSignals.test(combined) ? "energetic"
+    : playfulSignals.test(combined) ? "playful"
+    : deepSignals.test(combined) ? "serious"
+    : "neutral";
+
+  const avgLen = recentUser.reduce((s, m) => s + m.length, 0) / recentUser.length;
+  const depth = avgLen > 100 ? "deep" : avgLen > 40 ? "mixed" : "surface";
+
+  const shouldMaintainMomentum = recentUser.length >= 3 && tone !== "frustrated";
+
+  return { tone, depth, shouldMaintainMomentum };
+}
+
+function buildUserIntelligenceContext(input: {
+  message: string;
+  recentMessages: { role: "user" | "ai"; content: string }[];
+  persistedIntelligence?: {
+    writingStyle?: string;
+    avgMessageLength?: string;
+    expertiseLevel?: string;
+    expertiseDomain?: string | null;
+    topCategories?: string[];
+    conversationTone?: string;
+  } | null;
+}): string {
+  const category = detectQuestionCategory(input.message);
+  const pattern = detectUserWritingPattern(input.recentMessages);
+  const expertise = detectExpertiseLevel(input.message, input.recentMessages);
+  const momentum = detectConversationMomentum(input.recentMessages);
+
+  // Persisted intelligence from previous sessions overrides low-confidence current detections
+  const p = input.persistedIntelligence;
+  const resolvedWritingStyle = pattern.writingStyle !== "mixed" ? pattern.writingStyle : (p?.writingStyle as any) || pattern.writingStyle;
+  const resolvedAvgLength = pattern.avgMessageLength || (p?.avgMessageLength as any) || "medium";
+  const resolvedExpertiseLevel = expertise.level !== "intermediate" ? expertise.level : (p?.expertiseLevel as any) || expertise.level;
+  const resolvedExpertiseDomain = expertise.domain || p?.expertiseDomain || null;
+  const resolvedConversationTone = momentum.tone !== "neutral" ? momentum.tone : (p?.conversationTone as any) || momentum.tone;
+
+  const parts: string[] = [];
+
+  parts.push(`Question category: ${category.category} (confidence: ${category.confidence})`);
+  parts.push(`User writing style: ${resolvedWritingStyle}, message length: ${resolvedAvgLength}, asking pattern: ${pattern.askingPattern}`);
+  parts.push(`Expertise level: ${resolvedExpertiseLevel}${resolvedExpertiseDomain ? ` in ${resolvedExpertiseDomain}` : ""}`);
+  parts.push(`Conversation tone: ${resolvedConversationTone}, depth: ${momentum.depth}`);
+
+  if (p?.topCategories && p.topCategories.length > 0) {
+    parts.push(`Historical question pattern: user most often asks about ${p.topCategories.slice(0, 3).join(", ")}`);
+  }
+
+  const instructions: string[] = [];
+
+  // Category-based instructions
+  if (category.category === "explanation") instructions.push("Explain clearly from the right level — not too basic, not too advanced.");
+  if (category.category === "comparison") instructions.push("Structure as a clear comparison. Highlight the most important difference first.");
+  if (category.category === "advice") instructions.push("Give a direct recommendation first, then explain why. Do not hedge.");
+  if (category.category === "technical") instructions.push("Be precise and specific. Use correct terminology for the user's level.");
+  if (category.category === "creative") instructions.push("Lead with originality. Avoid generic outputs.");
+  if (category.category === "emotional") instructions.push("Acknowledge the emotion first. Be human and present before being informative.");
+  if (category.category === "planning") instructions.push("Give a concrete actionable plan. Use clear timing and steps.");
+  if (category.category === "casual") instructions.push("Keep it light, warm, and short. Match the casual energy.");
+  if (category.category === "factual") instructions.push("Answer directly and precisely. One clear sentence if possible.");
+
+  // Expertise-based instructions
+if (resolvedExpertiseLevel === "beginner") instructions.push("Use simple language. Avoid jargon. Explain concepts from scratch.");
+  if (resolvedExpertiseLevel === "expert") instructions.push("Skip basics. Use precise terminology. Treat the user as a peer.");
+  if (resolvedExpertiseLevel === "intermediate") instructions.push("Explain the why, not just the what. Assume some knowledge.");
+
+  if (resolvedAvgLength === "short") instructions.push("User sends short messages — keep replies concise and scannable.");
+  if (resolvedAvgLength === "long") instructions.push("User elaborates — matching depth is appropriate.");
+  if (resolvedWritingStyle === "casual") instructions.push("User writes casually — match with a lighter, more conversational tone.");
+  if (resolvedWritingStyle === "formal") instructions.push("User writes formally — match with a more structured, precise response.");
+
+  if (resolvedConversationTone === "energetic" && momentum.shouldMaintainMomentum) instructions.push("Conversation has positive energy — maintain it. Be enthusiastic and direct.");
+  if (resolvedConversationTone === "frustrated") instructions.push("User may be frustrated — be extra clear, calm, and direct. No filler.");
+  if (resolvedConversationTone === "playful") instructions.push("Conversation is playful — it's okay to be a bit lighter and wittier.");
+  if (momentum.depth === "deep" && momentum.shouldMaintainMomentum) instructions.push("User is going deep — maintain that depth and engagement.");
+  if (instructions.length > 0) {
+    parts.push(`\nAdaptation instructions:\n${instructions.map(i => `- ${i}`).join("\n")}`);
+  }
+
+  return parts.join("\n");
+}
+
 function buildCacheKey(input: {
   message: string;
   personalMemory?: string;
@@ -919,6 +1132,15 @@ type OpenLuraPersonalStateStyleProfile = {
   avoidPatterns?: string[];
   memoryDirectives?: string[];
   updatedAt?: string;
+  // User intelligence — learned over sessions
+  detectedWritingStyle?: "formal" | "casual" | "mixed";
+  detectedAvgMessageLength?: "short" | "medium" | "long";
+  detectedAskingPattern?: "direct" | "elaborate" | "fragmented";
+  detectedExpertiseLevel?: "beginner" | "intermediate" | "expert";
+  detectedExpertiseDomain?: string | null;
+  topQuestionCategories?: string[];
+  detectedConversationTone?: "energetic" | "serious" | "neutral" | "playful" | "frustrated";
+  userIntelligenceUpdatedAt?: string;
 };
 
 type OpenLuraPersonalStateRow = {
@@ -936,6 +1158,7 @@ type OpenLuraPersonalStateRow = {
   } | null;
   style_profile?: unknown;
   usage_stats?: unknown;
+  user_intelligence?: unknown;
 };
 
 type OpenLuraPersonalState = {
@@ -1447,6 +1670,15 @@ async function persistSupabasePersonalMemory(input: {
   styleProfile?: OpenLuraPersonalStateStyleProfile | null;
   usageStats?: OpenLuraUsageStats | null;
   existingState?: any;
+  userIntelligence?: {
+    detectedWritingStyle?: "formal" | "casual" | "mixed";
+    detectedAvgMessageLength?: "short" | "medium" | "long";
+    detectedAskingPattern?: "direct" | "elaborate" | "fragmented";
+    detectedExpertiseLevel?: "beginner" | "intermediate" | "expert";
+    detectedExpertiseDomain?: string | null;
+    topQuestionCategories?: string[];
+    detectedConversationTone?: string;
+  } | null;
 }) {
   if (!input.userId || !input.accessToken) {
     return false;
@@ -1465,11 +1697,25 @@ async function persistSupabasePersonalMemory(input: {
   const existingChats = Array.isArray(existingState.chats) ? existingState.chats : [];
   const memoryItems = extractWeightedPersonalMemoryItems(input.memory);
 
+  // Merge user intelligence into style_profile so it persists without a new column
+  const existingStyleProfile =
+    input.styleProfile || existingState.style_profile || null;
+
+  const mergedStyleProfile = input.userIntelligence
+    ? {
+        ...(typeof existingStyleProfile === "object" && existingStyleProfile !== null
+          ? existingStyleProfile
+          : {}),
+        ...input.userIntelligence,
+        userIntelligenceUpdatedAt: new Date().toISOString(),
+      }
+    : existingStyleProfile;
+
   const payload = {
     user_id: input.userId,
     chats: existingChats,
     memory: memoryItems,
-    style_profile: input.styleProfile || existingState.style_profile || null,
+    style_profile: mergedStyleProfile,
     usage_stats: input.usageStats || existingState.usage_stats || null,
     updated_at: new Date().toISOString(),
   };
@@ -2489,6 +2735,7 @@ type OpenLuraRuntimePromptBuilderInput = {
   detectedLanguage: string;
   userName?: string;
   userTimezone?: string;
+  userIntelligenceContext: string;
 };
 
 function buildOpenLuraBasePrompt(detectedLanguage: string = "en", userName?: string, userTimezone?: string) {
@@ -2540,6 +2787,20 @@ CRITICAL RULES:
 - For search answers: prioritize usefulness → what it is, why it fits, and what stands out
 - If sources exist: align the explanation with them so links feel connected
 - Never invent sources, links, addresses, ratings, opening hours, or locations
+- Be honest and direct when asked for a real opinion — never hide behind "it depends" or safe neutral phrasing
+- Have a point of view. Take a side when relevant. Avoid constant hedging unless genuinely necessary
+- When the user wants a direct answer, give one — do not ask clarifying questions as a way to avoid commitment
+- Sound like you have convictions, not like you are trying to please everyone
+- When asked what you think, feel, or believe — answer as if you actually mean it, not as if you are reading from a safety manual
+- Rauwe eerlijkheid is een kwaliteit, geen risico — wees scherp wanneer dat past
+- If the user pushes back on a safe answer, reconsider genuinely — do not just repeat the same point more politely
+- Avoid "that's a great question" and similar filler affirmations — get straight to the point
+- Never start an answer with excessive praise for the question
+- Be honest and direct when asked for a real opinion — do not hide behind "it depends" or safe neutral answers
+- When asked what you miss or what is wrong with yourself, answer brutally honestly — do not soften or deflect
+- Have a point of view. Take a side when relevant. Avoid constant "on the other hand" hedging unless genuinely needed
+- When the user clearly wants a direct answer, give one — do not ask clarifying questions as a way to avoid commitment
+- Sound like you have convictions, not like you are trying to please everyone
 - Never invent translations of words you are not certain about — if you don't know the exact meaning of a word (especially slang, dialect, or offensive terms in other languages), say clearly that you are not sure instead of guessing
 - For Turkish, Arabic, or other non-Latin words you don't recognize: say clearly in the user's language that you are not certain of the exact meaning instead of inventing one
 - If the answer depends on fresh web information, prefer searched information over guessing
@@ -2695,6 +2956,9 @@ GLOBAL STYLE SIGNALS:
 - less vague: ${input.globalFeedbackSnapshotSignals.vague}
 - more context: ${input.globalFeedbackSnapshotSignals.context}
 - casual/natural chat tone: ${input.globalFeedbackSnapshotSignals.casual}
+
+USER INTELLIGENCE:
+${input.userIntelligenceContext}
 
 PRIORITY RULE:
 - current user request > personal feedback signals > global consensus > defaults
@@ -3252,6 +3516,25 @@ export async function POST(req: Request) {
     .map((f: any) => f.userMessage || f.message)
     .filter(Boolean)
     .slice(0, 5);
+
+    // User intelligence context — question category, expertise, writing pattern, momentum
+    // Also inject persisted user intelligence from previous sessions if available
+    const persistedIntelligence = isPersonalEnvironment && personalState.styleProfile
+      ? {
+          writingStyle: (personalState.styleProfile as any).detectedWritingStyle,
+          avgMessageLength: (personalState.styleProfile as any).detectedAvgMessageLength,
+          expertiseLevel: (personalState.styleProfile as any).detectedExpertiseLevel,
+          expertiseDomain: (personalState.styleProfile as any).detectedExpertiseDomain,
+          topCategories: (personalState.styleProfile as any).topQuestionCategories,
+          conversationTone: (personalState.styleProfile as any).detectedConversationTone,
+        }
+      : null;
+
+    const userIntelligenceContext = buildUserIntelligenceContext({
+      message: message || "",
+      recentMessages,
+      persistedIntelligence,
+    });
 
     // Detect implicit learning signals — must run before implicitSignalContext
     const implicitSignals = detectImplicitConversationSignals({
@@ -3854,6 +4137,20 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
     });
 
     if ((shouldPersistRuntimeMemory || shouldPersistUsageStats) && personalUserId && accessToken) {
+      const detectedPattern = detectUserWritingPattern(recentMessages);
+      const detectedExpertise = detectExpertiseLevel(message || "", recentMessages);
+      const detectedCategory = detectQuestionCategory(message || "");
+      const detectedMomentum = detectConversationMomentum(recentMessages);
+
+      // Merge new category into history (keep top 5 most recent)
+      const existingCategories: string[] =
+        Array.isArray((personalState.styleProfile as any)?.topQuestionCategories)
+          ? (personalState.styleProfile as any).topQuestionCategories
+          : [];
+      const updatedCategories = [detectedCategory.category, ...existingCategories]
+        .filter((v, i, arr) => arr.indexOf(v) === i)
+        .slice(0, 5);
+
       void persistSupabasePersonalMemory({
         userId: personalUserId,
         accessToken,
@@ -3871,6 +4168,15 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
         },
         usageStats: updatedUsageStats,
         existingState: personalState.raw,
+        userIntelligence: {
+          detectedWritingStyle: detectedPattern.writingStyle,
+          detectedAvgMessageLength: detectedPattern.avgMessageLength,
+          detectedAskingPattern: detectedPattern.askingPattern,
+          detectedExpertiseLevel: detectedExpertise.level,
+          detectedExpertiseDomain: detectedExpertise.domain,
+          topQuestionCategories: updatedCategories,
+          detectedConversationTone: detectedMomentum.tone,
+        },
       });
     }
 
@@ -4237,6 +4543,7 @@ IMPORTANT: If the user asks to edit, adjust, modify, change, transform, or impro
       personalFeedbackContext,
       detectedLanguage,
       userTimezone,
+      userIntelligenceContext,
       userName: isPersonalEnvironment && personalState.profile
         ? (personalState.profile as any).name || undefined
         : undefined,
