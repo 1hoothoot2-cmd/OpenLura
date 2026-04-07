@@ -104,6 +104,28 @@ function PhotoStudioContent() {
     setEditImageUrl(null); // wordt via URL input gezet
   }
 
+  async function uploadToFalStorage(file: File) {
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/fal-upload", {
+        method: "POST",
+        credentials: "same-origin",
+        body: formData,
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.url) setEditImageUrl(data.url);
+      } else {
+        setError("Upload mislukt. Probeer een URL te plakken.");
+        setEditImagePreview(null);
+      }
+    } catch {
+      setError("Upload mislukt. Probeer een URL te plakken.");
+      setEditImagePreview(null);
+    }
+  }
+
   async function loadStats() {
     try {
       const res = await fetch("/api/image-generate", { method: "GET", credentials: "same-origin" });
@@ -295,15 +317,62 @@ function PhotoStudioContent() {
                   </div>
                 </div>
               ) : (
-                <div className="rounded-[16px] border border-dashed border-white/10 bg-white/[0.02] px-4 py-3">
-                  <p className="text-[12px] text-white/36 mb-2">Plak een afbeelding URL om te bewerken:</p>
-                  <input
-                    type="url"
-                    placeholder="https://... (publieke afbeelding URL)"
-                    onChange={e => setEditImageUrl(e.target.value.trim() || null)}
-                    className="w-full bg-transparent text-sm text-white/70 outline-none placeholder:text-white/20 border-b border-white/8 pb-1 focus:border-white/20 transition-colors"
-                  />
-                  <p className="text-[10px] text-white/24 mt-2">Of klik op een foto in je geschiedenis → "Bewerken"</p>
+                <div className="rounded-[16px] border border-dashed border-white/10 bg-white/[0.02] px-4 py-4 space-y-3">
+                  {/* Upload knop */}
+                  <label className="flex items-center justify-center gap-2 w-full rounded-[12px] border border-white/10 bg-white/[0.04] px-4 py-3 cursor-pointer hover:bg-white/[0.07] hover:border-white/16 transition-all">
+                    <svg viewBox="0 0 24 24" className="h-4 w-4 text-white/50" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    <span className="text-[13px] text-white/60">Afbeelding uploaden</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async e => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        // Convert naar base64 data URL voor preview
+                        const reader = new FileReader();
+                        reader.onload = ev => {
+                          const dataUrl = ev.target?.result as string;
+                          setEditImagePreview(dataUrl);
+                          // Upload naar fal.ai storage voor publieke URL
+                          uploadToFalStorage(file);
+                        };
+                        reader.readAsDataURL(file);
+                      }}
+                    />
+                  </label>
+
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-px bg-white/8" />
+                    <span className="text-[10px] text-white/24">of</span>
+                    <div className="flex-1 h-px bg-white/8" />
+                  </div>
+
+                  {/* URL input */}
+                  <div>
+                    <p className="text-[11px] text-white/36 mb-1.5">Plak een publieke afbeelding URL:</p>
+                    <input
+                      type="url"
+                      placeholder="https://..."
+                      onChange={e => setEditImageUrl(e.target.value.trim() || null)}
+                      className="w-full bg-transparent text-sm text-white/70 outline-none placeholder:text-white/20 border-b border-white/8 pb-1 focus:border-white/20 transition-colors"
+                    />
+                  </div>
+
+                  {/* Preview als bezig met uploaden */}
+                  {editImagePreview && !editImageUrl && (
+                    <div className="flex items-center gap-3 rounded-[12px] border border-white/8 bg-white/[0.03] p-2.5">
+                      <img src={editImagePreview} alt="Preview" className="h-12 w-12 rounded-[8px] object-cover" />
+                      <div>
+                        <p className="text-[12px] text-white/60">Uploaden...</p>
+                        <div className="mt-1 h-1 w-24 rounded-full bg-white/10 overflow-hidden">
+                          <div className="h-full w-1/2 bg-blue-400 animate-pulse rounded-full" />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <p className="text-[10px] text-white/24">Of klik op een foto in je geschiedenis → "Bewerken"</p>
                 </div>
               )}
             </div>
