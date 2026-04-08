@@ -133,15 +133,26 @@ export async function POST(req: Request) {
     const uploadUrl = `${SUPABASE_URL}/storage/v1/object/${BUCKET}/${storagePath}`;
     const uploadRes = await fetch(uploadUrl, {
       method: "POST",
-      headers: storageHeaders(fileType),
+      headers: {
+        ...storageHeaders(fileType),
+        "x-upsert": "false",
+        "cache-control": "3600",
+      },
       body: fileBuffer,
     });
 
     if (!uploadRes.ok) {
       const errText = await uploadRes.text().catch(() => "");
-      console.error("[Brain] Storage upload failed", { status: uploadRes.status, errText });
-      return NextResponse.json({ error: "Storage upload failed" }, { status: 500 });
+      console.error("[Brain] Storage upload failed detail", {
+        status: uploadRes.status,
+        body: errText,
+        path: storagePath,
+        bucket: BUCKET,
+      });
+      return NextResponse.json({ error: "Storage upload failed", detail: errText }, { status: 500 });
     }
+
+    // (replaced above)
 
     // Save metadata to DB
     const dbUrl = `${SUPABASE_URL}/rest/v1/brain_documents`;
