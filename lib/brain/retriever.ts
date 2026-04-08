@@ -121,10 +121,22 @@ export async function retrieveChunks({
 export function formatChunksAsContext(chunks: RetrievedChunk[], docNames: Record<string, string>): string {
   if (!chunks.length) return "";
 
-  return chunks
-    .map((chunk, i) => {
-      const docName = docNames[chunk.document_id] ?? "Unknown source";
-      return `[Source ${i + 1}: ${docName}]\n${chunk.content}`;
+  // Group chunks by document
+  const grouped: Record<string, RetrievedChunk[]> = {};
+  for (const chunk of chunks) {
+    if (!grouped[chunk.document_id]) grouped[chunk.document_id] = [];
+    grouped[chunk.document_id].push(chunk);
+  }
+
+  const sourceList = Object.keys(grouped)
+    .map((docId, i) => {
+      const docName = docNames[docId] ?? "Unknown source";
+      const docChunks = grouped[docId].sort((a, b) => a.chunk_index - b.chunk_index);
+      const content = docChunks.map(c => c.content.trim()).join("\n\n");
+      const avgSimilarity = (docChunks.reduce((s, c) => s + c.similarity, 0) / docChunks.length).toFixed(2);
+      return `[Source ${i + 1}: "${docName}" | relevance: ${avgSimilarity}]\n${content}`;
     })
     .join("\n\n---\n\n");
+
+  return sourceList;
 }
