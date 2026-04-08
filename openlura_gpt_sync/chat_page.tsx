@@ -1607,7 +1607,7 @@ const shouldSkipPersonalStateSync =
         clearTimeout(personalSyncTimeoutRef.current);
       }
     };
-  }, [chats, chatStorageKey, isPersonalRoute, memory, personalStateLoaded, initialStateReady]);
+  }, [chats, chatStorageKey, isPersonalRoute, memory, personalStateLoaded, initialStateReady, chatSettings, settingsPreferences, userName, detectedLang]);
 
   useEffect(() => {
     return () => {
@@ -1822,17 +1822,29 @@ const shouldSkipPersonalStateSync =
     window.history.replaceState({}, "", clean);
   }, [initialStateReady]);
 
-  const rotatingPlaceholders: Record<string, string[]> = {
+  const rotatingPlaceholders = useMemo<Record<string, string[]>>(() => ({
     nl: ["Stel een vraag...", "Schrijf een e-mail...", "Leg iets uit...", "Maak een plan..."],
     de: ["Stell eine Frage...", "Schreib eine E-Mail...", "Erkläre etwas...", "Mach einen Plan..."],
     fr: ["Posez une question...", "Écrivez un e-mail...", "Expliquez quelque chose...", "Faites un plan..."],
     es: ["Haz una pregunta...", "Escribe un correo...", "Explica algo...", "Haz un plan..."],
+    pt: ["Faça uma pergunta...", "Escreva um e-mail...", "Explique algo...", "Faça um plano..."],
     it: ["Fai una domanda...", "Scrivi un'email...", "Spiega qualcosa...", "Fai un piano..."],
     tr: ["Bir soru sor...", "E-posta yaz...", "Bir şey açıkla...", "Plan yap..."],
     ar: ["اطرح سؤالاً...", "اكتب بريداً...", "اشرح شيئاً...", "ضع خطة..."],
+    pap: ["Hasi un pregunta...", "Skirbi un email...", "Splika algo...", "Hasi un plan..."],
     hi: ["कुछ भी पूछें...", "ईमेल लिखें...", "कुछ समझाएं...", "योजना बनाएं..."],
     en: ["Ask anything...", "Write an email...", "Explain something...", "Make a plan..."],
-  };
+  }), []);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setPlaceholderIndex((prev) => {
+        const list = rotatingPlaceholders[detectedLang] ?? rotatingPlaceholders["en"];
+        return (prev + 1) % list.length;
+      });
+    }, 3200);
+    return () => window.clearInterval(interval);
+  }, [detectedLang]);
 
   useEffect(() => {
     if (!isPersonalRoute || !initialStateReady || !personalStateLoaded) return;
@@ -3839,9 +3851,7 @@ updated[index].messages[
 
         aiText += chunk;
 
-        if (isWaitingForFirstToken) {
-          setIsWaitingForFirstToken(false);
-        }
+        setIsWaitingForFirstToken(false);
 
         if (!rafScheduled) {
           rafScheduled = true;
@@ -5611,7 +5621,7 @@ const resolvedVoiceLang =
   (detectedLang || "").trim().toLowerCase() ||
   getBrowserLanguage();
 
-form.append("lang", "nl");
+form.append("lang", resolvedVoiceLang);
 
 console.log("VOICE submit", {
   voiceInputLang,
@@ -5798,6 +5808,12 @@ const transcript = (data.text || "").trim();
                  detectedLang === "de" ? "Wie darf ich dich nennen?" :
                  detectedLang === "fr" ? "Comment puis-je t'appeler ?" :
                  detectedLang === "es" ? "¿Cómo te llamas?" :
+                 detectedLang === "pt" ? "Como posso te chamar?" :
+                 detectedLang === "it" ? "Come posso chiamarti?" :
+                 detectedLang === "tr" ? "Seni nasıl çağırayım?" :
+                 detectedLang === "ar" ? "كيف يمكنني مناداتك؟" :
+                 detectedLang === "pap" ? "Con ki mi por yama bo?" :
+                 detectedLang === "hi" ? "मैं आपको क्या कहकर बुलाऊं?" :
                  "What should I call you?"}
               </h2>
               <p className="text-sm text-white/46 mb-5">
@@ -5805,6 +5821,12 @@ const transcript = (data.text || "").trim();
                  detectedLang === "de" ? "Dein Name wird gespeichert und in deinem Workspace verwendet." :
                  detectedLang === "fr" ? "Ton prénom sera mémorisé et utilisé dans ton espace personnel." :
                  detectedLang === "es" ? "Tu nombre se guardará y se usará en tu espacio personal." :
+                 detectedLang === "pt" ? "O teu nome será guardado e usado no teu espaço pessoal." :
+                 detectedLang === "it" ? "Il tuo nome verrà salvato e usato nel tuo spazio personale." :
+                 detectedLang === "tr" ? "Adın kaydedilecek ve kişisel çalışma alanında kullanılacak." :
+                 detectedLang === "ar" ? "سيتم حفظ اسمك واستخدامه في مساحة عملك الشخصية." :
+                 detectedLang === "pap" ? "Bo nòmber lo word wardá i usá den bo espasio personal." :
+                 detectedLang === "hi" ? "आपका नाम याद रखा जाएगा और आपके निजी वर्कस्पेस में उपयोग किया जाएगा।" :
                  "Your name will be remembered and used in your personal workspace."}
               </p>
               <input
@@ -5818,6 +5840,12 @@ const transcript = (data.text || "").trim();
                   detectedLang === "de" ? "Dein Vorname..." :
                   detectedLang === "fr" ? "Ton prénom..." :
                   detectedLang === "es" ? "Tu nombre..." :
+                  detectedLang === "pt" ? "O teu primeiro nome..." :
+                  detectedLang === "it" ? "Il tuo nome..." :
+                  detectedLang === "tr" ? "Adın..." :
+                  detectedLang === "ar" ? "اسمك الأول..." :
+                  detectedLang === "pap" ? "Bo nòmber..." :
+                  detectedLang === "hi" ? "आपका पहला नाम..." :
                   "Your first name..."
                 }
                 className="w-full rounded-[18px] border border-white/10 bg-white/[0.05] px-4 py-3 text-white/95 outline-none placeholder:text-white/28 transition-[border-color] duration-200 focus:border-white/20 mb-4"
@@ -5829,7 +5857,17 @@ const transcript = (data.text || "").trim();
                   onClick={() => setShowNamePopup(false)}
                   className="flex-1 rounded-[18px] border border-white/8 bg-white/[0.04] p-3 text-sm text-white/60 hover:text-white/80 transition-colors"
                 >
-                  {detectedLang === "nl" ? "Overslaan" : "Skip"}
+                  {detectedLang === "nl" ? "Overslaan" :
+                   detectedLang === "de" ? "Überspringen" :
+                   detectedLang === "fr" ? "Passer" :
+                   detectedLang === "es" ? "Omitir" :
+                   detectedLang === "pt" ? "Ignorar" :
+                   detectedLang === "it" ? "Salta" :
+                   detectedLang === "tr" ? "Atla" :
+                   detectedLang === "ar" ? "تخطي" :
+                   detectedLang === "pap" ? "Skip" :
+                   detectedLang === "hi" ? "छोड़ें" :
+                   "Skip"}
                 </button>
                 <button
                   type="button"
@@ -5841,6 +5879,12 @@ const transcript = (data.text || "").trim();
                    detectedLang === "de" ? "Speichern" :
                    detectedLang === "fr" ? "Enregistrer" :
                    detectedLang === "es" ? "Guardar" :
+                   detectedLang === "pt" ? "Guardar" :
+                   detectedLang === "it" ? "Salva" :
+                   detectedLang === "tr" ? "Kaydet" :
+                   detectedLang === "ar" ? "حفظ" :
+                   detectedLang === "pap" ? "Garda" :
+                   detectedLang === "hi" ? "सहेजें" :
                    "Save"}
                 </button>
               </div>
@@ -5887,7 +5931,9 @@ const transcript = (data.text || "").trim();
                     <button
                       type="button"
                       onClick={() => {
-                        window.location.href = `https://imhapciqxtkuefgxkwyv.supabase.co/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(window.location.origin + "/auth/callback")}`;
+                        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+                        if (!supabaseUrl) return;
+                        window.location.href = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(window.location.origin + "/auth/callback")}`;
                       }}
                       className="flex w-full items-center justify-center gap-3 rounded-[18px] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white/88 transition-[background-color,border-color] duration-200 hover:border-white/16 hover:bg-white/[0.07]"
                     >
@@ -5938,7 +5984,9 @@ const transcript = (data.text || "").trim();
                     <button
                       type="button"
                       onClick={() => {
-                        window.location.href = `https://imhapciqxtkuefgxkwyv.supabase.co/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(window.location.origin + "/auth/callback")}`;
+                        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+                        if (!supabaseUrl) return;
+                        window.location.href = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(window.location.origin + "/auth/callback")}`;
                       }}
                       className="flex w-full items-center justify-center gap-3 rounded-[18px] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white/88 transition-[background-color,border-color] duration-200 hover:border-white/16 hover:bg-white/[0.07]"
                     >

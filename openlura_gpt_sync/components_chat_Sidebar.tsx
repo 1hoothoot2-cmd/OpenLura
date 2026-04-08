@@ -78,7 +78,7 @@ function AnonUsageIndicator() {
           style={{ width: `${Math.min((count / limit) * 100, 100)}%` }}
         />
       </div>
-      <span className="text-[10px] text-white/36 shrink-0">{count}/{limit} berichten</span>
+      <span className="text-[10px] text-white/36 shrink-0">{count}/{limit} messages</span>
     </div>
   );
 }
@@ -467,6 +467,8 @@ const [chatTitleDraft, setChatTitleDraft] = useState("");
     };
   }, []);
 
+  const [showSettingsDropdown, setShowSettingsDropdown] = useState(false);
+
   const sidebarActionButtonClass =
     "rounded-full border border-[#3b82f6]/18 bg-[#3b82f6]/8 px-3 py-1 text-xs text-white/68 ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/34 hover:bg-[#3b82f6]/12 hover:text-white hover:shadow-[0_6px_14px_rgba(59,130,246,0.12)] active:scale-95";
 
@@ -577,7 +579,7 @@ const [chatTitleDraft, setChatTitleDraft] = useState("");
 
       <button
         type="button"
-        aria-label="Chat opties"
+        aria-label="Chat options"
         aria-expanded={isMenuOpen}
         onClick={(e) => {
           e.stopPropagation();
@@ -761,7 +763,7 @@ const [chatTitleDraft, setChatTitleDraft] = useState("");
                       onClick={() => createNewChat()}
                       className="w-full text-left text-white/40 hover:text-white/70 transition-colors"
                     >
-                      + Start je eerste chat
+                      + Start your first chat
                     </button>
                   ) : "No chats found"}
                 </div>
@@ -769,7 +771,7 @@ const [chatTitleDraft, setChatTitleDraft] = useState("");
             </div>
           </div>
 
-          {isPersonalRoute && <div>
+          {isPersonalRoute && false && <div>
             <div className="mb-2.5 flex items-center justify-between px-1.5">
               <span className="text-[11px] uppercase tracking-[0.18em] text-white/30">
                 Prompts
@@ -990,7 +992,7 @@ const [chatTitleDraft, setChatTitleDraft] = useState("");
               ) : (
                 <div className={emptyStateClass}>
                   {isPersonalRoute
-                    ? "Sla berichten op via ⋯"
+                    ? "Save prompts via ⋯"
                     : "No saved prompts yet"}
                 </div>
               )}
@@ -999,15 +1001,15 @@ const [chatTitleDraft, setChatTitleDraft] = useState("");
 
           {!isPersonalRoute && (
             <div className="rounded-[20px] border border-[#3b82f6]/14 bg-[#3b82f6]/[0.04] px-3 py-3">
-              <div className="text-[11px] font-medium text-[#bfdbfe] mb-1">✨ Persoonlijke omgeving</div>
-              <p className="text-[11px] text-white/46 leading-5 mb-2.5">Meld je aan voor opgeslagen prompts, cross-device geheugen en meer.</p>
+              <div className="text-[11px] font-medium text-[#bfdbfe] mb-1">✨ Personal workspace</div>
+              <p className="text-[11px] text-white/46 leading-5 mb-2.5">Sign in for saved prompts, cross-device memory and more.</p>
               <AnonUsageIndicator />
               <button
                 type="button"
                 onClick={() => { setMobileMenu(false); window.location.href = "/login"; }}
                 className="w-full rounded-xl bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-3 py-2 text-[12px] font-medium text-white mt-2"
               >
-                Aanmelden →
+                Sign in →
               </button>
             </div>
           )}
@@ -1110,58 +1112,22 @@ const [chatTitleDraft, setChatTitleDraft] = useState("");
           </div>
         </div>
 
-        <div className="mt-4 shrink-0 space-y-2.5 border-t border-white/8 pt-4 pb-[max(env(safe-area-inset-bottom),2px)]">
+        <div className="mt-4 shrink-0 border-t border-white/8 pt-3 pb-[max(env(safe-area-inset-bottom),2px)]">
+
+          {/* Plan badge — compact, alleen als personal */}
           {isPersonalRoute && (
-            <div className="rounded-[20px] border border-white/8 bg-white/[0.03] p-2">
-              <div className="mb-2 px-1 text-[11px] uppercase tracking-[0.18em] text-white/30">
-                Export
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setOpenChatMenuId(null);
-                    onCopyActiveChatMarkdown?.();
-                    setMobileMenu(false);
-                  }}
-                  disabled={!hasActiveChat || !onCopyActiveChatMarkdown}
-                  className="rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2.5 text-left text-sm text-white/82 ol-interactive transition-[background-color,border-color,color,box-shadow,opacity] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Copy .md
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setOpenChatMenuId(null);
-                    onDownloadActiveChatMarkdown?.();
-                    setMobileMenu(false);
-                  }}
-                  disabled={!hasActiveChat || !onCopyActiveChatMarkdown}
-                  className="rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2.5 text-left text-sm text-white/82 ol-interactive transition-[background-color,border-color,color,box-shadow,opacity] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Download .md
-                </button>
-              </div>
-            </div>
-          )}
-
-          {isPersonalRoute && (
-            <div className={`rounded-2xl border px-3 py-2.5 flex items-center justify-between ${
+            <div className={`mb-2.5 rounded-2xl border px-3 py-2 flex items-center justify-between ${
               userTier === "pro" || userTier === "admin"
                 ? "border-emerald-400/16 bg-emerald-400/[0.04]"
                 : "border-white/8 bg-white/[0.03]"
             }`}>
-              <div>
-                <div className="text-[10px] uppercase tracking-[0.16em] text-white/30">Plan</div>
-                <div className={`text-sm font-medium mt-0.5 ${
-                  userTier === "pro" || userTier === "admin"
-                    ? "text-emerald-300"
-                    : "text-white/60"
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] uppercase tracking-[0.14em] text-white/30">Plan</span>
+                <span className={`text-xs font-medium ${
+                  userTier === "pro" || userTier === "admin" ? "text-emerald-300" : "text-white/50"
                 }`}>
                   {userTier === "pro" ? "Go ✓" : userTier === "admin" ? "Admin ✓" : "Free"}
-                </div>
+                </span>
               </div>
               {userTier === "free" && (
                 <button
@@ -1176,7 +1142,7 @@ const [chatTitleDraft, setChatTitleDraft] = useState("");
                       if (data.url) window.location.href = data.url;
                     } catch {}
                   }}
-                  className="rounded-xl border border-blue-400/20 bg-blue-400/10 px-3 py-1.5 text-[11px] font-medium text-blue-200 hover:bg-blue-400/16 hover:text-white transition-colors"
+                  className="rounded-xl border border-blue-400/20 bg-blue-400/10 px-3 py-1 text-[11px] font-medium text-blue-200 hover:bg-blue-400/16 hover:text-white transition-colors"
                 >
                   Upgrade →
                 </button>
@@ -1184,65 +1150,141 @@ const [chatTitleDraft, setChatTitleDraft] = useState("");
             </div>
           )}
 
-          <button
-            type="button"
-            onClick={() => {
-              setOpenChatMenuId(null);
-              setMobileMenu(false);
-              setShowFeedbackBox(true);
-            }}
-            className="w-full rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2.5 text-left text-sm text-white/82 ol-interactive transition-[background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.985]"
-          >
-            Feedback / Idea
-          </button>
+          {/* Bottom action row */}
+          <div className="flex items-center gap-2">
 
-          {isPersonalRoute && (
+            {/* Feedback */}
             <button
               type="button"
               onClick={() => {
                 setOpenChatMenuId(null);
                 setMobileMenu(false);
-                onOpenDashboard?.();
+                setShowFeedbackBox(true);
               }}
-              className="w-full rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2.5 text-left text-sm text-white/82 ol-interactive transition-[background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.985]"
+              className="flex-1 rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2.5 text-left text-sm text-white/70 ol-interactive transition-[background-color,border-color,color] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white active:scale-[0.985]"
             >
-              Mijn profiel
+              Feedback
             </button>
-          )}
 
-          {isPersonalRoute && (
-            <a href="/personal-dashboard" onClick={() => setMobileMenu(false)} className="w-full rounded-2xl border border-[#3b82f6]/16 bg-[#3b82f6]/8 px-3 py-2.5 text-left text-sm text-[#93c5fd] ol-interactive transition-[background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/28 hover:bg-[#3b82f6]/14 hover:text-white active:scale-[0.985] flex items-center gap-2">
-              Dashboard
-            </a>
-          )}
+            {/* Log in (non-personal) */}
+            {!isPersonalRoute && (
+              <button
+                type="button"
+                onClick={() => {
+                  setOpenChatMenuId(null);
+                  setMobileMenu(false);
+                  setShowLoginBox(true);
+                }}
+                className="flex-1 rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2.5 text-left text-sm text-white/70 ol-interactive transition-[background-color,border-color,color] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white active:scale-[0.985]"
+              >
+                Log in
+              </button>
+            )}
 
-          {isPersonalRoute && (
-            <button
-              type="button"
-              onClick={() => {
-                setOpenChatMenuId(null);
-                setMobileMenu(false);
-                onOpenSettings?.();
-              }}
-              className="w-full rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2.5 text-left text-sm text-white/82 ol-interactive transition-[background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.985]"
-            >
-              Instellingen
-            </button>
-          )}
+            {/* ⚙️ Settings dropdown */}
+            {isPersonalRoute && (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowSettingsDropdown(v => !v)}
+                  className={`flex h-10 w-10 items-center justify-center rounded-2xl border transition-[background-color,border-color,color] duration-200 ${
+                    showSettingsDropdown
+                      ? "border-white/14 bg-white/[0.08] text-white"
+                      : "border-white/8 bg-white/[0.04] text-white/50 hover:border-white/12 hover:bg-white/[0.07] hover:text-white"
+                  }`}
+                  aria-label="Settings"
+                >
+                  ⚙️
+                </button>
 
-          {!isPersonalRoute && (
-            <button
-              type="button"
-              onClick={() => {
-                setOpenChatMenuId(null);
-                setMobileMenu(false);
-                setShowLoginBox(true);
-              }}
-              className="w-full rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2.5 text-left text-sm text-white/82 ol-interactive transition-[background-color,border-color,color,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:scale-[0.985]"
-            >
-              Log in
-            </button>
-          )}
+                {showSettingsDropdown && (
+                  <div
+                    className="absolute bottom-[48px] right-0 z-[230] min-w-[200px] overflow-hidden rounded-2xl border border-white/10 bg-[#161b2a]/96 shadow-[0_20px_44px_rgba(0,0,0,0.40)] ring-1 ring-black/20 backdrop-blur-xl animate-[fadeInUp_0.18s_ease-out]"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {/* Export */}
+                    <div className="px-3.5 pt-3 pb-1">
+                      <p className="text-[10px] uppercase tracking-[0.16em] text-white/28 mb-2">Export</p>
+                      <div className="grid grid-cols-2 gap-1.5 mb-3">
+                        <button
+                          type="button"
+                          onClick={() => { onCopyActiveChatMarkdown?.(); setShowSettingsDropdown(false); setMobileMenu(false); }}
+                          disabled={!hasActiveChat || !onCopyActiveChatMarkdown}
+                          className="rounded-xl border border-white/8 bg-white/[0.04] px-2 py-1.5 text-[11px] text-white/70 hover:text-white hover:bg-white/[0.07] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                        >
+                          Copy .md
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { onDownloadActiveChatMarkdown?.(); setShowSettingsDropdown(false); setMobileMenu(false); }}
+                          disabled={!hasActiveChat || !onDownloadActiveChatMarkdown}
+                          className="rounded-xl border border-white/8 bg-white/[0.04] px-2 py-1.5 text-[11px] text-white/70 hover:text-white hover:bg-white/[0.07] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                        >
+                          Download .md
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="mx-3 border-t border-white/8" />
+
+                    {/* Prompts */}
+                    <div className="px-1 py-1">
+                      <div className="px-2.5 py-1.5">
+                        <p className="text-[10px] uppercase tracking-[0.16em] text-white/28 mb-1.5">Prompts</p>
+                        {prompts.length === 0 ? (
+                          <p className="text-[11px] text-white/32">No saved prompts yet</p>
+                        ) : (
+                          <div className="space-y-1 max-h-[180px] overflow-y-auto">
+                            {prompts.slice(0, 8).map(prompt => (
+                              <button
+                                key={prompt.id}
+                                type="button"
+                                onClick={() => { handleUsePrompt(prompt); setShowSettingsDropdown(false); }}
+                                disabled={!hasPromptContent(prompt) || usingPromptId === prompt.id}
+                                className="w-full text-left rounded-xl px-2.5 py-2 text-[11px] text-white/70 hover:bg-white/[0.05] hover:text-white transition-colors disabled:opacity-40"
+                              >
+                                <span className="truncate block font-medium">{prompt.name || "Untitled"}</span>
+                                {prompt.content && (
+                                  <span className="truncate block text-white/36 mt-0.5">{prompt.content.slice(0, 50)}</span>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="mx-3 border-t border-white/8" />
+
+                    {/* Nav items */}
+                    <div className="px-1 py-1">
+                      <button
+                        type="button"
+                        onClick={() => { setShowSettingsDropdown(false); setMobileMenu(false); onOpenDashboard?.(); }}
+                        className="w-full px-3.5 py-2.5 text-left text-sm text-white/80 hover:bg-white/[0.06] hover:text-white transition-colors rounded-xl"
+                      >
+                        My profile
+                      </button>
+                      <a
+                        href="/personal-dashboard"
+                        onClick={() => { setShowSettingsDropdown(false); setMobileMenu(false); }}
+                        className="block w-full px-3.5 py-2.5 text-left text-sm text-[#93c5fd] hover:bg-white/[0.06] hover:text-white transition-colors rounded-xl"
+                      >
+                        Dashboard
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => { setShowSettingsDropdown(false); setMobileMenu(false); onOpenSettings?.(); }}
+                        className="w-full px-3.5 py-2.5 text-left text-sm text-white/80 hover:bg-white/[0.06] hover:text-white transition-colors rounded-xl"
+                      >
+                        Settings
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

@@ -1,2283 +1,782 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
+
 function safeParseJson<T>(raw: string | null, fallback: T): T {
   if (!raw) return fallback;
-
-  try {
-    return JSON.parse(raw) as T;
-  } catch {
-    return fallback;
-  }
+  try { return JSON.parse(raw) as T; } catch { return fallback; }
 }
 
-export default function AnalyticsPage() {
-    type AnalyticsFeedbackItem = {
-    chatId?: string | null;
-    msgIndex?: number | null;
-    type?: string | null;
-    message?: string | null;
-    userMessage?: string | null;
-    source?: string | null;
-    environment?: string | null;
-    userScope?: string | null;
-    user_id?: string | null;
-    workflowKey?: string | null;
-    workflowStatus?: string | null;
-    timestamp?: string | null;
-    learningType?: string | null;
-    _localOnly?: boolean;
-  };
-   const getOrCreateOpenLuraUserId = () => {
-    if (typeof window === "undefined") return "";
+// ─── TYPES ───────────────────────────────────────────────────────────────────
 
+type AnalyticsFeedbackItem = {
+  chatId?: string | null;
+  msgIndex?: number | null;
+  type?: string | null;
+  message?: string | null;
+  userMessage?: string | null;
+  source?: string | null;
+  environment?: string | null;
+  userScope?: string | null;
+  user_id?: string | null;
+  workflowKey?: string | null;
+  workflowStatus?: string | null;
+  timestamp?: string | null;
+  learningType?: string | null;
+  _localOnly?: boolean;
+};
+
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
+
+function inferLearningType(f: any): "style" | "content" {
+  if (f.learningType === "style" || f.learningType === "content") return f.learningType;
+  const text = `${f.userMessage || ""} ${f.message || ""}`.toLowerCase();
+  return /korter|te lang|too long|shorter|duidelijker|onduidelijk|clearer|unclear|andere structuur|structuur|structure|te vaag|vaag|vague|meer context|more context|more depth|te serieus|te formeel|menselijker|spontaner|luchtiger|more natural|too formal|too long for chat/.test(text)
+    ? "style" : "content";
+}
+
+function getAutoDebugConfidence(f: any): string {
+  return String(f.message || "").toLowerCase().match(/^\[(high|medium|low)\]/)?.[1] || "unknown";
+}
+
+function getAutoDebugSignalType(f: any): string {
+  const s = String(f.source || "");
+  if (s.includes("auto_debug_casual_mismatch")) return "casual_mismatch";
+  if (s.includes("auto_debug_possible_search_miss")) return "possible_search_miss";
+  if (s.includes("auto_debug_possible_image_context_miss")) return "possible_image_context_miss";
+  if (s.includes("auto_debug_reformulation")) return "reformulation";
+  if (s.includes("auto_debug_followup_depth")) return "followup_depth";
+  if (s.includes("auto_debug_too_verbose_for_image_route")) return "verbose_image";
+  return "unknown";
+}
+
+function translateLearningRule(rule: string, lang: string): string {
+  const map: Record<string, Record<string, string>> = {
+    "Shorter answers active": { nl: "Kortere antwoorden actief", en: "Shorter answers active", de: "Kürzere Antworten aktiv", fr: "Réponses plus courtes actives", es: "Respuestas más cortas activas" },
+    "Clearer explanations active": { nl: "Duidelijkere uitleg actief", en: "Clearer explanations active", de: "Klarere Erklärungen aktiv", fr: "Explications plus claires actives", es: "Explicaciones más claras activas" },
+    "Better structure active": { nl: "Betere structuur actief", en: "Better structure active", de: "Bessere Struktur aktiv", fr: "Meilleure structure active", es: "Mejor estructura activa" },
+    "More concrete answers active": { nl: "Concretere antwoorden actief", en: "More concrete answers active", de: "Konkretere Antworten aktiv", fr: "Réponses plus concrètes actives", es: "Respuestas más concretas activas" },
+    "More context active": { nl: "Meer context actief", en: "More context active", de: "Mehr Kontext aktiv", fr: "Plus de contexte actif", es: "Más contexto activo" },
+    "Bug focus active": { nl: "Bug focus actief", en: "Bug focus active", de: "Bug-Fokus aktiv", fr: "Focalisation sur les bugs active", es: "Foco en bugs activo" },
+  };
+  return map[rule]?.["en"] ?? rule;
+}
+
+// ─── COMPONENTS ──────────────────────────────────────────────────────────────
+
+function KPICard({ label, value, sub, color }: { label: string; value: string | number; sub?: string; color?: string }) {
+  return (
+    <div className={`rounded-2xl p-5 flex flex-col gap-1 ${color || "bg-white/5 border border-white/10"}`}>
+      <p className="text-xs font-medium tracking-widest uppercase opacity-50">{label}</p>
+      <p className="text-3xl font-bold tabular-nums">{value}</p>
+      {sub && <p className="text-xs opacity-40 mt-1">{sub}</p>}
+    </div>
+  );
+}
+
+function Section({ title, icon, children }: { title: string; icon: string; children: React.ReactNode }) {
+  return (
+    <div className="mb-8">
+      <div className="flex items-center gap-2 mb-4">
+        <span className="text-lg">{icon}</span>
+        <h2 className="text-sm font-semibold tracking-widest uppercase opacity-70">{title}</h2>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function Row({ label, value, accent }: { label: string; value: string | number; accent?: string }) {
+  return (
+    <div className="flex justify-between items-center py-2 border-b border-white/5 last:border-0">
+      <span className="text-sm opacity-70">{label}</span>
+      <span className={`text-sm font-semibold tabular-nums ${accent || ""}`}>{value}</span>
+    </div>
+  );
+}
+
+function Card({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={`bg-white/5 border border-white/8 rounded-2xl p-5 ${className || ""}`}>
+      {children}
+    </div>
+  );
+}
+
+function Badge({ label, color }: { label: string; color: string }) {
+  return <span className={`inline-block px-2 py-0.5 rounded-lg text-xs font-medium ${color}`}>{label}</span>;
+}
+
+// ─── MAIN ─────────────────────────────────────────────────────────────────────
+
+export default function AnalyticsPage() {
+
+  const getOrCreateOpenLuraUserId = () => {
+    if (typeof window === "undefined") return "";
     const storageKey = "openlura_user_id";
     const existing = localStorage.getItem(storageKey);
-
-    if (existing?.trim()) {
-      return existing.trim();
-    }
-
-    const newId =
-      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-        ? crypto.randomUUID()
-        : `openlura_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-
+    if (existing?.trim()) return existing.trim();
+    const newId = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `openlura_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
     localStorage.setItem(storageKey, newId);
     return newId;
   };
 
-  const getOpenLuraRequestHeaders = (
-    includeJson = true,
-    options?: { personalEnv?: boolean; includeUserId?: boolean }
-  ) => {
-    const headers: Record<string, string> = includeJson
-      ? { "Content-Type": "application/json" }
-      : {};
-
-    // 🔥 TEMP: altijd user_id meesturen (simuleert login)
-const resolvedUserId = getOrCreateOpenLuraUserId();
-
-if (resolvedUserId) {
-  headers["x-openlura-user-id"] = resolvedUserId;
-}
-
-    if (options?.personalEnv) {
-      headers["x-openlura-personal-env"] = "true";
-    }
-
-    return headers;
+  const getHeaders = (json = true) => {
+    const h: Record<string, string> = json ? { "Content-Type": "application/json" } : {};
+    const uid = getOrCreateOpenLuraUserId();
+    if (uid) h["x-openlura-user-id"] = uid;
+    return h;
   };
-    const [feedback, setFeedback] = useState<AnalyticsFeedbackItem[]>([]);
-    const [activeTab, setActiveTab] = useState("all");
-    const [ideaFilter, setIdeaFilter] = useState("all");
-    const [analyticsPassword, setAnalyticsPassword] = useState("");
-    const [isUnlocked, setIsUnlocked] = useState(false);
-    const [authError, setAuthError] = useState("");
-    const [authLoading, setAuthLoading] = useState(true);
 
-    const ANALYTICS_UNLOCK_STORAGE_KEY = "openlura_analytics_unlocked";
-    const [itemStatus, setItemStatus] = useState<Record<string, string>>({});
-      // Workflow status is server-truth first.
-  // Local state is only an in-memory optimistic overlay for this tab/session.
-    const [workflowFilter, setWorkflowFilter] = useState("all");
-    const [learningTypeFilter, setLearningTypeFilter] = useState("all");
-    const [autoDebugConfidenceFilter, setAutoDebugConfidenceFilter] = useState("all");
-    const [autoDebugRouteFilter, setAutoDebugRouteFilter] = useState("all");
-    const [autoDebugSignalFilter, setAutoDebugSignalFilter] = useState("all");
-    const [localFeedbackStats, setLocalFeedbackStats] = useState({
-      defaultCount: 0,
-      personalCount: 0,
-      total: 0,
-    });
-    const latestFeedbackRef = useRef<AnalyticsFeedbackItem[]>([]);
-    const hasLoadedServerTruthRef = useRef(false);
-    const pendingAutoLearningInsightsRef = useRef<Set<string>>(new Set());
+  // ── State ──────────────────────────────────────────────────────────────────
+  const [feedback, setFeedback] = useState<AnalyticsFeedbackItem[]>([]);
+  const [password, setPassword] = useState("");
+  const [isUnlocked, setIsUnlocked] = useState(false);
+  const [authError, setAuthError] = useState("");
+  const [authLoading, setAuthLoading] = useState(true);
+  const [itemStatus, setItemStatus] = useState<Record<string, string>>({});
+  const [activeSection, setActiveSection] = useState<"overview" | "learning" | "signals" | "workflow" | "feed">("overview");
+  const [localStats, setLocalStats] = useState({ total: 0 });
+  const latestRef = useRef<AnalyticsFeedbackItem[]>([]);
+  const hasServerRef = useRef(false);
+  const pendingInsightsRef = useRef<Set<string>>(new Set());
+  const STORAGE_KEY = "openlura_analytics_unlocked";
 
+  // ── Auth check ─────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      sessionStorage.removeItem(ANALYTICS_UNLOCK_STORAGE_KEY);
-    }
-  }, []);
-
-  const inferLearningType = (f: any) => {
-    if (f.learningType === "style" || f.learningType === "content") {
-      return f.learningType;
-    }
-
-    const text = `${f.userMessage || ""} ${f.message || ""}`.toLowerCase();
-
-    const isStyleSignal = !!text.match(
-      /korter|te lang|too long|shorter|duidelijker|onduidelijk|clearer|unclear|andere structuur|structuur|structure|te vaag|vaag|vague|meer context|more context|more depth|te serieus|te formeel|menselijker|spontaner|luchtiger|more natural|too formal|too long for chat/
-    );
-
-    return isStyleSignal ? "style" : "content";
-  };
-
-  const getAutoDebugRouteType = (f: any) => {
-    const source = String(f.source || "");
-    const match = source.match(/__route_(fast_text|fast_image|search|default)/);
-    return match?.[1] || "unknown";
-  };
-
-  const getAutoDebugConfidence = (f: any) => {
-    const match = String(f.message || "").toLowerCase().match(/^\[(high|medium|low)\]/);
-    return match?.[1] || "unknown";
-  };
-
-  const getAutoDebugSignalType = (f: any) => {
-    const source = String(f.source || "");
-
-    if (source.includes("auto_debug_casual_mismatch")) {
-      return "casual_mismatch";
-    }
-
-    if (source.includes("auto_debug_possible_search_miss")) {
-      return "possible_search_miss";
-    }
-
-    if (source.includes("auto_debug_possible_image_context_miss")) {
-      return "possible_image_context_miss";
-    }
-
-    if (source.includes("auto_debug_weak_source_support")) {
-      return "weak_source_support";
-    }
-
-    if (source.includes("auto_debug_too_verbose_for_image_route")) {
-      return "too_verbose_for_image_route";
-    }
-
-    return "unknown";
-  };
-  const isRenderableAnalyticsItem = (f: AnalyticsFeedbackItem) => {
-    const hasValidType =
-      f.type === "up" ||
-      f.type === "down" ||
-      f.type === "improve" ||
-      f.type === "idea" ||
-      f.type === "auto_debug";
-
-    const hasValidEnvironment =
-      f.environment === "default" || f.environment === "personal";
-
-    const hasValidUserScope =
-      f.userScope === "admin" ||
-      f.userScope === "guest" ||
-      f.userScope === "personal" ||
-      f.userScope === "user";
-
-    if (!hasValidType || !hasValidEnvironment || !hasValidUserScope) {
-      return false;
-    }
-
-    if (f.environment === "personal" && !f.user_id) {
-      return false;
-    }
-
-    if (f.userScope === "personal" && !f.user_id) {
-      return false;
-    }
-
-    if (f.userScope === "user" && !f.user_id) {
-      return false;
-    }
-
-    return true;
-  };
-    const getUserScope = (f: any) => {
-    if (
-      f.userScope === "admin" ||
-      f.userScope === "guest" ||
-      f.userScope === "personal" ||
-      f.userScope === "user"
-    ) {
-      return f.userScope;
-    }
-
-    if (f.environment === "personal" && f.user_id) {
-      return "personal";
-    }
-
-    if (f.environment === "default" && f.user_id) {
-      return "user";
-    }
-
-    return "guest";
-  };
-
-  useEffect(() => {
-    if (activeTab !== "ideas") {
-      setIdeaFilter("all");
-    }
-
-    if (activeTab === "positive") {
-      setLearningTypeFilter("all");
-    }
-
-    if (activeTab !== "auto_debug") {
-      setAutoDebugConfidenceFilter("all");
-      setAutoDebugRouteFilter("all");
-      setAutoDebugSignalFilter("all");
-    }
-  }, [activeTab]);
-
-    useEffect(() => {
-    const checkAnalyticsAccess = async () => {
+    if (typeof window !== "undefined") sessionStorage.removeItem(STORAGE_KEY);
+    (async () => {
       try {
-        const res = await fetch("/api/feedback", {
-  method: "GET",
-  headers: getOpenLuraRequestHeaders(false, { includeUserId: false }),
-  cache: "no-store",
-});
-
-        if (res.ok) {
-          setIsUnlocked(true);
-          setAuthError("");
-
-          if (typeof window !== "undefined") {
-            sessionStorage.removeItem(ANALYTICS_UNLOCK_STORAGE_KEY);
-          }
-        } else if (res.status === 401) {
-          setIsUnlocked(false);
-
-          if (typeof window !== "undefined") {
-            sessionStorage.removeItem(ANALYTICS_UNLOCK_STORAGE_KEY);
-          }
-        }
-      } catch {
-        setAuthError("");
-      } finally {
-        setAuthLoading(false);
-      }
-    };
-
-    checkAnalyticsAccess();
+        const res = await fetch("/api/feedback", { method: "GET", headers: getHeaders(false), cache: "no-store" });
+        if (res.ok) { setIsUnlocked(true); setAuthError(""); }
+        else if (res.status === 401) setIsUnlocked(false);
+      } catch { setAuthError(""); }
+      finally { setAuthLoading(false); }
+    })();
   }, []);
 
-  function matchesCurrentAnalyticsFilters(
-    f: AnalyticsFeedbackItem,
-    statusOverride?: string
-  ) {
-    const currentStatus = getResolvedStatus(f, statusOverride);
+  // ── Data helpers ───────────────────────────────────────────────────────────
+  function getItemKey(f: AnalyticsFeedbackItem) {
+    if (f.workflowKey?.trim()) return f.workflowKey.trim();
+    return [f.chatId || "", f.msgIndex ?? "", f.type || "", f.source || "", f.environment || "", f.userScope || "", f.user_id || "", f.userMessage || "", f.message || ""].join("::");
+  }
 
-    if (workflowFilter !== "all" && currentStatus !== workflowFilter) {
-      return false;
-    }
+  function getAutoStatus(f: any) { return f.type === "up" ? "klaar" : "nieuw"; }
 
-    const resolvedLearningType = inferLearningType(f);
-    const supportsLearningTypeFilter =
-      f.type === "down" ||
-      f.type === "improve" ||
-      f.type === "auto_debug" ||
-      f.source === "idea_feedback_learning";
+  function getResolvedStatus(f: AnalyticsFeedbackItem) {
+    if (f.workflowKey && itemStatus[f.workflowKey]) return itemStatus[f.workflowKey];
+    const k = getItemKey(f);
+    if (itemStatus[k]) return itemStatus[k];
+    return getAutoStatus(f);
+  }
 
-    if (
-      learningTypeFilter !== "all" &&
-      supportsLearningTypeFilter &&
-      resolvedLearningType !== learningTypeFilter
-    ) {
-      return false;
-    }
+  function getUserScope(f: any) {
+    if (["admin","guest","personal","user"].includes(f.userScope)) return f.userScope;
+    if (f.environment === "personal" && f.user_id) return "personal";
+    if (f.environment === "default" && f.user_id) return "user";
+    return "guest";
+  }
 
-    if (
-      activeTab === "auto_debug" &&
-      autoDebugConfidenceFilter !== "all" &&
-      getAutoDebugConfidence(f) !== autoDebugConfidenceFilter
-    ) {
-      return false;
-    }
-
-    if (
-      activeTab === "auto_debug" &&
-      autoDebugRouteFilter !== "all" &&
-      getAutoDebugRouteType(f) !== autoDebugRouteFilter
-    ) {
-      return false;
-    }
-
-    if (
-      activeTab === "auto_debug" &&
-      autoDebugSignalFilter !== "all" &&
-      getAutoDebugSignalType(f) !== autoDebugSignalFilter
-    ) {
-      return false;
-    }
-
-    if (activeTab === "all") return true;
-    if (activeTab === "positive") return f.type === "up";
-    if (activeTab === "negative") return f.type === "down";
-    if (activeTab === "improvement") return f.type === "improve";
-    if (activeTab === "auto_debug") return f.type === "auto_debug";
-
-    if (activeTab === "ideas") {
-      if (f.type !== "idea") return false;
-      if (ideaFilter === "all") return true;
-      if (ideaFilter === "bug") return f.source === "idea_bug";
-      if (ideaFilter === "adjustment") return f.source === "idea_adjustment";
-      if (ideaFilter === "learning") return f.source === "idea_feedback_learning";
-    }
-
+  function isRenderable(f: AnalyticsFeedbackItem) {
+    const validType = ["up","down","improve","idea","auto_debug"].includes(f.type || "");
+    const validEnv = ["default","personal"].includes(f.environment || "");
+    const validScope = ["admin","guest","personal","user"].includes(f.userScope || "");
+    if (!validType || !validEnv || !validScope) return false;
+    if (f.environment === "personal" && !f.user_id) return false;
+    if (f.userScope === "personal" && !f.user_id) return false;
+    if (f.userScope === "user" && !f.user_id) return false;
     return true;
   }
 
-  const getResolvedStatus = (
-    f: AnalyticsFeedbackItem,
-    statusOverride?: string
-  ) => {
-    if (statusOverride) {
-      return statusOverride;
-    }
+  // ── Data load ──────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!isUnlocked) return;
 
-    if (f.workflowKey && itemStatus[f.workflowKey]) {
-      return itemStatus[f.workflowKey];
-    }
+    const load = async () => {
+      const defLocal = safeParseJson<any[]>(localStorage.getItem("openlura_feedback"), []);
+      const perLocal = safeParseJson<any[]>(localStorage.getItem("openlura_personal_feedback"), []);
+      setLocalStats({ total: defLocal.length + perLocal.length });
 
-    const fallbackKey = getItemKey(f);
+      let data: AnalyticsFeedbackItem[] = [];
+      let ok = false;
 
-    if (itemStatus[fallbackKey]) {
-      return itemStatus[fallbackKey];
-    }
+      try {
+        const res = await fetch("/api/feedback", { method: "GET", headers: getHeaders(false), cache: "no-store" });
+        if (res.status === 401) { setIsUnlocked(false); setFeedback([]); latestRef.current = []; hasServerRef.current = false; setItemStatus({}); return; }
+        if (!res.ok) throw new Error("fetch failed");
+        const raw: unknown = await res.json();
+        data = Array.isArray(raw) ? raw : [];
+        ok = true;
+      } catch { /* server unavailable */ }
 
-    return getAutoStatus(f);
-  };
+      const workflowEntries = data.filter(i => i.type === "workflow_status" && i.source === "analytics_workflow" && i.workflowKey && i.workflowStatus);
+      const statusMap = workflowEntries
+        .sort((a, b) => new Date(a.timestamp || 0).getTime() - new Date(b.timestamp || 0).getTime())
+        .reduce((acc: Record<string, string>, i) => { if (i.workflowKey && i.workflowStatus) acc[i.workflowKey] = i.workflowStatus; return acc; }, {});
 
-  const filteredFeedback = feedback.filter((f: AnalyticsFeedbackItem) =>
-    matchesCurrentAnalyticsFilters(f)
-  );
+      if (ok) { hasServerRef.current = true; setItemStatus(statusMap); }
 
-          const negativeFeedback = feedback.filter((f: any) => f.type === "down");
-  const positiveFeedback = feedback.filter((f: any) => f.type === "up");
-  const improvementFeedback = feedback.filter((f: any) => f.type === "improve");
-  const autoDebugFeedback = feedback.filter((f: any) => f.type === "auto_debug");
-  const ideaFeedback = feedback.filter((f: any) => f.type === "idea");
-    const bugIdeas = ideaFeedback.filter((f: any) => f.source === "idea_bug");
+      const normalFeedback = data
+        .filter(i => i.type !== "workflow_status")
+        .map(i => {
+          const env = i.environment === "personal" ? "personal" : "default";
+          const scope = ["admin","guest","personal","user"].includes(i.userScope || "") ? i.userScope
+            : env === "personal" && i.user_id ? "personal" : i.user_id ? "user" : "guest";
+          return {
+            ...i, _localOnly: false, environment: env, userScope: scope, user_id: i.user_id || null,
+            learningType: i.learningType || (["down","improve","auto_debug"].includes(i.type || "") ? inferLearningType(i) : null),
+            workflowKey: i.workflowKey || [i.chatId || "", i.msgIndex ?? "", i.type || "", i.source || "", env, scope, i.user_id || "", i.userMessage || "", i.message || ""].join("::"),
+          };
+        })
+        .filter(i => isRenderable(i));
 
-  const autoDebugSignalCounts = {
-    casualMismatch: autoDebugFeedback.filter((f: any) => String(f.source || "").includes("auto_debug_casual_mismatch")).length,
-    searchMiss: autoDebugFeedback.filter((f: any) => String(f.source || "").includes("auto_debug_possible_search_miss")).length,
-    imageContextMiss: autoDebugFeedback.filter((f: any) => String(f.source || "").includes("auto_debug_possible_image_context_miss")).length,
-    weakSourceSupport: autoDebugFeedback.filter((f: any) => String(f.source || "").includes("auto_debug_weak_source_support")).length,
-    verboseImageRoute: autoDebugFeedback.filter((f: any) => String(f.source || "").includes("auto_debug_too_verbose_for_image_route")).length,
-  };
+      const source = ok ? normalFeedback : hasServerRef.current ? latestRef.current : [];
+      const deduped = source.filter((i, idx, arr) => idx === arr.findIndex(x => getItemKey(x) === getItemKey(i)));
+      const sorted = [...deduped].sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime());
+      latestRef.current = sorted;
+      setFeedback(sorted);
+    };
 
-  const autoDebugConfidenceCounts = {
-    high: autoDebugFeedback.filter((f: any) => getAutoDebugConfidence(f) === "high").length,
-    medium: autoDebugFeedback.filter((f: any) => getAutoDebugConfidence(f) === "medium").length,
-    low: autoDebugFeedback.filter((f: any) => getAutoDebugConfidence(f) === "low").length,
-  };
+    const run = () => load().catch(console.error);
+    run();
+    const poll = window.setInterval(run, 5000);
+    const onVis = () => { if (document.visibilityState === "visible") run(); };
+    window.addEventListener("openlura_feedback_update", run);
+    window.addEventListener("focus", run);
+    document.addEventListener("visibilitychange", onVis);
+    return () => { clearInterval(poll); window.removeEventListener("openlura_feedback_update", run); window.removeEventListener("focus", run); document.removeEventListener("visibilitychange", onVis); };
+  }, [isUnlocked]);
 
-  const autoDebugRouteCounts = {
-    fastText: autoDebugFeedback.filter((f: any) => getAutoDebugRouteType(f) === "fast_text").length,
-    fastImage: autoDebugFeedback.filter((f: any) => getAutoDebugRouteType(f) === "fast_image").length,
-    search: autoDebugFeedback.filter((f: any) => getAutoDebugRouteType(f) === "search").length,
-    default: autoDebugFeedback.filter((f: any) => getAutoDebugRouteType(f) === "default").length,
-  };
+  // ── Derived data ───────────────────────────────────────────────────────────
+  const neg = feedback.filter(f => f.type === "down");
+  const pos = feedback.filter(f => f.type === "up");
+  const improve = feedback.filter(f => f.type === "improve");
+  const autoDebug = feedback.filter(f => f.type === "auto_debug");
+  const ideas = feedback.filter(f => f.type === "idea");
+  const bugs = ideas.filter(f => f.source === "idea_bug");
+  const adjustments = ideas.filter(f => f.source === "idea_adjustment");
+  const learningIdeas = ideas.filter(f => f.source === "idea_feedback_learning");
 
-  const autoDebugLearningTypeCounts = {
-    style: autoDebugFeedback.filter((f: any) => inferLearningType(f) === "style").length,
-    content: autoDebugFeedback.filter((f: any) => inferLearningType(f) === "content").length,
-  };
+  const score = feedback.length > 0 ? Math.round((pos.length / Math.max(pos.length + neg.length, 1)) * 100) : 0;
 
-  const adjustmentIdeas = ideaFeedback.filter((f: any) => f.source === "idea_adjustment");
-  const learningIdeas = ideaFeedback.filter((f: any) => f.source === "idea_feedback_learning");
+  // Implicit signals
+  const reformulations = feedback.filter(f => f.type === "auto_debug" && String(f.source || "").includes("auto_debug_reformulation"));
+  const followups = feedback.filter(f => f.type === "auto_debug" && String(f.source || "").includes("auto_debug_followup_depth"));
+  const longSessions = feedback.filter(f => f.type === "up" && String(f.source || "") === "implicit_long_session");
+  const qualityScore = longSessions.length + reformulations.length === 0 ? null
+    : Math.round((longSessions.length / Math.max(longSessions.length + reformulations.length, 1)) * 100);
 
-  const variantAFeedback = feedback.filter(
-    (f: any) => String(f.source || "").toLowerCase() === "ab_test_a"
-  );
-  const variantBFeedback = feedback.filter(
-    (f: any) => String(f.source || "").toLowerCase() === "ab_test_b"
-  );
+  // Learning pool
+  const learningPool = [...learningIdeas, ...improve, ...neg];
 
-  const variantAScore = {
-    up: variantAFeedback.filter((f: any) => f.type === "up").length,
-    down: variantAFeedback.filter((f: any) => f.type === "down").length,
-  };
+  const improvementTexts = improve.map(f => (f.message || "").toLowerCase().trim()).filter(Boolean);
+  const complaintKeywords = ["korter","te lang","shorter","too long","duidelijker","onduidelijk","clearer","unclear","te vaag","vague","meer context","more context","structure","structuur","wrong","incorrect"];
 
-  const variantBScore = {
-    up: variantBFeedback.filter((f: any) => f.type === "up").length,
-    down: variantBFeedback.filter((f: any) => f.type === "down").length,
-  };
-
-  const improvementTexts = improvementFeedback
-    .map((f: any) => (f.message || "").toLowerCase().trim())
-    .filter(Boolean);
-
-  const complaintKeywords = [
-    "korter",
-    "te lang",
-    "duidelijker",
-    "onduidelijk",
-    "te vaag",
-    "meer context",
-    "te veel tekst",
-    "andere structuur",
-    "niet goed",
-    "verkeerd",
-  ];
-
-    const topComplaints = useMemo(
-    () =>
-      complaintKeywords
-        .map((keyword) => ({
-          keyword,
-          count: improvementTexts.filter((text: string) => text.includes(keyword)).length,
-        }))
-        .filter((item) => item.count > 0)
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 5),
+  const topComplaints = useMemo(() =>
+    complaintKeywords
+      .map(kw => ({ keyword: kw, count: improvementTexts.filter(t => t.includes(kw)).length }))
+      .filter(i => i.count > 0)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 6),
     [improvementTexts]
   );
 
-    const bugNewCount = bugIdeas.filter(
-    (f: any) => getResolvedStatus(f) === "nieuw"
-  ).length;
-  const bugBezigCount = bugIdeas.filter(
-    (f: any) => getResolvedStatus(f) === "bezig"
-  ).length;
-
-  const learningPool = [
-    ...learningIdeas,
-    ...improvementFeedback,
-    ...negativeFeedback,
-  ];
-
-  const styleLearningPool = learningPool.filter(
-    (f: any) => inferLearningType(f) === "style"
-  );
-
-  const contentLearningPool = learningPool.filter(
-    (f: any) => inferLearningType(f) === "content"
-  );
-
-  const learningNewCount = learningPool.filter(
-    (f: any) => getResolvedStatus(f) === "nieuw"
-  ).length;
-  const learningBezigCount = learningPool.filter(
-    (f: any) => getResolvedStatus(f) === "bezig"
-  ).length;
-
-  const adjustmentNewCount = adjustmentIdeas.filter(
-    (f: any) => getResolvedStatus(f) === "nieuw"
-  ).length;
-  const adjustmentBezigCount = adjustmentIdeas.filter(
-    (f: any) => getResolvedStatus(f) === "bezig"
-  ).length;
-
-  const priorityItems = useMemo(
-    () =>
-      [
-        {
-          label: "Bugs",
-          count: bugIdeas.length,
-          type: "bug",
-          weightedCount: bugIdeas.length + bugNewCount * 2 + bugBezigCount,
-          priority:
-            bugIdeas.length + bugNewCount * 2 + bugBezigCount >= 8
-              ? "Hoog"
-              : bugIdeas.length + bugNewCount * 2 + bugBezigCount >= 4
-              ? "Middel"
-              : bugIdeas.length + bugNewCount * 2 + bugBezigCount >= 1
-              ? "Laag"
-              : "Geen",
-        },
-        {
-          label: "AI feedback",
-          count: learningPool.length,
-          type: "learning",
-          weightedCount: learningPool.length + learningNewCount * 2 + learningBezigCount,
-          priority:
-            learningPool.length + learningNewCount * 2 + learningBezigCount >= 12
-              ? "Hoog"
-              : learningPool.length + learningNewCount * 2 + learningBezigCount >= 6
-              ? "Middel"
-              : learningPool.length + learningNewCount * 2 + learningBezigCount >= 1
-              ? "Laag"
-              : "Geen",
-        },
-        {
-          label: "Aanpassingen",
-          count: adjustmentIdeas.length,
-          type: "adjustment",
-          weightedCount: adjustmentIdeas.length + adjustmentNewCount * 2 + adjustmentBezigCount,
-          priority:
-            adjustmentIdeas.length + adjustmentNewCount * 2 + adjustmentBezigCount >= 9
-              ? "Hoog"
-              : adjustmentIdeas.length + adjustmentNewCount * 2 + adjustmentBezigCount >= 4
-              ? "Middel"
-              : adjustmentIdeas.length + adjustmentNewCount * 2 + adjustmentBezigCount >= 1
-              ? "Laag"
-              : "Geen",
-        },
-      ].sort((a, b) => b.weightedCount - a.weightedCount),
-    [
-      bugIdeas.length,
-      bugNewCount,
-      bugBezigCount,
-      learningPool.length,
-      learningNewCount,
-      learningBezigCount,
-      adjustmentIdeas.length,
-      adjustmentNewCount,
-      adjustmentBezigCount,
-    ]
-  );
-
-    const feedbackScore =
-    feedback.length > 0
-      ? Math.round((positiveFeedback.length / (positiveFeedback.length + negativeFeedback.length || 1)) * 100)
-      : 0;
-
-            const workflowCounts = {
-    nieuw: filteredFeedback.filter((f: any) => getResolvedStatus(f) === "nieuw").length,
-    bezig: filteredFeedback.filter((f: any) => getResolvedStatus(f) === "bezig").length,
-    klaar: filteredFeedback.filter((f: any) => getResolvedStatus(f) === "klaar").length,
-  };
-
-  const autoLearningItems = learningIdeas.filter(
-    (f: any) => f.userMessage === "Auto learning insight"
-  );
-
-  const manualLearningItems = learningIdeas.filter(
-    (f: any) => f.userMessage === "AI insight action"
-  );
-
-  void autoLearningItems;
-  void manualLearningItems;
-
   const activeLearningRules: string[] = [
-    topComplaints.some(
-      (c) => c.keyword.includes("korter") || c.keyword.includes("te lang")
-    ) && "Kortere antwoorden actief",
-    topComplaints.some(
-      (c) => c.keyword.includes("duidelijker") || c.keyword.includes("onduidelijk")
-    ) && "Duidelijkere uitleg actief",
-    topComplaints.some((c) => c.keyword.includes("structuur")) &&
-      "Strakkere structuur actief",
-    topComplaints.some((c) => c.keyword.includes("te vaag")) &&
-      "Concretere antwoorden actief",
-    topComplaints.some((c) => c.keyword.includes("meer context")) &&
-      "Meer context actief",
-    priorityItems[0]?.type === "bug" && "Bug focus actief",
+    topComplaints.some(c => c.keyword.includes("korter") || c.keyword.includes("shorter") || c.keyword.includes("te lang") || c.keyword.includes("too long")) && "Shorter answers active",
+    topComplaints.some(c => c.keyword.includes("duidelijker") || c.keyword.includes("clearer") || c.keyword.includes("onduidelijk") || c.keyword.includes("unclear")) && "Clearer explanations active",
+    topComplaints.some(c => c.keyword.includes("structuur") || c.keyword.includes("structure")) && "Better structure active",
+    topComplaints.some(c => c.keyword.includes("te vaag") || c.keyword.includes("vague")) && "More concrete answers active",
+    topComplaints.some(c => c.keyword.includes("meer context") || c.keyword.includes("more context")) && "More context active",
+    bugs.length > 0 && "Bug focus active",
   ].filter(Boolean) as string[];
 
-    const learningWorkflowCounts = {
-    nieuw: learningPool.filter(
-      (f: any) => getResolvedStatus(f) === "nieuw"
-    ).length,
-    bezig: learningPool.filter(
-      (f: any) => getResolvedStatus(f) === "bezig"
-    ).length,
-    klaar: learningPool.filter(
-      (f: any) => getResolvedStatus(f) === "klaar"
-    ).length,
+  // Language detection from userMessages
+  const languageCounts = feedback.reduce((acc: Record<string, number>, f) => {
+    const msg = (f.userMessage || "").toLowerCase();
+    if (!msg) return acc;
+    const lang = /\b(de|het|een|en|van|is|dat|wat|hoe|waar|ik|je|niet|ook)\b/.test(msg) ? "Dutch"
+      : /\b(le|la|les|un|une|et|est|que|qui|dans|pour)\b/.test(msg) ? "French"
+      : /\b(der|die|das|ein|und|ist|ich|du|wir|nicht)\b/.test(msg) ? "German"
+      : /\b(el|la|los|un|una|y|es|no|que|de)\b/.test(msg) ? "Spanish"
+      : "English";
+    acc[lang] = (acc[lang] || 0) + 1;
+    return acc;
+  }, {});
+
+  // Auto debug breakdown
+  const debugSignals = {
+    casualMismatch: autoDebug.filter(f => String(f.source || "").includes("auto_debug_casual_mismatch")).length,
+    searchMiss: autoDebug.filter(f => String(f.source || "").includes("auto_debug_possible_search_miss")).length,
+    imageMiss: autoDebug.filter(f => String(f.source || "").includes("auto_debug_possible_image_context_miss")).length,
+    verbose: autoDebug.filter(f => String(f.source || "").includes("auto_debug_too_verbose_for_image_route")).length,
+    highConf: autoDebug.filter(f => getAutoDebugConfidence(f) === "high").length,
+    medConf: autoDebug.filter(f => getAutoDebugConfidence(f) === "medium").length,
+    lowConf: autoDebug.filter(f => getAutoDebugConfidence(f) === "low").length,
   };
 
-  const globalLearningPool = learningPool.filter(
-    (f: any) => getUserScope(f) !== "personal" && f.environment !== "personal"
-  );
-  const personalLearningPool = learningPool.filter(
-    (f: any) => getUserScope(f) === "personal" || f.environment === "personal"
-  );
+  // Workflow counts
+  const bugNewCount = bugs.filter(f => getResolvedStatus(f) === "nieuw").length;
+  const bugBezigCount = bugs.filter(f => getResolvedStatus(f) === "bezig").length;
+  const bugDoneCount = bugs.filter(f => getResolvedStatus(f) === "klaar").length;
 
-  const globalLearningText = globalLearningPool
-    .map((f: any) => `${f.userMessage || ""} ${f.message || ""}`.toLowerCase())
-    .join(" ");
-
-  const personalLearningText = personalLearningPool
-    .map((f: any) => `${f.userMessage || ""} ${f.message || ""}`.toLowerCase())
-    .join(" ");
-
-  const globalActiveLearningRules: string[] = [
-    (globalLearningText.includes("korter") || globalLearningText.includes("te lang")) &&
-      "Kortere antwoorden globaal actief",
-    (globalLearningText.includes("duidelijker") || globalLearningText.includes("onduidelijk")) &&
-      "Duidelijkere uitleg globaal actief",
-    globalLearningText.includes("structuur") && "Betere structuur globaal actief",
-    globalLearningText.includes("te vaag") && "Concretere antwoorden globaal actief",
-    globalLearningText.includes("meer context") && "Meer context globaal actief",
-  ].filter(Boolean) as string[];
-
-  const personalActiveLearningRules: string[] = [
-    (personalLearningText.includes("korter") || personalLearningText.includes("te lang")) &&
-      "Kortere antwoorden persoonlijk actief",
-    (personalLearningText.includes("duidelijker") || personalLearningText.includes("onduidelijk")) &&
-      "Duidelijkere uitleg persoonlijk actief",
-    personalLearningText.includes("structuur") && "Betere structuur persoonlijk actief",
-    personalLearningText.includes("te vaag") && "Concretere antwoorden persoonlijk actief",
-    personalLearningText.includes("meer context") && "Meer context persoonlijk actief",
-  ].filter(Boolean) as string[];
-
-  const globalWeightedSignals = {
-    shorter: globalLearningPool.filter((f: any) =>
-      `${f.userMessage || ""} ${f.message || ""}`.toLowerCase().match(/korter|te lang|too long|shorter/)
-    ).length,
-    clearer: globalLearningPool.filter((f: any) =>
-      `${f.userMessage || ""} ${f.message || ""}`.toLowerCase().match(/duidelijker|onduidelijk|clearer|unclear/)
-    ).length,
-    structure: globalLearningPool.filter((f: any) =>
-      `${f.userMessage || ""} ${f.message || ""}`.toLowerCase().match(/andere structuur|structuur|structure/)
-    ).length,
-  };
-
-  const styleLearningCounts = {
-    global: globalLearningPool.filter((f: any) => inferLearningType(f) === "style").length,
-    personal: personalLearningPool.filter((f: any) => inferLearningType(f) === "style").length,
-    total: styleLearningPool.length,
-  };
-
-  const contentLearningCounts = {
-    global: globalLearningPool.filter((f: any) => inferLearningType(f) === "content").length,
-    personal: personalLearningPool.filter((f: any) => inferLearningType(f) === "content").length,
-    total: contentLearningPool.length,
-  };
-
-    const personalWeightedSignals = {
-    shorter: personalLearningPool.filter((f: any) =>
-      `${f.userMessage || ""} ${f.message || ""}`.toLowerCase().match(/korter|te lang|too long|shorter/)
-    ).length,
-    clearer: personalLearningPool.filter((f: any) =>
-      `${f.userMessage || ""} ${f.message || ""}`.toLowerCase().match(/duidelijker|onduidelijk|clearer|unclear/)
-    ).length,
-    structure: personalLearningPool.filter((f: any) =>
-      `${f.userMessage || ""} ${f.message || ""}`.toLowerCase().match(/andere structuur|structuur|structure/)
-    ).length,
-  };
-
-  const getLearningConfidence = (count: number) => {
-    if (count >= 6) return "High";
-    if (count >= 3) return "Medium";
-    if (count >= 1) return "Low";
-    return "None";
-  };
-
-  const getLearningConfidenceColor = (confidence: string) => {
-    if (confidence === "High") return "text-green-400";
-    if (confidence === "Medium") return "text-yellow-300";
-    if (confidence === "Low") return "text-blue-300";
-    return "text-white/40";
+  // ── Insight push ───────────────────────────────────────────────────────────
+  const pushInsight = async (key: string, message: string) => {
+    const sk = "openlura_auto_learning_insights";
+    const existing = safeParseJson<string[]>(localStorage.getItem(sk), []);
+    const alreadyIn = feedback.some(i => i.type === "idea" && i.source === "idea_feedback_learning" && i.userMessage === "Auto learning insight" && (i.message || "").trim() === message.trim());
+    if (existing.includes(key) || alreadyIn || pendingInsightsRef.current.has(key)) return;
+    pendingInsightsRef.current.add(key);
+    try {
+      const res = await fetch("/api/feedback", { method: "POST", headers: getHeaders(), body: JSON.stringify({ type: "idea", message, userMessage: "Auto learning insight", source: "idea_feedback_learning", learningType: "content", environment: "default" }) });
+      if (!res.ok) { pendingInsightsRef.current.delete(key); return; }
+      try { localStorage.setItem(sk, JSON.stringify([...existing, key])); } catch {}
+      pendingInsightsRef.current.delete(key);
+      window.dispatchEvent(new Event("openlura_feedback_update"));
+    } catch { pendingInsightsRef.current.delete(key); }
   };
 
   useEffect(() => {
     if (!isUnlocked || feedback.length === 0) return;
+    if (topComplaints.some(c => c.keyword.includes("korter") || c.keyword.includes("shorter") || c.keyword.includes("te lang") || c.keyword.includes("too long"))) pushInsight("shorter_answers", "AI replies are often too long. Always prefer shorter, more direct answers. Cut filler aggressively.");
+    if (topComplaints.some(c => c.keyword.includes("duidelijker") || c.keyword.includes("clearer") || c.keyword.includes("onduidelijk") || c.keyword.includes("unclear"))) pushInsight("clearer_explanations", "Users want clearer explanations and simpler wording. Avoid complex or vague phrasing.");
+    if (topComplaints.some(c => c.keyword.includes("structuur") || c.keyword.includes("structure"))) pushInsight("better_structure", "Users want cleaner structure and better flow in answers. Use clear sections and logical ordering.");
+    if (bugs.length > 0) pushInsight("bug_priority", "Bug reports are the highest priority. Acknowledge issues clearly and be precise in responses.");
+  }, [isUnlocked, feedback.length, topComplaints.map(i => `${i.keyword}:${i.count}`).join("|")]);
 
-    if (
-      topComplaints.some(
-        (c) => c.keyword.includes("korter") || c.keyword.includes("te lang")
-      )
-    ) {
-      pushAutoLearningInsight(
-        "shorter_answers",
-        "AI antwoorden zijn vaak te lang, geef kortere en directere antwoorden"
-      );
-    }
-
-    if (
-      topComplaints.some(
-        (c) => c.keyword.includes("duidelijker") || c.keyword.includes("onduidelijk")
-      )
-    ) {
-      pushAutoLearningInsight(
-        "clearer_explanations",
-        "Users willen duidelijkere uitleg en simpelere formulering in antwoorden"
-      );
-    }
-
-    if (topComplaints.some((c) => c.keyword.includes("structuur"))) {
-      pushAutoLearningInsight(
-        "better_structure",
-        "Users willen een duidelijkere structuur en betere opbouw in antwoorden"
-      );
-    }
-
-    if (priorityItems[0]?.type === "bug") {
-      pushAutoLearningInsight(
-        "bug_priority",
-        "Bugs hebben nu de hoogste prioriteit binnen analytics en moeten eerst opgepakt worden"
-      );
-    }
-  }, [
-    isUnlocked,
-    feedback.length,
-    topComplaints.map((item) => `${item.keyword}:${item.count}`).join("|"),
-    priorityItems.map((item) => `${item.type}:${item.weightedCount}:${item.priority}`).join("|"),
-  ]);
-
-useEffect(() => {
-  if (!isUnlocked) return;
-
-  const load = async () => {
-    const defaultLocalFeedback = safeParseJson<any[]>(
-      localStorage.getItem("openlura_feedback"),
-      []
-    );
-    const personalLocalFeedback = safeParseJson<any[]>(
-      localStorage.getItem("openlura_personal_feedback"),
-      []
-    );
-
-    setLocalFeedbackStats({
-      defaultCount: defaultLocalFeedback.length,
-      personalCount: personalLocalFeedback.length,
-      total: defaultLocalFeedback.length + personalLocalFeedback.length,
-    });
-
-    const localFeedback = [
-      ...defaultLocalFeedback.map((item: any) => ({
-        ...item,
-        environment: item.environment || "default",
-        userScope: item.userScope || "guest",
-      })),
-      ...personalLocalFeedback.map((item: any) => ({
-        ...item,
-        environment: item.environment || "personal",
-        userScope: item.userScope || "personal",
-      })),
-    ];
-
-    const normalizedLocal = localFeedback
-      .map((item: any) => {
-        const isImprovementItem =
-          item.type === "improve" ||
-          item.type === "improvement" ||
-          item.source === "improvement_reply" ||
-          item.userMessage === "Direct improvement feedback";
-
-        const normalizedType =
-          item.type === "idea"
-            ? "idea"
-            : isImprovementItem
-            ? "improve"
-            : item.type || "down";
-
-        const rawMessage = String(item.message || "").toLowerCase();
-
-        const normalizedSource =
-          normalizedType === "idea"
-            ? item.source ||
-              (rawMessage.includes("bug") ||
-              rawMessage.includes("werkt niet") ||
-              rawMessage.includes("error") ||
-              rawMessage.includes("fout") ||
-              rawMessage.includes("crash") ||
-              rawMessage.includes("stuk") ||
-              rawMessage.includes("kapot")
-                ? "idea_bug"
-                : rawMessage.includes("aanpassen") ||
-                  rawMessage.includes("aanpassing") ||
-                  rawMessage.includes("toevoegen") ||
-                  rawMessage.includes("maak") ||
-                  rawMessage.includes("zet") ||
-                  rawMessage.includes("verander") ||
-                  rawMessage.includes("wijzig")
-                ? "idea_adjustment"
-                : rawMessage.includes("ai") ||
-                  rawMessage.includes("antwoord") ||
-                  rawMessage.includes("reageer") ||
-                  rawMessage.includes("korter") ||
-                  rawMessage.includes("duidelijker") ||
-                  rawMessage.includes("beter") ||
-                  rawMessage.includes("leren")
-                ? "idea_feedback_learning"
-                : "idea_adjustment")
-            : item.source;
-
-        const resolvedEnvironment =
-          item.environment === "personal" ? "personal" : "default";
-        const resolvedUserScope =
-          item.userScope === "admin" ||
-          item.userScope === "guest" ||
-          item.userScope === "personal" ||
-          item.userScope === "user"
-            ? item.userScope
-            : resolvedEnvironment === "personal"
-            ? "personal"
-            : item.user_id
-            ? "user"
-            : "guest";
-
-        const resolvedUserId =
-          item.user_id || (resolvedEnvironment === "personal" ? "local_personal" : null);
-
-        return {
-          ...item,
-          _localOnly: true,
-          type: normalizedType,
-          source: normalizedSource,
-          environment: resolvedEnvironment,
-          userScope: resolvedUserScope,
-          user_id: resolvedUserId,
-          learningType:
-            item.learningType ||
-            (normalizedType === "down" ||
-            normalizedType === "improve" ||
-            normalizedType === "auto_debug"
-              ? inferLearningType({
-                  ...item,
-                  type: normalizedType,
-                  source: normalizedSource,
-                  user_id: resolvedUserId,
-                  environment: resolvedEnvironment,
-                  userScope: resolvedUserScope,
-                })
-              : null),
-          workflowKey:
-            item.workflowKey ||
-            [
-              item.chatId || "",
-              item.msgIndex ?? "",
-              normalizedType || "",
-              normalizedSource || "",
-              resolvedEnvironment,
-              resolvedUserScope,
-              resolvedUserId || "",
-              item.userMessage || "",
-              item.message || "",
-            ].join("::"),
-        } satisfies AnalyticsFeedbackItem;
-      })
-      .filter((item: AnalyticsFeedbackItem) => isRenderableAnalyticsItem(item));
-
-    let data: AnalyticsFeedbackItem[] = [];
-    let serverFetchSucceeded = false;
-
-  try {
-    const res = await fetch("/api/feedback", {
-      method: "GET",
-      headers: getOpenLuraRequestHeaders(false, { includeUserId: false }),
-      cache: "no-store",
-    });
-
-    if (res.status === 401) {
-      setIsUnlocked(false);
-      setFeedback([]);
-      latestFeedbackRef.current = [];
-      hasLoadedServerTruthRef.current = false;
-      setItemStatus({});
-      if (typeof window !== "undefined") {
-        sessionStorage.removeItem(ANALYTICS_UNLOCK_STORAGE_KEY);
-      }
-      return;
-    }
-
-    if (!res.ok) {
-      throw new Error("Feedback ophalen mislukt");
-    }
-
-    const rawData: unknown = await res.json();
-    data = Array.isArray(rawData) ? rawData : [];
-    serverFetchSucceeded = true;
-  } catch (error) {
-    console.warn("Analytics server tijdelijk niet bereikbaar", error);
-  }
-
-  const workflowEntries = data.filter(
-    (item: AnalyticsFeedbackItem) =>
-      item.type === "workflow_status" &&
-      item.source === "analytics_workflow" &&
-      item.workflowKey &&
-      item.workflowStatus
-  );
-
-  const serverStatusMap = workflowEntries
-    .sort(
-      (a: AnalyticsFeedbackItem, b: AnalyticsFeedbackItem) =>
-        new Date(a.timestamp || 0).getTime() - new Date(b.timestamp || 0).getTime()
-    )
-    .reduce((acc: Record<string, string>, item: AnalyticsFeedbackItem) => {
-      if (item.workflowKey && item.workflowStatus) {
-        acc[item.workflowKey] = item.workflowStatus;
-      }
-      return acc;
-    }, {});
-
-  if (serverFetchSucceeded) {
-    hasLoadedServerTruthRef.current = true;
-    setItemStatus(serverStatusMap);
-  }
-
- const normalServerFeedback = data
-  .filter((item: AnalyticsFeedbackItem) => item.type !== "workflow_status")
-  .map((item: AnalyticsFeedbackItem) => {
-    const resolvedEnvironment =
-      item.environment === "personal" ? "personal" : "default";
-    const resolvedUserScope =
-      item.userScope === "admin" ||
-      item.userScope === "guest" ||
-      item.userScope === "personal" ||
-      item.userScope === "user"
-        ? item.userScope
-        : resolvedEnvironment === "personal" && item.user_id
-        ? "personal"
-        : item.user_id
-        ? "user"
-        : "guest";
-
-    return {
-      ...item,
-      _localOnly: false,
-      environment: resolvedEnvironment,
-      userScope: resolvedUserScope,
-      user_id: item.user_id || null,
-      learningType:
-        item.learningType ||
-        (item.type === "down" || item.type === "improve" || item.type === "auto_debug"
-          ? inferLearningType(item)
-          : null),
-      workflowKey:
-        item.workflowKey ||
-        [
-          item.chatId || "",
-          item.msgIndex ?? "",
-          item.type || "",
-          item.source || "",
-          resolvedEnvironment,
-          resolvedUserScope,
-          item.user_id || "",
-          item.userMessage || "",
-          item.message || "",
-        ].join("::"),
-    };
-  })
-  .filter((item: AnalyticsFeedbackItem) => isRenderableAnalyticsItem(item));
-
-  const truthSource = serverFetchSucceeded
-    ? normalServerFeedback
-    : hasLoadedServerTruthRef.current
-    ? latestFeedbackRef.current
-    : normalizedLocal;
-
-  const deduped = truthSource.filter(
-    (item: AnalyticsFeedbackItem, index: number, arr: AnalyticsFeedbackItem[]) => {
-      const itemKey = getItemKey(item);
-
-      return index === arr.findIndex((x: AnalyticsFeedbackItem) => getItemKey(x) === itemKey);
-    }
-  );
-
-  const sorted = [...deduped].sort((a: AnalyticsFeedbackItem, b: AnalyticsFeedbackItem) => {
-    const timeA = a?.timestamp ? new Date(a.timestamp).getTime() : 0;
-    const timeB = b?.timestamp ? new Date(b.timestamp).getTime() : 0;
-    return timeB - timeA;
-  });
-
-  latestFeedbackRef.current = sorted;
-  setFeedback(sorted);
-};
-
-    const runLoad = () => {
-    load().catch((error) => {
-      console.error("Analytics load wrapper failed:", error);
-    });
-  };
-
-runLoad();
-
-const pollId = window.setInterval(() => {
-  runLoad();
-}, 5000);
-
-const handleVisibilityChange = () => {
-  if (document.visibilityState === "visible") {
-    runLoad();
-  }
-};
-
-window.addEventListener("openlura_feedback_update", runLoad);
-window.addEventListener("focus", runLoad);
-document.addEventListener("visibilitychange", handleVisibilityChange);
-
-return () => {
-  window.clearInterval(pollId);
-  window.removeEventListener("openlura_feedback_update", runLoad);
-  window.removeEventListener("focus", runLoad);
-  document.removeEventListener("visibilitychange", handleVisibilityChange);
-};
-}, [isUnlocked]);
-
-        const downloadCSV = (weekOnly = false) => {
-    const now = Date.now();
-    const weekMs = 7 * 24 * 60 * 60 * 1000;
-
-    const rows = feedback.filter((f) => {
-      if (f.type !== "up" && f.type !== "down" && f.type !== "improve" && f.type !== "idea") return false;
-      if (weekOnly && f.timestamp) {
-        const time = new Date(f.timestamp).getTime();
-        if (now - time > weekMs) return false;
-      }
-      return true;
-    });
-
-    const headers = ["type", "userMessage", "message", "source", "environment", "userScope", "learningType", "timestamp"];
-
-    const escape = (val: any) => {
-      const str = String(val ?? "").replace(/"/g, '""');
-      return `"${str}"`;
-    };
-
-    const csvContent = [
-      headers.join(","),
-      ...rows.map((f) =>
-        headers.map((h) => escape((f as any)[h])).join(",")
-      ),
-    ].join("\n");
-
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    const label = weekOnly ? "week" : "all";
-    a.download = `openlura-feedback-${label}-${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  const handleUnlock = async () => {
+  // ── Status update ──────────────────────────────────────────────────────────
+  const updateStatus = async (key: string, status: string) => {
+    const prev = itemStatus[key];
+    setItemStatus(s => ({ ...s, [key]: status }));
     try {
-      const res = await fetch("/api/feedback", {
-        method: "POST",
-        headers: getOpenLuraRequestHeaders(true, { includeUserId: false }),
-        body: JSON.stringify({
-          action: "unlock_analytics",
-          password: analyticsPassword,
-        }),
-      });
-
-      if (!res.ok) {
-        setIsUnlocked(false);
-
-        if (typeof window !== "undefined") {
-          sessionStorage.removeItem(ANALYTICS_UNLOCK_STORAGE_KEY);
-        }
-
-        setAuthError("Verkeerd wachtwoord");
-        return;
-      }
-
-      if (typeof window !== "undefined") {
-        sessionStorage.removeItem(ANALYTICS_UNLOCK_STORAGE_KEY);
-      }
-
-      setIsUnlocked(true);
-      setAuthError("");
-      setAnalyticsPassword("");
+      const item = feedback.find(f => getItemKey(f) === key);
+      if (!item) return;
+      const res = await fetch("/api/feedback", { method: "POST", headers: getHeaders(), body: JSON.stringify({ action: "update_workflow_status", chatId: item.chatId ?? null, msgIndex: item.msgIndex ?? null, type: "workflow_status", message: status, userMessage: item.userMessage ?? null, source: "analytics_workflow", environment: "default", workflowKey: key, workflowStatus: status }) });
+      if (!res.ok) throw new Error("sync failed");
       window.dispatchEvent(new Event("openlura_feedback_update"));
     } catch {
-      setIsUnlocked(false);
-      setAuthError("Inloggen mislukt");
+      setItemStatus(s => { const n = { ...s }; if (prev !== undefined) n[key] = prev; else delete n[key]; return n; });
     }
   };
 
-      function getItemKey(f: AnalyticsFeedbackItem) {
-    if (f.workflowKey?.trim()) {
-      return f.workflowKey.trim();
-    }
-
-    return [
-      f.chatId || "",
-      f.msgIndex ?? "",
-      f.type || "",
-      f.source || "",
-      f.environment || "",
-      f.userScope || "",
-      f.user_id || "",
-      f.userMessage || "",
-      f.message || "",
-    ].join("::");
-  }
-
-      function getAutoStatus(f: any) {
-    if (f.type === "up") return "klaar";
-    return "nieuw";
-  }
-
-  const pushAutoLearningInsight = async (key: string, message: string) => {
-    const storageKey = "openlura_auto_learning_insights";
-    const existing = safeParseJson<string[]>(
-      localStorage.getItem(storageKey),
-      []
-    );
-    const alreadyStoredInFeedback = feedback.some(
-      (item: AnalyticsFeedbackItem) =>
-        item.type === "idea" &&
-        item.source === "idea_feedback_learning" &&
-        item.userMessage === "Auto learning insight" &&
-        (item.message || "").trim() === message.trim()
-    );
-
-    if (
-      existing.includes(key) ||
-      alreadyStoredInFeedback ||
-      pendingAutoLearningInsightsRef.current.has(key)
-    ) {
-      return;
-    }
-
-    pendingAutoLearningInsightsRef.current.add(key);
-
+  // ── Unlock ─────────────────────────────────────────────────────────────────
+  const handleUnlock = async () => {
     try {
-      const res = await fetch("/api/feedback", {
-        method: "POST",
-        headers: getOpenLuraRequestHeaders(true, { includeUserId: false }),
-        body: JSON.stringify({
-          type: "idea",
-          message,
-          userMessage: "Auto learning insight",
-          source: "idea_feedback_learning",
-          learningType: "content",
-          environment: "default",
-        }),
-      });
-
-      if (!res.ok) {
-        pendingAutoLearningInsightsRef.current.delete(key);
-        return;
-      }
-
-      try {
-        localStorage.setItem(
-          storageKey,
-          JSON.stringify([...existing, key])
-        );
-      } catch {}
-
-      pendingAutoLearningInsightsRef.current.delete(key);
+      const res = await fetch("/api/feedback", { method: "POST", headers: getHeaders(), body: JSON.stringify({ action: "unlock_analytics", password }) });
+      if (!res.ok) { setIsUnlocked(false); setAuthError("Incorrect password"); return; }
+      setIsUnlocked(true); setAuthError(""); setPassword("");
       window.dispatchEvent(new Event("openlura_feedback_update"));
-    } catch (error) {
-      pendingAutoLearningInsightsRef.current.delete(key);
-      console.error("Auto learning sync failed:", error);
-    }
+    } catch { setIsUnlocked(false); setAuthError("Login failed"); }
   };
 
-        const handleInsightAction = async (action: string) => {
-    if (action === "focus_bug") {
-      const nextBug = bugIdeas.find(
-        (f: any) => getResolvedStatus(f) === "nieuw"
-      );
-
-      if (nextBug) {
-        await updateItemStatus(getItemKey(nextBug), "bezig");
-      }
-
-      return;
-    }
-
-    if (action === "shorter_answers") {
-      const res = await fetch("/api/feedback", {
-        method: "POST",
-        headers: getOpenLuraRequestHeaders(true, { includeUserId: false }),
-        body: JSON.stringify({
-          type: "idea",
-          message: "AI antwoorden zijn te lang, maak antwoorden korter en directer",
-          userMessage: "AI insight action",
-          source: "idea_feedback_learning",
-          learningType: "style",
-          environment: "default",
-        }),
-      });
-
-      if (!res.ok) {
-        throw new Error("AI insight action save failed");
-      }
-
-      window.dispatchEvent(new Event("openlura_feedback_update"));
-      return;
-    }
-
-    if (action === "clearer_structure") {
-      const res = await fetch("/api/feedback", {
-        method: "POST",
-        headers: getOpenLuraRequestHeaders(true, { includeUserId: false }),
-        body: JSON.stringify({
-          type: "idea",
-          message: "Veel users willen duidelijkere structuur en helderdere opbouw in antwoorden",
-          userMessage: "AI insight action",
-          source: "idea_feedback_learning",
-          learningType: "style",
-          environment: "default",
-        }),
-      });
-
-      if (!res.ok) {
-        throw new Error("AI insight action save failed");
-      }
-
-      window.dispatchEvent(new Event("openlura_feedback_update"));
-    }
+  const handleLogout = async () => {
+    try { await fetch("/api/feedback", { method: "DELETE", headers: getHeaders(false) }); } catch {}
+    try { localStorage.removeItem("openlura_auto_learning_insights"); } catch {}
+    if (typeof window !== "undefined") sessionStorage.removeItem(STORAGE_KEY);
+    setItemStatus({}); setIsUnlocked(false); setFeedback([]); latestRef.current = []; hasServerRef.current = false;
   };
 
-        const updateItemStatus = async (key: string, status: string) => {
-    const previousStatus = itemStatus[key];
-
-    setItemStatus((prev) => ({
-      ...prev,
-      [key]: status,
-    }));
-
-    try {
-      const item = feedback.find((f: AnalyticsFeedbackItem) => getItemKey(f) === key);
-
-      if (!item) {
-        return;
-      }
-
-      const res = await fetch("/api/feedback", {
-        method: "POST",
-        headers: getOpenLuraRequestHeaders(true, {
-          includeUserId: false,
-        }),
-        body: JSON.stringify({
-          action: "update_workflow_status",
-          chatId: item?.chatId ?? null,
-          msgIndex: item?.msgIndex ?? null,
-          type: "workflow_status",
-          message: status,
-          userMessage: item?.userMessage ?? null,
-          source: "analytics_workflow",
-          environment: "default",
-          workflowKey: key,
-          workflowStatus: status,
-        }),
-      });
-
-      if (!res.ok) {
-        throw new Error("Workflow status sync failed");
-      }
-
-      window.dispatchEvent(new Event("openlura_feedback_update"));
-    } catch (error) {
-      setItemStatus((prev) => {
-        const next = { ...prev };
-
-        if (previousStatus !== undefined) {
-          next[key] = previousStatus;
-        } else {
-          delete next[key];
-        }
-
-        return next;
-      });
-
-      console.error("Workflow status sync failed:", error);
-    }
+  const downloadCSV = (weekOnly = false) => {
+    const now = Date.now();
+    const rows = feedback.filter(f => {
+      if (!["up","down","improve","idea"].includes(f.type || "")) return false;
+      if (weekOnly && f.timestamp && now - new Date(f.timestamp).getTime() > 7 * 24 * 60 * 60 * 1000) return false;
+      return true;
+    });
+    const hdrs = ["type","userMessage","message","source","environment","userScope","learningType","timestamp"];
+    const esc = (v: any) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const csv = [hdrs.join(","), ...rows.map(f => hdrs.map(h => esc((f as any)[h])).join(","))].join("\n");
+    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
+    a.download = `openlura-feedback-${weekOnly ? "week" : "all"}-${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
   };
 
-            if (authLoading) {
-    return (
-      <main className="min-h-screen bg-[#050510] text-white p-6 flex items-center justify-center">
-        <div className="w-full max-w-sm bg-white/10 rounded-2xl p-6 text-center">
-          Analytics laden...
+  // ── Auth screens ───────────────────────────────────────────────────────────
+  if (authLoading) return (
+    <main className="min-h-screen bg-[#070710] text-white flex items-center justify-center">
+      <div className="text-center opacity-40 text-sm tracking-widest uppercase">Loading analytics...</div>
+    </main>
+  );
+
+  if (!isUnlocked) return (
+    <main className="min-h-screen bg-[#070710] text-white flex items-center justify-center">
+      <div className="w-full max-w-sm">
+        <div className="mb-8 text-center">
+          <p className="text-xs tracking-widest uppercase opacity-40 mb-2">OpenLura</p>
+          <h1 className="text-2xl font-bold">Analytics</h1>
         </div>
-      </main>
-    );
-  }
+        <form onSubmit={e => { e.preventDefault(); handleUnlock(); }} className="space-y-3">
+          <input type="password" name="analytics_password" autoComplete="current-password" value={password} onChange={e => { setPassword(e.target.value); if (authError) setAuthError(""); }} className="w-full px-4 py-3 rounded-xl bg-white/8 border border-white/10 outline-none focus:border-white/30 text-sm placeholder:opacity-30" placeholder="Password" />
+          {authError && <p className="text-red-400 text-sm">{authError}</p>}
+          <button type="submit" className="w-full py-3 bg-white text-black rounded-xl text-sm font-semibold hover:bg-white/90 transition-colors">Unlock</button>
+        </form>
+      </div>
+    </main>
+  );
 
-  if (!isUnlocked) {
-    return (
-      <main className="min-h-screen bg-[#050510] text-white p-6 flex items-center justify-center">
-        <div
-          className="w-full max-w-sm bg-white/10 rounded-2xl p-6"
-          data-lpignore="false"
-        >
-          <h1 className="text-2xl mb-2">🔐 Analytics Admin</h1>
-          <p className="text-sm opacity-60 mb-4">
-            Voer het wachtwoord in om analytics te openen
-          </p>
+  // ── MAIN DASHBOARD ─────────────────────────────────────────────────────────
 
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleUnlock();
-            }}
-          >
-            <input
-              type="password"
-              name="analytics_password"
-              autoComplete="current-password"
-              value={analyticsPassword}
-              onChange={(e) => {
-                setAnalyticsPassword(e.target.value);
-                if (authError) setAuthError("");
-              }}
-              className="w-full p-3 rounded-xl bg-white/10 mb-3 outline-none"
-              placeholder="Wachtwoord"
-            />
-
-            {authError && (
-              <p className="text-red-400 text-sm mb-3">{authError}</p>
-            )}
-
-            <button
-              type="submit"
-              className="w-full p-3 bg-purple-500 rounded-xl"
-            >
-              Ontgrendelen
-            </button>
-          </form>
-        </div>
-      </main>
-    );
-  }
+  const NAV = [
+    { id: "overview", label: "Overview" },
+    { id: "learning", label: "AI Learning" },
+    { id: "signals", label: "Signals" },
+    { id: "workflow", label: "Workflow" },
+    { id: "feed", label: "Feed" },
+  ] as const;
 
   return (
-    <main className="min-h-screen bg-[#050510] text-white p-6">
-      
-            <div className="flex items-center justify-between mb-6">
-  <h1 className="text-2xl">📊 OpenLura Analytics</h1>
-    <button
-    onClick={() => downloadCSV(true)}
-    className="text-xs px-3 py-1 bg-green-500/20 rounded-lg hover:bg-green-500/30 text-green-300"
-  >
-    ↓ Deze week
-  </button>
+    <main className="min-h-screen bg-[#070710] text-white">
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap');
+        body { font-family: 'DM Sans', sans-serif; }
+        .mono { font-family: 'DM Mono', monospace; }
+        .bg-white\\/8 { background: rgba(255,255,255,0.08); }
+        .border-white\\/8 { border-color: rgba(255,255,255,0.08); }
+      `}</style>
 
-  <button
-    onClick={() => downloadCSV(false)}
-    className="text-xs px-3 py-1 bg-white/10 rounded-lg hover:bg-white/20"
-  >
-    ↓ Alles
-  </button>
-
-  <button
-    onClick={async () => {
-      try {
-        await fetch("/api/feedback", {
-        method: "DELETE",
-        headers: getOpenLuraRequestHeaders(false, { includeUserId: false }),
-        });
-      } catch (error) {
-        console.error("Analytics logout failed:", error);
-      }
-
-      try {
-        localStorage.removeItem("openlura_auto_learning_insights");
-      } catch {}
-      if (typeof window !== "undefined") {
-        sessionStorage.removeItem(ANALYTICS_UNLOCK_STORAGE_KEY);
-      }
-      setItemStatus({});
-      setIsUnlocked(false);
-      setFeedback([]);
-      latestFeedbackRef.current = [];
-      hasLoadedServerTruthRef.current = false;
-    }}
-    className="text-xs px-3 py-1 bg-white/10 rounded-lg hover:bg-white/20"
-  >
-    Logout
-  </button>
-</div>
-
-      <p className="text-xs opacity-50 mb-4">
-  Environment: {typeof window !== "undefined" ? window.location.origin : ""}
-</p>
-
-  <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
-  <div className="p-4 bg-white/10 rounded-2xl">
-    <p className="text-xs opacity-60">Server items</p>
-    <p className="text-xl">{feedback.filter((f) => !f._localOnly).length}</p>
-  </div>
-
-  <div className="p-4 bg-white/10 rounded-2xl">
-    <p className="text-xs opacity-60">Lokale items</p>
-    <p className="text-xl">{localFeedbackStats.total}</p>
-  </div>
-
-  <div className="p-4 bg-white/10 rounded-2xl">
-    <p className="text-xs opacity-60">Admin items</p>
-    <p className="text-xl">{feedback.filter((f) => getUserScope(f) === "admin").length}</p>
-  </div>
-
-  <div className="p-4 bg-white/10 rounded-2xl">
-    <p className="text-xs opacity-60">User items</p>
-    <p className="text-xl">{feedback.filter((f) => getUserScope(f) === "user").length}</p>
-  </div>
-
-  <div className="p-4 bg-white/10 rounded-2xl">
-    <p className="text-xs opacity-60">Personal items</p>
-    <p className="text-xl">{feedback.filter((f) => getUserScope(f) === "personal").length}</p>
-  </div>
-
-  <div className="p-4 bg-white/10 rounded-2xl">
-    <p className="text-xs opacity-60">Totaal zichtbaar</p>
-    <p className="text-xl">{feedback.length}</p>
-  </div>
-</div>
-
-  <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6">
-
-  <button
-    onClick={() => setActiveTab("all")}
-    className={`p-4 rounded-xl text-left ${
-      activeTab === "all" ? "bg-white/20 ring-1 ring-white/30" : "bg-white/10"
-    }`}
-  >
-    <p className="text-xs opacity-60">Totaal</p>
-    <p className="text-xl">{feedback.length}</p>
-  </button>
-
-  <button
-    onClick={() => setActiveTab("positive")}
-    className={`p-4 rounded-xl text-left ${
-      activeTab === "positive" ? "bg-green-500/30 ring-1 ring-green-300/40" : "bg-green-500/20"
-    }`}
-  >
-    <p className="text-xs opacity-60">👍 Positief</p>
-    <p className="text-xl">{positiveFeedback.length}</p>
-  </button>
-
-  <button
-    onClick={() => setActiveTab("negative")}
-    className={`p-4 rounded-xl text-left ${
-      activeTab === "negative" ? "bg-red-500/30 ring-1 ring-red-300/40" : "bg-red-500/20"
-    }`}
-  >
-    <p className="text-xs opacity-60">👎 Negatief</p>
-    <p className="text-xl">{negativeFeedback.length}</p>
-  </button>
-
-  <button
-    onClick={() => setActiveTab("improvement")}
-    className={`p-4 rounded-xl text-left ${
-      activeTab === "improvement" ? "bg-yellow-500/30 ring-1 ring-yellow-300/40" : "bg-yellow-500/20"
-    }`}
-  >
-    <p className="text-xs opacity-60">🛠️ Verbeter</p>
-    <p className="text-xl">{improvementFeedback.length}</p>
-  </button>
-
-  <button
-    onClick={() => setActiveTab("auto_debug")}
-    className={`p-4 rounded-xl text-left ${
-      activeTab === "auto_debug" ? "bg-purple-500/30 ring-1 ring-purple-300/40" : "bg-purple-500/20"
-    }`}
-  >
-    <p className="text-xs opacity-60">🧪 Auto Debug</p>
-    <p className="text-xl">{autoDebugFeedback.length}</p>
-  </button>
-
-  <div className="p-4 bg-white/10 rounded-xl">
-    <p className="text-xs opacity-60">📈 Score</p>
-    <p className="text-xl">{feedbackScore}%</p>
-  </div>
-
-      <div className="p-4 bg-white/10 rounded-xl">
-    <p className="text-xs opacity-60">🧠 Complaints</p>
-    <p className="text-xl">{topComplaints.length}</p>
-  </div>
-
-    <div className="p-4 bg-white/10 rounded-xl">
-    <p className="text-xs opacity-60">🔥 Top prioriteit</p>
-    <p className="text-xl">{priorityItems[0]?.label || "Geen"}</p>
-    <p className="text-xs opacity-60 mt-1">{priorityItems[0]?.priority || ""}</p>
-  </div>
-
-  <button
-    onClick={() => setActiveTab("ideas")}
-    className={`p-4 rounded-xl text-left ${
-      activeTab === "ideas" ? "bg-blue-500/30 ring-1 ring-blue-300/40" : "bg-blue-500/20"
-    }`}
-  >
-    <p className="text-xs opacity-60">💡 Ideeën</p>
-    <p className="text-xl">{ideaFeedback.length}</p>
-  </button>
-
-</div>
-
-      <div className="mb-6 flex flex-wrap gap-2">
-  <button
-    onClick={() => setActiveTab("all")}
-    className={`px-4 py-2 rounded-xl ${activeTab === "all" ? "bg-white text-black" : "bg-white/10 text-white"}`}
-  >
-    All
-  </button>
-  <button
-    onClick={() => setActiveTab("negative")}
-    className={`px-4 py-2 rounded-xl ${activeTab === "negative" ? "bg-red-400 text-black" : "bg-white/10 text-white"}`}
-  >
-    Negatief
-  </button>
-  <button
-    onClick={() => setActiveTab("positive")}
-    className={`px-4 py-2 rounded-xl ${activeTab === "positive" ? "bg-green-400 text-black" : "bg-white/10 text-white"}`}
-  >
-    Positief
-  </button>
-    <button
-    onClick={() => setActiveTab("improvement")}
-    className={`px-4 py-2 rounded-xl ${activeTab === "improvement" ? "bg-yellow-400 text-black" : "bg-white/10 text-white"}`}
-  >
-    Verbeter
-  </button>
-  <button
-    onClick={() => setActiveTab("auto_debug")}
-    className={`px-4 py-2 rounded-xl ${activeTab === "auto_debug" ? "bg-purple-400 text-black" : "bg-white/10 text-white"}`}
-  >
-    Auto Debug
-  </button>
-  <button
-    onClick={() => setActiveTab("ideas")}
-    className={`px-4 py-2 rounded-xl ${activeTab === "ideas" ? "bg-blue-400 text-black" : "bg-white/10 text-white"}`}
-  >
-    Ideeën
-  </button>
-</div>
-
-{activeTab === "ideas" && (
-  <div className="mb-6 flex flex-wrap gap-2">
-    <button
-      onClick={() => setIdeaFilter("all")}
-      className={`px-4 py-2 rounded-xl ${ideaFilter === "all" ? "bg-blue-400 text-black" : "bg-white/10 text-white"}`}
-    >
-      Alle ideeën ({ideaFeedback.length})
-    </button>
-    <button
-      onClick={() => setIdeaFilter("bug")}
-      className={`px-4 py-2 rounded-xl ${ideaFilter === "bug" ? "bg-red-400 text-black" : "bg-white/10 text-white"}`}
-    >
-      Bugs ({bugIdeas.length})
-    </button>
-    <button
-      onClick={() => setIdeaFilter("adjustment")}
-      className={`px-4 py-2 rounded-xl ${ideaFilter === "adjustment" ? "bg-yellow-400 text-black" : "bg-white/10 text-white"}`}
-    >
-      Aanpassingen ({adjustmentIdeas.length})
-    </button>
-    <button
-      onClick={() => setIdeaFilter("learning")}
-      className={`px-4 py-2 rounded-xl ${ideaFilter === "learning" ? "bg-green-400 text-black" : "bg-white/10 text-white"}`}
-    >
-      AI feedback ({learningIdeas.length})
-    </button>
-  </div>
-)}
-
-<div className="mb-6 flex flex-wrap gap-2">
-    <button
-    onClick={() => setWorkflowFilter("all")}
-    className={`px-4 py-2 rounded-xl ${workflowFilter === "all" ? "bg-white text-black" : "bg-white/10 text-white"}`}
-  >
-    Alles ({filteredFeedback.length})
-  </button>
-  <button
-    onClick={() => setWorkflowFilter("nieuw")}
-    className={`px-4 py-2 rounded-xl ${workflowFilter === "nieuw" ? "bg-blue-400 text-black" : "bg-white/10 text-white"}`}
-  >
-    Nieuw ({feedback.filter((f: AnalyticsFeedbackItem) =>
-  matchesCurrentAnalyticsFilters(f, "nieuw")
-).length})
-  </button>
-  <button
-    onClick={() => setWorkflowFilter("bezig")}
-    className={`px-4 py-2 rounded-xl ${workflowFilter === "bezig" ? "bg-yellow-400 text-black" : "bg-white/10 text-white"}`}
-  >
-    In behandeling ({feedback.filter((f: AnalyticsFeedbackItem) =>
-  matchesCurrentAnalyticsFilters(f, "bezig")
-).length})
-  </button>
-  <button
-    onClick={() => setWorkflowFilter("klaar")}
-    className={`px-4 py-2 rounded-xl ${workflowFilter === "klaar" ? "bg-green-400 text-black" : "bg-white/10 text-white"}`}
-  >
-    Klaar ({feedback.filter((f: AnalyticsFeedbackItem) =>
-  matchesCurrentAnalyticsFilters(f, "klaar")
-).length})
-  </button>
-</div>
-
-<div className="mb-6 flex flex-wrap gap-2">
-  <button
-    onClick={() => setLearningTypeFilter("all")}
-    className={`px-4 py-2 rounded-xl ${learningTypeFilter === "all" ? "bg-white text-black" : "bg-white/10 text-white"}`}
-  >
-    Alle learning
-  </button>
-  <button
-    onClick={() => setLearningTypeFilter("style")}
-    className={`px-4 py-2 rounded-xl ${learningTypeFilter === "style" ? "bg-purple-400 text-black" : "bg-white/10 text-white"}`}
-  >
-    Style
-  </button>
-  <button
-    onClick={() => setLearningTypeFilter("content")}
-    className={`px-4 py-2 rounded-xl ${learningTypeFilter === "content" ? "bg-cyan-400 text-black" : "bg-white/10 text-white"}`}
-  >
-    Content
-  </button>
-</div>
-
-{activeTab === "auto_debug" && (
-  <>
-    <div className="mb-4 flex flex-wrap gap-2">
-      <button
-        onClick={() => setAutoDebugConfidenceFilter("all")}
-        className={`px-4 py-2 rounded-xl ${autoDebugConfidenceFilter === "all" ? "bg-white text-black" : "bg-white/10 text-white"}`}
-      >
-        Alle confidence
-      </button>
-      <button
-        onClick={() => setAutoDebugConfidenceFilter("high")}
-        className={`px-4 py-2 rounded-xl ${autoDebugConfidenceFilter === "high" ? "bg-red-400 text-black" : "bg-white/10 text-white"}`}
-      >
-        High
-      </button>
-      <button
-        onClick={() => setAutoDebugConfidenceFilter("medium")}
-        className={`px-4 py-2 rounded-xl ${autoDebugConfidenceFilter === "medium" ? "bg-yellow-400 text-black" : "bg-white/10 text-white"}`}
-      >
-        Medium
-      </button>
-      <button
-        onClick={() => setAutoDebugConfidenceFilter("low")}
-        className={`px-4 py-2 rounded-xl ${autoDebugConfidenceFilter === "low" ? "bg-blue-400 text-black" : "bg-white/10 text-white"}`}
-      >
-        Low
-      </button>
-    </div>
-
-    <div className="mb-4 flex flex-wrap gap-2">
-      <button
-        onClick={() => setAutoDebugRouteFilter("all")}
-        className={`px-4 py-2 rounded-xl ${autoDebugRouteFilter === "all" ? "bg-white text-black" : "bg-white/10 text-white"}`}
-      >
-        Alle routes
-      </button>
-      <button
-        onClick={() => setAutoDebugRouteFilter("fast_text")}
-        className={`px-4 py-2 rounded-xl ${autoDebugRouteFilter === "fast_text" ? "bg-purple-400 text-black" : "bg-white/10 text-white"}`}
-      >
-        Fast text
-      </button>
-      <button
-        onClick={() => setAutoDebugRouteFilter("fast_image")}
-        className={`px-4 py-2 rounded-xl ${autoDebugRouteFilter === "fast_image" ? "bg-pink-400 text-black" : "bg-white/10 text-white"}`}
-      >
-        Fast image
-      </button>
-      <button
-        onClick={() => setAutoDebugRouteFilter("search")}
-        className={`px-4 py-2 rounded-xl ${autoDebugRouteFilter === "search" ? "bg-cyan-400 text-black" : "bg-white/10 text-white"}`}
-      >
-        Search
-      </button>
-      <button
-        onClick={() => setAutoDebugRouteFilter("default")}
-        className={`px-4 py-2 rounded-xl ${autoDebugRouteFilter === "default" ? "bg-green-400 text-black" : "bg-white/10 text-white"}`}
-      >
-        Default
-      </button>
-    </div>
-
-    <div className="mb-6 flex flex-wrap gap-2 items-start">
-      <button
-        onClick={() => setAutoDebugSignalFilter("all")}
-        className={`px-3 py-2 rounded-xl text-sm ${autoDebugSignalFilter === "all" ? "bg-white text-black" : "bg-white/10 text-white"}`}
-      >
-        Alle signalen
-      </button>
-      <button
-        onClick={() => setAutoDebugSignalFilter("casual_mismatch")}
-        className={`px-3 py-2 rounded-xl text-sm ${autoDebugSignalFilter === "casual_mismatch" ? "bg-orange-400 text-black" : "bg-white/10 text-white"}`}
-      >
-        Casual mismatch
-      </button>
-      <button
-        onClick={() => setAutoDebugSignalFilter("possible_search_miss")}
-        className={`px-3 py-2 rounded-xl text-sm ${autoDebugSignalFilter === "possible_search_miss" ? "bg-cyan-400 text-black" : "bg-white/10 text-white"}`}
-      >
-        Search miss
-      </button>
-      <button
-        onClick={() => setAutoDebugSignalFilter("possible_image_context_miss")}
-        className={`px-3 py-2 rounded-xl text-sm ${autoDebugSignalFilter === "possible_image_context_miss" ? "bg-pink-400 text-black" : "bg-white/10 text-white"}`}
-      >
-        Image miss
-      </button>
-      <button
-        onClick={() => setAutoDebugSignalFilter("weak_source_support")}
-        className={`px-3 py-2 rounded-xl text-sm ${autoDebugSignalFilter === "weak_source_support" ? "bg-yellow-400 text-black" : "bg-white/10 text-white"}`}
-      >
-        Weak sources
-      </button>
-      <button
-        onClick={() => setAutoDebugSignalFilter("too_verbose_for_image_route")}
-        className={`px-3 py-2 rounded-xl text-sm ${autoDebugSignalFilter === "too_verbose_for_image_route" ? "bg-red-400 text-black" : "bg-white/10 text-white"}`}
-      >
-        Verbose image
-      </button>
-    </div>
-  </>
-)}
-
-<div className="grid md:grid-cols-4 gap-4 mb-6">
-  <div className="p-4 bg-white/10 rounded-2xl">
-    <h2 className="text-lg mb-3">🚨 Top complaints</h2>
-    {topComplaints.length === 0 ? (
-      <p className="opacity-60 text-sm">Nog geen veelvoorkomende patronen.</p>
-    ) : (
-      <div className="space-y-2">
-        {topComplaints.map((item, i) => (
-          <div key={i} className="flex justify-between text-sm">
-            <span>{item.keyword}</span>
-            <span className="opacity-60">{item.count}x</span>
+      {/* Header */}
+      <header className="sticky top-0 z-20 bg-[#070710]/95 backdrop-blur-sm border-b border-white/8">
+        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center text-xs">📊</div>
+            <span className="text-sm font-semibold">OpenLura Analytics</span>
+            <span className="text-xs opacity-30 mono">{feedback.filter(f => !f._localOnly).length} items</span>
           </div>
-        ))}
-      </div>
-    )}
-  </div>
-
-  <div className="p-4 bg-white/10 rounded-2xl">
-    <h2 className="text-lg mb-3">🧪 AI debug</h2>
-    <div className="space-y-2 text-sm">
-      <div className="flex justify-between">
-        <span>Negatieve antwoorden</span>
-        <span className="opacity-60">{negativeFeedback.length}</span>
-      </div>
-      <div className="flex justify-between">
-        <span>Verbeterfeedback</span>
-        <span className="opacity-60">{improvementFeedback.length}</span>
-      </div>
-            <div className="flex justify-between">
-        <span>Positieve antwoorden</span>
-        <span className="opacity-60">{positiveFeedback.length}</span>
-      </div>
-      <div className="flex justify-between">
-        <span>Idea bugs</span>
-        <span className="opacity-60">{bugIdeas.length}</span>
-      </div>
-      <div className="flex justify-between">
-        <span>Idea aanpassingen</span>
-        <span className="opacity-60">{adjustmentIdeas.length}</span>
-      </div>
-      <div className="flex justify-between">
-        <span>Idea AI feedback</span>
-        <span className="opacity-60">{learningIdeas.length}</span>
-      </div>
-    </div>
-  </div>
-
-  <div className="p-4 bg-white/10 rounded-2xl">
-    <h2 className="text-lg mb-3">🤖 Auto Debug</h2>
-    <div className="space-y-2 text-sm">
-      <div className="flex justify-between">
-        <span>Totaal signalen</span>
-        <span className="opacity-60">{autoDebugFeedback.length}</span>
-      </div>
-      <div className="flex justify-between">
-        <span>High confidence</span>
-        <span className="opacity-60">{autoDebugConfidenceCounts.high}</span>
-      </div>
-      <div className="flex justify-between">
-        <span>Medium confidence</span>
-        <span className="opacity-60">{autoDebugConfidenceCounts.medium}</span>
-      </div>
-      <div className="flex justify-between">
-        <span>Low confidence</span>
-        <span className="opacity-60">{autoDebugConfidenceCounts.low}</span>
-      </div>
-      <div className="pt-2 border-t border-white/10 space-y-2">
-        <div className="flex justify-between">
-          <span>Fast text</span>
-          <span className="opacity-60">{autoDebugRouteCounts.fastText}</span>
+          <div className="flex items-center gap-2">
+            <button onClick={() => downloadCSV(true)} className="text-xs px-3 py-1.5 rounded-lg bg-white/6 hover:bg-white/10 transition-colors border border-white/8">↓ Week</button>
+            <button onClick={() => downloadCSV(false)} className="text-xs px-3 py-1.5 rounded-lg bg-white/6 hover:bg-white/10 transition-colors border border-white/8">↓ All</button>
+            <button onClick={handleLogout} className="text-xs px-3 py-1.5 rounded-lg bg-white/6 hover:bg-white/10 transition-colors border border-white/8 opacity-60">Logout</button>
+          </div>
         </div>
-        <div className="flex justify-between">
-          <span>Fast image</span>
-          <span className="opacity-60">{autoDebugRouteCounts.fastImage}</span>
-        </div>
-        <div className="flex justify-between">
-          <span>Search</span>
-          <span className="opacity-60">{autoDebugRouteCounts.search}</span>
-        </div>
-        <div className="flex justify-between">
-          <span>Default</span>
-          <span className="opacity-60">{autoDebugRouteCounts.default}</span>
-        </div>
-      </div>
-    </div>
-  </div>
 
-    <div className="p-4 bg-white/10 rounded-2xl">
-    <h2 className="text-lg mb-3">📌 Actieve filter</h2>
-    <p className="text-sm opacity-80 mb-2">
-      {activeTab === "all" && "Je ziet nu alle feedback."}
-      {activeTab === "negative" && "Je ziet nu alleen negatieve antwoorden."}
-      {activeTab === "positive" && "Je ziet nu alleen positieve antwoorden."}
-            {activeTab === "improvement" && "Je ziet nu alleen verbeterfeedback van gebruikers."}
-      {activeTab === "auto_debug" && "Je ziet nu automatisch gedetecteerde product- en route-signalen, opgeschoond tegen korte duplicate herhaling."}
-      {activeTab === "ideas" && "Je ziet nu alleen ingestuurde ideeën en algemene feedback."}
-    </p>
-    <p className="text-xs opacity-60">
-      {activeTab === "auto_debug"
-        ? autoDebugConfidenceFilter === "all" &&
-          autoDebugRouteFilter === "all" &&
-          autoDebugSignalFilter === "all"
-          ? "Auto Debug filters staan op alles."
-          : `Auto Debug filters: confidence = ${autoDebugConfidenceFilter}, route = ${autoDebugRouteFilter}, signaal = ${autoDebugSignalFilter}.`
-        : learningTypeFilter === "all"
-        ? "Learning type filter staat op alles."
-        : learningTypeFilter === "style"
-        ? "Je filtert nu op stijlfeedback zoals tone, lengte, duidelijkheid en structuur."
-        : "Je filtert nu op contentfeedback zoals antwoordvorm en succesvolle antwoordpatronen."}
-    </p>
-  </div>
-
-    <div className="p-4 bg-white/10 rounded-2xl">
-    <h2 className="text-lg mb-3">🚦 Auto priority</h2>
-    <div className="space-y-2 text-sm">
-      {priorityItems.map((item) => (
-        <div key={item.type} className="flex justify-between">
-          <span>{item.label}</span>
-                    <span className="opacity-60">
-            {item.priority} ({item.weightedCount})
-          </span>
-        </div>
-      ))}
-    </div>
-  </div>
-
-  <div className="p-4 bg-white/10 rounded-2xl">
-    <h2 className="text-lg mb-3">🗂️ Workflow</h2>
-    <div className="space-y-2 text-sm">
-      <div className="flex justify-between">
-        <span>Nieuw</span>
-        <span className="opacity-60">{workflowCounts.nieuw}</span>
-      </div>
-      <div className="flex justify-between">
-        <span>In behandeling</span>
-        <span className="opacity-60">{workflowCounts.bezig}</span>
-      </div>
-      <div className="flex justify-between">
-        <span>Klaar</span>
-        <span className="opacity-60">{workflowCounts.klaar}</span>
-      </div>
-    </div>
-  </div>
-</div>
-
-<div className="p-4 bg-white/10 rounded-2xl mb-6">
-  <h2 className="text-lg mb-3">🧭 Auto Debug signalen</h2>
-
-  <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-3 text-sm">
-    <div className="p-3 rounded-xl bg-white/5">
-      <p className="text-xs opacity-60 mb-2">Casual mismatch</p>
-      <p className="text-lg">{autoDebugSignalCounts.casualMismatch}</p>
-    </div>
-
-    <div className="p-3 rounded-xl bg-white/5">
-      <p className="text-xs opacity-60 mb-2">Possible search miss</p>
-      <p className="text-lg">{autoDebugSignalCounts.searchMiss}</p>
-    </div>
-
-    <div className="p-3 rounded-xl bg-white/5">
-      <p className="text-xs opacity-60 mb-2">Image context miss</p>
-      <p className="text-lg">{autoDebugSignalCounts.imageContextMiss}</p>
-    </div>
-
-    <div className="p-3 rounded-xl bg-white/5">
-      <p className="text-xs opacity-60 mb-2">Weak source support</p>
-      <p className="text-lg">{autoDebugSignalCounts.weakSourceSupport}</p>
-    </div>
-
-    <div className="p-3 rounded-xl bg-white/5">
-      <p className="text-xs opacity-60 mb-2">Verbose image route</p>
-      <p className="text-lg">{autoDebugSignalCounts.verboseImageRoute}</p>
-    </div>
-  </div>
-
-  <div className="grid md:grid-cols-2 gap-3 text-sm mt-4">
-    <div className="p-3 rounded-xl bg-white/5">
-      <p className="text-xs opacity-60 mb-2">Auto Debug style</p>
-      <p className="text-lg">{autoDebugLearningTypeCounts.style}</p>
-      <p className="text-[11px] opacity-50 mt-2">
-        Tone, length, structure, clarity
-      </p>
-    </div>
-
-    <div className="p-3 rounded-xl bg-white/5">
-      <p className="text-xs opacity-60 mb-2">Auto Debug content</p>
-      <p className="text-lg">{autoDebugLearningTypeCounts.content}</p>
-      <p className="text-[11px] opacity-50 mt-2">
-        Route choice, search/source usage, image context
-      </p>
-    </div>
-  </div>
-</div>
-
-<div className="p-4 bg-white/10 rounded-2xl mb-6">
-  <h2 className="text-lg mb-3">🧠 Learning visibility</h2>
-
-  <div className="grid md:grid-cols-3 lg:grid-cols-6 gap-3 mb-4 text-sm">
-    <div className="p-3 rounded-xl bg-white/5">
-      <p className="text-xs opacity-60 mb-1">Opgeslagen AI feedback</p>
-      <p className="text-lg">{learningPool.length}</p>
-    </div>
-    <div className="p-3 rounded-xl bg-white/5">
-      <p className="text-xs opacity-60 mb-1">Global + user learning</p>
-      <p className="text-lg">{globalLearningPool.length}</p>
-    </div>
-    <div className="p-3 rounded-xl bg-white/5">
-      <p className="text-xs opacity-60 mb-1">Personal learning</p>
-      <p className="text-lg">{personalLearningPool.length}</p>
-    </div>
-    <div className="p-3 rounded-xl bg-white/5">
-      <p className="text-xs opacity-60 mb-1">Style learning</p>
-      <p className="text-lg">{styleLearningCounts.total}</p>
-    </div>
-    <div className="p-3 rounded-xl bg-white/5">
-      <p className="text-xs opacity-60 mb-1">Content learning</p>
-      <p className="text-lg">{contentLearningCounts.total}</p>
-    </div>
-    <div className="p-3 rounded-xl bg-white/5">
-      <p className="text-xs opacity-60 mb-1">Actieve live rules</p>
-      <p className="text-lg">{activeLearningRules.length}</p>
-    </div>
-  </div>
-
-  <div className="grid md:grid-cols-2 gap-4 text-sm mb-4">
-    <div className="p-3 rounded-xl bg-white/5">
-      <p className="text-xs opacity-60 mb-2">Globaal actief in alle chats</p>
-      {globalActiveLearningRules.length === 0 ? (
-        <p className="opacity-60">Nog geen globale/user learning rules.</p>
-      ) : (
-        <div className="space-y-2">
-          {globalActiveLearningRules.map((rule, i) => (
-            <p key={i}>🌍 {rule}</p>
+        {/* Nav */}
+        <div className="max-w-6xl mx-auto px-6 flex gap-1 pb-2">
+          {NAV.map(n => (
+            <button key={n.id} onClick={() => setActiveSection(n.id)} className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-colors ${activeSection === n.id ? "bg-white/12 text-white" : "text-white/40 hover:text-white/70"}`}>
+              {n.label}
+            </button>
           ))}
         </div>
-      )}
-    </div>
+      </header>
 
-    <div className="p-3 rounded-xl bg-white/5">
-      <p className="text-xs opacity-60 mb-2">Persoonlijk / lokaal actief</p>
-      {personalActiveLearningRules.length === 0 ? (
-        <p className="opacity-60">Nog geen persoonlijke learning rules.</p>
-      ) : (
-        <div className="space-y-2">
-          {personalActiveLearningRules.map((rule, i) => (
-            <p key={i}>👤 {rule}</p>
-          ))}
-        </div>
-      )}
-    </div>
-  </div>
+      <div className="max-w-6xl mx-auto px-6 py-8">
 
-  <div className="grid md:grid-cols-2 gap-4 text-sm mb-4">
-    <div className="p-3 rounded-xl bg-white/5">
-      <p className="text-xs opacity-60 mb-2">Style learning split</p>
-      <div className="space-y-2">
-        <div className="flex justify-between">
-          <span>Totaal</span>
-          <span className="opacity-60">{styleLearningCounts.total}</span>
-        </div>
-        <div className="flex justify-between">
-          <span>Globaal</span>
-          <span className="opacity-60">{styleLearningCounts.global}</span>
-        </div>
-        <div className="flex justify-between">
-          <span>Persoonlijk</span>
-          <span className="opacity-60">{styleLearningCounts.personal}</span>
-        </div>
-      </div>
-    </div>
+        {/* ── OVERVIEW ──────────────────────────────────────────────────────── */}
+        {activeSection === "overview" && (
+          <div>
+            {/* KPIs */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+              <KPICard label="Feedback score" value={`${score}%`} sub={`${pos.length} positive · ${neg.length} negative`} color={score >= 70 ? "bg-emerald-500/10 border border-emerald-500/20" : score >= 50 ? "bg-yellow-500/10 border border-yellow-500/20" : "bg-red-500/10 border border-red-500/20"} />
+              <KPICard label="Total feedback" value={feedback.length} sub={`${localStats.total} local · ${feedback.filter(f => !f._localOnly).length} server`} />
+              <KPICard label="Session quality" value={qualityScore !== null ? `${qualityScore}%` : "—"} sub={`${longSessions.length} long · ${reformulations.length} reformulations`} color="bg-teal-500/10 border border-teal-500/20" />
+              <KPICard label="Auto Debug" value={autoDebug.length} sub={`${debugSignals.highConf} high · ${debugSignals.medConf} medium`} color="bg-purple-500/10 border border-purple-500/20" />
+            </div>
 
-    <div className="p-3 rounded-xl bg-white/5">
-      <p className="text-xs opacity-60 mb-2">Content learning split</p>
-      <div className="space-y-2">
-        <div className="flex justify-between">
-          <span>Totaal</span>
-          <span className="opacity-60">{contentLearningCounts.total}</span>
-        </div>
-        <div className="flex justify-between">
-          <span>Globaal</span>
-          <span className="opacity-60">{contentLearningCounts.global}</span>
-        </div>
-        <div className="flex justify-between">
-          <span>Persoonlijk</span>
-          <span className="opacity-60">{contentLearningCounts.personal}</span>
-        </div>
-      </div>
-    </div>
-  </div>
+            {/* Secondary KPIs */}
+            <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-8">
+              {[
+                { label: "Improve", value: improve.length, color: "text-yellow-400" },
+                { label: "Ideas", value: ideas.length, color: "text-blue-400" },
+                { label: "Bugs", value: bugs.length, color: "text-red-400" },
+                { label: "Adjustments", value: adjustments.length, color: "text-orange-400" },
+                { label: "AI feedback", value: learningIdeas.length, color: "text-green-400" },
+                { label: "Auto insights", value: reformulations.length + followups.length, color: "text-teal-400" },
+              ].map(k => (
+                <div key={k.label} className="bg-white/5 border border-white/8 rounded-xl p-4 text-center">
+                  <p className={`text-2xl font-bold mono ${k.color}`}>{k.value}</p>
+                  <p className="text-xs opacity-40 mt-1">{k.label}</p>
+                </div>
+              ))}
+            </div>
 
-    <div className="grid md:grid-cols-3 gap-4 text-sm mb-4">
-    <div className="p-3 rounded-xl bg-white/5">
-      <p className="text-xs opacity-60 mb-2">Global weighted signals</p>
-      <div className="space-y-2">
-        <div className="flex justify-between">
-          <span>Korter</span>
-          <span className="opacity-60">{globalWeightedSignals.shorter}</span>
-        </div>
-        <div className="flex justify-between">
-          <span>Duidelijker</span>
-          <span className="opacity-60">{globalWeightedSignals.clearer}</span>
-        </div>
-        <div className="flex justify-between">
-          <span>Structuur</span>
-          <span className="opacity-60">{globalWeightedSignals.structure}</span>
-        </div>
-      </div>
-      <div className="mt-3 pt-3 border-t border-white/10 space-y-2">
-        <div className="flex justify-between">
-          <span>Korter confidence</span>
-          <span className={getLearningConfidenceColor(getLearningConfidence(globalWeightedSignals.shorter))}>
-            {getLearningConfidence(globalWeightedSignals.shorter)}
-          </span>
-        </div>
-        <div className="flex justify-between">
-          <span>Duidelijker confidence</span>
-          <span className={getLearningConfidenceColor(getLearningConfidence(globalWeightedSignals.clearer))}>
-            {getLearningConfidence(globalWeightedSignals.clearer)}
-          </span>
-        </div>
-        <div className="flex justify-between">
-          <span>Structuur confidence</span>
-          <span className={getLearningConfidenceColor(getLearningConfidence(globalWeightedSignals.structure))}>
-            {getLearningConfidence(globalWeightedSignals.structure)}
-          </span>
-        </div>
-      </div>
-    </div>
+            {/* Active Learning Rules */}
+            <Section title="What the AI is learning right now" icon="🧠">
+              {activeLearningRules.length === 0 ? (
+                <Card><p className="text-sm opacity-40">No active learning rules yet. More feedback needed.</p></Card>
+              ) : (
+                <div className="grid md:grid-cols-2 gap-3">
+                  {activeLearningRules.map((rule, i) => (
+                    <div key={i} className="flex items-start gap-3 bg-emerald-500/8 border border-emerald-500/15 rounded-xl p-4">
+                      <span className="text-emerald-400 mt-0.5">✓</span>
+                      <div>
+                        <p className="text-sm font-medium">{translateLearningRule(rule, "en")}</p>
+                        <p className="text-xs opacity-40 mt-0.5">Active globally — injected into every AI response</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Section>
 
-    <div className="p-3 rounded-xl bg-white/5">
-      <p className="text-xs opacity-60 mb-2">Personal weighted signals</p>
-      <div className="space-y-2">
-        <div className="flex justify-between">
-          <span>Korter</span>
-          <span className="opacity-60">{personalWeightedSignals.shorter}</span>
-        </div>
-        <div className="flex justify-between">
-          <span>Duidelijker</span>
-          <span className="opacity-60">{personalWeightedSignals.clearer}</span>
-        </div>
-        <div className="flex justify-between">
-          <span>Structuur</span>
-          <span className="opacity-60">{personalWeightedSignals.structure}</span>
-        </div>
-      </div>
-      <div className="mt-3 pt-3 border-t border-white/10 space-y-2">
-        <div className="flex justify-between">
-          <span>Korter confidence</span>
-          <span className={getLearningConfidenceColor(getLearningConfidence(personalWeightedSignals.shorter))}>
-            {getLearningConfidence(personalWeightedSignals.shorter)}
-          </span>
-        </div>
-        <div className="flex justify-between">
-          <span>Duidelijker confidence</span>
-          <span className={getLearningConfidenceColor(getLearningConfidence(personalWeightedSignals.clearer))}>
-            {getLearningConfidence(personalWeightedSignals.clearer)}
-          </span>
-        </div>
-        <div className="flex justify-between">
-          <span>Structuur confidence</span>
-          <span className={getLearningConfidenceColor(getLearningConfidence(personalWeightedSignals.structure))}>
-            {getLearningConfidence(personalWeightedSignals.structure)}
-          </span>
-        </div>
-      </div>
-    </div>
+            {/* Top complaints */}
+            <Section title="Top complaints" icon="🚨">
+              <div className="grid md:grid-cols-2 gap-4">
+                <Card>
+                  {topComplaints.length === 0 ? (
+                    <p className="text-sm opacity-40">No complaint patterns detected yet.</p>
+                  ) : (
+                    <div>
+                      {topComplaints.map((c, i) => (
+                        <div key={i} className="flex items-center gap-3 py-2.5 border-b border-white/5 last:border-0">
+                          <div className="w-5 text-xs opacity-30 mono">{i + 1}</div>
+                          <span className="text-sm flex-1">{c.keyword}</span>
+                          <div className="flex items-center gap-2">
+                            <div className="h-1.5 rounded-full bg-white/10 w-16 overflow-hidden">
+                              <div className="h-full bg-red-400/60 rounded-full" style={{ width: `${Math.min(100, c.count * 20)}%` }} />
+                            </div>
+                            <span className="text-xs opacity-50 mono w-8 text-right">{c.count}x</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </Card>
 
-    <div className="p-3 rounded-xl bg-white/5">
-      <p className="text-xs opacity-60 mb-2">AI learning workflow</p>
-      <div className="space-y-2">
-        <div className="flex justify-between">
-          <span>Nieuw</span>
-          <span className="opacity-60">{learningWorkflowCounts.nieuw}</span>
-        </div>
-        <div className="flex justify-between">
-          <span>In behandeling</span>
-          <span className="opacity-60">{learningWorkflowCounts.bezig}</span>
-        </div>
-        <div className="flex justify-between">
-          <span>Klaar</span>
-          <span className="opacity-60">{learningWorkflowCounts.klaar}</span>
-        </div>
-      </div>
-      <p className="text-[11px] opacity-50 mt-3">
-        Style learning = tone, length, clarity, structure. Content learning = preferred answer shape and successful response patterns. Saved learningType is used first when available.
-      </p>
-    </div>
-  </div>
-</div>
-<div className="p-4 bg-white/10 rounded-2xl mb-6">
-  <h2 className="text-lg mb-3">🧪 A/B Learning Test</h2>
-
-  <div className="grid md:grid-cols-2 gap-4 text-sm">
-    <div className="p-3 rounded-xl bg-white/5">
-      <p className="text-xs opacity-60 mb-2">Variant A</p>
-      <div className="space-y-2">
-        <div className="flex justify-between">
-          <span>👍 Positief</span>
-          <span className="opacity-60">{variantAScore.up}</span>
-        </div>
-        <div className="flex justify-between">
-          <span>👎 Negatief</span>
-          <span className="opacity-60">{variantAScore.down}</span>
-        </div>
-      </div>
-    </div>
-
-    <div className="p-3 rounded-xl bg-white/5">
-      <p className="text-xs opacity-60 mb-2">Variant B</p>
-      <div className="space-y-2">
-        <div className="flex justify-between">
-          <span>👍 Positief</span>
-          <span className="opacity-60">{variantBScore.up}</span>
-        </div>
-        <div className="flex justify-between">
-          <span>👎 Negatief</span>
-          <span className="opacity-60">{variantBScore.down}</span>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<div className="p-4 bg-white/10 rounded-2xl mb-6">
-  <h2 className="text-lg mb-3">🤖 AI Actie Suggesties</h2>
-
-  <div className="space-y-2 text-sm">
-
-        {priorityItems[0]?.type === "bug" && (
-      <button
-        onClick={() => handleInsightAction("focus_bug")}
-        className="block text-left w-full p-3 rounded-xl bg-red-500/20 hover:bg-red-500/30"
-      >
-        🐞 Fix deze bug eerst (hoogste prioriteit)
-      </button>
-    )}
-
-        {topComplaints.some(c => c.keyword.includes("korter") || c.keyword.includes("te lang")) && (
-      <button
-        onClick={() => handleInsightAction("shorter_answers")}
-        className="block text-left w-full p-3 rounded-xl bg-yellow-500/20 hover:bg-yellow-500/30"
-      >
-        ✂️ AI antwoorden zijn te lang → maak ze korter
-      </button>
-    )}
-
-        {topComplaints.some(c => c.keyword.includes("duidelijker") || c.keyword.includes("onduidelijk")) && (
-      <button
-        onClick={() => handleInsightAction("clearer_structure")}
-        className="block text-left w-full p-3 rounded-xl bg-blue-500/20 hover:bg-blue-500/30"
-      >
-        🧠 Users willen duidelijkere uitleg
-      </button>
-    )}
-
-    {topComplaints.some(c => c.keyword.includes("structuur")) && (
-      <button
-        onClick={() => handleInsightAction("clearer_structure")}
-        className="block text-left w-full p-3 rounded-xl bg-purple-500/20 hover:bg-purple-500/30"
-      >
-        📐 Verbeter de structuur van antwoorden
-      </button>
-    )}
-
-    {negativeFeedback.length > positiveFeedback.length && (
-      <p>📉 Meer negatieve dan positieve feedback → herzie AI output</p>
-    )}
-
-  </div>
-</div>
-
-<div className="grid gap-4">
-        {filteredFeedback.length === 0 && (
-          <p className="opacity-60">No feedback yet...</p>
+                <Card>
+                  <p className="text-xs opacity-40 uppercase tracking-widest mb-3">User languages detected</p>
+                  {Object.entries(languageCounts).sort((a, b) => b[1] - a[1]).map(([lang, count]) => (
+                    <div key={lang} className="flex items-center gap-3 py-2 border-b border-white/5 last:border-0">
+                      <span className="text-sm flex-1">{lang}</span>
+                      <span className="text-xs opacity-50 mono">{count}</span>
+                    </div>
+                  ))}
+                  {Object.keys(languageCounts).length === 0 && <p className="text-sm opacity-40">No messages yet</p>}
+                </Card>
+              </div>
+            </Section>
+          </div>
         )}
 
-                        {filteredFeedback.map((f, i) => {
-  const itemKey = getItemKey(f);
-    const currentStatus = getResolvedStatus(f);
+        {/* ── AI LEARNING ───────────────────────────────────────────────────── */}
+        {activeSection === "learning" && (
+          <div>
+            <Section title="AI learning status" icon="🧠">
+              <div className="grid md:grid-cols-3 gap-4 mb-6">
+                <Card>
+                  <p className="text-xs opacity-40 uppercase tracking-widest mb-3">Learning pool</p>
+                  <Row label="Total signals" value={learningPool.length} />
+                  <Row label="Style signals" value={learningPool.filter(f => inferLearningType(f) === "style").length} />
+                  <Row label="Content signals" value={learningPool.filter(f => inferLearningType(f) === "content").length} />
+                  <Row label="From feedback" value={learningIdeas.length} />
+                  <Row label="From improvement" value={improve.length} />
+                  <Row label="From negative" value={neg.length} />
+                </Card>
+                <Card>
+                  <p className="text-xs opacity-40 uppercase tracking-widest mb-3">Style pressure</p>
+                  {[
+                    { label: "Shorter answers", count: improve.filter(f => /korter|shorter|te lang|too long/.test(`${f.userMessage||""} ${f.message||""}`.toLowerCase())).length },
+                    { label: "Clearer wording", count: improve.filter(f => /duidelijker|clearer|onduidelijk|unclear/.test(`${f.userMessage||""} ${f.message||""}`.toLowerCase())).length },
+                    { label: "Better structure", count: improve.filter(f => /structuur|structure/.test(`${f.userMessage||""} ${f.message||""}`.toLowerCase())).length },
+                    { label: "Less vague", count: improve.filter(f => /vaag|vague/.test(`${f.userMessage||""} ${f.message||""}`.toLowerCase())).length },
+                    { label: "More casual", count: improve.filter(f => /formeel|formal|natural|spontaner/.test(`${f.userMessage||""} ${f.message||""}`.toLowerCase())).length },
+                  ].map(s => (
+                    <div key={s.label} className="flex items-center gap-3 py-2 border-b border-white/5 last:border-0">
+                      <span className="text-sm flex-1">{s.label}</span>
+                      <div className="flex items-center gap-2">
+                        <div className="h-1.5 rounded-full bg-white/10 w-12 overflow-hidden">
+                          <div className="h-full bg-blue-400/60 rounded-full" style={{ width: `${Math.min(100, s.count * 25)}%` }} />
+                        </div>
+                        <span className={`text-xs mono w-4 ${s.count >= 3 ? "text-blue-400" : "opacity-40"}`}>{s.count}</span>
+                      </div>
+                    </div>
+                  ))}
+                </Card>
+                <Card>
+                  <p className="text-xs opacity-40 uppercase tracking-widest mb-3">Active rules</p>
+                  {activeLearningRules.length === 0 ? (
+                    <p className="text-sm opacity-40">No rules active yet</p>
+                  ) : activeLearningRules.map((rule, i) => (
+                    <div key={i} className="flex gap-2 py-2 border-b border-white/5 last:border-0">
+                      <span className="text-emerald-400 text-xs mt-0.5">●</span>
+                      <span className="text-sm">{rule}</span>
+                    </div>
+                  ))}
+                </Card>
+              </div>
+            </Section>
 
-  return (
-  <div key={i} className="p-4 bg-white/10 rounded-2xl">
-
-        <p className="text-xs opacity-60 mb-1">
-      {f.type === "improve"
-        ? "Verbeterfeedback"
-        : f.type === "auto_debug"
-        ? "Auto Debug signaal"
-        : f.type === "idea"
-        ? "Idee / Feedback"
-        : "User"}
-    </p>
-    <p className="mb-3">
-      {f.type === "auto_debug"
-        ? f.message
-        : f.type === "improve" || f.type === "idea"
-        ? f.message
-        : f.userMessage}
-    </p>
-
-    {f.type !== "improve" && f.type !== "idea" && f.type !== "auto_debug" && (
-      <>
-        <p className="text-xs opacity-60 mb-1">AI</p>
-        <p className="mb-3">{f.message}</p>
-      </>
-    )}
-
-        <div className="flex justify-between items-center gap-3 flex-wrap">
-      <span
-        className={
-          f.type === "up"
-            ? "text-green-400"
-            : f.type === "down"
-            ? "text-red-400"
-            : f.type === "idea"
-            ? f.source === "idea_bug"
-              ? "text-red-400"
-              : f.source === "idea_feedback_learning"
-              ? "text-green-400"
-              : "text-blue-400"
-            : "text-yellow-400"
-        }
-      >
-        {f.type === "up"
-          ? "👍 Positive"
-          : f.type === "down"
-          ? "👎 Negative"
-          : f.type === "auto_debug"
-          ? "🧪 Auto Debug"
-          : f.type === "idea"
-          ? f.source === "idea_bug"
-            ? "🐞 Bug"
-            : f.source === "idea_feedback_learning"
-            ? "🧠 AI feedback"
-            : "💡 Aanpassing"
-          : "🛠️ Verbeter feedback"}
-        {f.type === "auto_debug" && (
-          <span className="ml-2 text-xs opacity-70">
-            {autoDebugConfidenceFilter === "all" &&
-            autoDebugRouteFilter === "all" &&
-            autoDebugSignalFilter === "all"
-              ? "• filters: alles"
-              : `• ${autoDebugConfidenceFilter} / ${autoDebugRouteFilter} / ${autoDebugSignalFilter}`}
-          </span>
+            <Section title="Saved learning insights" icon="💡">
+              <div className="space-y-2">
+                {learningIdeas.length === 0 && <Card><p className="text-sm opacity-40">No learning insights saved yet.</p></Card>}
+                {learningIdeas.slice(0, 20).map((f, i) => (
+                  <div key={i} className="bg-white/4 border border-white/8 rounded-xl px-4 py-3 flex items-start gap-3">
+                    <span className="text-xs opacity-30 mono mt-0.5 w-5">{i + 1}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm">{f.message}</p>
+                      <div className="flex gap-2 mt-1.5">
+                        <Badge label={f.userMessage === "Auto learning insight" ? "Auto" : "Manual"} color="bg-white/8 text-white/50" />
+                        <Badge label={inferLearningType(f)} color={inferLearningType(f) === "style" ? "bg-purple-500/15 text-purple-400" : "bg-cyan-500/15 text-cyan-400"} />
+                        {f.timestamp && <span className="text-xs opacity-25">{new Date(f.timestamp).toLocaleDateString()}</span>}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Section>
+          </div>
         )}
-      </span>
 
-      <div className="flex items-center gap-2 ml-auto">
-                        <select
-          value={currentStatus}
-          onChange={(e) => updateItemStatus(itemKey, e.target.value)}
-          className="px-3 py-1 rounded-lg bg-white/10 text-white text-sm [&>option]:text-black"
-        >
-          <option value="nieuw">Nieuw</option>
-          <option value="bezig">In behandeling</option>
-          <option value="klaar">Klaar</option>
-        </select>
+        {/* ── SIGNALS ──────────────────────────────────────────────────────── */}
+        {activeSection === "signals" && (
+          <div>
+            <Section title="Implicit conversation signals" icon="🔍">
+              <p className="text-xs opacity-40 mb-4">Detected automatically from conversation behavior — no thumbs required.</p>
+              <div className="grid md:grid-cols-3 gap-4 mb-6">
+                <Card className="border-teal-500/15">
+                  <p className="text-xs opacity-40 uppercase tracking-widest mb-2">🔁 Reformulations</p>
+                  <p className="text-3xl font-bold mono text-teal-400">{reformulations.length}</p>
+                  <p className="text-xs opacity-40 mt-2">User rephrased the same question — previous answer was unclear or unhelpful</p>
+                </Card>
+                <Card className="border-blue-500/15">
+                  <p className="text-xs opacity-40 uppercase tracking-widest mb-2">💬 Follow-up depth</p>
+                  <p className="text-3xl font-bold mono text-blue-400">{followups.length}</p>
+                  <p className="text-xs opacity-40 mt-2">User asked a follow-up — previous answer was incomplete</p>
+                </Card>
+                <Card className="border-emerald-500/15">
+                  <p className="text-xs opacity-40 uppercase tracking-widest mb-2">⏱️ Long sessions</p>
+                  <p className="text-3xl font-bold mono text-emerald-400">{longSessions.length}</p>
+                  <p className="text-xs opacity-40 mt-2">User stayed engaged — AI quality was strong</p>
+                </Card>
+              </div>
 
-        <span className="text-xs opacity-50">
-          {f?.timestamp ? new Date(f.timestamp).toLocaleString() : "-"}
-        </span>
+              {qualityScore !== null && (
+                <Card className="mb-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs opacity-40 uppercase tracking-widest mb-1">Session quality score</p>
+                      <p className="text-2xl font-bold mono">{qualityScore}%</p>
+                      <p className="text-xs opacity-40 mt-1">Long sessions ÷ (long sessions + reformulations) — higher is better</p>
+                    </div>
+                    <div className="w-20 h-20 rounded-full border-4 flex items-center justify-center" style={{ borderColor: qualityScore >= 70 ? "#34d399" : qualityScore >= 50 ? "#fbbf24" : "#f87171" }}>
+                      <span className="text-lg font-bold mono">{qualityScore}%</span>
+                    </div>
+                  </div>
+                </Card>
+              )}
+            </Section>
+
+            <Section title="Auto Debug signals" icon="🤖">
+              <div className="grid md:grid-cols-2 gap-4 mb-4">
+                <Card>
+                  <p className="text-xs opacity-40 uppercase tracking-widest mb-3">By type</p>
+                  <Row label="Casual mismatch" value={debugSignals.casualMismatch} />
+                  <Row label="Search miss" value={debugSignals.searchMiss} />
+                  <Row label="Image context miss" value={debugSignals.imageMiss} />
+                  <Row label="Verbose image route" value={debugSignals.verbose} />
+                  <Row label="Reformulation" value={reformulations.length} />
+                  <Row label="Follow-up depth" value={followups.length} />
+                </Card>
+                <Card>
+                  <p className="text-xs opacity-40 uppercase tracking-widest mb-3">By confidence</p>
+                  <Row label="High" value={debugSignals.highConf} accent="text-red-400" />
+                  <Row label="Medium" value={debugSignals.medConf} accent="text-yellow-400" />
+                  <Row label="Low" value={debugSignals.lowConf} accent="text-blue-400" />
+                  <div className="mt-3 pt-3 border-t border-white/5">
+                    <Row label="Style signals" value={autoDebug.filter(f => inferLearningType(f) === "style").length} />
+                    <Row label="Content signals" value={autoDebug.filter(f => inferLearningType(f) === "content").length} />
+                  </div>
+                </Card>
+              </div>
+            </Section>
+          </div>
+        )}
+
+        {/* ── WORKFLOW ──────────────────────────────────────────────────────── */}
+        {activeSection === "workflow" && (
+          <div>
+            <Section title="Idea & bug workflow" icon="🗂️">
+              <div className="grid md:grid-cols-3 gap-4 mb-6">
+                <Card>
+                  <p className="text-xs opacity-40 uppercase tracking-widest mb-3">🐞 Bugs</p>
+                  <p className="text-3xl font-bold mono text-red-400 mb-3">{bugs.length}</p>
+                  <Row label="New" value={bugNewCount} accent="text-blue-400" />
+                  <Row label="In progress" value={bugBezigCount} accent="text-yellow-400" />
+                  <Row label="Done" value={bugDoneCount} accent="text-emerald-400" />
+                </Card>
+                <Card>
+                  <p className="text-xs opacity-40 uppercase tracking-widest mb-3">🔧 Adjustments</p>
+                  <p className="text-3xl font-bold mono text-orange-400 mb-3">{adjustments.length}</p>
+                  <Row label="New" value={adjustments.filter(f => getResolvedStatus(f) === "nieuw").length} accent="text-blue-400" />
+                  <Row label="In progress" value={adjustments.filter(f => getResolvedStatus(f) === "bezig").length} accent="text-yellow-400" />
+                  <Row label="Done" value={adjustments.filter(f => getResolvedStatus(f) === "klaar").length} accent="text-emerald-400" />
+                </Card>
+                <Card>
+                  <p className="text-xs opacity-40 uppercase tracking-widest mb-3">🧠 AI feedback</p>
+                  <p className="text-3xl font-bold mono text-green-400 mb-3">{learningIdeas.length}</p>
+                  <Row label="Auto insights" value={learningIdeas.filter(f => f.userMessage === "Auto learning insight").length} />
+                  <Row label="Manual actions" value={learningIdeas.filter(f => f.userMessage === "AI insight action").length} />
+                  <Row label="User submitted" value={learningIdeas.filter(f => f.userMessage !== "Auto learning insight" && f.userMessage !== "AI insight action").length} />
+                </Card>
+              </div>
+
+              {/* Bug list */}
+              {bugs.length > 0 && (
+                <div>
+                  <p className="text-xs opacity-40 uppercase tracking-widest mb-3">Open bugs</p>
+                  <div className="space-y-2">
+                    {bugs.filter(f => getResolvedStatus(f) !== "klaar").map((f, i) => {
+                      const key = getItemKey(f);
+                      const status = getResolvedStatus(f);
+                      return (
+                        <div key={i} className="bg-white/4 border border-white/8 rounded-xl px-4 py-3 flex items-center gap-3">
+                          <span className="text-red-400 text-xs">🐞</span>
+                          <p className="text-sm flex-1">{f.message || f.userMessage}</p>
+                          <select value={status} onChange={e => updateStatus(key, e.target.value)} className="text-xs px-2 py-1 rounded-lg bg-white/8 border border-white/10 text-white [&>option]:text-black">
+                            <option value="nieuw">New</option>
+                            <option value="bezig">In progress</option>
+                            <option value="klaar">Done</option>
+                          </select>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </Section>
+          </div>
+        )}
+
+        {/* ── FEED ──────────────────────────────────────────────────────────── */}
+        {activeSection === "feed" && (
+          <div>
+            <Section title="Feedback feed" icon="📋">
+              <p className="text-xs opacity-40 mb-4">{feedback.length} items total · sorted by newest</p>
+              {feedback.length === 0 && <Card><p className="text-sm opacity-40">No feedback yet.</p></Card>}
+              <div className="space-y-2">
+                {feedback.slice(0, 100).map((f, i) => {
+                  const key = getItemKey(f);
+                  const status = getResolvedStatus(f);
+                  const typeColor = f.type === "up" ? "text-emerald-400" : f.type === "down" ? "text-red-400" : f.type === "auto_debug" ? "text-purple-400" : f.type === "idea" ? "text-blue-400" : "text-yellow-400";
+                  const typeLabel = f.type === "up" ? "👍 Positive" : f.type === "down" ? "👎 Negative" : f.type === "auto_debug" ? "🤖 Auto Debug" : f.type === "idea" ? (f.source === "idea_bug" ? "🐞 Bug" : f.source === "idea_feedback_learning" ? "🧠 Learning" : "💡 Idea") : "🛠️ Improve";
+
+                  return (
+                    <div key={i} className="bg-white/4 border border-white/8 rounded-xl px-4 py-3">
+                      <div className="flex items-start justify-between gap-3 mb-2">
+                        <span className={`text-xs font-medium ${typeColor}`}>{typeLabel}</span>
+                        <div className="flex items-center gap-2">
+                          <select value={status} onChange={e => updateStatus(key, e.target.value)} className="text-xs px-2 py-1 rounded-lg bg-white/8 border border-white/10 text-white [&>option]:text-black">
+                            <option value="nieuw">New</option>
+                            <option value="bezig">In progress</option>
+                            <option value="klaar">Done</option>
+                          </select>
+                          {f.timestamp && <span className="text-xs opacity-25 mono">{new Date(f.timestamp).toLocaleDateString()}</span>}
+                        </div>
+                      </div>
+                      <p className="text-sm opacity-80">
+                        {f.type === "auto_debug" || f.type === "improve" || f.type === "idea" ? f.message : f.userMessage}
+                      </p>
+                      {f.type !== "improve" && f.type !== "idea" && f.type !== "auto_debug" && f.message && (
+                        <p className="text-xs opacity-40 mt-1.5">AI: {f.message.slice(0, 120)}{f.message.length > 120 ? "…" : ""}</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </Section>
+          </div>
+        )}
+
       </div>
-    </div>
-
-  </div>
-);
-})}
-      </div>
-
     </main>
   );
 }

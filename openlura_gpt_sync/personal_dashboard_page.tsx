@@ -73,7 +73,7 @@ function getFirstDayOfMonth(year: number, month: number): number {
   return d === 0 ? 6 : d - 1; // Mon=0 .. Sun=6
 }
 
-const NL_WEEKDAYS_SHORT = ["Ma", "Di", "Wo", "Do", "Vr", "Za", "Zo"];
+// NL_WEEKDAYS_SHORT removed — use WEEKDAYS_SHORT[lang] instead
 const WEEKDAYS_SHORT: Record<string, string[]> = {
   nl: ["Ma", "Di", "Wo", "Do", "Vr", "Za", "Zo"],
   en: ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"],
@@ -83,7 +83,7 @@ const WEEKDAYS_SHORT: Record<string, string[]> = {
   pt: ["Se", "Te", "Qu", "Qu", "Se", "Sá", "Do"],
   hi: ["सो", "मं", "बु", "गु", "शु", "श", "र"],
 };
-const NL_WEEKDAYS = ["maandag", "dinsdag", "woensdag", "donderdag", "vrijdag", "zaterdag", "zondag"];
+// NL_WEEKDAYS removed — unused
 
 // ─── Colors ───────────────────────────────────────────────────────────────────
 
@@ -115,11 +115,15 @@ const COLORS: AgendaItem["color"][] = ["blue", "purple", "green", "amber"];
 function useLang() {
   if (typeof navigator === "undefined") return "en";
   const raw = (navigator.language || "en").toLowerCase();
+  if (raw.startsWith("pap")) return "en"; // fallback — pap not in LOCALE_MAP
   if (raw.startsWith("nl")) return "nl";
   if (raw.startsWith("de")) return "de";
   if (raw.startsWith("fr")) return "fr";
   if (raw.startsWith("es")) return "es";
   if (raw.startsWith("pt")) return "pt";
+  if (raw.startsWith("it")) return "en"; // fallback — it not in LOCALE_MAP
+  if (raw.startsWith("tr")) return "en"; // fallback — tr not in LOCALE_MAP
+  if (raw.startsWith("ar")) return "en"; // fallback — ar not in LOCALE_MAP
   if (raw.startsWith("hi")) return "hi";
   return "en";
 }
@@ -189,10 +193,10 @@ export default function PersonalDashboardPage() {
   // ── Quick cards ───────────────────────────────────────────────────────────
   const CARDS_KEY = "openlura_dashboard_cards";
   const DEFAULT_CARDS = [
-    { id: "agenda", emoji: "📅", title: "Agenda", desc: "Bekijk en plan je dag", href: "/personal-dashboard" },
-    { id: "workspace", emoji: "💬", title: "Chat", desc: "Open je AI werkruimte", href: "/personal-workspace" },
-    { id: "subscription", emoji: "💳", title: "Abonnement", desc: "Beheer je plan", href: "#subscription" },
-    { id: "photo-studio", emoji: "🎨", title: "Photo Studio", desc: "Genereer afbeeldingen met AI", href: "/photo-studio" },
+    { id: "agenda", emoji: "📅", title: "Agenda", desc: "View and plan your day", href: "/personal-dashboard" },
+    { id: "workspace", emoji: "💬", title: "Chat", desc: "Open your AI workspace", href: "/personal-workspace" },
+    { id: "subscription", emoji: "💳", title: "Subscription", desc: "Manage your plan", href: "#subscription" },
+    { id: "photo-studio", emoji: "🎨", title: "Photo Studio", desc: "Generate images with AI", href: "/photo-studio" },
   ];
 
   const [cards, setCards] = useState(() => {
@@ -202,11 +206,11 @@ export default function PersonalDashboardPage() {
       if (!raw) return DEFAULT_CARDS;
       const parsed = JSON.parse(raw);
       // Inject photo-studio if missing (new card added after cache)
-      // Verwijder dubbele "chat" kaart indien aanwezig
+      // Remove duplicate "chat" card if present
       let updated = parsed.filter((c: any) => c.id !== "chat");
-      // Inject photo-studio indien ontbreekt
+      // Inject photo-studio if missing
       if (!updated.some((c: any) => c.id === "photo-studio")) {
-        updated = [...updated, { id: "photo-studio", emoji: "🎨", title: "Photo Studio", desc: "Genereer afbeeldingen met AI", href: "/photo-studio" }];
+        updated = [...updated, { id: "photo-studio", emoji: "🎨", title: "Photo Studio", desc: "Generate images with AI", href: "/photo-studio" }];
       }
       localStorage.setItem(CARDS_KEY, JSON.stringify(updated));
       return updated;
@@ -446,17 +450,17 @@ export default function PersonalDashboardPage() {
                   <div className="flex gap-2">
                     <button type="button" onClick={() => saveCardEdit(card.id)}
                       className="flex-1 rounded-lg bg-[#3b82f6]/20 py-1 text-xs text-blue-300 hover:bg-[#3b82f6]/30 transition-colors">
-                      Opslaan
+                      {t("save", lang)}
                     </button>
                     <button type="button" onClick={() => setEditingCardId(null)}
                       className="flex-1 rounded-lg bg-white/[0.04] py-1 text-xs text-white/40 hover:bg-white/[0.08] transition-colors">
-                      Annuleren
+                      {t("cancel", lang)}
                     </button>
                   </div>
                 </div>
               ) : (
                 <>
-                  {/* Blur overlay voor locked cards */}
+                  {/* Lock overlay for gated cards */}
                   {(card.id === "agenda" || card.id === "photo-studio") && userTier === "free" ? (
                     <>
                       <div className="block select-none pointer-events-none opacity-40">
@@ -494,7 +498,7 @@ export default function PersonalDashboardPage() {
                       type="button"
                       onClick={() => startEditCard(card)}
                       className="absolute right-2.5 top-2.5 h-6 w-6 flex items-center justify-center rounded-full text-white/20 opacity-0 group-hover:opacity-100 transition-all hover:bg-white/[0.08] hover:text-white/60"
-                      title="Bewerken"
+                      title="Edit"
                     >
                       <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
                         <path d="M11.5 2.5l2 2L5 13H3v-2L11.5 2.5z" />
@@ -508,6 +512,20 @@ export default function PersonalDashboardPage() {
         </div>
 
         {/* Main grid: calendar left, day detail right */}
+        {userTier === "free" ? (
+          <div className="rounded-[20px] border border-dashed border-white/10 px-6 py-16 text-center">
+            <p className="text-3xl mb-4 opacity-30">📅</p>
+            <p className="text-sm font-medium text-white/50 mb-1">Agenda is a Go feature</p>
+            <p className="text-xs text-white/28 mb-5">Upgrade to Go to plan your day, set reminders, and use the AI calendar.</p>
+            <button
+              type="button"
+              onClick={handleUpgradeClick}
+              className="rounded-full bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-6 py-2.5 text-sm font-medium text-white shadow-[0_6px_16px_rgba(59,130,246,0.28)] hover:brightness-110 transition-all"
+            >
+              Upgrade to Go →
+            </button>
+          </div>
+        ) : (
         <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
 
           {/* LEFT: Day detail */}
@@ -522,7 +540,7 @@ export default function PersonalDashboardPage() {
                     : new Date(selectedDate + "T00:00:00").toLocaleDateString(lang === "nl" ? "nl-NL" : lang === "de" ? "de-DE" : lang === "fr" ? "fr-FR" : lang === "es" ? "es-ES" : lang === "pt" ? "pt-PT" : lang === "hi" ? "hi-IN" : "en-US", { weekday: "long", day: "numeric", month: "long" })}
                 </h2>
                 <p className="text-xs text-white/32 mt-0.5">
-                  {selectedItems.length === 0 ? "Niets gepland" : `${selectedItems.length} item${selectedItems.length !== 1 ? "s" : ""}`}
+                  {selectedItems.length === 0 ? "Nothing planned" : `${selectedItems.length} item${selectedItems.length !== 1 ? "s" : ""}`}
                 </p>
               </div>
               <button
@@ -537,7 +555,7 @@ export default function PersonalDashboardPage() {
                 <svg viewBox="0 0 24 24" className={`h-4 w-4 transition-transform duration-200 ${addOpen ? "rotate-45" : ""}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                   <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
                 </svg>
-                Toevoegen
+                {t("add", lang)}
               </button>
             </div>
 
@@ -551,7 +569,7 @@ export default function PersonalDashboardPage() {
                     value={newTitle}
                     onChange={e => setNewTitle(e.target.value)}
                     onKeyDown={e => { if (e.key === "Enter") addItem(); if (e.key === "Escape") setAddOpen(false); }}
-                    placeholder="Wat wil je inplannen?"
+                    placeholder="What do you want to plan?"
                     className="w-full rounded-xl border border-white/8 bg-white/[0.04] px-4 py-2.5 text-sm text-white/90 outline-none placeholder:text-white/24 focus:border-[#3b82f6]/28 transition-colors"
                   />
                   <div className="flex flex-wrap items-center gap-3">
@@ -576,18 +594,18 @@ export default function PersonalDashboardPage() {
                     </div>
                     <button type="button" onClick={addItem} disabled={!newTitle.trim()}
                       className="ml-auto rounded-xl border border-[#3b82f6]/24 bg-[#3b82f6]/14 px-4 py-2 text-sm text-[#93c5fd] transition-all hover:bg-[#3b82f6]/22 hover:text-white disabled:opacity-30 active:scale-[0.97]">
-                      Opslaan
+                      {t("save", lang)}
                     </button>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Agenda tijdlijn */}
+            {/* Agenda timeline */}
             {selectedAgenda.length > 0 && (
               <div className="rounded-[20px] border border-white/8 bg-white/[0.025] overflow-hidden">
                 <div className="px-5 py-3 border-b border-white/6">
-                  <p className="text-xs uppercase tracking-[0.14em] text-white/32">Agenda</p>
+                  <p className="text-xs uppercase tracking-[0.14em] text-white/32">{t("agenda", lang)}</p>
                 </div>
                 <div className="px-5 py-3 space-y-1">
                   {selectedAgenda.map((item, idx) => {
@@ -610,7 +628,7 @@ export default function PersonalDashboardPage() {
                             <div>
                               <p className={`text-sm ${item.done ? "line-through text-white/30" : "text-white/88"}`}>{item.title}</p>
                               {isNow && !item.done && (
-                                <span className={`text-[10px] font-medium uppercase tracking-wide ${COLOR_TEXT[item.color]}`}>Nu bezig</span>
+                                <span className={`text-[10px] font-medium uppercase tracking-wide ${COLOR_TEXT[item.color]}`}>Now</span>
                               )}
                             </div>
                             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -636,7 +654,7 @@ export default function PersonalDashboardPage() {
             {selectedTasks.length > 0 && (
               <div className="rounded-[20px] border border-white/8 bg-white/[0.025] overflow-hidden">
                 <div className="px-5 py-3 border-b border-white/6">
-                  <p className="text-xs uppercase tracking-[0.14em] text-white/32">Taken</p>
+                  <p className="text-xs uppercase tracking-[0.14em] text-white/32">{t("tasks", lang)}</p>
                 </div>
                 <div className="px-4 py-3 space-y-1.5">
                   {selectedTasks.map(item => (
@@ -656,7 +674,7 @@ export default function PersonalDashboardPage() {
               </div>
             )}
 
-            {/* Lege dag */}
+            {/* Empty day */}
             {selectedItems.length === 0 && !addOpen && (
               <div className="rounded-[20px] border border-dashed border-white/8 px-6 py-12 text-center">
                 <p className="text-2xl mb-3 opacity-20">📅</p>
@@ -666,11 +684,11 @@ export default function PersonalDashboardPage() {
             )}
           </div>
 
-          {/* RIGHT: Kalender */}
+          {/* RIGHT: Calendar */}
           <div className="flex flex-col gap-4">
             <div className="rounded-[20px] border border-white/8 bg-white/[0.025] overflow-hidden">
 
-              {/* Maand navigatie */}
+              {/* Month navigation */}
               <div className="flex items-center justify-between px-4 py-3 border-b border-white/6">
                 <button type="button" onClick={() => {
                   if (calMonth === 0) { setCalMonth(11); setCalYear(y => y - 1); }
@@ -690,16 +708,16 @@ export default function PersonalDashboardPage() {
                 </button>
               </div>
 
-              {/* Weekdag headers */}
+              {/* Weekday headers */}
               <div className="grid grid-cols-7 px-3 pt-3">
                 {(WEEKDAYS_SHORT[lang] ?? WEEKDAYS_SHORT.en).map(d => (
                   <div key={d} className="text-center text-[10px] uppercase tracking-wide text-white/24 pb-2">{d}</div>
                 ))}
               </div>
 
-              {/* Dagen */}
+              {/* Days */}
               <div className="grid grid-cols-7 gap-0.5 px-3 pb-3">
-                {/* Lege cellen voor eerste dag */}
+                {/* Empty cells before first day */}
                 {Array.from({ length: firstDay }).map((_, i) => <div key={`empty-${i}`} />)}
 
                 {Array.from({ length: daysInMonth }).map((_, i) => {
@@ -732,7 +750,7 @@ export default function PersonalDashboardPage() {
               </div>
             </div>
 
-            {/* Aankomende items */}
+            {/* Upcoming items */}
             {(() => {
               const upcoming = items
                 .filter(i => i.date > todayStr && !i.done)
@@ -749,7 +767,8 @@ export default function PersonalDashboardPage() {
                   <div className="px-4 py-2 space-y-1">
                     {upcoming.map(item => {
                       const d = new Date(item.date + "T00:00:00");
-                      const dayLabel = d.toLocaleDateString("nl-NL", { weekday: "short", day: "numeric", month: "short" });
+                      const locale = lang === "nl" ? "nl-NL" : lang === "de" ? "de-DE" : lang === "fr" ? "fr-FR" : lang === "es" ? "es-ES" : lang === "pt" ? "pt-PT" : lang === "hi" ? "hi-IN" : "en-US";
+                      const dayLabel = d.toLocaleDateString(locale, { weekday: "short", day: "numeric", month: "short" });
                       return (
                         <button key={item.id} type="button" onClick={() => { setSelectedDate(item.date); setCalYear(d.getFullYear()); setCalMonth(d.getMonth()); }}
                           className="w-full flex items-center gap-3 rounded-xl px-3 py-2 text-left hover:bg-white/[0.04] transition-colors group">
@@ -765,6 +784,7 @@ export default function PersonalDashboardPage() {
             })()}
           </div>
         </div>
+        )}
       </div>
 
       {showNameModal && (
@@ -855,7 +875,7 @@ export default function PersonalDashboardPage() {
                     }}
                     className="w-full rounded-[14px] border border-red-400/20 bg-red-400/[0.04] py-3 text-sm text-red-400/70 hover:text-red-300 hover:bg-red-400/[0.08] transition-all"
                   >
-                    Abonnement opzeggen
+                    Cancel subscription
                   </button>
                 </div>
               </>
