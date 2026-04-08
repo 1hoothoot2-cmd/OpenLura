@@ -50,7 +50,7 @@ ${content}`,
 
   // Convert to speech via ElevenLabs
   // Jessica (female) or Adam (male)
-  const voiceId = voice === "male" ? "pNInz6obpgDQGcFmaJgB" : "cgSgspJ2msm6clMCkdW9";
+  const voiceId = voice === "male" ? "onwK4e9ZLuTAKqWW03F9" : "cgSgspJ2msm6clMCkdW9";
   const ttsRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
     method: "POST",
     headers: {
