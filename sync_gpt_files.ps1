@@ -11,7 +11,9 @@ $filesToSync = @(
     @{ Source = "app\layout.tsx"; Destination = "layout.tsx" },
     @{ Source = "app\globals.css"; Destination = "globals.css" },
     @{ Source = "app\chat\page.tsx"; Destination = "chat_page.tsx" },
-
+    @{ Source = "app\photo-studio\page.tsx"; Destination = "photo_studio_page.tsx" },
+    
+    
     # ROUTES
     @{ Source = "app\api\chat\route.ts"; Destination = "chat_route.ts" },
     @{ Source = "app\api\feedback\route.ts"; Destination = "feedback_route.ts" },
@@ -20,12 +22,19 @@ $filesToSync = @(
     @{ Source = "app\api\prompts\route.ts"; Destination = "prompts_route.ts" },
     @{ Source = "app\auth\callback\page.tsx"; Destination = "auth_callback_page.tsx" },
     @{ Source = "app\api\voice\route.ts"; Destination = "voice_route.ts" },
-    
+    @{ Source = "app\api\image-generate\route.ts"; Destination = "image_generate_route.ts" },
+    @{ Source = "app\api\credits\route.ts"; Destination = "credits_route.ts" },
+    @{ Source = "app\api\fal-upload\route.ts"; Destination = "fal_upload_route.ts" },
+    @{ Source = "app\api\brain\notebooks\route.ts"; Destination = "brain_notebooks_route.ts" },
+    @{ Source = "app\api\brain\documents\route.ts"; Destination = "brain_documents_route.ts" },
+  
     # PAGES
     @{ Source = "app\analytics\page.tsx"; Destination = "analytics_page.tsx" },
     @{ Source = "app\personal-workspace\page.tsx"; Destination = "persoonlijke-omgeving_page.tsx" },
     @{ Source = "app\privacy\page.tsx"; Destination = "privacy_page.tsx" },
     @{ Source = "app\personal-dashboard\page.tsx"; Destination = "personal_dashboard_page.tsx" },
+    @{ Source = "app\brain\page.tsx"; Destination = "brain_page.tsx" },
+    @{ Source = "app\brain\[id\]\page.tsx"; Destination = "brain_id_page.tsx" },
 
     # MEMORY FILES
     @{ Source = "OPENLURA_PROJECT_MEMORY.md"; Destination = "OPENLURA_PROJECT_MEMORY.md" },
