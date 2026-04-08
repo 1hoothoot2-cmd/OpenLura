@@ -161,6 +161,37 @@ export default function NotebookDetailPage() {
   const [flashcardIndex, setFlashcardIndex] = useState(0);
   const [flashcardFlipped, setFlashcardFlipped] = useState(false);
 
+  // Audio mode
+  const [audioLoading, setAudioLoading] = useState(false);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
+
+  async function handleListen() {
+    if (audioLoading) return;
+    if (audioUrl) {
+      audioRef.current?.play();
+      return;
+    }
+    setAudioLoading(true);
+    try {
+      const res = await fetch("/api/brain/audio", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notebookId, notebookName: notebook?.name || "notebook" }),
+      });
+      if (!res.ok) throw new Error();
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      setAudioUrl(url);
+      setTimeout(() => audioRef.current?.play(), 100);
+    } catch {
+      console.error("Audio generation failed");
+    } finally {
+      setAudioLoading(false);
+    }
+  }
+
   async function runLearningTool(tool: "quiz" | "flashcards") {
     setLearningLoading(true);
     setLearningTool(tool);
@@ -454,6 +485,22 @@ export default function NotebookDetailPage() {
             </svg>
             Chat with notebook
           </a>
+          {docs.length > 0 && (
+            <button
+              type="button"
+              onClick={handleListen}
+              disabled={audioLoading}
+              className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-1.5 text-xs text-white/60 hover:border-white/20 hover:text-white disabled:opacity-40 transition-all active:scale-95"
+            >
+              {audioLoading
+                ? <><span className="h-3 w-3 rounded-full border border-white/20 border-t-white animate-spin" />Generating…</>
+                : <>🎧 Listen</>
+              }
+            </button>
+          )}
+          {audioUrl && (
+            <audio ref={audioRef} src={audioUrl} controls className="h-8 rounded-full opacity-60 hover:opacity-100 transition-opacity" />
+          )}
         </div>
       </div>
 
