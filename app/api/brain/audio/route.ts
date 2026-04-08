@@ -10,6 +10,18 @@ export async function POST(req: NextRequest) {
   const { notebookId, notebookName, voice } = await req.json();
   if (!notebookId) return NextResponse.json({ error: "Missing notebookId" }, { status: 400 });
 
+  // Check tier — audio only for pro
+  const tierRes = await fetch(
+    `${process.env.SUPABASE_URL}/rest/v1/user_usage?user_id=eq.${identity.identity.userId}&select=tier`,
+    { headers: { apikey: process.env.SUPABASE_SERVICE_ROLE_KEY!, Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY!}` } }
+  );
+  const tierRows = tierRes.ok ? await tierRes.json() : [];
+  const userTier = tierRows?.[0]?.tier || "free";
+
+  if (userTier === "free") {
+    return NextResponse.json({ error: "Audio mode requires a Go plan." }, { status: 403 });
+  }
+
   const supabaseUrl = process.env.SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 

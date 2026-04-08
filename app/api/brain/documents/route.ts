@@ -110,6 +110,25 @@ export async function POST(req: Request) {
   const owns = await verifyNotebookOwner(notebookId, userId);
   if (!owns) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  // Check tier + document limit
+  const tierRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/user_usage?user_id=eq.${encodeURIComponent(userId)}&select=tier`,
+    { headers: dbHeaders() }
+  );
+  const tierRows = tierRes.ok ? await tierRes.json() : [];
+  const tier = tierRows?.[0]?.tier || "free";
+
+  if (tier === "free") {
+    const docCountRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/brain_documents?notebook_id=eq.${encodeURIComponent(notebookId)}&user_id=eq.${encodeURIComponent(userId)}&select=id`,
+      { headers: dbHeaders() }
+    );
+    const docs = docCountRes.ok ? await docCountRes.json() : [];
+    if (Array.isArray(docs) && docs.length >= 10) {
+      return NextResponse.json({ error: "Free plan limit: max 10 documents per notebook. Upgrade to Go for unlimited." }, { status: 403 });
+    }
+  }
+
   const originalName = (file as any).name ?? "document";
   const safeFilename = sanitizeFilename(originalName);
   const fileType = resolveFileType(file.type, originalName);

@@ -10,11 +10,34 @@ export async function POST(req: NextRequest) {
   const { docName, content, docId, notebookId, quickAction, prompt, learningTool } = await req.json();
   if (!docName) return NextResponse.json({ error: "Missing docName" }, { status: 400 });
 
+  // Check tier — AI features only for pro
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const tierRes = await fetch(
+    `${supabaseUrl}/rest/v1/user_usage?user_id=eq.${identity.identity.userId}&select=tier`,
+    { headers: { apikey: serviceKey!, Authorization: `Bearer ${serviceKey!}` } }
+  );
+  const tierRows = tierRes.ok ? await tierRes.json() : [];
+  const userTier = tierRows?.[0]?.tier || "free";
+
+  if (userTier === "free") {
+    return NextResponse.json({ error: "AI features require a Go plan. Upgrade to use insights, quiz and flashcards." }, { status: 403 });
+  }
+
   // Quick action — fetch all notebook chunks and run custom prompt
   if (quickAction && prompt && notebookId) {
     try {
       const supabaseUrl = process.env.SUPABASE_URL;
       const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      // Verify notebook ownership
+      const ownerCheck = await fetch(
+        `${supabaseUrl}/rest/v1/brain_notebooks?id=eq.${notebookId}&user_id=eq.${identity.identity.userId}&select=id`,
+        { headers: { apikey: serviceKey!, Authorization: `Bearer ${serviceKey!}` } }
+      );
+      const ownerRows = ownerCheck.ok ? await ownerCheck.json() : [];
+      if (!Array.isArray(ownerRows) || ownerRows.length === 0) {
+        return NextResponse.json({ error: "Not found" }, { status: 404 });
+      }
       const chunkRes = await fetch(
         `${supabaseUrl}/rest/v1/brain_chunks?notebook_id=eq.${notebookId}&order=chunk_index.asc&limit=20&select=content`,
         {
@@ -50,6 +73,15 @@ export async function POST(req: NextRequest) {
     try {
       const supabaseUrl = process.env.SUPABASE_URL;
       const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      // Verify notebook ownership
+      const ownerCheck = await fetch(
+        `${supabaseUrl}/rest/v1/brain_notebooks?id=eq.${notebookId}&user_id=eq.${identity.identity.userId}&select=id`,
+        { headers: { apikey: serviceKey!, Authorization: `Bearer ${serviceKey!}` } }
+      );
+      const ownerRows = ownerCheck.ok ? await ownerCheck.json() : [];
+      if (!Array.isArray(ownerRows) || ownerRows.length === 0) {
+        return NextResponse.json({ error: "Not found" }, { status: 404 });
+      }
       const chunkRes = await fetch(
         `${supabaseUrl}/rest/v1/brain_chunks?notebook_id=eq.${notebookId}&order=chunk_index.asc&limit=20&select=content`,
         { headers: { apikey: serviceKey!, Authorization: `Bearer ${serviceKey!}` } }

@@ -102,6 +102,25 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Name is required (max 60 chars)" }, { status: 400 });
   }
 
+  // Check tier + notebook limit
+  const tierRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/user_usage?user_id=eq.${encodeURIComponent(userId)}&select=tier`,
+    { headers: supabaseHeaders() }
+  );
+  const tierRows = tierRes.ok ? await tierRes.json() : [];
+  const tier = tierRows?.[0]?.tier || "free";
+
+  if (tier === "free") {
+    const countRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/brain_notebooks?user_id=eq.${encodeURIComponent(userId)}&select=id`,
+      { headers: supabaseHeaders() }
+    );
+    const notebooks = countRes.ok ? await countRes.json() : [];
+    if (Array.isArray(notebooks) && notebooks.length >= 3) {
+      return NextResponse.json({ error: "Free plan limit: max 3 notebooks. Upgrade to Go for unlimited." }, { status: 403 });
+    }
+  }
+
   const description = sanitizeDesc((body as any)?.description);
   const emoji = sanitizeEmoji((body as any)?.emoji);
 
