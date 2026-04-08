@@ -256,6 +256,7 @@ export default function NotebookDetailPage() {
   }
 
   const [proRequired, setProRequired] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   async function generateInsights(docId: string, docName: string, content?: string) {
     if (insights[docId] || insightsLoading[docId]) return;
@@ -563,12 +564,13 @@ export default function NotebookDetailPage() {
               <p className="text-sm font-medium text-white/90">✦ Go plan required</p>
               <p className="text-xs text-white/46 mt-0.5">Insights, quiz, flashcards and audio are available on the Go plan.</p>
             </div>
-            <a
-              href="/personal-dashboard"
-              className="shrink-0 rounded-full bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-4 py-2 text-xs font-medium text-white shadow-[0_6px_16px_rgba(59,130,246,0.28)] hover:brightness-110 transition-all"
+            <button
+              type="button"
+              onClick={() => setShowUpgradeModal(true)}
+              className="shrink-0 rounded-full bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-4 py-2 text-xs font-medium text-white shadow-[0_6px_16px_rgba(59,130,246,0.28)] hover:brightness-110 transition-all active:scale-95"
             >
               Upgrade →
-            </a>
+            </button>
           </div>
         )}
 
@@ -852,6 +854,85 @@ export default function NotebookDetailPage() {
                   ? <><span className="h-3.5 w-3.5 rounded-full border-2 border-white/30 border-t-white animate-spin" />{tr("note_saving", lang)}</>
                   : tr("note_save", lang)
                 }
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showUpgradeModal && (
+        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-[420px] rounded-[28px] border border-white/10 bg-[#0a0f1e]/98 shadow-[0_24px_64px_rgba(0,0,0,0.50)] backdrop-blur-2xl overflow-hidden">
+
+            {/* Header */}
+            <div className="px-6 pt-6 pb-4 border-b border-white/6">
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-[11px] uppercase tracking-[0.16em] text-white/30">OpenLura</p>
+                <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-0.5 text-[10px] font-medium text-emerald-300">AVAILABLE NOW</span>
+              </div>
+              <h2 className="text-xl font-semibold tracking-tight text-white/95">Go</h2>
+              <p className="text-sm text-white/40 mt-0.5">For consistent usage and deeper workflows.</p>
+              <div className="mt-3">
+                <span className="text-2xl font-bold text-white/95">€4,99</span>
+                <span className="text-sm text-white/40 ml-1">/month</span>
+              </div>
+            </div>
+
+            {/* Features */}
+            <div className="px-6 py-4 space-y-2.5">
+              {[
+                "Unlimited messages per month",
+                "Web search — real sources, live info",
+                "Personal workspace with memory",
+                "Image upload & analysis",
+                "AI that adapts to your feedback",
+                "Photo Studio — generate & edit images with AI",
+              ].map(f => (
+                <div key={f} className="flex items-center gap-2.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#3b82f6]/70 shrink-0" />
+                  <p className="text-sm text-white/60">{f}</p>
+                </div>
+              ))}
+
+              <div className="mt-3 rounded-[14px] border border-[#3b82f6]/20 bg-[#3b82f6]/[0.06] px-4 py-3">
+                <p className="text-[11px] uppercase tracking-[0.14em] text-[#93c5fd]/60 mb-2">🧠 Brain — included</p>
+                {[
+                  "Unlimited notebooks & documents",
+                  "AI insights per document",
+                  "Quiz & flashcard generation",
+                  "Audio summaries with ElevenLabs",
+                  "Quick actions: summarize, key terms, questions",
+                ].map(f => (
+                  <div key={f} className="flex items-center gap-2 mt-1.5">
+                    <span className="text-[#3b82f6]/60 text-xs">✦</span>
+                    <p className="text-xs text-white/50">{f}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="px-6 pb-6 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setShowUpgradeModal(false)}
+                className="flex-1 rounded-[14px] bg-white/[0.04] py-2.5 text-sm text-white/50 hover:bg-white/[0.08] hover:text-white transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const res = await fetch("/api/stripe/checkout", { method: "POST", credentials: "include" });
+                    if (res.status === 401) { window.location.href = "/personal-workspace"; return; }
+                    const data = await res.json();
+                    if (data.url) window.location.href = data.url;
+                  } catch {}
+                }}
+                className="flex-1 rounded-[14px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] py-2.5 text-sm font-medium text-white shadow-[0_6px_16px_rgba(59,130,246,0.28)] hover:brightness-110 transition-all"
+              >
+                Get started with Go →
               </button>
             </div>
           </div>

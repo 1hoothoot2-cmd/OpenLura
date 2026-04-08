@@ -159,13 +159,13 @@ const T = {
   add_title:        { nl: "Titel", en: "Title", de: "Titel", fr: "Titre", es: "Título", pt: "Título", hi: "शीर्षक" },
   add_time:         { nl: "Tijd (optioneel)", en: "Time (optional)", de: "Zeit (optional)", fr: "Heure (optionnel)", es: "Hora (opcional)", pt: "Hora (opcional)", hi: "समय (वैकल्पिक)" },
   features: {
-    nl: ["📅 Agenda & planning", "🎨 Photo Studio — genereer tot 100 AI foto's per maand", "🧠 Persoonlijk AI geheugen", "⚡ Snellere antwoorden", "💬 Onbeperkte chats"],
-    en: ["📅 Agenda & planning", "🎨 Photo Studio — generate up to 100 AI photos per month", "🧠 Personal AI memory", "⚡ Faster responses", "💬 Unlimited chats"],
-    de: ["📅 Agenda & Planung", "🎨 Photo Studio — bis zu 100 KI-Fotos pro Monat", "🧠 Persönliches KI-Gedächtnis", "⚡ Schnellere Antworten", "💬 Unbegrenzte Chats"],
-    fr: ["📅 Agenda & planification", "🎨 Photo Studio — jusqu'à 100 photos IA par mois", "🧠 Mémoire IA personnelle", "⚡ Réponses plus rapides", "💬 Chats illimités"],
-    es: ["📅 Agenda & planificación", "🎨 Photo Studio — hasta 100 fotos IA al mes", "🧠 Memoria IA personal", "⚡ Respuestas más rápidas", "💬 Chats ilimitados"],
-    pt: ["📅 Agenda & planejamento", "🎨 Photo Studio — até 100 fotos IA por mês", "🧠 Memória IA pessoal", "⚡ Respostas mais rápidas", "💬 Chats ilimitados"],
-    hi: ["📅 एजेंडा और योजना", "🎨 फोटो स्टूडियो — प्रति माह 100 AI फ़ोटो", "🧠 व्यक्तिगत AI मेमोरी", "⚡ तेज़ जवाब", "💬 असीमित चैट"],
+    nl: ["📅 Agenda & planning", "🎨 Photo Studio — genereer tot 100 AI foto's per maand", "🧠 Persoonlijk AI geheugen", "⚡ Snellere antwoorden", "💬 Onbeperkte chats", "🧠 Brain — onbeperkte notebooks & documenten", "✦ AI insights, quiz, flashcards & audio samenvatting"],
+    en: ["📅 Agenda & planning", "🎨 Photo Studio — generate up to 100 AI photos per month", "🧠 Personal AI memory", "⚡ Faster responses", "💬 Unlimited chats", "🧠 Brain — unlimited notebooks & documents", "✦ AI insights, quiz, flashcards & audio summaries"],
+    de: ["📅 Agenda & Planung", "🎨 Photo Studio — bis zu 100 KI-Fotos pro Monat", "🧠 Persönliches KI-Gedächtnis", "⚡ Schnellere Antworten", "💬 Unbegrenzte Chats", "🧠 Brain — unbegrenzte Notizbücher & Dokumente", "✦ KI-Einblicke, Quiz, Karteikarten & Audio"],
+    fr: ["📅 Agenda & planification", "🎨 Photo Studio — jusqu'à 100 photos IA par mois", "🧠 Mémoire IA personnelle", "⚡ Réponses plus rapides", "💬 Chats illimités", "🧠 Brain — cahiers & documents illimités", "✦ Insights IA, quiz, flashcards & audio"],
+    es: ["📅 Agenda & planificación", "🎨 Photo Studio — hasta 100 fotos IA al mes", "🧠 Memoria IA personal", "⚡ Respuestas más rápidas", "💬 Chats ilimitados", "🧠 Brain — cuadernos y documentos ilimitados", "✦ Insights IA, quiz, flashcards y audio"],
+    pt: ["📅 Agenda & planejamento", "🎨 Photo Studio — até 100 fotos IA por mês", "🧠 Memória IA pessoal", "⚡ Respostas mais rápidas", "💬 Chats ilimitados", "🧠 Brain — cadernos e documentos ilimitados", "✦ Insights IA, quiz, flashcards e áudio"],
+    hi: ["📅 एजेंडा और योजना", "🎨 फोटो स्टूडियो — प्रति माह 100 AI फ़ोटो", "🧠 व्यक्तिगत AI मेमोरी", "⚡ तेज़ जवाब", "💬 असीमित चैट", "🧠 Brain — असीमित नोटबुक और दस्तावेज़", "✦ AI इनसाइट्स, क्विज़, फ्लैशकार्ड और ऑडियो"],
   },
 } as const;
 
