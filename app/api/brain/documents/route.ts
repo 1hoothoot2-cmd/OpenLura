@@ -200,7 +200,7 @@ export async function POST(req: Request) {
       body: JSON.stringify({ document_count: `document_count + 1` }),
     }).catch(() => null); // Non-critical
 
-    // Chunk content async (non-blocking)
+    // Chunk + embed async (non-blocking)
     if (parsedContent) {
       import("@/lib/brain/chunker").then(({ persistChunks }) =>
         persistChunks({
@@ -210,8 +210,18 @@ export async function POST(req: Request) {
           content: parsedContent,
           supabaseUrl: SUPABASE_URL,
           serviceKey: SUPABASE_SERVICE_KEY,
-        })
-      ).catch(e => console.error("[Brain] Chunking failed", e instanceof Error ? e.message : "unknown"));
+        }).then(() =>
+          import("@/lib/brain/embedder").then(({ embedDocumentChunks }) =>
+            embedDocumentChunks({
+              documentId: document.id,
+              userId,
+              supabaseUrl: SUPABASE_URL,
+              serviceKey: SUPABASE_SERVICE_KEY,
+              openAiKey: process.env.OPENAI_API_KEY!,
+            })
+          )
+        )
+      ).catch(e => console.error("[Brain] Chunk/embed failed", e instanceof Error ? e.message : "unknown"));
     }
 
     return NextResponse.json({ document }, { status: 201 });
