@@ -149,6 +149,41 @@ export default function NotebookDetailPage() {
   const [insights, setInsights] = useState<Record<string, string[]>>({});
   const [insightsLoading, setInsightsLoading] = useState<Record<string, boolean>>({});
 
+  const [quickAction, setQuickAction] = useState<{ type: string; result: string } | null>(null);
+  const [quickActionLoading, setQuickActionLoading] = useState(false);
+
+  async function runQuickAction(type: "summarize" | "questions" | "terms") {
+    if (quickActionLoading) return;
+    setQuickActionLoading(true);
+    setQuickAction(null);
+
+    const prompts = {
+      summarize: "Write a clear summary of all the content in this notebook. Be concise but complete. Max 200 words.",
+      questions: "Generate exactly 5 key questions that this notebook content answers. Return as a numbered list.",
+      terms: "Extract the 8 most important terms, concepts or keywords from this content. Return as a comma-separated list.",
+    };
+
+    try {
+      const res = await fetch("/api/brain/insights", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          docName: notebook?.name || "notebook",
+          notebookId,
+          quickAction: type,
+          prompt: prompts[type],
+        }),
+      });
+      const data = await res.json();
+      setQuickAction({ type, result: data.text || "" });
+    } catch {
+      setQuickAction({ type, result: "Failed to load." });
+    } finally {
+      setQuickActionLoading(false);
+    }
+  }
+
   async function generateInsights(docId: string, docName: string, content?: string) {
     if (insights[docId] || insightsLoading[docId]) return;
     setInsightsLoading(prev => ({ ...prev, [docId]: true }));
@@ -413,6 +448,47 @@ export default function NotebookDetailPage() {
             </>
           )}
         </div>
+
+        {docs.length > 0 && (
+          <div className="rounded-[20px] border border-white/8 bg-white/[0.025] px-5 py-4">
+            <p className="text-xs uppercase tracking-[0.14em] text-white/28 mb-3">Quick Actions</p>
+            <div className="flex flex-wrap gap-2 mb-4">
+              {[
+                { type: "summarize" as const, label: "📝 Summarize" },
+                { type: "questions" as const, label: "❓ Key questions" },
+                { type: "terms" as const, label: "🔑 Key terms" },
+              ].map(action => (
+                <button
+                  key={action.type}
+                  type="button"
+                  onClick={() => runQuickAction(action.type)}
+                  disabled={quickActionLoading}
+                  className={`rounded-full border px-3.5 py-1.5 text-xs font-medium transition-all active:scale-95 disabled:opacity-40 ${
+                    quickAction?.type === action.type
+                      ? "border-[#3b82f6]/40 bg-[#3b82f6]/10 text-[#93c5fd]"
+                      : "border-white/10 bg-white/[0.04] text-white/60 hover:border-white/20 hover:text-white"
+                  }`}
+                >
+                  {action.label}
+                </button>
+              ))}
+              {quickActionLoading && (
+                <span className="flex items-center gap-1.5 text-xs text-white/30">
+                  <span className="h-3 w-3 rounded-full border border-white/20 border-t-[#3b82f6] animate-spin" />
+                  Thinking…
+                </span>
+              )}
+            </div>
+            {quickAction?.result && (
+              <div className="rounded-[14px] bg-white/[0.03] border border-white/6 px-4 py-3">
+                <p className="text-xs uppercase tracking-[0.12em] text-white/24 mb-2">
+                  {quickAction.type === "summarize" ? "Summary" : quickAction.type === "questions" ? "Key Questions" : "Key Terms"}
+                </p>
+                <p className="text-sm text-white/70 leading-6 whitespace-pre-line">{quickAction.result}</p>
+              </div>
+            )}
+          </div>
+        )}
 
         <div>
           <p className="text-xs uppercase tracking-[0.14em] text-white/28 mb-3">{tr("documents", lang)}</p>
