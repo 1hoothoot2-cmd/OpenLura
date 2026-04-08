@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireOpenLuraIdentity } from "@/lib/auth/requestIdentity";
+import { parsePlainText } from "@/lib/brain/parser";
 
 const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -43,6 +44,7 @@ export async function POST(req: Request) {
   const owns = await verifyNotebookOwner(notebookId, userId);
   if (!owns) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  const { text: cleanedBody } = parsePlainText(noteBody);
   const name = noteTitle || `Note — ${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
 
   try {
@@ -58,7 +60,7 @@ export async function POST(req: Request) {
         file_size: new TextEncoder().encode(noteBody).length,
         storage_path: "",
         source_url: null,
-        content: noteBody,
+        content: cleanedBody,
       }),
     });
 
@@ -76,6 +78,20 @@ export async function POST(req: Request) {
       headers: dbHeaders(),
       body: JSON.stringify({ document_count: `document_count + 1` }),
     }).catch(() => null);
+
+    // Chunk content async (non-blocking)
+    if (cleanedBody) {
+      import("@/lib/brain/chunker").then(({ persistChunks }) =>
+        persistChunks({
+          documentId: document.id,
+          notebookId,
+          userId,
+          content: cleanedBody,
+          supabaseUrl: SUPABASE_URL,
+          serviceKey: SUPABASE_SERVICE_KEY,
+        })
+      ).catch(e => console.error("[Brain] Chunking failed", e instanceof Error ? e.message : "unknown"));
+    }
 
     return NextResponse.json({ document }, { status: 201 });
   } catch (err) {

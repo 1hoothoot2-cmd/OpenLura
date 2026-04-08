@@ -248,6 +248,20 @@ export async function POST(req: Request) {
       body: JSON.stringify({ document_count: `document_count + 1` }),
     }).catch(() => null);
 
+    // Chunk content async (non-blocking)
+    if (cleanedContent) {
+      import("@/lib/brain/chunker").then(({ persistChunks }) =>
+        persistChunks({
+          documentId: document.id,
+          notebookId,
+          userId,
+          content: cleanedContent,
+          supabaseUrl: SUPABASE_URL,
+          serviceKey: SUPABASE_SERVICE_KEY,
+        })
+      ).catch(e => console.error("[Brain] Chunking failed", e instanceof Error ? e.message : "unknown"));
+    }
+
     return NextResponse.json({ document }, { status: 201 });
   } catch (err) {
     console.error("[Brain] Source POST error", err instanceof Error ? err.message : "unknown");
