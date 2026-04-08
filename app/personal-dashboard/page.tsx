@@ -260,7 +260,13 @@ export default function PersonalDashboardPage() {
     setShowSubscriptionModal(true);
   }
 
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+
   async function handleUpgradeClick() {
+    setShowUpgradeModal(true);
+  }
+
+  async function handleStripeCheckout() {
     try {
       const r = await fetch("/api/stripe/checkout", { method: "POST", credentials: "include" });
       const d = await r.json();
@@ -840,7 +846,7 @@ export default function PersonalDashboardPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={async () => { setShowSubscriptionModal(false); await handleUpgradeClick(); }}
+                  onClick={() => { setShowSubscriptionModal(false); setShowUpgradeModal(true); }}
                   className="w-full rounded-[14px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] py-3 text-sm font-medium text-white shadow-[0_8px_20px_rgba(59,130,246,0.24)] hover:brightness-110 transition-all"
                 >
                   {t("upgrade", lang)}
@@ -884,6 +890,52 @@ export default function PersonalDashboardPage() {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {showUpgradeModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-[420px] rounded-[28px] border border-white/10 bg-[#0a0f1e]/98 shadow-[0_24px_64px_rgba(0,0,0,0.50)] backdrop-blur-2xl overflow-hidden">
+
+            <div className="px-6 pt-6 pb-4 border-b border-white/6">
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-[11px] uppercase tracking-[0.16em] text-white/30">OpenLura</p>
+                <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-0.5 text-[10px] font-medium text-emerald-300">AVAILABLE NOW</span>
+              </div>
+              <h2 className="text-xl font-semibold tracking-tight text-white/95">Go</h2>
+              <p className="text-sm text-white/40 mt-0.5">For consistent usage and deeper workflows.</p>
+              <div className="mt-3">
+                <span className="text-2xl font-bold text-white/95">€4,99</span>
+                <span className="text-sm text-white/40 ml-1">/month</span>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 space-y-2 max-h-[50vh] overflow-y-auto">
+              {T.features[lang].map(f => (
+                <div key={f} className="flex items-center gap-2.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#3b82f6]/70 shrink-0" />
+                  <p className="text-sm text-white/60">{f}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="px-6 pb-6 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setShowUpgradeModal(false)}
+                className="flex-1 rounded-[14px] bg-white/[0.04] py-2.5 text-sm text-white/50 hover:bg-white/[0.08] hover:text-white transition-all"
+              >
+                {t("cancel", lang)}
+              </button>
+              <button
+                type="button"
+                onClick={async () => { setShowUpgradeModal(false); await handleStripeCheckout(); }}
+                className="flex-1 rounded-[14px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] py-2.5 text-sm font-medium text-white shadow-[0_6px_16px_rgba(59,130,246,0.28)] hover:brightness-110 transition-all"
+              >
+                Get started with Go →
+              </button>
+            </div>
           </div>
         </div>
       )}
