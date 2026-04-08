@@ -45,6 +45,23 @@ export async function GET(req: Request) {
 
   const userId = identity.identity.userId;
 
+  // Single notebook by id
+  const { searchParams } = new URL(req.url);
+  const singleId = searchParams.get("id")?.trim();
+
+  if (singleId) {
+    try {
+      const url = `${SUPABASE_URL}/rest/v1/brain_notebooks?id=eq.${encodeURIComponent(singleId)}&user_id=eq.${encodeURIComponent(userId)}&select=id,name,emoji,description,created_at,document_count`;
+      const res = await fetch(url, { headers: supabaseHeaders() });
+      if (!res.ok) return NextResponse.json({ error: "Failed" }, { status: 500 });
+      const rows = await res.json();
+      if (!rows || rows.length === 0) return NextResponse.json({ error: "Not found" }, { status: 404 });
+      return NextResponse.json({ notebook: rows[0] });
+    } catch {
+      return NextResponse.json({ error: "Internal error" }, { status: 500 });
+    }
+  }
+
   try {
     const url = `${SUPABASE_URL}/rest/v1/brain_notebooks?user_id=eq.${encodeURIComponent(userId)}&order=created_at.desc&select=id,name,emoji,description,created_at,document_count`;
     const res = await fetch(url, { headers: supabaseHeaders() });
