@@ -152,6 +152,43 @@ export default function NotebookDetailPage() {
   const [quickAction, setQuickAction] = useState<{ type: string; result: string } | null>(null);
   const [quickActionLoading, setQuickActionLoading] = useState(false);
 
+  // Learning tools
+  const [learningTool, setLearningTool] = useState<"quiz" | "flashcards" | null>(null);
+  const [learningData, setLearningData] = useState<any[]>([]);
+  const [learningLoading, setLearningLoading] = useState(false);
+  const [quizAnswers, setQuizAnswers] = useState<Record<number, string>>({});
+  const [quizChecked, setQuizChecked] = useState(false);
+  const [flashcardIndex, setFlashcardIndex] = useState(0);
+  const [flashcardFlipped, setFlashcardFlipped] = useState(false);
+
+  async function runLearningTool(tool: "quiz" | "flashcards") {
+    setLearningLoading(true);
+    setLearningTool(tool);
+    setLearningData([]);
+    setQuizAnswers({});
+    setQuizChecked(false);
+    setFlashcardIndex(0);
+    setFlashcardFlipped(false);
+    try {
+      const res = await fetch("/api/brain/insights", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          docName: notebook?.name || "notebook",
+          notebookId,
+          learningTool: tool,
+        }),
+      });
+      const d = await res.json();
+      setLearningData(d.data ?? []);
+    } catch {
+      setLearningData([]);
+    } finally {
+      setLearningLoading(false);
+    }
+  }
+
   async function runQuickAction(type: "summarize" | "questions" | "terms") {
     if (quickActionLoading) return;
     setQuickActionLoading(true);
@@ -472,13 +509,131 @@ export default function NotebookDetailPage() {
                   {action.label}
                 </button>
               ))}
-              {quickActionLoading && (
+              {[
+                { tool: "quiz" as const, label: "🧩 Quiz" },
+                { tool: "flashcards" as const, label: "🃏 Flashcards" },
+              ].map(lt => (
+                <button
+                  key={lt.tool}
+                  type="button"
+                  onClick={() => runLearningTool(lt.tool)}
+                  disabled={learningLoading}
+                  className={`rounded-full border px-3.5 py-1.5 text-xs font-medium transition-all active:scale-95 disabled:opacity-40 ${
+                    learningTool === lt.tool
+                      ? "border-[#a78bfa]/40 bg-[#a78bfa]/10 text-[#c4b5fd]"
+                      : "border-white/10 bg-white/[0.04] text-white/60 hover:border-white/20 hover:text-white"
+                  }`}
+                >
+                  {lt.label}
+                </button>
+              ))}
+              {(quickActionLoading || learningLoading) && (
                 <span className="flex items-center gap-1.5 text-xs text-white/30">
                   <span className="h-3 w-3 rounded-full border border-white/20 border-t-[#3b82f6] animate-spin" />
                   Thinking…
                 </span>
               )}
             </div>
+            {/* Quiz UI */}
+            {learningTool === "quiz" && learningData.length > 0 && (
+              <div className="rounded-[14px] bg-white/[0.03] border border-white/6 px-4 py-4 space-y-4">
+                <p className="text-xs uppercase tracking-[0.12em] text-white/24">Quiz</p>
+                {learningData.map((q: any, i: number) => (
+                  <div key={i} className="space-y-2">
+                    <p className="text-sm text-white/80">{i + 1}. {q.question}</p>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {q.options?.map((opt: string) => {
+                        const letter = opt[0];
+                        const isSelected = quizAnswers[i] === letter;
+                        const isCorrect = quizChecked && letter === q.answer;
+                        const isWrong = quizChecked && isSelected && letter !== q.answer;
+                        return (
+                          <button
+                            key={opt}
+                            type="button"
+                            onClick={() => !quizChecked && setQuizAnswers(prev => ({ ...prev, [i]: letter }))}
+                            className={`rounded-[10px] border px-3 py-2 text-xs text-left transition-all ${
+                              isCorrect ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-300" :
+                              isWrong ? "border-red-400/40 bg-red-400/10 text-red-300" :
+                              isSelected ? "border-[#3b82f6]/40 bg-[#3b82f6]/10 text-[#93c5fd]" :
+                              "border-white/8 bg-white/[0.02] text-white/50 hover:border-white/16 hover:text-white/80"
+                            }`}
+                          >
+                            {opt}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+                <div className="flex gap-2 pt-1">
+                  {!quizChecked ? (
+                    <button
+                      type="button"
+                      onClick={() => setQuizChecked(true)}
+                      disabled={Object.keys(quizAnswers).length < learningData.length}
+                      className="rounded-full bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-4 py-1.5 text-xs font-medium text-white disabled:opacity-40 transition-all"
+                    >
+                      Check answers
+                    </button>
+                  ) : (
+                    <p className="text-xs text-white/40">
+                      Score: {learningData.filter((q: any, i: number) => quizAnswers[i] === q.answer).length} / {learningData.length}
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => { setLearningTool(null); setLearningData([]); }}
+                    className="rounded-full border border-white/8 px-4 py-1.5 text-xs text-white/40 hover:text-white transition-all"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Flashcards UI */}
+            {learningTool === "flashcards" && learningData.length > 0 && (
+              <div className="rounded-[14px] bg-white/[0.03] border border-white/6 px-4 py-4">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs uppercase tracking-[0.12em] text-white/24">Flashcards</p>
+                  <p className="text-xs text-white/30">{flashcardIndex + 1} / {learningData.length}</p>
+                </div>
+                <div
+                  onClick={() => setFlashcardFlipped(f => !f)}
+                  className="cursor-pointer rounded-[14px] border border-white/10 bg-white/[0.04] px-5 py-8 text-center min-h-[120px] flex items-center justify-center transition-all hover:bg-white/[0.06]"
+                >
+                  <p className="text-sm text-white/80">
+                    {flashcardFlipped
+                      ? learningData[flashcardIndex]?.back
+                      : learningData[flashcardIndex]?.front}
+                  </p>
+                </div>
+                <p className="text-[11px] text-white/20 text-center mt-2">
+                  {flashcardFlipped ? "Answer" : "Tap to reveal answer"}
+                </p>
+                <div className="flex gap-2 mt-3">
+                  <button
+                    type="button"
+                    onClick={() => { setFlashcardIndex(i => Math.max(0, i - 1)); setFlashcardFlipped(false); }}
+                    disabled={flashcardIndex === 0}
+                    className="flex-1 rounded-full border border-white/8 py-1.5 text-xs text-white/40 hover:text-white disabled:opacity-20 transition-all"
+                  >← Prev</button>
+                  <button
+                    type="button"
+                    onClick={() => { setFlashcardIndex(i => Math.min(learningData.length - 1, i + 1)); setFlashcardFlipped(false); }}
+                    disabled={flashcardIndex === learningData.length - 1}
+                    className="flex-1 rounded-full border border-white/8 py-1.5 text-xs text-white/40 hover:text-white disabled:opacity-20 transition-all"
+                  >Next →</button>
+                  <button
+                    type="button"
+                    onClick={() => { setLearningTool(null); setLearningData([]); }}
+                    className="rounded-full border border-white/8 px-4 py-1.5 text-xs text-white/40 hover:text-white transition-all"
+                  >Close</button>
+                </div>
+              </div>
+            )}
+
             {quickAction?.result && (
               <div className="rounded-[14px] bg-white/[0.03] border border-white/6 px-4 py-3">
                 <p className="text-xs uppercase tracking-[0.12em] text-white/24 mb-2">

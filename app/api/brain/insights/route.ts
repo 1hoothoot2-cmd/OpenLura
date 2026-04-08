@@ -7,7 +7,7 @@ export async function POST(req: NextRequest) {
   const identity = await requireOpenLuraIdentity(req);
   if (!identity.ok) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { docName, content, docId, notebookId, quickAction, prompt } = await req.json();
+  const { docName, content, docId, notebookId, quickAction, prompt, learningTool } = await req.json();
   if (!docName) return NextResponse.json({ error: "Missing docName" }, { status: 400 });
 
   // Quick action — fetch all notebook chunks and run custom prompt
@@ -42,6 +42,45 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ text });
     } catch {
       return NextResponse.json({ text: "" });
+    }
+  }
+
+  // Learning tools — quiz or flashcards
+  if (learningTool && notebookId) {
+    try {
+      const supabaseUrl = process.env.SUPABASE_URL;
+      const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      const chunkRes = await fetch(
+        `${supabaseUrl}/rest/v1/brain_chunks?notebook_id=eq.${notebookId}&order=chunk_index.asc&limit=20&select=content`,
+        { headers: { apikey: serviceKey!, Authorization: `Bearer ${serviceKey!}` } }
+      );
+      const chunks = chunkRes.ok ? await chunkRes.json() : [];
+      const allContent = chunks.map((c: any) => c.content).join("\n\n").slice(0, 4000);
+
+      const learningPrompt = learningTool === "quiz"
+        ? `Create a quiz with exactly 4 multiple choice questions based on this content. Return ONLY a JSON array, no markdown. Format: [{"question":"...","options":["A)...","B)...","C)...","D)..."],"answer":"A"}]`
+        : `Create exactly 5 flashcards based on this content. Return ONLY a JSON array, no markdown. Format: [{"front":"...","back":"..."}]`;
+
+      const aiRes = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": process.env.ANTHROPIC_API_KEY || "",
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 1000,
+          messages: [{ role: "user", content: `${learningPrompt}\n\nContent:\n${allContent}` }],
+        }),
+      });
+      const aiData = await aiRes.json();
+      const raw = aiData.content?.[0]?.text || "[]";
+      const clean = raw.replace(/```json|```/g, "").trim();
+      const parsed = JSON.parse(clean);
+      return NextResponse.json({ data: Array.isArray(parsed) ? parsed : [] });
+    } catch {
+      return NextResponse.json({ data: [] });
     }
   }
 
