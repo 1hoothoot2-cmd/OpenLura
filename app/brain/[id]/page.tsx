@@ -212,6 +212,7 @@ export default function NotebookDetailPage() {
           learningTool: tool,
         }),
       });
+      if (res.status === 403) { setProRequired(true); return; }
       const d = await res.json();
       setLearningData(d.data ?? []);
     } catch {
@@ -244,6 +245,7 @@ export default function NotebookDetailPage() {
           prompt: prompts[type],
         }),
       });
+      if (res.status === 403) { setProRequired(true); return; }
       const data = await res.json();
       setQuickAction({ type, result: data.text || "" });
     } catch {
@@ -252,6 +254,8 @@ export default function NotebookDetailPage() {
       setQuickActionLoading(false);
     }
   }
+
+  const [proRequired, setProRequired] = useState(false);
 
   async function generateInsights(docId: string, docName: string, content?: string) {
     if (insights[docId] || insightsLoading[docId]) return;
@@ -263,6 +267,7 @@ export default function NotebookDetailPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ docName, content, docId }),
       });
+      if (res.status === 403) { setProRequired(true); return; }
       const data = await res.json();
       setInsights(prev => ({ ...prev, [docId]: data.insights ?? [] }));
     } catch {
@@ -551,6 +556,21 @@ export default function NotebookDetailPage() {
             </>
           )}
         </div>
+
+        {proRequired && (
+          <div className="rounded-[20px] border border-[#3b82f6]/20 bg-[#3b82f6]/[0.06] px-5 py-4 flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium text-white/90">✦ Go plan required</p>
+              <p className="text-xs text-white/46 mt-0.5">Insights, quiz, flashcards and audio are available on the Go plan.</p>
+            </div>
+            <a
+              href="/personal-dashboard"
+              className="shrink-0 rounded-full bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-4 py-2 text-xs font-medium text-white shadow-[0_6px_16px_rgba(59,130,246,0.28)] hover:brightness-110 transition-all"
+            >
+              Upgrade →
+            </a>
+          </div>
+        )}
 
         {docs.length > 0 && (
           <div className="rounded-[20px] border border-white/8 bg-white/[0.025] px-5 py-4">
