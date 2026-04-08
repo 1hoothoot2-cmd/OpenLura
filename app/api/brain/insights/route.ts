@@ -50,11 +50,22 @@ export async function POST(req: NextRequest) {
   });
 
   const data = await res.json();
-  const text = data.content?.[0]?.text || "[]";
+  const text = data.content?.[0]?.text || "";
+  console.log("[Brain Insights] raw text:", text);
+  console.log("[Brain Insights] resolvedContent length:", resolvedContent.length);
+  console.log("[Brain Insights] Claude status:", res.status, data.type, data.error);
+
+  if (!text) {
+    console.error("[Brain Insights] No text in response:", JSON.stringify(data).slice(0, 300));
+    return NextResponse.json({ insights: [] });
+  }
+
   try {
-    const parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
+    const clean = text.replace(/```json|```/g, "").trim();
+    const parsed = JSON.parse(clean);
     return NextResponse.json({ insights: Array.isArray(parsed) ? parsed : [] });
-  } catch {
+  } catch (e) {
+    console.error("[Brain Insights] JSON parse failed:", text);
     return NextResponse.json({ insights: [] });
   }
 }
