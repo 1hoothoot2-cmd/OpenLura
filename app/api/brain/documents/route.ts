@@ -200,28 +200,29 @@ export async function POST(req: Request) {
       body: JSON.stringify({ document_count: `document_count + 1` }),
     }).catch(() => null); // Non-critical
 
-    // Chunk + embed async (non-blocking)
+    // Chunk + embed (synchronous — before response)
     if (parsedContent) {
-      import("@/lib/brain/chunker").then(({ persistChunks }) =>
-        persistChunks({
+      try {
+        const { persistChunks } = await import("@/lib/brain/chunker");
+        await persistChunks({
           documentId: document.id,
           notebookId,
           userId,
           content: parsedContent,
           supabaseUrl: SUPABASE_URL,
           serviceKey: SUPABASE_SERVICE_KEY,
-        }).then(() =>
-          import("@/lib/brain/embedder").then(({ embedDocumentChunks }) =>
-            embedDocumentChunks({
-              documentId: document.id,
-              userId,
-              supabaseUrl: SUPABASE_URL,
-              serviceKey: SUPABASE_SERVICE_KEY,
-              openAiKey: process.env.OPENAI_API_KEY!,
-            })
-          )
-        )
-      ).catch(e => console.error("[Brain] Chunk/embed failed", e instanceof Error ? e.message : "unknown"));
+        });
+        const { embedDocumentChunks } = await import("@/lib/brain/embedder");
+        await embedDocumentChunks({
+          documentId: document.id,
+          userId,
+          supabaseUrl: SUPABASE_URL,
+          serviceKey: SUPABASE_SERVICE_KEY,
+          openAiKey: process.env.OPENAI_API_KEY!,
+        });
+      } catch (e) {
+        console.error("[Brain] Chunk/embed failed", e instanceof Error ? e.message : "unknown");
+      }
     }
 
     return NextResponse.json({ document }, { status: 201 });
