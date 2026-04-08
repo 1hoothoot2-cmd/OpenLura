@@ -34,24 +34,9 @@ function stripMarkdown(md: string): string {
 
 async function parsePdf(buffer: ArrayBuffer): Promise<string> {
   try {
-    const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
-    pdfjsLib.GlobalWorkerOptions.workerSrc = "";
-
-    const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(buffer), useWorkerFetch: false, isEvalSupported: false, useSystemFonts: true });
-    const pdf = await loadingTask.promise;
-
-    const pages: string[] = [];
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const content = await page.getTextContent();
-      const pageText = content.items
-        .filter((item: any) => "str" in item)
-        .map((item: any) => item.str)
-        .join(" ");
-      pages.push(pageText);
-    }
-
-    return pages.join("\n\n");
+    const { extractText } = await import("unpdf");
+    const { text } = await extractText(new Uint8Array(buffer), { mergePages: true });
+    return text ?? "";
   } catch (err) {
     console.error("[Brain] PDF parse error", err instanceof Error ? err.message : "unknown");
     throw new Error("PDF parsing failed");
