@@ -129,6 +129,7 @@ export default function NotebookDetailPage() {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [showSource, setShowSource] = useState(false);
   const [sourceUrl, setSourceUrl] = useState("");
   const [sourceFetching, setSourceFetching] = useState(false);
@@ -220,7 +221,13 @@ export default function NotebookDetailPage() {
   }
 
   async function handleDelete(docId: string) {
-    if (!confirm(tr("delete_confirm", lang))) return;
+    setConfirmDeleteId(docId);
+  }
+
+  async function confirmDelete() {
+    const docId = confirmDeleteId;
+    if (!docId) return;
+    setConfirmDeleteId(null);
     setDeletingId(docId);
     try {
       await fetch(`/api/brain/documents?id=${encodeURIComponent(docId)}&notebookId=${encodeURIComponent(notebookId)}`, { method: "DELETE", credentials: "same-origin" });
@@ -392,6 +399,33 @@ export default function NotebookDetailPage() {
           )}
         </div>
       </main>
+
+      {confirmDeleteId && (
+        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-[360px] rounded-[24px] border border-white/10 bg-[#0a0f1e]/98 shadow-[0_24px_64px_rgba(0,0,0,0.50)] backdrop-blur-2xl overflow-hidden">
+            <div className="px-6 pt-6 pb-4">
+              <p className="text-sm font-medium text-white/90 mb-1">{tr("delete_confirm", lang)}</p>
+              <p className="text-xs text-white/36">This cannot be undone.</p>
+            </div>
+            <div className="px-6 pb-6 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteId(null)}
+                className="flex-1 rounded-[14px] bg-white/[0.04] py-2.5 text-sm text-white/50 hover:bg-white/[0.08] hover:text-white transition-all"
+              >
+                {tr("cancel", lang)}
+              </button>
+              <button
+                type="button"
+                onClick={confirmDelete}
+                className="flex-1 rounded-[14px] bg-red-500/20 border border-red-500/30 py-2.5 text-sm font-medium text-red-300 hover:bg-red-500/30 hover:text-red-200 transition-all"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showNote && (
         <div
