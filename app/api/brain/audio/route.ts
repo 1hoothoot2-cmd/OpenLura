@@ -7,7 +7,7 @@ export async function POST(req: NextRequest) {
   const identity = await requireOpenLuraIdentity(req);
   if (!identity.ok) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { notebookId, notebookName } = await req.json();
+  const { notebookId, notebookName, voice } = await req.json();
   if (!notebookId) return NextResponse.json({ error: "Missing notebookId" }, { status: 400 });
 
   const supabaseUrl = process.env.SUPABASE_URL;
@@ -48,21 +48,30 @@ ${content}`,
   const claudeData = await claudeRes.json();
   const spokenText = claudeData.content?.[0]?.text || `This notebook is called ${notebookName}.`;
 
-  // Convert to speech via OpenAI TTS
-  const ttsRes = await fetch("https://api.openai.com/v1/audio/speech", {
+  // Convert to speech via ElevenLabs
+  // Jessica (female) or Adam (male)
+  const voiceId = voice === "male" ? "pNInz6obpgDQGcFmaJgB" : "cgSgspJ2msm6clMCkdW9";
+  const ttsRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      "xi-api-key": process.env.ELEVENLABS_API_KEY || "",
     },
     body: JSON.stringify({
-      model: "tts-1",
-      input: spokenText,
-      voice: "nova",
+      text: spokenText,
+      model_id: "eleven_turbo_v2_5",
+      voice_settings: {
+        stability: 0.4,
+        similarity_boost: 0.8,
+        style: 0.3,
+        use_speaker_boost: true,
+      },
     }),
   });
 
   if (!ttsRes.ok) {
+    const err = await ttsRes.text();
+    console.error("[Brain Audio] ElevenLabs failed:", err);
     return NextResponse.json({ error: "TTS failed" }, { status: 500 });
   }
 

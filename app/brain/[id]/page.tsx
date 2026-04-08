@@ -164,6 +164,7 @@ export default function NotebookDetailPage() {
   // Audio mode
   const [audioLoading, setAudioLoading] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [audioVoice, setAudioVoice] = useState<"female" | "male">("female");
   const audioRef = useRef<HTMLAudioElement>(null);
 
   async function handleListen() {
@@ -178,7 +179,7 @@ export default function NotebookDetailPage() {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notebookId, notebookName: notebook?.name || "notebook" }),
+        body: JSON.stringify({ notebookId, notebookName: notebook?.name || "notebook", voice: audioVoice }),
       });
       if (!res.ok) throw new Error();
       const blob = await res.blob();
@@ -486,17 +487,35 @@ export default function NotebookDetailPage() {
             Chat with notebook
           </a>
           {docs.length > 0 && (
-            <button
-              type="button"
-              onClick={handleListen}
-              disabled={audioLoading}
-              className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-1.5 text-xs text-white/60 hover:border-white/20 hover:text-white disabled:opacity-40 transition-all active:scale-95"
-            >
-              {audioLoading
-                ? <><span className="h-3 w-3 rounded-full border border-white/20 border-t-white animate-spin" />Generating…</>
-                : <>🎧 Listen</>
-              }
-            </button>
+            <div className="flex items-center gap-1.5">
+              <div className="flex rounded-full border border-white/10 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => { setAudioVoice("female"); setAudioUrl(null); }}
+                  className={`px-2.5 py-1.5 text-[11px] transition-all ${audioVoice === "female" ? "bg-white/[0.08] text-white" : "text-white/36 hover:text-white/60"}`}
+                >
+                  ♀
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setAudioVoice("male"); setAudioUrl(null); }}
+                  className={`px-2.5 py-1.5 text-[11px] transition-all ${audioVoice === "male" ? "bg-white/[0.08] text-white" : "text-white/36 hover:text-white/60"}`}
+                >
+                  ♂
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={handleListen}
+                disabled={audioLoading}
+                className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-1.5 text-xs text-white/60 hover:border-white/20 hover:text-white disabled:opacity-40 transition-all active:scale-95"
+              >
+                {audioLoading
+                  ? <><span className="h-3 w-3 rounded-full border border-white/20 border-t-white animate-spin" />Generating…</>
+                  : <>🎧 Listen</>
+                }
+              </button>
+            </div>
           )}
           {audioUrl && (
             <audio ref={audioRef} src={audioUrl} controls className="h-8 rounded-full opacity-60 hover:opacity-100 transition-opacity" />
