@@ -137,8 +137,7 @@ export async function POST(req: NextRequest) {
       }
     } catch {}
   }
-console.log("[Brain Insights] API key present:", !!process.env.ANTHROPIC_API_KEY, "length:", process.env.ANTHROPIC_API_KEY?.length);
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
+const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -157,21 +156,13 @@ console.log("[Brain Insights] API key present:", !!process.env.ANTHROPIC_API_KEY
 
   const data = await res.json();
   const text = data.content?.[0]?.text || "";
-  console.log("[Brain Insights] raw text:", text);
-  console.log("[Brain Insights] resolvedContent length:", resolvedContent.length);
-  console.log("[Brain Insights] Claude status:", res.status, data.type, data.error);
-
-  if (!text) {
-    console.error("[Brain Insights] No text in response:", JSON.stringify(data).slice(0, 300));
-    return NextResponse.json({ insights: [] });
-  }
+  if (!text) return NextResponse.json({ insights: [] });
 
   try {
     const clean = text.replace(/```json|```/g, "").trim();
     const parsed = JSON.parse(clean);
     return NextResponse.json({ insights: Array.isArray(parsed) ? parsed : [] });
-  } catch (e) {
-    console.error("[Brain Insights] JSON parse failed:", text);
+  } catch {
     return NextResponse.json({ insights: [] });
   }
 }

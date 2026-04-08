@@ -257,6 +257,50 @@ export default function NotebookDetailPage() {
 
   const [proRequired, setProRequired] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+
+  // Tour
+  const TOUR_KEY = "openlura_brain_tour_done";
+  const [tourStep, setTourStep] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const done = localStorage.getItem(TOUR_KEY);
+    if (!done) setTimeout(() => setTourStep(0), 800);
+  }, []);
+
+  function finishTour() {
+    localStorage.setItem(TOUR_KEY, "1");
+    setTourStep(null);
+  }
+
+  const TOUR_STEPS = [
+    {
+      emoji: "📎",
+      title: "Upload sources",
+      desc: "Upload PDF, TXT or MD files. You can also add a URL or YouTube link, or write a note.",
+    },
+    {
+      emoji: "⚡",
+      title: "Quick Actions",
+      desc: "Summarize, get key questions or extract key terms from all your sources at once.",
+    },
+    {
+      emoji: "🧩",
+      title: "Learning tools",
+      desc: "Generate a quiz or flashcards from your notebook content to study effectively.",
+    },
+    {
+      emoji: "💬",
+      title: "Chat with notebook",
+      desc: "Ask questions about your sources. The AI uses your documents to give accurate answers.",
+    },
+    {
+      emoji: "🎧",
+      title: "Audio mode",
+      desc: "Listen to an AI-generated spoken summary of your notebook. Choose male or female voice.",
+    },
+  ];
 
   async function generateInsights(docId: string, docName: string, content?: string) {
     if (insights[docId] || insightsLoading[docId]) return;
@@ -432,6 +476,17 @@ export default function NotebookDetailPage() {
           <div className="flex items-center gap-2">
             <button
               type="button"
+              onClick={() => setShowSettings(true)}
+              className="flex items-center justify-center h-8 w-8 rounded-full border border-white/10 bg-white/[0.04] text-white/40 hover:border-white/16 hover:text-white transition-all active:scale-95"
+              title="Settings"
+            >
+              <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+                <circle cx="8" cy="8" r="2.5" />
+                <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.1 3.1l1.4 1.4M11.5 11.5l1.4 1.4M3.1 12.9l1.4-1.4M11.5 4.5l1.4-1.4" />
+              </svg>
+            </button>
+            <button
+              type="button"
               onClick={() => setShowNote(true)}
               className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-1.5 text-sm text-white/70 hover:border-white/16 hover:bg-white/[0.07] hover:text-white transition-all active:scale-95"
             >
@@ -483,6 +538,7 @@ export default function NotebookDetailPage() {
         </div>
         <div className="ml-[56px] mt-3 flex items-center gap-3">
           <p className="text-xs text-white/24">{notebook.document_count} {tr("documents", lang).toLowerCase()}</p>
+          <span className="text-[11px] text-white/20 flex items-center gap-1">🔒 Private</span>
           <a
             href={`/personal-workspace?notebookId=${notebook.id}`}
             className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-3.5 py-1.5 text-xs font-medium text-white shadow-[0_4px_12px_rgba(59,130,246,0.28)] hover:brightness-110 transition-all active:scale-95"
@@ -933,6 +989,115 @@ export default function NotebookDetailPage() {
                 className="flex-1 rounded-[14px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] py-2.5 text-sm font-medium text-white shadow-[0_6px_16px_rgba(59,130,246,0.28)] hover:brightness-110 transition-all"
               >
                 Get started with Go →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Settings modal */}
+      {showSettings && (
+        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          onClick={e => { if (e.target === e.currentTarget) setShowSettings(false); }}>
+          <div className="w-full max-w-[360px] rounded-[28px] border border-white/10 bg-[#0a0f1e]/98 shadow-[0_24px_64px_rgba(0,0,0,0.50)] backdrop-blur-2xl overflow-hidden">
+            <div className="px-6 pt-6 pb-4 border-b border-white/6">
+              <p className="text-[11px] uppercase tracking-[0.16em] text-white/30 mb-1">Notebook settings</p>
+              <h2 className="text-lg font-semibold text-white/95">{notebook?.name}</h2>
+            </div>
+            <div className="px-6 py-4 space-y-2">
+              <a
+                href="/personal-dashboard"
+                className="flex items-center gap-3 rounded-[14px] border border-white/8 bg-white/[0.03] px-4 py-3 text-sm text-white/70 hover:border-white/14 hover:text-white transition-all"
+              >
+                <span>👤</span>
+                <div>
+                  <p className="font-medium">Account</p>
+                  <p className="text-xs text-white/36 mt-0.5">Go to your personal dashboard</p>
+                </div>
+              </a>
+              <button
+                type="button"
+                onClick={() => { setShowSettings(false); setShowUpgradeModal(true); }}
+                className="w-full flex items-center gap-3 rounded-[14px] border border-[#3b82f6]/20 bg-[#3b82f6]/[0.06] px-4 py-3 text-sm text-[#93c5fd] hover:border-[#3b82f6]/30 hover:bg-[#3b82f6]/10 transition-all text-left"
+              >
+                <span>⚡</span>
+                <div>
+                  <p className="font-medium">Subscription</p>
+                  <p className="text-xs text-[#93c5fd]/60 mt-0.5">View Go plan & upgrade</p>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => { setShowSettings(false); localStorage.removeItem(TOUR_KEY); setTourStep(0); }}
+                className="w-full flex items-center gap-3 rounded-[14px] border border-white/8 bg-white/[0.03] px-4 py-3 text-sm text-white/70 hover:border-white/14 hover:text-white transition-all text-left"
+              >
+                <span>🗺️</span>
+                <div>
+                  <p className="font-medium">Tour</p>
+                  <p className="text-xs text-white/36 mt-0.5">Restart the notebook tour</p>
+                </div>
+              </button>
+            </div>
+            <div className="px-6 pb-6">
+              <button
+                type="button"
+                onClick={() => setShowSettings(false)}
+                className="w-full rounded-[14px] bg-white/[0.04] py-2.5 text-sm text-white/50 hover:bg-white/[0.08] hover:text-white transition-all"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tour overlay */}
+      {tourStep !== null && tourStep < TOUR_STEPS.length && (
+        <div className="fixed inset-0 z-[150] flex items-end justify-center p-4 pb-10 pointer-events-none">
+          <div className="pointer-events-auto w-full max-w-[400px] rounded-[24px] border border-white/10 bg-[#0a0f1e]/98 shadow-[0_24px_64px_rgba(0,0,0,0.60)] backdrop-blur-2xl overflow-hidden">
+            <div className="px-6 pt-5 pb-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex gap-1">
+                  {TOUR_STEPS.map((_, i) => (
+                    <div key={i} className={`h-1 rounded-full transition-all duration-300 ${i === tourStep ? "w-6 bg-[#3b82f6]" : i < tourStep ? "w-3 bg-[#3b82f6]/40" : "w-3 bg-white/10"}`} />
+                  ))}
+                </div>
+                <span className="text-[11px] text-white/28">{tourStep + 1} / {TOUR_STEPS.length}</span>
+              </div>
+              <div className="text-2xl mb-2">{TOUR_STEPS[tourStep].emoji}</div>
+              <h3 className="text-base font-semibold text-white/95 mb-1">{TOUR_STEPS[tourStep].title}</h3>
+              <p className="text-sm text-white/50 leading-6">{TOUR_STEPS[tourStep].desc}</p>
+            </div>
+            <div className="px-6 pb-5 flex gap-2">
+              <button
+                type="button"
+                onClick={finishTour}
+                className="rounded-full border border-white/8 px-4 py-2 text-xs text-white/36 hover:text-white/60 transition-all"
+              >
+                Skip
+              </button>
+              <div className="flex-1" />
+              {tourStep > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setTourStep(s => (s ?? 1) - 1)}
+                  className="rounded-full border border-white/10 px-4 py-2 text-xs text-white/50 hover:text-white transition-all"
+                >
+                  ← Back
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  if (tourStep < TOUR_STEPS.length - 1) {
+                    setTourStep(s => (s ?? 0) + 1);
+                  } else {
+                    finishTour();
+                  }
+                }}
+                className="rounded-full bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-5 py-2 text-xs font-medium text-white hover:brightness-110 transition-all"
+              >
+                {tourStep < TOUR_STEPS.length - 1 ? "Next →" : "Done ✓"}
               </button>
             </div>
           </div>

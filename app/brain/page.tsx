@@ -210,6 +210,10 @@ export default function BrainPage() {
           <h1 className="text-2xl font-semibold tracking-tight">{tr("brain", lang)}</h1>
         </div>
         <p className="text-sm text-white/38 ml-[52px]">{tr("sub", lang)}</p>
+        <div className="ml-[52px] mt-2 flex items-center gap-1.5">
+          <span className="text-[11px] text-white/24">🔒</span>
+          <span className="text-[11px] text-white/24">Private — only you can access your notebooks</span>
+        </div>
         {notebooks.length > 0 && (
           <div className="ml-[52px] mt-3 flex items-center gap-4">
             <span className="text-xs text-white/24">{notebooks.length} {notebooks.length === 1 ? "notebook" : "notebooks"}</span>
