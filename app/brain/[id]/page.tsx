@@ -762,13 +762,13 @@ export default function NotebookDetailPage() {
                     onClick={() => { setFlashcardIndex(i => Math.max(0, i - 1)); setFlashcardFlipped(false); }}
                     disabled={flashcardIndex === 0}
                     className="flex-1 rounded-full border border-white/8 py-1.5 text-xs text-white/40 hover:text-white disabled:opacity-20 transition-all"
-                  >← Prev</button>
+                  >{"\u2190"} Prev</button>
                   <button
                     type="button"
                     onClick={() => { setFlashcardIndex(i => Math.min(learningData.length - 1, i + 1)); setFlashcardFlipped(false); }}
                     disabled={flashcardIndex === learningData.length - 1}
                     className="flex-1 rounded-full border border-white/8 py-1.5 text-xs text-white/40 hover:text-white disabled:opacity-20 transition-all"
-                  >Next →</button>
+                  >Next {"\u2192"}</button>
                   <button
                     type="button"
                     onClick={() => { setLearningTool(null); setLearningData([]); }}
@@ -1083,7 +1083,7 @@ export default function NotebookDetailPage() {
                   onClick={() => setTourStep(s => (s ?? 1) - 1)}
                   className="rounded-full border border-white/10 px-4 py-2 text-xs text-white/50 hover:text-white transition-all"
                 >
-                  ← Back
+                  {"\u2190"} Back
                 </button>
               )}
               <button
@@ -1097,7 +1097,7 @@ export default function NotebookDetailPage() {
                 }}
                 className="rounded-full bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-5 py-2 text-xs font-medium text-white hover:brightness-110 transition-all"
               >
-                {tourStep < TOUR_STEPS.length - 1 ? "Next →" : "Done ✓"}
+                {tourStep < TOUR_STEPS.length - 1 ? "Next \u2192" : "Done \u2713"}
               </button>
             </div>
           </div>
