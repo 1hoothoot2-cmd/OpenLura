@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireOpenLuraIdentity } from "@/lib/auth/requestIdentity";
+import { parsePlainText } from "@/lib/brain/parser";
 
 const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -211,6 +212,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Could not fetch URL" }, { status: 422 });
   }
 
+  // Clean content
+  const { text: cleanedContent } = parsePlainText(content);
+
   // Save to brain_documents (no storage — content in DB)
   try {
     const dbUrl = `${SUPABASE_URL}/rest/v1/brain_documents`;
@@ -222,10 +226,10 @@ export async function POST(req: Request) {
         user_id: userId,          // HARD enforced
         name: title.slice(0, 200),
         file_type: "text/plain",
-        file_size: new TextEncoder().encode(content).length,
+        file_size: new TextEncoder().encode(cleanedContent).length,
         storage_path: "",         // no file — content stored in DB
         source_url: url,
-        content: content,
+        content: cleanedContent,
       }),
     });
 

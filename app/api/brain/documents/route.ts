@@ -152,7 +152,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Storage upload failed", detail: errText }, { status: 500 });
     }
 
-    // (replaced above)
+    // Parse content
+    let parsedContent = "";
+    try {
+      const { parseDocument } = await import("@/lib/brain/parser");
+      const result = await parseDocument(fileBuffer, fileType, originalName);
+      parsedContent = result.text;
+    } catch (err) {
+      console.error("[Brain] Parse error (non-fatal)", err instanceof Error ? err.message : "unknown");
+    }
 
     // Save metadata to DB
     const dbUrl = `${SUPABASE_URL}/rest/v1/brain_documents`;
@@ -166,6 +174,7 @@ export async function POST(req: Request) {
         file_type: fileType,
         file_size: file.size,
         storage_path: storagePath,
+        content: parsedContent,
       }),
     });
 
