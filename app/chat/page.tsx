@@ -20,6 +20,23 @@ export default function ChatPage() {
   const isPersonalRoute = pathname === "/personal-workspace";
   const [userScopedStorageId, setUserScopedStorageId] = useState("");
 
+  // Brain notebook context
+  const [activeNotebookId, setActiveNotebookId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const nb = params.get("notebookId")?.trim();
+    if (nb) {
+      setActiveNotebookId(nb);
+      // Clean URL without reload
+      const clean = window.location.pathname;
+      window.history.replaceState({}, "", clean);
+      // Start fresh chat for notebook context
+      createNewChat({ title: "Brain chat" });
+    }
+  }, []);
+
   const makeUserBoundStorageKey = (baseKey: string) =>
     isPersonalRoute || !userScopedStorageId
       ? baseKey
@@ -3685,10 +3702,15 @@ setIsWaitingForFirstToken(true);
     let res: Response;
 
     try {
+      const chatHeaders = {
+        ...getScopedRequestHeaders(true, isPersonalEnvironment),
+        ...(activeNotebookId ? { "x-openlura-notebook-id": activeNotebookId } : {}),
+      };
+
       res = await fetch("/api/chat", {
         method: "POST",
         signal: controller.signal,
-        headers: getScopedRequestHeaders(true, isPersonalEnvironment),
+        headers: chatHeaders,
         body: JSON.stringify({
           message: inputToSend,
           image: imageToSend,
