@@ -36,6 +36,13 @@ export default function ChatPage() {
       window.history.replaceState({}, "", clean);
       // Start fresh chat for notebook context
       createNewChat({ title: "Brain chat" });
+      // Save notebook context to memory
+      setMemory(prev => {
+        const memoryItem = `Active notebook: ${nb}`;
+        const exists = prev.find(m => m.text === memoryItem);
+        if (exists) return prev;
+        return [...prev, { text: memoryItem, weight: 0.8 }].slice(-30);
+      });
     }
   }, []);
 
