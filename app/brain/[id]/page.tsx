@@ -349,7 +349,18 @@ export default function NotebookDetailPage() {
             {notebook.description && <p className="text-sm text-white/36 mt-0.5">{notebook.description}</p>}
           </div>
         </div>
-        <p className="text-xs text-white/24 mt-3 ml-[56px]">{notebook.document_count} {tr("documents", lang).toLowerCase()}</p>
+        <div className="ml-[56px] mt-3 flex items-center gap-3">
+          <p className="text-xs text-white/24">{notebook.document_count} {tr("documents", lang).toLowerCase()}</p>
+          <a
+            href={`/personal-workspace?notebookId=${notebook.id}`}
+            className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-3.5 py-1.5 text-xs font-medium text-white shadow-[0_4px_12px_rgba(59,130,246,0.28)] hover:brightness-110 transition-all active:scale-95"
+          >
+            <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M14 2H2v12l3-3h9V2z" />
+            </svg>
+            Chat with notebook
+          </a>
+        </div>
       </div>
 
       <main className="mx-auto max-w-4xl px-5 pb-24 space-y-6">
