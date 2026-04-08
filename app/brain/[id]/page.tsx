@@ -157,7 +157,7 @@ export default function NotebookDetailPage() {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ docName, content }),
+        body: JSON.stringify({ docName, content, docId }),
       });
       const data = await res.json();
       setInsights(prev => ({ ...prev, [docId]: data.insights ?? [] }));
