@@ -534,6 +534,74 @@ function detectConversationMomentum(recentMessages: { role: "user" | "ai"; conte
   return { tone, depth, shouldMaintainMomentum };
 }
 
+function evaluateResponseQuality(input: {
+  userMessage: string;
+  aiText: string;
+  questionCategory: { category: string; confidence: string };
+  writingPattern: { avgMessageLength: "short" | "medium" | "long"; writingStyle: "formal" | "casual" | "mixed"; askingPattern: "direct" | "elaborate" | "fragmented" };
+  expertiseLevel: { level: "beginner" | "intermediate" | "expert"; domain: string | null };
+  isCasualChatRequest: boolean;
+  isSimpleImageAnalysis: boolean;
+  shouldUseWebSearch: boolean;
+}): {
+  signals: { type: string; confidence: "low" | "medium" | "high"; message: string; learningType: "style" | "content" }[];
+} {
+  const signals: { type: string; confidence: "low" | "medium" | "high"; message: string; learningType: "style" | "content" }[] = [];
+  const aiLength = (input.aiText || "").length;
+  const userLength = (input.userMessage || "").length;
+  const aiWords = aiLength / 5;
+  const paragraphs = (input.aiText || "").split(/\n\s*\n/).filter(Boolean).length;
+
+  if (input.isCasualChatRequest && userLength < 80 && aiLength > 400) {
+    signals.push({ type: "length_mismatch_casual", confidence: "high", message: `Reply was too long (${Math.round(aiWords)} words) for a casual message of ${userLength} characters.`, learningType: "style" });
+  }
+
+  if (input.questionCategory.category === "factual" && aiWords > 120) {
+    signals.push({ type: "length_mismatch_factual", confidence: "medium", message: `Factual question answered with ${Math.round(aiWords)} words — should be under 80.`, learningType: "style" });
+  }
+
+  if (!input.isCasualChatRequest && !input.shouldUseWebSearch && input.writingPattern.avgMessageLength === "short" && input.writingPattern.askingPattern === "direct" && aiWords > 300) {
+    signals.push({ type: "length_mismatch_direct_user", confidence: "medium", message: `User writes short direct messages but received ${Math.round(aiWords)} words — likely too much.`, learningType: "style" });
+  }
+
+  if (input.writingPattern.writingStyle === "casual" && paragraphs >= 4 && !input.shouldUseWebSearch) {
+    signals.push({ type: "tone_mismatch_formal", confidence: "medium", message: `User writes casually but reply has ${paragraphs} paragraphs — likely too formal.`, learningType: "style" });
+  }
+
+  if (input.questionCategory.category === "emotional" && paragraphs >= 3) {
+    signals.push({ type: "tone_mismatch_emotional", confidence: "high", message: `Emotional question received a structured ${paragraphs}-paragraph reply — should be warmer and shorter.`, learningType: "style" });
+  }
+
+  const aiTextLower = (input.aiText || "").toLowerCase();
+  const jargonTerms = ["middleware", "idempotent", "polymorphism", "eigenvalue", "stochastic", "backpropagation", "amortization", "heuristic", "dependency injection", "race condition", "tail recursion", "quantization", "tokenization"];
+  const jargonCount = jargonTerms.filter(t => aiTextLower.includes(t)).length;
+
+  if (input.expertiseLevel.level === "beginner" && jargonCount >= 2) {
+    signals.push({ type: "expertise_mismatch_too_advanced", confidence: "high", message: `Beginner-level user received reply with ${jargonCount} advanced terms — too complex.`, learningType: "content" });
+  }
+
+  if (input.expertiseLevel.level === "expert" && aiWords < 80 && input.questionCategory.category === "technical") {
+    signals.push({ type: "expertise_mismatch_too_basic", confidence: "low", message: `Expert-level user asked a technical question but received a short basic reply.`, learningType: "content" });
+  }
+
+  if (input.questionCategory.category === "comparison" && paragraphs < 2 && aiWords > 60) {
+    signals.push({ type: "structure_mismatch_comparison", confidence: "low", message: `Comparison question answered without clear structure — user likely expected a clear breakdown.`, learningType: "style" });
+  }
+
+  if (input.questionCategory.category === "planning" && !/\d\.|stap|step|eerst|then|vervolgens|daarna|finally/i.test(input.aiText)) {
+    signals.push({ type: "structure_mismatch_planning", confidence: "low", message: `Planning question answered without clear steps or order.`, learningType: "style" });
+  }
+
+  const vaguePatterns = [/het hangt ervan af/i, /it depends/i, /dat is lastig te zeggen/i, /moeilijk te zeggen/i, /dat verschilt/i, /er zijn veel factoren/i, /there are many factors/i];
+  const vagueCount = vaguePatterns.filter(p => p.test(input.aiText)).length;
+
+  if (input.questionCategory.category === "advice" && vagueCount >= 1) {
+    signals.push({ type: "concreteness_vague_advice", confidence: "medium", message: `Advice question received a hedging reply with ${vagueCount} vague phrases — user wanted a direct recommendation.`, learningType: "content" });
+  }
+
+  return { signals };
+}
+
 function buildUserIntelligenceContext(input: {
   message: string;
   recentMessages: { role: "user" | "ai"; content: string }[];
@@ -4708,10 +4776,32 @@ IMPORTANT: If the user asks to edit, adjust, modify, change, transform, or impro
     routeType: resolvedRouteType,
   });
 
-  if (autoDebugSignals.length > 0) {
+  // Quality evaluation — logic-based, no extra AI call
+  const qualityEval = evaluateResponseQuality({
+    userMessage: message || "",
+    aiText,
+    questionCategory: detectQuestionCategory(message || ""),
+    writingPattern: detectUserWritingPattern(recentMessages),
+    expertiseLevel: detectExpertiseLevel(message || "", recentMessages),
+    isCasualChatRequest,
+    isSimpleImageAnalysis,
+    shouldUseWebSearch,
+  });
+
+  const allDebugSignals = [
+    ...autoDebugSignals,
+    ...qualityEval.signals.map(s => ({
+      ...s,
+      source: `auto_debug_quality_${s.type}`,
+      variant: responseVariant,
+      routeType: resolvedRouteType,
+    })),
+  ];
+
+  if (allDebugSignals.length > 0) {
     await storeAutoDebugSignals({
       userMessage: message,
-      signals: autoDebugSignals,
+      signals: allDebugSignals,
     });
   }
 
