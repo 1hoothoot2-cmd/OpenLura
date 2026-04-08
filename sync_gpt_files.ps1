@@ -29,7 +29,7 @@ $filesToSync = @(
     @{ Source = "app\api\brain\sources\route.ts"; Destination = "brain_sources_route.ts" },
     @{ Source = "app\api\brain\notes\route.ts"; Destination = "brain_notes_route.ts" },
     @{ Source = "app\api\brain\retrieve\route.ts"; Destination = "brain_retrieve_route.ts" },
-    
+
     # PAGES
     @{ Source = "app\analytics\page.tsx"; Destination = "analytics_page.tsx" },
     @{ Source = "app\personal-workspace\page.tsx"; Destination = "persoonlijke-omgeving_page.tsx" },
@@ -50,6 +50,7 @@ $filesToSync = @(
     @{ Source = "lib\brain\parser.ts"; Destination = "lib_brain_parser.ts" },
     @{ Source = "lib\brain\embedder.ts"; Destination = "lib_brain_embedder.ts" },
     @{ Source = "lib\brain\chunker.ts"; Destination = "lib_brain_chunker.ts" },
+    @{ Source = "lib\brain\cleaner.ts"; Destination = "lib_brain_cleaner.ts" },
 
     # COMPONENTS
     @{ Source = "components\chat\Sidebar.tsx"; Destination = "components_chat_Sidebar.tsx" },
