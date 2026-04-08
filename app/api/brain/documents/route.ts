@@ -5,7 +5,7 @@ import { requireOpenLuraIdentity } from "@/lib/auth/requestIdentity";
 
 const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const BUCKET = "brain-documents";
+const BUCKET = "brain_documents";
 const MAX_SIZE = 10 * 1024 * 1024; // 10 MB
 const ALLOWED_MIME = ["application/pdf", "text/plain", "text/markdown"];
 const ALLOWED_EXT = ["pdf", "txt", "md"];
