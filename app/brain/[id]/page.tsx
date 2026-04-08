@@ -153,29 +153,14 @@ export default function NotebookDetailPage() {
     if (insights[docId] || insightsLoading[docId]) return;
     setInsightsLoading(prev => ({ ...prev, [docId]: true }));
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+      const res = await fetch("/api/brain/insights", {
         method: "POST",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          messages: [{
-            role: "user",
-            content: `Give exactly 3 short key insights from this document called "${docName}". 
-Return ONLY a JSON array of 3 strings, no other text. Example: ["insight 1","insight 2","insight 3"]
-
-Document content (first 2000 chars):
-${(content || docName).slice(0, 2000)}`,
-          }],
-        }),
+        body: JSON.stringify({ docName, content }),
       });
       const data = await res.json();
-      const text = data.content?.[0]?.text || "[]";
-      const clean = text.replace(/```json|```/g, "").trim();
-      const parsed: string[] = JSON.parse(clean);
-      if (Array.isArray(parsed)) {
-        setInsights(prev => ({ ...prev, [docId]: parsed }));
-      }
+      setInsights(prev => ({ ...prev, [docId]: data.insights ?? [] }));
     } catch {
       setInsights(prev => ({ ...prev, [docId]: [] }));
     } finally {
