@@ -197,6 +197,7 @@ export default function PersonalDashboardPage() {
     { id: "workspace", emoji: "💬", title: "Chat", desc: "Open your AI workspace", href: "/personal-workspace" },
     { id: "subscription", emoji: "💳", title: "Subscription", desc: "Manage your plan", href: "#subscription" },
     { id: "photo-studio", emoji: "🎨", title: "Photo Studio", desc: "Generate images with AI", href: "/photo-studio" },
+    { id: "brain", emoji: "🧠", title: "Brain", desc: "Your AI knowledge base", href: "/brain" },
   ];
 
   const [cards, setCards] = useState(() => {
@@ -211,6 +212,9 @@ export default function PersonalDashboardPage() {
       // Inject photo-studio if missing
       if (!updated.some((c: any) => c.id === "photo-studio")) {
         updated = [...updated, { id: "photo-studio", emoji: "🎨", title: "Photo Studio", desc: "Generate images with AI", href: "/photo-studio" }];
+      }
+      if (!updated.some((c: any) => c.id === "brain")) {
+        updated = [...updated, { id: "brain", emoji: "🧠", title: "Brain", desc: "Your AI knowledge base", href: "/brain" }];
       }
       localStorage.setItem(CARDS_KEY, JSON.stringify(updated));
       return updated;
