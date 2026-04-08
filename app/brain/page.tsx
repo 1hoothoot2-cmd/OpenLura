@@ -12,6 +12,7 @@ interface Notebook {
   description: string;
   created_at: string;
   document_count: number;
+  category?: string;
 }
 
 // ─── Lang (reuse Phase 4.8 pattern) ──────────────────────────────────────────
@@ -209,6 +210,13 @@ export default function BrainPage() {
           <h1 className="text-2xl font-semibold tracking-tight">{tr("brain", lang)}</h1>
         </div>
         <p className="text-sm text-white/38 ml-[52px]">{tr("sub", lang)}</p>
+        {notebooks.length > 0 && (
+          <div className="ml-[52px] mt-3 flex items-center gap-4">
+            <span className="text-xs text-white/24">{notebooks.length} {notebooks.length === 1 ? "notebook" : "notebooks"}</span>
+            <span className="text-white/10">·</span>
+            <span className="text-xs text-white/24">{notebooks.reduce((s, n) => s + (n.document_count || 0), 0)} sources</span>
+          </div>
+        )}
       </div>
 
       {/* ── Notebooks grid ── */}
@@ -370,7 +378,14 @@ function NotebookCard({
           </div>
           <div>
             <p className="text-sm font-medium text-white/90 leading-tight">{notebook.name}</p>
-            <p className="text-[11px] text-white/28 mt-0.5">{createdAt} · {notebook.document_count} {tr2("docs")}</p>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <p className="text-[11px] text-white/28">{createdAt} · {notebook.document_count} {tr2("docs")}</p>
+              {notebook.category && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/[0.04] text-white/24 border border-white/6">
+                  {notebook.category === "work" ? "💼" : notebook.category === "school" ? "🎓" : notebook.category === "personal" ? "🌱" : "📂"}
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
