@@ -129,6 +129,7 @@ export default function NotebookDetailPage() {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [showSource, setShowSource] = useState(false);
   const [sourceUrl, setSourceUrl] = useState("");
   const [sourceFetching, setSourceFetching] = useState(false);
@@ -220,7 +221,13 @@ export default function NotebookDetailPage() {
   }
 
   async function handleDelete(docId: string) {
-    if (!confirm(tr("delete_confirm", lang))) return;
+    setConfirmDeleteId(docId);
+  }
+
+  async function confirmDelete() {
+    const docId = confirmDeleteId;
+    if (!docId) return;
+    setConfirmDeleteId(null);
     setDeletingId(docId);
     try {
       await fetch(`/api/brain/documents?id=${encodeURIComponent(docId)}&notebookId=${encodeURIComponent(notebookId)}`, { method: "DELETE", credentials: "same-origin" });
@@ -342,7 +349,18 @@ export default function NotebookDetailPage() {
             {notebook.description && <p className="text-sm text-white/36 mt-0.5">{notebook.description}</p>}
           </div>
         </div>
-        <p className="text-xs text-white/24 mt-3 ml-[56px]">{notebook.document_count} {tr("documents", lang).toLowerCase()}</p>
+        <div className="ml-[56px] mt-3 flex items-center gap-3">
+          <p className="text-xs text-white/24">{notebook.document_count} {tr("documents", lang).toLowerCase()}</p>
+          <a
+            href={`/personal-workspace?notebookId=${notebook.id}`}
+            className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-3.5 py-1.5 text-xs font-medium text-white shadow-[0_4px_12px_rgba(59,130,246,0.28)] hover:brightness-110 transition-all active:scale-95"
+          >
+            <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M14 2H2v12l3-3h9V2z" />
+            </svg>
+            Chat with notebook
+          </a>
+        </div>
       </div>
 
       <main className="mx-auto max-w-4xl px-5 pb-24 space-y-6">
@@ -392,6 +410,33 @@ export default function NotebookDetailPage() {
           )}
         </div>
       </main>
+
+      {confirmDeleteId && (
+        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-[360px] rounded-[24px] border border-white/10 bg-[#0a0f1e]/98 shadow-[0_24px_64px_rgba(0,0,0,0.50)] backdrop-blur-2xl overflow-hidden">
+            <div className="px-6 pt-6 pb-4">
+              <p className="text-sm font-medium text-white/90 mb-1">{tr("delete_confirm", lang)}</p>
+              <p className="text-xs text-white/36">This cannot be undone.</p>
+            </div>
+            <div className="px-6 pb-6 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteId(null)}
+                className="flex-1 rounded-[14px] bg-white/[0.04] py-2.5 text-sm text-white/50 hover:bg-white/[0.08] hover:text-white transition-all"
+              >
+                {tr("cancel", lang)}
+              </button>
+              <button
+                type="button"
+                onClick={confirmDelete}
+                className="flex-1 rounded-[14px] bg-red-500/20 border border-red-500/30 py-2.5 text-sm font-medium text-red-300 hover:bg-red-500/30 hover:text-red-200 transition-all"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showNote && (
         <div

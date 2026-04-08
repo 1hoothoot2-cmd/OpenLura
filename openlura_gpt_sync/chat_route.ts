@@ -2717,6 +2717,7 @@ function buildRateLimitHeaders(rateLimit: {
 
 type OpenLuraRuntimePromptBuilderInput = {
   isLightPrompt: boolean;
+  brainContextBlock?: string;
   shouldUseWebSearch: boolean;
   message: string;
   image: string | null;
@@ -3165,6 +3166,7 @@ ${input.recentConversationTranscript || "none"}
 
 Personal user memory: ${input.memoryEnabled ? input.runtimePersonalMemory || "none" : "disabled"}
 User location: ${input.location ? JSON.stringify(input.location) : "unknown"}
+${input.brainContextBlock ? input.brainContextBlock : ""}
 
 BAD OUTPUT:
 - Using the same emojis for every topic
@@ -3325,6 +3327,50 @@ export async function POST(req: Request) {
     requestIdentity?.isAuthenticated && requestIdentity?.userId
       ? requestIdentity.userId
       : null;
+
+  // ── Brain context retrieval ──────────────────────────────────────────────
+  let brainContext = "";
+  const brainNotebookId = req.headers.get("x-openlura-notebook-id")?.trim();
+
+  if (brainNotebookId && message && authenticatedUserId) {
+    try {
+      const { retrieveChunks, formatChunksAsContext } = await import("@/lib/brain/retriever");
+
+      const retrieval = await retrieveChunks({
+        query: message,
+        notebookId: brainNotebookId,
+        userId: authenticatedUserId,
+        topK: 5,
+        supabaseUrl: supabaseUrl!,
+        serviceKey: supabaseServiceRoleKey!,
+        openAiKey: process.env.OPENAI_API_KEY!,
+      });
+
+      if (retrieval.chunks.length > 0) {
+        const docIds = [...new Set(retrieval.chunks.map(c => c.document_id))];
+        const idList = docIds.map(id => `"${id}"`).join(",");
+        const docRes = await fetch(
+          `${supabaseUrl}/rest/v1/brain_documents?id=in.(${idList})&user_id=eq.${encodeURIComponent(authenticatedUserId)}&select=id,name`,
+          {
+            headers: {
+              apikey: supabaseServiceRoleKey!,
+              Authorization: `Bearer ${supabaseServiceRoleKey!}`,
+            },
+          }
+        ).catch(() => null);
+
+        const docNames: Record<string, string> = {};
+        if (docRes?.ok) {
+          const rows: { id: string; name: string }[] = await docRes.json().catch(() => []);
+          rows.forEach(r => { docNames[r.id] = r.name; });
+        }
+
+        brainContext = formatChunksAsContext(retrieval.chunks, docNames);
+      }
+    } catch (err) {
+      console.error("[Brain] Chat retrieval error", err instanceof Error ? err.message : "unknown");
+    }
+  }
 
   const ip = getRequestIp(req);
   const anonLimit = checkAnonRateLimit(ip, !!authenticatedUserId);
@@ -3652,6 +3698,11 @@ ${personalRecentIssues.join("\n") || "none"}
         typeof msg.content === "string" &&
         msg.content.trim()
     );
+
+  // Inject brain context into conversation transcript if available
+  const brainContextBlock = brainContext
+    ? `\n\nKNOWLEDGE FROM USER'S NOTEBOOK:\nThe following information comes from the user's personal knowledge base. Use it to answer their question accurately. Always refer to the source name when citing.\n\n${brainContext}\n\nEND OF NOTEBOOK CONTEXT`
+    : "";
 
   const recentConversationTranscript = Array.isArray(recentMessages)
     ? recentMessages
@@ -4605,6 +4656,7 @@ IMPORTANT: If the user asks to edit, adjust, modify, change, transform, or impro
       completedFeedback,
       recentConversationTranscript,
       runtimePersonalMemory,
+      brainContextBlock,
       location,
       responseVariant,
       feedbackContext,

@@ -20,6 +20,25 @@ export default function ChatPage() {
   const isPersonalRoute = pathname === "/personal-workspace";
   const [userScopedStorageId, setUserScopedStorageId] = useState("");
 
+  // Brain notebook context
+  const [activeNotebookId, setActiveNotebookId] = useState<string | null>(null);
+  const [activeNotebookOrigin, setActiveNotebookOrigin] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const nb = params.get("notebookId")?.trim();
+    if (nb) {
+      setActiveNotebookId(nb);
+      setActiveNotebookOrigin(`/brain/${nb}`);
+      // Clean URL without reload
+      const clean = window.location.pathname;
+      window.history.replaceState({}, "", clean);
+      // Start fresh chat for notebook context
+      createNewChat({ title: "Brain chat" });
+    }
+  }, []);
+
   const makeUserBoundStorageKey = (baseKey: string) =>
     isPersonalRoute || !userScopedStorageId
       ? baseKey
@@ -3685,10 +3704,15 @@ setIsWaitingForFirstToken(true);
     let res: Response;
 
     try {
+      const chatHeaders = {
+        ...getScopedRequestHeaders(true, isPersonalEnvironment),
+        ...(activeNotebookId ? { "x-openlura-notebook-id": activeNotebookId } : {}),
+      };
+
       res = await fetch("/api/chat", {
         method: "POST",
         signal: controller.signal,
-        headers: getScopedRequestHeaders(true, isPersonalEnvironment),
+        headers: chatHeaders,
         body: JSON.stringify({
           message: inputToSend,
           image: imageToSend,
@@ -5763,6 +5787,14 @@ const transcript = (data.text || "").trim();
 
       {isPersonalRoute ? (
         <div className="fixed right-4 top-[max(env(safe-area-inset-top),16px)] z-[60] hidden items-center gap-2 md:flex">
+          {activeNotebookOrigin && (
+            <a
+              href={activeNotebookOrigin}
+              className="rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-2 text-sm text-white/70 shadow-[0_12px_28px_rgba(0,0,0,0.16)] backdrop-blur-2xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-white/16 hover:bg-white/[0.07] hover:text-white active:scale-95"
+            >
+              ← Notebook
+            </a>
+          )}
           <a
             href="/personal-dashboard"
             className="rounded-full border border-[#3b82f6]/22 bg-[#3b82f6]/10 px-3.5 py-2 text-sm text-[#93c5fd] shadow-[0_12px_28px_rgba(59,130,246,0.14)] backdrop-blur-2xl ol-interactive transition-[transform,background-color,border-color,color,box-shadow] duration-200 hover:border-[#3b82f6]/36 hover:bg-[#3b82f6]/18 hover:text-white hover:shadow-[0_14px_30px_rgba(59,130,246,0.22)] active:scale-95"

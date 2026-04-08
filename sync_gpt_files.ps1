@@ -28,7 +28,8 @@ $filesToSync = @(
     @{ Source = "app\api\brain\documents\route.ts"; Destination = "brain_documents_route.ts" },
     @{ Source = "app\api\brain\sources\route.ts"; Destination = "brain_sources_route.ts" },
     @{ Source = "app\api\brain\notes\route.ts"; Destination = "brain_notes_route.ts" },
-
+    @{ Source = "app\api\brain\retrieve\route.ts"; Destination = "brain_retrieve_route.ts" },
+    
     # PAGES
     @{ Source = "app\analytics\page.tsx"; Destination = "analytics_page.tsx" },
     @{ Source = "app\personal-workspace\page.tsx"; Destination = "persoonlijke-omgeving_page.tsx" },
@@ -45,6 +46,10 @@ $filesToSync = @(
     @{ Source = "lib\auth\adminSession.ts"; Destination = "lib_auth_adminSession.ts" },
     @{ Source = "lib\auth\analyticsSession.ts"; Destination = "lib_auth_analyticsSession.ts" },
     @{ Source = "lib\auth\requestIdentity.ts"; Destination = "lib_auth_requestIdentity.ts" },
+    @{ Source = "lib\brain\retriever.ts"; Destination = "lib_brain_retriever.ts" },
+    @{ Source = "lib\brain\parser.ts"; Destination = "lib_brain_parser.ts" },
+    @{ Source = "lib\brain\embedder.ts"; Destination = "lib_brain_embedder.ts" },
+    @{ Source = "lib\brain\chunker.ts"; Destination = "lib_brain_chunker.ts" },
 
     # COMPONENTS
     @{ Source = "components\chat\Sidebar.tsx"; Destination = "components_chat_Sidebar.tsx" },

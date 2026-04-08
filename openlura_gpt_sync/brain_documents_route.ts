@@ -1,3 +1,5 @@
+export const runtime = "nodejs";
+
 import { NextResponse } from "next/server";
 import { requireOpenLuraIdentity } from "@/lib/auth/requestIdentity";
 
@@ -152,7 +154,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Storage upload failed", detail: errText }, { status: 500 });
     }
 
-    // (replaced above)
+    // Parse content
+    let parsedContent = "";
+    try {
+      const { parseDocument } = await import("@/lib/brain/parser");
+      const result = await parseDocument(fileBuffer, fileType, originalName);
+      parsedContent = result.text;
+    } catch (err) {
+      console.error("[Brain] Parse error (non-fatal)", err instanceof Error ? err.message : "unknown");
+    }
 
     // Save metadata to DB
     const dbUrl = `${SUPABASE_URL}/rest/v1/brain_documents`;
@@ -166,6 +176,7 @@ export async function POST(req: Request) {
         file_type: fileType,
         file_size: file.size,
         storage_path: storagePath,
+        content: parsedContent,
       }),
     });
 
@@ -188,6 +199,31 @@ export async function POST(req: Request) {
       headers: dbHeaders(),
       body: JSON.stringify({ document_count: `document_count + 1` }),
     }).catch(() => null); // Non-critical
+
+    // Chunk + embed (synchronous — before response)
+    if (parsedContent) {
+      try {
+        const { persistChunks } = await import("@/lib/brain/chunker");
+        await persistChunks({
+          documentId: document.id,
+          notebookId,
+          userId,
+          content: parsedContent,
+          supabaseUrl: SUPABASE_URL,
+          serviceKey: SUPABASE_SERVICE_KEY,
+        });
+        const { embedDocumentChunks } = await import("@/lib/brain/embedder");
+        await embedDocumentChunks({
+          documentId: document.id,
+          userId,
+          supabaseUrl: SUPABASE_URL,
+          serviceKey: SUPABASE_SERVICE_KEY,
+          openAiKey: process.env.OPENAI_API_KEY!,
+        });
+      } catch (e) {
+        console.error("[Brain] Chunk/embed failed", e instanceof Error ? e.message : "unknown");
+      }
+    }
 
     return NextResponse.json({ document }, { status: 201 });
   } catch (err) {

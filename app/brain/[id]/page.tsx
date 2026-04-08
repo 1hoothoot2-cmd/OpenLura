@@ -146,6 +146,43 @@ export default function NotebookDetailPage() {
   const sourceInputRef = useRef<HTMLInputElement>(null);
   const noteBodyRef = useRef<HTMLTextAreaElement>(null);
 
+  const [insights, setInsights] = useState<Record<string, string[]>>({});
+  const [insightsLoading, setInsightsLoading] = useState<Record<string, boolean>>({});
+
+  async function generateInsights(docId: string, docName: string, content?: string) {
+    if (insights[docId] || insightsLoading[docId]) return;
+    setInsightsLoading(prev => ({ ...prev, [docId]: true }));
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1000,
+          messages: [{
+            role: "user",
+            content: `Give exactly 3 short key insights from this document called "${docName}". 
+Return ONLY a JSON array of 3 strings, no other text. Example: ["insight 1","insight 2","insight 3"]
+
+Document content (first 2000 chars):
+${(content || docName).slice(0, 2000)}`,
+          }],
+        }),
+      });
+      const data = await res.json();
+      const text = data.content?.[0]?.text || "[]";
+      const clean = text.replace(/```json|```/g, "").trim();
+      const parsed: string[] = JSON.parse(clean);
+      if (Array.isArray(parsed)) {
+        setInsights(prev => ({ ...prev, [docId]: parsed }));
+      }
+    } catch {
+      setInsights(prev => ({ ...prev, [docId]: [] }));
+    } finally {
+      setInsightsLoading(prev => ({ ...prev, [docId]: false }));
+    }
+  }
+
   useEffect(() => {
     fetch("/api/auth", { method: "GET", credentials: "same-origin", cache: "no-store" })
       .then(async r => {
@@ -404,7 +441,36 @@ export default function NotebookDetailPage() {
           ) : (
             <div className="space-y-2">
               {docs.map(doc => (
-                <DocRow key={doc.id} doc={doc} deleting={deletingId === doc.id} onDelete={() => handleDelete(doc.id)} />
+                <div key={doc.id}>
+                  <DocRow doc={doc} deleting={deletingId === doc.id} onDelete={() => handleDelete(doc.id)} />
+                  <div className="ml-2 mt-1">
+                    {!insights[doc.id] && !insightsLoading[doc.id] && (
+                      <button
+                        type="button"
+                        onClick={() => generateInsights(doc.id, doc.name)}
+                        className="text-[11px] text-[#93c5fd]/50 hover:text-[#93c5fd] transition-colors"
+                      >
+                        ✦ Generate insights
+                      </button>
+                    )}
+                    {insightsLoading[doc.id] && (
+                      <p className="text-[11px] text-white/24 flex items-center gap-1.5">
+                        <span className="h-2.5 w-2.5 rounded-full border border-white/20 border-t-[#3b82f6] animate-spin" />
+                        Analyzing…
+                      </p>
+                    )}
+                    {insights[doc.id] && insights[doc.id].length > 0 && (
+                      <div className="mt-2 space-y-1">
+                        {insights[doc.id].map((insight, i) => (
+                          <p key={i} className="text-[12px] text-white/50 flex items-start gap-1.5">
+                            <span className="text-[#3b82f6]/60 shrink-0 mt-0.5">✦</span>
+                            {insight}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
               ))}
             </div>
           )}
