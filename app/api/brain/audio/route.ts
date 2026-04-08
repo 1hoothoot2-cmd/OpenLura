@@ -34,9 +34,10 @@ export async function POST(req: NextRequest) {
       max_tokens: 400,
       messages: [{
         role: "user",
-        content: `Write a spoken summary of this notebook called "${notebookName}". 
-Write it as if you are explaining it out loud in 3-4 sentences. 
+        content: `Detect the language of the content below and write a spoken summary of this notebook called "${notebookName}" IN THAT SAME LANGUAGE.
+Write it as if you are explaining it out loud in 3-4 sentences.
 Natural, conversational tone. No bullet points, no markdown.
+IMPORTANT: respond only in the language of the content, not in English.
 
 Content:
 ${content}`,
