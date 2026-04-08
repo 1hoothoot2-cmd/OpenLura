@@ -393,7 +393,7 @@ export default function HomePage() {
                 <span className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] text-white/46">Web search</span>
                 <span className="inline-flex items-center rounded-full border border-[#3b82f6]/20 bg-[#3b82f6]/8 px-2 py-0.5 text-[10px] text-blue-300/80">Photo Studio ✦</span>
               </div>
-              <span className="mt-4 text-sm font-medium text-blue-400 group-hover:text-blue-300 transition-colors duration-150">Sign in →</span>
+              <span className="mt-4 text-sm font-medium text-blue-400 group-hover:text-blue-300 transition-colors duration-150">Sign in {"\u2192"}</span>
             </button>
 
             <div className="flex items-center justify-center px-1">
@@ -409,7 +409,7 @@ export default function HomePage() {
               </span>
               <span className="text-base font-semibold text-white">Try the chat</span>
               <span className="mt-2 text-sm leading-6 text-white/46">No account needed. Start asking, writing, and planning.</span>
-              <span className="mt-4 text-sm font-medium text-white/40 group-hover:text-white/70 transition-colors duration-150">Open chat →</span>
+              <span className="mt-4 text-sm font-medium text-white/40 group-hover:text-white/70 transition-colors duration-150">Open chat {"\u2192"}</span>
             </Link>
           </div>
 
@@ -559,6 +559,62 @@ export default function HomePage() {
               </div>
             </div>
             <SectionFooter nextHref="#how-it-works" nextLabel="How it works" />
+          </section>
+
+          {/* BRAIN HIGHLIGHT */}
+          <section className="section-panel scroll-mt-24 mt-14 w-full max-w-5xl sm:mt-16">
+            <div className="rounded-[28px] border border-[#3b82f6]/16 bg-gradient-to-br from-[#0d1733] via-[#0a1022] to-[#050510] p-8 sm:p-10 relative overflow-hidden">
+              {/* Ambient glow */}
+              <div className="pointer-events-none absolute -top-20 -right-20 h-[300px] w-[300px] rounded-full bg-[#3b82f6]/8 blur-[80px]" />
+              <div className="pointer-events-none absolute -bottom-10 -left-10 h-[200px] w-[200px] rounded-full bg-purple-600/6 blur-[60px]" />
+
+              <div className="relative">
+                <div className="inline-flex items-center gap-2 rounded-full border border-[#3b82f6]/20 bg-[#3b82f6]/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.14em] text-blue-300 mb-5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#3b82f6]" />
+                  New — Go plan
+                </div>
+
+                <h2 className="text-2xl font-semibold text-white/92 sm:text-3xl max-w-xl">
+                  Your AI Brain — upload knowledge, ask anything
+                </h2>
+                <p className="mt-3 max-w-xl text-sm leading-7 text-white/50">
+                  Brain turns your documents, notes, and web sources into a searchable knowledge base. Upload a PDF, paste a URL, add a note — then chat with your content directly.
+                </p>
+
+                <div className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {[
+                    { emoji: "📎", title: "Upload anything", desc: "PDF, TXT, Markdown, web URLs, YouTube videos, or your own notes." },
+                    { emoji: "💬", title: "Chat with your content", desc: "Ask questions and get answers grounded in your own documents." },
+                    { emoji: "✦", title: "AI insights", desc: "Generate summaries, key questions, and important terms instantly." },
+                    { emoji: "🧩", title: "Quiz & flashcards", desc: "Turn your knowledge into interactive learning tools automatically." },
+                    { emoji: "🎧", title: "Audio summaries", desc: "Listen to a spoken summary of your notebook with ElevenLabs voices." },
+                    { emoji: "🔒", title: "Fully private", desc: "Your notebooks are isolated to your account. Nobody else can access them." },
+                  ].map(f => (
+                    <div key={f.title} className="rounded-[18px] border border-white/8 bg-white/[0.03] px-4 py-4">
+                      <div className="text-xl mb-2">{f.emoji}</div>
+                      <p className="text-sm font-medium text-white/88">{f.title}</p>
+                      <p className="text-xs text-white/40 mt-1 leading-5">{f.desc}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-8 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsLoginOpen(true)}
+                    className="inline-flex h-10 items-center justify-center rounded-full bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-6 text-sm font-medium text-white shadow-[0_8px_20px_rgba(59,130,246,0.28)] hover:brightness-110 transition-all"
+                  >
+                    Open Brain {"\u2192"}
+                  </button>
+                  <a
+                    href="#plans"
+                    className="inline-flex h-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] px-6 text-sm font-medium text-white/70 hover:text-white hover:border-white/16 transition-all"
+                  >
+                    View Go plan
+                  </a>
+                </div>
+              </div>
+            </div>
           </section>
 
           {/* PRODUCT OVERVIEW */}
@@ -966,7 +1022,7 @@ export default function HomePage() {
 
               <p className="mt-5 text-center text-[12px] text-white/30">
                 No account yet?{" "}
-                <a href="/personal-workspace" className="text-blue-400/80 hover:text-blue-300 transition-colors duration-150">
+                <a href="/personal-dashboard" className="text-blue-400/80 hover:text-blue-300 transition-colors duration-150">
                   Create one here
                 </a>
               </p>

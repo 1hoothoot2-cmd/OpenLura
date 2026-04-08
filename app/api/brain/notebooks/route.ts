@@ -104,11 +104,11 @@ export async function POST(req: Request) {
 
   // Check tier + notebook limit
   const tierRes = await fetch(
-    `${SUPABASE_URL}/rest/v1/user_usage?user_id=eq.${encodeURIComponent(userId)}&select=tier`,
+    `${SUPABASE_URL}/rest/v1/openlura_personal_state?user_id=eq.${encodeURIComponent(userId)}&select=usage_stats`,
     { headers: supabaseHeaders() }
   );
   const tierRows = tierRes.ok ? await tierRes.json() : [];
-  const tier = tierRows?.[0]?.tier || "free";
+  const tier = tierRows?.[0]?.usage_stats?.tier || "free";
 
   if (tier === "free") {
     const countRes = await fetch(

@@ -14,11 +14,11 @@ export async function POST(req: NextRequest) {
   const supabaseUrl = process.env.SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const tierRes = await fetch(
-    `${supabaseUrl}/rest/v1/user_usage?user_id=eq.${identity.identity.userId}&select=tier`,
+    `${supabaseUrl}/rest/v1/openlura_personal_state?user_id=eq.${identity.identity.userId}&select=usage_stats`,
     { headers: { apikey: serviceKey!, Authorization: `Bearer ${serviceKey!}` } }
   );
   const tierRows = tierRes.ok ? await tierRes.json() : [];
-  const userTier = tierRows?.[0]?.tier || "free";
+  const userTier = tierRows?.[0]?.usage_stats?.tier || "free";
 
   if (userTier === "free") {
     return NextResponse.json({ error: "AI features require a Go plan. Upgrade to use insights, quiz and flashcards." }, { status: 403 });

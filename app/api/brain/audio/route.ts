@@ -12,11 +12,11 @@ export async function POST(req: NextRequest) {
 
   // Check tier — audio only for pro
   const tierRes = await fetch(
-    `${process.env.SUPABASE_URL}/rest/v1/user_usage?user_id=eq.${identity.identity.userId}&select=tier`,
+    `${process.env.SUPABASE_URL}/rest/v1/openlura_personal_state?user_id=eq.${identity.identity.userId}&select=usage_stats`,
     { headers: { apikey: process.env.SUPABASE_SERVICE_ROLE_KEY!, Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY!}` } }
   );
   const tierRows = tierRes.ok ? await tierRes.json() : [];
-  const userTier = tierRows?.[0]?.tier || "free";
+  const userTier = tierRows?.[0]?.usage_stats?.tier || "free";
 
   if (userTier === "free") {
     return NextResponse.json({ error: "Audio mode requires a Go plan." }, { status: 403 });
