@@ -32,6 +32,12 @@ export async function POST(req: Request) {
       "metadata[user_id]": userId,
       "client_reference_id": userId,
       "allow_promotion_codes": "true",
+      "payment_method_types[0]": "card",
+      "payment_method_types[1]": "ideal",
+      "payment_method_types[2]": "bancontact",
+      "payment_method_types[3]": "sepa_debit",
+      "payment_method_types[4]": "paypal",
+      "payment_method_types[5]": "link",
     }),
   });
 
