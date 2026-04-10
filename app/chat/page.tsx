@@ -3940,6 +3940,21 @@ updated[index].messages[
     // PHASE 9.3 — context opslaan na response
     autoSaveContext(updated[index].messages);
 
+    // Log conversation pair — non-blocking
+    if (aiText && rawInputToSend) {
+      void fetch("/api/log-response", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: rawInputToSend.slice(0, 500),
+          response: aiText.slice(0, 1000),
+          user_id: isPersonalRoute ? null : getOrCreateOpenLuraUserId(),
+          language: detectedLang,
+          source: isPersonalRoute ? "personal" : "chat",
+        }),
+      }).catch(() => {});
+    }
+
     // Upgrade popup na 5 berichten voor free users (ook ingelogd)
     if (!upgradePopupShownRef.current && !upgradeNotice.visible && userTier === "free") {
       const userMsgCount = (updated[index].messages || []).filter((m: any) => m.role === "user").length;

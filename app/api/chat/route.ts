@@ -3284,45 +3284,6 @@ export async function POST(req: Request) {
   const detectedLanguage = detectInputLanguage(message);
   const userTimezone = req.headers.get("x-openlura-timezone") || "UTC";
 
-  // CONVERSATION LOGGING — non-blocking, only runs when a message is present
-  if (message && supabaseUrl && supabaseServiceRoleKey) {
-    void (async () => {
-      try {
-        const logHeaders = new Headers();
-        logHeaders.set("Content-Type", "application/json");
-        logHeaders.set("apikey", supabaseServiceRoleKey);
-        logHeaders.set("Authorization", `Bearer ${supabaseServiceRoleKey}`);
-        logHeaders.set("Prefer", "return=minimal");
-
-        // Log the message
-        await fetch(`${supabaseUrl}/rest/v1/openlura_conversations_log`, {
-          method: "POST",
-          headers: logHeaders,
-          body: JSON.stringify({
-            user_id: req.headers.get("x-openlura-user-id") || null,
-            message: message.slice(0, 500),
-            response: null,
-            language: detectedLanguage || "en",
-            source: isPersonalEnvironmentRequest(req) ? "personal" : "chat",
-          }),
-          cache: "no-store",
-        });
-
-        // Cleanup entries older than 7 days
-        const deleteHeaders = new Headers();
-        deleteHeaders.set("apikey", supabaseServiceRoleKey);
-        deleteHeaders.set("Authorization", `Bearer ${supabaseServiceRoleKey}`);
-        const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-        await fetch(
-          `${supabaseUrl}/rest/v1/openlura_conversations_log?created_at=lt.${cutoff}`,
-          { method: "DELETE", headers: deleteHeaders, cache: "no-store" }
-        );
-      } catch {
-        // logging must never break the chat
-      }
-    })();
-  }
-
   if (!message && !image) {
     return new Response("Empty request", {
       status: 400,
@@ -4866,33 +4827,6 @@ IMPORTANT: If the user asks to edit, adjust, modify, change, transform, or impro
       userMessage: message,
       signals: allDebugSignals,
     });
-  }
-
-  // Log AI response — non-blocking
-  if (aiText && message && supabaseUrl && supabaseServiceRoleKey) {
-    void (async () => {
-      try {
-        const logUpdateHeaders = new Headers();
-        logUpdateHeaders.set("Content-Type", "application/json");
-        logUpdateHeaders.set("apikey", supabaseServiceRoleKey);
-        logUpdateHeaders.set("Authorization", `Bearer ${supabaseServiceRoleKey}`);
-        logUpdateHeaders.set("Prefer", "return=minimal");
-
-        await fetch(
-          `${supabaseUrl}/rest/v1/openlura_conversations_log?message=eq.${encodeURIComponent(message.slice(0, 500))}&order=created_at.desc&limit=1`,
-          {
-            method: "PATCH",
-            headers: logUpdateHeaders,
-            body: JSON.stringify({
-              response: aiText.slice(0, 1000),
-            }),
-            cache: "no-store",
-          }
-        );
-      } catch {
-        // never break the response
-      }
-    })();
   }
 
   if (canUseCache && aiText && !isPersonalEnvironment) {
