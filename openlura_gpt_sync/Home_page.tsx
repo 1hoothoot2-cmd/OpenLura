@@ -98,6 +98,9 @@ export default function HomePage() {
     if (raw.startsWith("fr")) return "fr";
     if (raw.startsWith("es")) return "es";
     if (raw.startsWith("pt")) return "pt";
+    if (raw.startsWith("it")) return "it";
+    if (raw.startsWith("tr")) return "tr";
+    if (raw.startsWith("ar")) return "ar";
     if (raw.startsWith("hi")) return "hi";
     return "en";
   }, []);
@@ -108,6 +111,10 @@ export default function HomePage() {
         de: "Die KI, die wirklich für dich arbeitet.",
         fr: "L'IA qui travaille vraiment pour vous.",
         es: "La IA que realmente trabaja para ti.",
+        pt: "A IA que realmente trabalha para você.",
+        it: "L'IA che lavora davvero per te.",
+        tr: "Gerçekten senin için çalışan yapay zeka.",
+        ar: "الذكاء الاصطناعي الذي يعمل فعلاً من أجلك.",
         pap: "E AI ku ta traha bèrdèderamente pa bo.",
         hi: "AI जो सच में आपके लिए काम करती है।",
         en: "The AI that actually works for you.",
@@ -117,6 +124,10 @@ export default function HomePage() {
         de: "Frag, schreib schneller, durchsuche das Web — und je mehr du OpenLura nutzt, desto besser wird es.",
         fr: "Posez des questions, écrivez plus vite, cherchez sur le web — et plus vous utilisez OpenLura, mieux il devient.",
         es: "Haz preguntas, escribe más rápido, busca en la web — y cuanto más uses OpenLura, mejor se vuelve.",
+        pt: "Faça perguntas, escreva mais rápido, pesquise na web — e quanto mais usar o OpenLura, melhor ele fica.",
+        it: "Fai domande, scrivi più velocemente, cerca sul web — e più usi OpenLura, meglio diventa.",
+        tr: "Soru sor, daha hızlı yaz, web'de ara — ve OpenLura'yı ne kadar çok kullanırsan, o kadar iyi olur.",
+        ar: "اطرح أسئلة، اكتب بشكل أسرع، ابحث في الويب — وكلما استخدمت OpenLura أكثر، كلما أصبح أفضل.",
         pap: "Hasi pregunta, skibi mas lihe, busca web — i mas ku bo usa OpenLura, mas mihó e ta bira.",
         hi: "सवाल पूछें, तेज़ लिखें, वेब खोजें — और जितना ज़्यादा OpenLura इस्तेमाल करें, उतना बेहतर होता जाए।",
         en: "Ask questions, write faster, search the web — and the more you use OpenLura, the better it gets.",
@@ -126,6 +137,10 @@ export default function HomePage() {
         de: "Chat starten",
         fr: "Démarrer le chat",
         es: "Iniciar chat",
+        pt: "Iniciar chat",
+        it: "Avvia chat",
+        tr: "Sohbeti başlat",
+        ar: "ابدأ المحادثة",
         pap: "Kuminsá chat",
         hi: "चैट शुरू करें",
         en: "Start chat",
@@ -135,6 +150,10 @@ export default function HomePage() {
         de: "Anmelden / Konto erstellen",
         fr: "Se connecter / Créer un compte",
         es: "Iniciar sesión / Crear cuenta",
+        pt: "Entrar / Criar conta",
+        it: "Accedi / Crea account",
+        tr: "Giriş yap / Hesap oluştur",
+        ar: "تسجيل الدخول / إنشاء حساب",
         pap: "Login / Krea account",
         hi: "लॉग इन / खाता बनाएं",
         en: "Log in / Create account",
@@ -144,6 +163,10 @@ export default function HomePage() {
         de: "So funktioniert es",
         fr: "Voir comment ça marche",
         es: "Ver cómo funciona",
+        pt: "Ver como funciona",
+        it: "Scopri come funziona",
+        tr: "Nasıl çalıştığını gör",
+        ar: "اكتشف كيف يعمل",
         pap: "Mira kon e ta traha",
         hi: "यह कैसे काम करता है",
         en: "See how it works",
@@ -153,6 +176,10 @@ export default function HomePage() {
         de: "Feedback geben",
         fr: "Donner un avis",
         es: "Dar feedback",
+        pt: "Dar feedback",
+        it: "Dai feedback",
+        tr: "Geri bildirim ver",
+        ar: "أرسل تعليقاً",
         pap: "Duna feedback",
         hi: "फीडबैक दें",
         en: "Give feedback",
@@ -162,6 +189,10 @@ export default function HomePage() {
         de: "Chat öffnen",
         fr: "Ouvrir le chat",
         es: "Abrir chat",
+        pt: "Abrir chat",
+        it: "Apri chat",
+        tr: "Sohbeti aç",
+        ar: "افتح المحادثة",
         pap: "Habri chat",
         hi: "चैट खोलें",
         en: "Open chat",
@@ -171,6 +202,10 @@ export default function HomePage() {
         de: "Nach oben",
         fr: "Retour en haut",
         es: "Volver arriba",
+        pt: "Voltar ao topo",
+        it: "Torna su",
+        tr: "Yukarı çık",
+        ar: "العودة للأعلى",
         pap: "Bai bèk ariba",
         hi: "ऊपर जाएं",
         en: "Back to top",
@@ -180,6 +215,10 @@ export default function HomePage() {
         de: "Fang dort an, wo der Wert am stärksten ist: dem Chat.",
         fr: "Commencez là où la valeur est la plus forte : le chat.",
         es: "Empieza donde el valor es mayor: el chat.",
+        pt: "Comece onde o valor é maior: o chat.",
+        it: "Inizia dove il valore è più alto: la chat.",
+        tr: "Değerin en yüksek olduğu yerden başla: chat.",
+        ar: "ابدأ من حيث تكون القيمة الأكبر: المحادثة.",
         pap: "Kuminsá kaminda e balor ta mas fuerte: e chat.",
         hi: "जहाँ मूल्य सबसे अधिक है वहाँ से शुरू करें: चैट।",
         en: "Start where the value is strongest: the chat.",
@@ -189,6 +228,10 @@ export default function HomePage() {
         de: "Überspring den Lärm, öffne den Arbeitsbereich und lass OpenLura dir beim Denken, Schreiben, Planen und schnelleren Vorankommen helfen.",
         fr: "Ignorez le bruit, ouvrez l'espace de travail et laissez OpenLura vous aider à penser, écrire, planifier et avancer plus vite.",
         es: "Salta el ruido, abre el espacio de trabajo y deja que OpenLura te ayude a pensar, escribir, planificar y moverte más rápido.",
+        pt: "Ignore o ruído, abra o espaço de trabalho e deixe o OpenLura ajudá-lo a pensar, escrever, planejar e avançar mais rápido.",
+        it: "Salta il rumore, apri lo spazio di lavoro e lascia che OpenLura ti aiuti a pensare, scrivere, pianificare e muoverti più velocemente.",
+        tr: "Gürültüyü atla, çalışma alanını aç ve OpenLura'nın düşünmene, yazmana, planlamana ve daha hızlı ilerlemeye yardım etmesine izin ver.",
+        ar: "تخطَّ الضوضاء، افتح مساحة العمل، ودع OpenLura يساعدك على التفكير والكتابة والتخطيط والتحرك بشكل أسرع.",
         pap: "Skip e ruido, habri e workspace i laga OpenLura yudabo pensa, skibi, plania i muebe mas lihe.",
         hi: "शोर को छोड़ें, कार्यक्षेत्र खोलें और OpenLura को आपकी सोचने, लिखने, योजना बनाने और तेज़ी से आगे बढ़ने में मदद करने दें।",
         en: "Skip the noise, open the workspace, and let OpenLura help you think, write, plan, and move faster.",
@@ -350,7 +393,7 @@ export default function HomePage() {
                 <span className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] text-white/46">Web search</span>
                 <span className="inline-flex items-center rounded-full border border-[#3b82f6]/20 bg-[#3b82f6]/8 px-2 py-0.5 text-[10px] text-blue-300/80">Photo Studio ✦</span>
               </div>
-              <span className="mt-4 text-sm font-medium text-blue-400 group-hover:text-blue-300 transition-colors duration-150">Sign in →</span>
+              <span className="mt-4 text-sm font-medium text-blue-400 group-hover:text-blue-300 transition-colors duration-150">Sign in {"\u2192"}</span>
             </button>
 
             <div className="flex items-center justify-center px-1">
@@ -366,7 +409,7 @@ export default function HomePage() {
               </span>
               <span className="text-base font-semibold text-white">Try the chat</span>
               <span className="mt-2 text-sm leading-6 text-white/46">No account needed. Start asking, writing, and planning.</span>
-              <span className="mt-4 text-sm font-medium text-white/40 group-hover:text-white/70 transition-colors duration-150">Open chat →</span>
+              <span className="mt-4 text-sm font-medium text-white/40 group-hover:text-white/70 transition-colors duration-150">Open chat {"\u2192"}</span>
             </Link>
           </div>
 
@@ -493,6 +536,8 @@ export default function HomePage() {
                   <div className="flex items-center gap-2.5"><span className="h-1.5 w-1.5 rounded-full bg-blue-300" /><p className="text-sm text-white/78">Image upload & analysis</p></div>
                   <div className="flex items-center gap-2.5"><span className="h-1.5 w-1.5 rounded-full bg-blue-300" /><p className="text-sm text-white/78">AI that adapts to your feedback</p></div>
                   <div className="flex items-center gap-2.5"><span className="h-1.5 w-1.5 rounded-full bg-blue-300" /><p className="text-sm text-white/78">Photo Studio — generate & edit images with AI</p></div>
+                  <div className="flex items-center gap-2.5"><span className="h-1.5 w-1.5 rounded-full bg-blue-300" /><p className="text-sm text-white/78">Brain — unlimited notebooks & documents</p></div>
+                  <div className="flex items-center gap-2.5"><span className="h-1.5 w-1.5 rounded-full bg-blue-300" /><p className="text-sm text-white/78">AI insights, quiz, flashcards & audio summaries</p></div>
                 </div>
                 <button
                   type="button"
@@ -514,6 +559,62 @@ export default function HomePage() {
               </div>
             </div>
             <SectionFooter nextHref="#how-it-works" nextLabel="How it works" />
+          </section>
+
+          {/* BRAIN HIGHLIGHT */}
+          <section className="section-panel scroll-mt-24 mt-14 w-full max-w-5xl sm:mt-16">
+            <div className="rounded-[28px] border border-[#3b82f6]/16 bg-gradient-to-br from-[#0d1733] via-[#0a1022] to-[#050510] p-8 sm:p-10 relative overflow-hidden">
+              {/* Ambient glow */}
+              <div className="pointer-events-none absolute -top-20 -right-20 h-[300px] w-[300px] rounded-full bg-[#3b82f6]/8 blur-[80px]" />
+              <div className="pointer-events-none absolute -bottom-10 -left-10 h-[200px] w-[200px] rounded-full bg-purple-600/6 blur-[60px]" />
+
+              <div className="relative">
+                <div className="inline-flex items-center gap-2 rounded-full border border-[#3b82f6]/20 bg-[#3b82f6]/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.14em] text-blue-300 mb-5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#3b82f6]" />
+                  New — Go plan
+                </div>
+
+                <h2 className="text-2xl font-semibold text-white/92 sm:text-3xl max-w-xl">
+                  Your AI Brain — upload knowledge, ask anything
+                </h2>
+                <p className="mt-3 max-w-xl text-sm leading-7 text-white/50">
+                  Brain turns your documents, notes, and web sources into a searchable knowledge base. Upload a PDF, paste a URL, add a note — then chat with your content directly.
+                </p>
+
+                <div className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {[
+                    { emoji: "📎", title: "Upload anything", desc: "PDF, TXT, Markdown, web URLs, YouTube videos, or your own notes." },
+                    { emoji: "💬", title: "Chat with your content", desc: "Ask questions and get answers grounded in your own documents." },
+                    { emoji: "✦", title: "AI insights", desc: "Generate summaries, key questions, and important terms instantly." },
+                    { emoji: "🧩", title: "Quiz & flashcards", desc: "Turn your knowledge into interactive learning tools automatically." },
+                    { emoji: "🎧", title: "Audio summaries", desc: "Listen to a spoken summary of your notebook with ElevenLabs voices." },
+                    { emoji: "🔒", title: "Fully private", desc: "Your notebooks are isolated to your account. Nobody else can access them." },
+                  ].map(f => (
+                    <div key={f.title} className="rounded-[18px] border border-white/8 bg-white/[0.03] px-4 py-4">
+                      <div className="text-xl mb-2">{f.emoji}</div>
+                      <p className="text-sm font-medium text-white/88">{f.title}</p>
+                      <p className="text-xs text-white/40 mt-1 leading-5">{f.desc}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-8 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsLoginOpen(true)}
+                    className="inline-flex h-10 items-center justify-center rounded-full bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-6 text-sm font-medium text-white shadow-[0_8px_20px_rgba(59,130,246,0.28)] hover:brightness-110 transition-all"
+                  >
+                    Open Brain {"\u2192"}
+                  </button>
+                  <a
+                    href="#plans"
+                    className="inline-flex h-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] px-6 text-sm font-medium text-white/70 hover:text-white hover:border-white/16 transition-all"
+                  >
+                    View Go plan
+                  </a>
+                </div>
+              </div>
+            </div>
           </section>
 
           {/* PRODUCT OVERVIEW */}
@@ -824,18 +925,12 @@ export default function HomePage() {
                 >
                   {t("btn_open_chat")}
                 </Link>
-                <div className="rounded-[22px] border border-emerald-400/14 bg-white/[0.03] p-5 backdrop-blur-xl ol-surface">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="text-sm font-medium text-white">Personal AI</div>
-                  <span className="inline-flex items-center rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
-                    Complete
-                  </span>
-                </div>
-                <p className="mt-2 text-sm leading-6 text-white/46">
-                  Private workspace with account-bound memory, chat history, and personal AI behavior.
-                </p>
-              </div>
-
+                <Link
+                  href="/personal-workspace"
+                  className="inline-flex h-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] px-6 text-sm font-medium text-white/80 transition-[background-color,border-color,color] duration-150 hover:border-white/16 hover:bg-white/[0.07] hover:text-white"
+                >
+                  Go to your workspace
+                </Link>
               </div>
             </div>
           </div>
@@ -927,7 +1022,7 @@ export default function HomePage() {
 
               <p className="mt-5 text-center text-[12px] text-white/30">
                 No account yet?{" "}
-                <a href="/personal-workspace" className="text-blue-400/80 hover:text-blue-300 transition-colors duration-150">
+                <a href="/personal-dashboard" className="text-blue-400/80 hover:text-blue-300 transition-colors duration-150">
                   Create one here
                 </a>
               </p>

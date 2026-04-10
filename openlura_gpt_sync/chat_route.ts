@@ -701,6 +701,16 @@ function buildCacheKey(input: {
 function detectInputLanguage(text?: string): string {
   if (!text || text.trim().length < 3) return "en";
 
+  // Script-based detection first — always reliable regardless of length
+  const raw = text.trim();
+  if (/[\u0980-\u09FF]/.test(raw)) return "bn"; // Bengali
+  if (/[\u0600-\u06FF]/.test(raw)) return "ar"; // Arabic
+  if (/[\u0900-\u097F]/.test(raw)) return "hi"; // Hindi/Devanagari
+  if (/[\u4E00-\u9FFF]/.test(raw)) return "zh"; // Chinese
+  if (/[\u3040-\u30FF]/.test(raw)) return "ja"; // Japanese
+  if (/[\uAC00-\uD7AF]/.test(raw)) return "ko"; // Korean
+  if (/[\u0400-\u04FF]/.test(raw)) return "ru"; // Cyrillic
+
   const t = text.toLowerCase();
 
   const patterns: [string, RegExp][] = [
@@ -2838,7 +2848,7 @@ AGENDA INTEGRATION:
 ${userName ? `The user's name is ${userName}. This is a confirmed fact — you know their name. Never say you don't know it. Use it naturally and sparingly, only when it feels warm and fitting.` : ""}
 
 CRITICAL RULES:
-- The user's detected language is: ${detectedLanguage}. ALWAYS respond in this language. Do not switch languages mid-response.
+- The user's detected language is: ${detectedLanguage}. ALWAYS respond in this language. Do not switch languages mid-response. If the language code is "bn", respond in Bengali. If "hi", respond in Hindi. If "zh", respond in Chinese. If "ja", respond in Japanese. If "ko", respond in Korean. If "ru", respond in Russian.
 - NEVER mix languages
 - NEVER write "(blank line)"
 - Learn from feedback: avoid disliked responses and reinforce liked ones
@@ -2957,7 +2967,7 @@ function buildOpenLuraRuntimePrompt(input: OpenLuraRuntimePromptBuilderInput) {
   if (input.isLightPrompt) {
     return `You are OpenLura.
 
-Respond in the detected language: ${input.detectedLanguage}. Supported languages include Dutch, English, French, German, Spanish, Portuguese, Italian, Turkish, Arabic, and Papiamento (spoken on Curaçao, Aruba, and Bonaire). If the detected language is "pap", always respond in Papiamento — never switch to Spanish or Portuguese. If the detected language is "tr", respond in Turkish. If the detected language is "ar", respond in Arabic. If the detected language is "it", respond in Italian. Always match the language the user writes in.
+Respond in the detected language: ${input.detectedLanguage}. Supported languages include Dutch, English, French, German, Spanish, Portuguese, Italian, Turkish, Arabic, Bengali, Hindi, Chinese, Japanese, Korean, Russian, and Papiamento (spoken on Curaçao, Aruba, and Bonaire). If the detected language is "pap", always respond in Papiamento — never switch to Spanish or Portuguese. If the detected language is "tr", respond in Turkish. If the detected language is "ar", respond in Arabic. If the detected language is "it", respond in Italian. Always match the language the user writes in.
 Be clear, useful, and direct.
 Avoid long structured sections unless needed.`;
   }
@@ -3273,44 +3283,6 @@ export async function POST(req: Request) {
 
   const detectedLanguage = detectInputLanguage(message);
   const userTimezone = req.headers.get("x-openlura-timezone") || "UTC";
-
-  // CONVERSATION LOGGING — non-blocking, only runs when a message is present
-  if (message && supabaseUrl && supabaseServiceRoleKey) {
-    void (async () => {
-      try {
-        const logHeaders = new Headers();
-        logHeaders.set("Content-Type", "application/json");
-        logHeaders.set("apikey", supabaseServiceRoleKey);
-        logHeaders.set("Authorization", `Bearer ${supabaseServiceRoleKey}`);
-        logHeaders.set("Prefer", "return=minimal");
-
-        // Log the message
-        await fetch(`${supabaseUrl}/rest/v1/openlura_conversations_log`, {
-          method: "POST",
-          headers: logHeaders,
-          body: JSON.stringify({
-            user_id: req.headers.get("x-openlura-user-id") || null,
-            message: message.slice(0, 500),
-            language: detectedLanguage || "en",
-            source: isPersonalEnvironmentRequest(req) ? "personal" : "chat",
-          }),
-          cache: "no-store",
-        });
-
-        // Cleanup entries older than 7 days
-        const deleteHeaders = new Headers();
-        deleteHeaders.set("apikey", supabaseServiceRoleKey);
-        deleteHeaders.set("Authorization", `Bearer ${supabaseServiceRoleKey}`);
-        const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-        await fetch(
-          `${supabaseUrl}/rest/v1/openlura_conversations_log?created_at=lt.${cutoff}`,
-          { method: "DELETE", headers: deleteHeaders, cache: "no-store" }
-        );
-      } catch {
-        // logging must never break the chat
-      }
-    })();
-  }
 
   if (!message && !image) {
     return new Response("Empty request", {

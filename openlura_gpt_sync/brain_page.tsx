@@ -12,6 +12,7 @@ interface Notebook {
   description: string;
   created_at: string;
   document_count: number;
+  category?: string;
 }
 
 // ─── Lang (reuse Phase 4.8 pattern) ──────────────────────────────────────────
@@ -39,6 +40,7 @@ const T = {
   name_ph:       { en: "Notebook name…", nl: "Naam notitieblok…", de: "Notizbuchname…", fr: "Nom du cahier…", es: "Nombre del cuaderno…", pt: "Nome do caderno…", hi: "नोटबुक का नाम…" },
   desc_ph:       { en: "What is this about? (optional)", nl: "Waar gaat dit over? (optioneel)", de: "Worum geht es? (optional)", fr: "De quoi s'agit-il? (optionnel)", es: "¿De qué trata? (opcional)", pt: "Sobre o que é? (opcional)", hi: "यह किस बारे में है? (वैकल्पिक)" },
   docs:          { en: "docs", nl: "docs", de: "Docs", fr: "docs", es: "docs", pt: "docs", hi: "दस्तावेज़" },
+  category_label: { en: "Category", nl: "Categorie", de: "Kategorie", fr: "Catégorie", es: "Categoría", pt: "Categoria", hi: "श्रेणी" },
   delete_confirm:{ en: "Delete this notebook?", nl: "Dit notitieblok verwijderen?", de: "Notizbuch löschen?", fr: "Supprimer ce cahier?", es: "¿Eliminar este cuaderno?", pt: "Excluir este caderno?", hi: "यह नोटबुक हटाएं?" },
   open:          { en: "Open", nl: "Openen", de: "Öffnen", fr: "Ouvrir", es: "Abrir", pt: "Abrir", hi: "खोलें" },
   saving:        { en: "Creating…", nl: "Aanmaken…", de: "Erstelle…", fr: "Création…", es: "Creando…", pt: "Criando…", hi: "बना रहे हैं…" },
@@ -72,6 +74,7 @@ export default function BrainPage() {
   const [newName, setNewName] = useState("");
   const [newDesc, setNewDesc] = useState("");
   const [newEmoji, setNewEmoji] = useState("🧠");
+  const [newCategory, setNewCategory] = useState("work");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState("");
 
@@ -123,7 +126,7 @@ export default function BrainPage() {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, description: newDesc.trim(), emoji: newEmoji }),
+        body: JSON.stringify({ name, description: newDesc.trim(), emoji: newEmoji, category: newCategory }),
       });
       if (!res.ok) throw new Error("create failed");
       const data = await res.json();
@@ -132,6 +135,7 @@ export default function BrainPage() {
       setNewName("");
       setNewDesc("");
       setNewEmoji("🧠");
+      setNewCategory("work");
     } catch {
       setCreateError("Something went wrong. Try again.");
     } finally {
@@ -206,6 +210,17 @@ export default function BrainPage() {
           <h1 className="text-2xl font-semibold tracking-tight">{tr("brain", lang)}</h1>
         </div>
         <p className="text-sm text-white/38 ml-[52px]">{tr("sub", lang)}</p>
+        <div className="ml-[52px] mt-2 flex items-center gap-1.5">
+          <span className="text-[11px] text-white/24">🔒</span>
+          <span className="text-[11px] text-white/24">Private — only you can access your notebooks</span>
+        </div>
+        {notebooks.length > 0 && (
+          <div className="ml-[52px] mt-3 flex items-center gap-4">
+            <span className="text-xs text-white/24">{notebooks.length} {notebooks.length === 1 ? "notebook" : "notebooks"}</span>
+            <span className="text-white/10">·</span>
+            <span className="text-xs text-white/24">{notebooks.reduce((s, n) => s + (n.document_count || 0), 0)} sources</span>
+          </div>
+        )}
       </div>
 
       {/* ── Notebooks grid ── */}
@@ -277,6 +292,31 @@ export default function BrainPage() {
                 maxLength={60}
                 className="w-full rounded-[14px] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white placeholder-white/24 outline-none focus:border-[#3b82f6]/50 focus:bg-white/[0.06] transition-all"
               />
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.14em] text-white/28 mb-2">{tr("category_label", lang)}</p>
+                <div className="flex gap-2">
+                  {[
+                    { value: "work", label: "💼 Work" },
+                    { value: "school", label: "🎓 School" },
+                    { value: "personal", label: "🌱 Personal" },
+                    { value: "other", label: "📂 Other" },
+                  ].map(cat => (
+                    <button
+                      key={cat.value}
+                      type="button"
+                      onClick={() => setNewCategory(cat.value)}
+                      className={`flex-1 rounded-[12px] border py-2 text-xs font-medium transition-all ${
+                        newCategory === cat.value
+                          ? "border-[#3b82f6]/40 bg-[#3b82f6]/10 text-[#93c5fd]"
+                          : "border-white/8 bg-white/[0.03] text-white/40 hover:border-white/14 hover:text-white/70"
+                      }`}
+                    >
+                      {cat.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <textarea
                 value={newDesc}
                 onChange={e => setNewDesc(e.target.value)}
@@ -342,7 +382,14 @@ function NotebookCard({
           </div>
           <div>
             <p className="text-sm font-medium text-white/90 leading-tight">{notebook.name}</p>
-            <p className="text-[11px] text-white/28 mt-0.5">{createdAt} · {notebook.document_count} {tr2("docs")}</p>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <p className="text-[11px] text-white/28">{createdAt} · {notebook.document_count} {tr2("docs")}</p>
+              {notebook.category && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/[0.04] text-white/24 border border-white/6">
+                  {notebook.category === "work" ? "💼" : notebook.category === "school" ? "🎓" : notebook.category === "personal" ? "🌱" : "📂"}
+                </span>
+              )}
+            </div>
           </div>
         </div>
 

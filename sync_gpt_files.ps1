@@ -29,6 +29,7 @@ $filesToSync = @(
     @{ Source = "app\api\brain\sources\route.ts"; Destination = "brain_sources_route.ts" },
     @{ Source = "app\api\brain\notes\route.ts"; Destination = "brain_notes_route.ts" },
     @{ Source = "app\api\brain\retrieve\route.ts"; Destination = "brain_retrieve_route.ts" },
+    @{ Source = "app\api\brain\insights\route.ts"; Destination = "brain_insights_route.ts" },
 
     # PAGES
     @{ Source = "app\analytics\page.tsx"; Destination = "analytics_page.tsx" },
@@ -59,7 +60,10 @@ $filesToSync = @(
     @{ Source = "app\api\stripe\checkout\route.ts"; Destination = "stripe_checkout_route.ts" },
     @{ Source = "app\api\stripe\webhook\route.ts"; Destination = "stripe_webhook_route.ts" },
     @{ Source = "app\api\stripe\portal\route.ts"; Destination = "stripe_portal_route.ts" }
-    @{ Source = "app\api\stripe\credits\route.ts"; Destination = "stripe_credits_route.ts" }
+    @{ Source = "app\api\stripe\credits\route.ts"; Destination = "stripe_credits_route.ts" },
+    @{ Source = "app\api\log-response\route.ts"; Destination = "log_response_route.ts" },
+    @{ Source = "app\api\brain\audio\route.ts"; Destination = "brain_audio_route.ts" },
+    @{ Source = "app\api\brain\sources\route.ts"; Destination = "brain_sources_route.ts" }
 )
 
 Write-Host ""
