@@ -3301,6 +3301,7 @@ export async function POST(req: Request) {
           body: JSON.stringify({
             user_id: req.headers.get("x-openlura-user-id") || null,
             message: message.slice(0, 500),
+            response: null,
             language: detectedLanguage || "en",
             source: isPersonalEnvironmentRequest(req) ? "personal" : "chat",
           }),
@@ -4865,6 +4866,33 @@ IMPORTANT: If the user asks to edit, adjust, modify, change, transform, or impro
       userMessage: message,
       signals: allDebugSignals,
     });
+  }
+
+  // Log AI response — non-blocking
+  if (aiText && message && supabaseUrl && supabaseServiceRoleKey) {
+    void (async () => {
+      try {
+        const logUpdateHeaders = new Headers();
+        logUpdateHeaders.set("Content-Type", "application/json");
+        logUpdateHeaders.set("apikey", supabaseServiceRoleKey);
+        logUpdateHeaders.set("Authorization", `Bearer ${supabaseServiceRoleKey}`);
+        logUpdateHeaders.set("Prefer", "return=minimal");
+
+        await fetch(
+          `${supabaseUrl}/rest/v1/openlura_conversations_log?message=eq.${encodeURIComponent(message.slice(0, 500))}&order=created_at.desc&limit=1`,
+          {
+            method: "PATCH",
+            headers: logUpdateHeaders,
+            body: JSON.stringify({
+              response: aiText.slice(0, 1000),
+            }),
+            cache: "no-store",
+          }
+        );
+      } catch {
+        // never break the response
+      }
+    })();
   }
 
   if (canUseCache && aiText && !isPersonalEnvironment) {
