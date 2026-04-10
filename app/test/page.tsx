@@ -958,6 +958,8 @@ const incrementAnonUsage = (): { count: number; resetAt: number } => {
 };
 
 const [isWaitingForFirstToken, setIsWaitingForFirstToken] = useState(false);
+const [showUpgradePopup, setShowUpgradePopup] = useState(false);
+const upgradePopupShownRef = useRef(false);
 
 const [usage, setUsage] = useState<{
   used: number;
@@ -1832,6 +1834,21 @@ const shouldSkipPersonalStateSync =
       inputRef.current?.focus();
     });
   }, [initialStateReady]);
+
+  // Upgrade popup voor niet-ingelogde users
+  useEffect(() => {
+    if (isPersonalRoute) return;
+    if (upgradePopupShownRef.current) return;
+    const shown = sessionStorage.getItem("openlura_upgrade_popup_shown");
+    if (shown) return;
+    const timer = window.setTimeout(() => {
+      if (upgradePopupShownRef.current) return;
+      setShowUpgradePopup(true);
+      upgradePopupShownRef.current = true;
+      sessionStorage.setItem("openlura_upgrade_popup_shown", "1");
+    }, 2000);
+    return () => window.clearTimeout(timer);
+  }, [isPersonalRoute]);
 
   // AUTO-SEND from homepage ?q= param
   useEffect(() => {
@@ -3923,6 +3940,19 @@ updated[index].messages[
     // PHASE 9.3 — context opslaan na response
     autoSaveContext(updated[index].messages);
 
+    // Upgrade popup na 5 berichten voor free users
+    if (!isPersonalRoute && !upgradePopupShownRef.current && !upgradeNotice.visible) {
+      const userMsgCount = (updated[index].messages || []).filter((m: any) => m.role === "user").length;
+      if (userMsgCount >= 5) {
+        const shown = sessionStorage.getItem("openlura_upgrade_popup_shown");
+        if (!shown) {
+          setShowUpgradePopup(true);
+          upgradePopupShownRef.current = true;
+          sessionStorage.setItem("openlura_upgrade_popup_shown", "1");
+        }
+      }
+    }
+
     // PHASE 9.4 — TTS: uitgeschakeld, wordt vervangen door AI conversation systeem
 
     // PHASE 9.2 — AGENDA INTENT CHECK
@@ -5927,6 +5957,65 @@ const transcript = (data.text || "").trim();
                    "Save"}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showUpgradePopup && (
+        <div className="fixed inset-0 z-[170] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-[400px] rounded-[28px] border border-white/10 bg-[#0a0f1e]/98 shadow-[0_24px_64px_rgba(0,0,0,0.50)] backdrop-blur-2xl overflow-hidden">
+            <div className="px-6 pt-6 pb-4 border-b border-white/6">
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-[11px] uppercase tracking-[0.16em] text-white/30">OpenLura</p>
+                <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-0.5 text-[10px] font-medium text-emerald-300">GRATIS BESCHIKBAAR</span>
+              </div>
+              <h2 className="text-xl font-semibold tracking-tight text-white/95 mt-2">Blijf chatten met meer functies</h2>
+              <p className="text-sm text-white/40 mt-1">Maak een gratis account aan of upgrade naar Go voor onbeperkt gebruik.</p>
+            </div>
+            <div className="px-6 py-4 space-y-2.5">
+              {[
+                "💬 Onbeperkt berichten per maand",
+                "🧠 Persoonlijk AI geheugen",
+                "🔍 Web search — live bronnen",
+                "🎨 Photo Studio — AI afbeeldingen",
+                "🧠 Brain — upload documenten & chat ermee",
+              ].map(f => (
+                <div key={f} className="flex items-center gap-2.5">
+                  <p className="text-sm text-white/60">{f}</p>
+                </div>
+              ))}
+            </div>
+            <div className="px-6 pb-6 flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => { setShowUpgradePopup(false); setShowLoginBox(true); setLoginTab("register"); }}
+                className="w-full rounded-[14px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] py-3 text-sm font-medium text-white shadow-[0_6px_16px_rgba(59,130,246,0.28)] hover:brightness-110 transition-all"
+              >
+                Gratis account aanmaken →
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  setShowUpgradePopup(false);
+                  try {
+                    const res = await fetch("/api/stripe/checkout", { method: "POST", credentials: "include" });
+                    if (res.status === 401) { setShowLoginBox(true); return; }
+                    const data = await res.json();
+                    if (data.url) window.location.href = data.url;
+                  } catch {}
+                }}
+                className="w-full rounded-[14px] border border-[#3b82f6]/20 bg-[#3b82f6]/[0.06] py-2.5 text-sm text-[#93c5fd] hover:bg-[#3b82f6]/10 transition-all"
+              >
+                Upgrade naar Go — €4,99/maand
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowUpgradePopup(false)}
+                className="w-full rounded-[14px] bg-white/[0.04] py-2.5 text-sm text-white/40 hover:text-white/60 transition-all"
+              >
+                Misschien later
+              </button>
             </div>
           </div>
         </div>
