@@ -3940,8 +3940,8 @@ updated[index].messages[
     // PHASE 9.3 — context opslaan na response
     autoSaveContext(updated[index].messages);
 
-    // Upgrade popup na 5 berichten voor free users
-    if (!isPersonalRoute && !upgradePopupShownRef.current && !upgradeNotice.visible) {
+    // Upgrade popup na 5 berichten voor free users (ook ingelogd)
+    if (!upgradePopupShownRef.current && !upgradeNotice.visible && userTier === "free") {
       const userMsgCount = (updated[index].messages || []).filter((m: any) => m.role === "user").length;
       if (userMsgCount >= 5) {
         const shown = sessionStorage.getItem("openlura_upgrade_popup_shown");
@@ -5970,16 +5970,22 @@ const transcript = (data.text || "").trim();
                 <p className="text-[11px] uppercase tracking-[0.16em] text-white/30">OpenLura</p>
                 <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-0.5 text-[10px] font-medium text-emerald-300">GRATIS BESCHIKBAAR</span>
               </div>
-              <h2 className="text-xl font-semibold tracking-tight text-white/95 mt-2">Blijf chatten met meer functies</h2>
-              <p className="text-sm text-white/40 mt-1">Maak een gratis account aan of upgrade naar Go voor onbeperkt gebruik.</p>
+              <h2 className="text-xl font-semibold tracking-tight text-white/95 mt-2">
+                {isPersonalRoute ? "Upgrade naar Go" : "Blijf chatten met meer functies"}
+              </h2>
+              <p className="text-sm text-white/40 mt-1">
+                {isPersonalRoute
+                  ? "Je gebruikt het gratis plan. Upgrade naar Go voor onbeperkt chatten en alle functies."
+                  : "Maak een gratis account aan of upgrade naar Go voor onbeperkt gebruik."}
+              </p>
             </div>
             <div className="px-6 py-4 space-y-2.5">
               {[
                 "💬 Onbeperkt berichten per maand",
                 "🧠 Persoonlijk AI geheugen",
-                "🔍 Web search — live bronnen",
-                "🎨 Photo Studio — AI afbeeldingen",
-                "🧠 Brain — upload documenten & chat ermee",
+                "🔍 Web search live bronnen",
+                "🎨 Photo Studio AI afbeeldingen",
+                "🧠 Brain upload documenten & chat ermee",
               ].map(f => (
                 <div key={f} className="flex items-center gap-2.5">
                   <p className="text-sm text-white/60">{f}</p>
@@ -5987,13 +5993,32 @@ const transcript = (data.text || "").trim();
               ))}
             </div>
             <div className="px-6 pb-6 flex flex-col gap-2">
-              <button
-                type="button"
-                onClick={() => { setShowUpgradePopup(false); setShowLoginBox(true); setLoginTab("register"); }}
-                className="w-full rounded-[14px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] py-3 text-sm font-medium text-white shadow-[0_6px_16px_rgba(59,130,246,0.28)] hover:brightness-110 transition-all"
-              >
-                Gratis account aanmaken →
-              </button>
+              {!isPersonalRoute && (
+                <button
+                  type="button"
+                  onClick={() => { setShowUpgradePopup(false); setShowLoginBox(true); setLoginTab("register"); }}
+                  className="w-full rounded-[14px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] py-3 text-sm font-medium text-white shadow-[0_6px_16px_rgba(59,130,246,0.28)] hover:brightness-110 transition-all"
+                >
+                  Gratis account aanmaken →
+                </button>
+              )}
+              {isPersonalRoute && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setShowUpgradePopup(false);
+                    try {
+                      const res = await fetch("/api/stripe/checkout", { method: "POST", credentials: "include" });
+                      if (res.status === 401) return;
+                      const data = await res.json();
+                      if (data.url) window.location.href = data.url;
+                    } catch {}
+                  }}
+                  className="w-full rounded-[14px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] py-3 text-sm font-medium text-white shadow-[0_6px_16px_rgba(59,130,246,0.28)] hover:brightness-110 transition-all"
+                >
+                  Upgrade naar Go →
+                </button>
+              )}
               <button
                 type="button"
                 onClick={async () => {

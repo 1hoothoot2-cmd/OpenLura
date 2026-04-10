@@ -3940,8 +3940,8 @@ updated[index].messages[
     // PHASE 9.3 — context opslaan na response
     autoSaveContext(updated[index].messages);
 
-    // Upgrade popup na 5 berichten voor free users
-    if (!isPersonalRoute && !upgradePopupShownRef.current && !upgradeNotice.visible) {
+    // Upgrade popup na 5 berichten voor free users (ook ingelogd)
+    if (!upgradePopupShownRef.current && !upgradeNotice.visible && userTier === "free") {
       const userMsgCount = (updated[index].messages || []).filter((m: any) => m.role === "user").length;
       if (userMsgCount >= 5) {
         const shown = sessionStorage.getItem("openlura_upgrade_popup_shown");
@@ -4927,7 +4927,7 @@ updated[index].messages[
                     }}
                     className="shrink-0 rounded-full border border-blue-300/20 bg-blue-400/14 px-3 py-1.5 text-[11px] font-medium text-blue-100 transition-colors hover:bg-blue-400/22 hover:text-white"
                   >
-                    Upgrade naar Go →
+                    {({ nl: "Upgrade naar Go →", en: "Upgrade to Go →", de: "Auf Go upgraden →", fr: "Passer à Go →", es: "Actualizar a Go →", pt: "Upgrade para Go →", tr: "Go'ya Yükselt →", ar: "الترقية إلى Go →", pap: "Upgrade pa Go →" }[detectedLang] || "Upgrade to Go →")}
                   </button>
                 ) : (
                   <button
@@ -5968,32 +5968,65 @@ const transcript = (data.text || "").trim();
             <div className="px-6 pt-6 pb-4 border-b border-white/6">
               <div className="flex items-center justify-between mb-1">
                 <p className="text-[11px] uppercase tracking-[0.16em] text-white/30">OpenLura</p>
-                <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-0.5 text-[10px] font-medium text-emerald-300">GRATIS BESCHIKBAAR</span>
+                <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-0.5 text-[10px] font-medium text-emerald-300">
+                  {({ nl: "GRATIS BESCHIKBAAR", en: "FREE AVAILABLE", de: "KOSTENLOS", fr: "GRATUIT", es: "DISPONIBLE", pt: "DISPONÍVEL", tr: "ÜCRETSİZ", ar: "متاح مجاناً", pap: "GRATIS" }[detectedLang] || "FREE AVAILABLE")}
+                </span>
               </div>
-              <h2 className="text-xl font-semibold tracking-tight text-white/95 mt-2">Blijf chatten met meer functies</h2>
-              <p className="text-sm text-white/40 mt-1">Maak een gratis account aan of upgrade naar Go voor onbeperkt gebruik.</p>
+              <h2 className="text-xl font-semibold tracking-tight text-white/95 mt-2">
+                {isPersonalRoute
+                  ? ({ nl: "Upgrade naar Go", en: "Upgrade to Go", de: "Auf Go upgraden", fr: "Passer à Go", es: "Actualizar a Go", pt: "Upgrade para Go", tr: "Go'ya Yükselt", ar: "الترقية إلى Go", pap: "Upgrade pa Go" }[detectedLang] || "Upgrade to Go")
+                  : ({ nl: "Blijf chatten met meer functies", en: "Keep chatting with more features", de: "Weiter chatten mit mehr Funktionen", fr: "Continuez à chatter avec plus de fonctionnalités", es: "Sigue chateando con más funciones", pt: "Continue chatando com mais recursos", tr: "Daha fazla özellikle sohbet edin", ar: "استمر في الدردشة بمزيد من الميزات", pap: "Sigui chatea ku mas funshonnan" }[detectedLang] || "Keep chatting with more features")}
+              </h2>
+              <p className="text-sm text-white/40 mt-1">
+                {isPersonalRoute
+                  ? ({ nl: "Je gebruikt het gratis plan. Upgrade naar Go voor onbeperkt chatten en alle functies.", en: "You're on the free plan. Upgrade to Go for unlimited chats and all features.", de: "Du nutzt den kostenlosen Plan. Upgrade auf Go für unbegrenzte Chats.", fr: "Vous utilisez le plan gratuit. Passez à Go pour des chats illimités.", es: "Estás en el plan gratuito. Actualiza a Go para chats ilimitados.", pt: "Você está no plano gratuito. Faça upgrade para Go.", tr: "Ücretsiz plandaki kullanıcısınız. Go'ya geçin.", ar: "أنت على الخطة المجانية. الترقية إلى Go.", pap: "Bo ta usa e plan gratis. Upgrade pa Go." }[detectedLang] || "You're on the free plan. Upgrade to Go for unlimited chats and all features.")
+                  : ({ nl: "Maak een gratis account aan of upgrade naar Go voor onbeperkt gebruik.", en: "Create a free account or upgrade to Go for unlimited usage.", de: "Erstelle ein kostenloses Konto oder upgrade auf Go.", fr: "Créez un compte gratuit ou passez à Go.", es: "Crea una cuenta gratuita o actualiza a Go.", pt: "Crie uma conta gratuita ou faça upgrade para Go.", tr: "Ücretsiz hesap oluşturun veya Go'ya yükseltin.", ar: "أنشئ حساباً مجانياً أو قم بالترقية إلى Go.", pap: "Krea un account gratis of upgrade pa Go." }[detectedLang] || "Create a free account or upgrade to Go for unlimited usage.")}
+              </p>
             </div>
             <div className="px-6 py-4 space-y-2.5">
-              {[
-                "💬 Onbeperkt berichten per maand",
-                "🧠 Persoonlijk AI geheugen",
-                "🔍 Web search — live bronnen",
-                "🎨 Photo Studio — AI afbeeldingen",
-                "🧠 Brain — upload documenten & chat ermee",
-              ].map(f => (
+              {({
+                nl: ["💬 Onbeperkt berichten per maand", "🧠 Persoonlijk AI geheugen", "🔍 Web search — live bronnen", "🎨 Photo Studio — AI afbeeldingen", "🧠 Brain — upload documenten & chat ermee"],
+                en: ["💬 Unlimited messages per month", "🧠 Personal AI memory", "🔍 Web search — live sources", "🎨 Photo Studio — AI images", "🧠 Brain — upload documents & chat with them"],
+                de: ["💬 Unbegrenzte Nachrichten pro Monat", "🧠 Persönliches KI-Gedächtnis", "🔍 Web-Suche — live Quellen", "🎨 Photo Studio — KI-Bilder", "🧠 Brain — Dokumente hochladen & chatten"],
+                fr: ["💬 Messages illimités par mois", "🧠 Mémoire IA personnelle", "🔍 Recherche web — sources en direct", "🎨 Photo Studio — images IA", "🧠 Brain — importer des documents & chatter"],
+                es: ["💬 Mensajes ilimitados por mes", "🧠 Memoria IA personal", "🔍 Búsqueda web — fuentes en vivo", "🎨 Photo Studio — imágenes IA", "🧠 Brain — sube documentos y chatea con ellos"],
+                pt: ["💬 Mensagens ilimitadas por mês", "🧠 Memória IA pessoal", "🔍 Pesquisa web — fontes ao vivo", "🎨 Photo Studio — imagens IA", "🧠 Brain — carrega documentos e chatea com eles"],
+                tr: ["💬 Aylık sınırsız mesaj", "🧠 Kişisel AI belleği", "🔍 Web araması — canlı kaynaklar", "🎨 Photo Studio — AI görseller", "🧠 Brain — belge yükle ve sohbet et"],
+                ar: ["💬 رسائل غير محدودة شهرياً", "🧠 ذاكرة AI شخصية", "🔍 بحث الويب — مصادر مباشرة", "🎨 Photo Studio — صور AI", "🧠 Brain — رفع المستندات والدردشة"],
+                pap: ["💬 Mensahes sin limit pa luna", "🧠 Memoria AI personal", "🔍 Web search — fuentenan live", "🎨 Photo Studio — imahinnan AI", "🧠 Brain — subi dokumentonan i chatea"],
+              }[detectedLang] || ["💬 Unlimited messages per month", "🧠 Personal AI memory", "🔍 Web search — live sources", "🎨 Photo Studio — AI images", "🧠 Brain — upload documents & chat with them"]).map(f => (
                 <div key={f} className="flex items-center gap-2.5">
                   <p className="text-sm text-white/60">{f}</p>
                 </div>
               ))}
             </div>
             <div className="px-6 pb-6 flex flex-col gap-2">
-              <button
-                type="button"
-                onClick={() => { setShowUpgradePopup(false); setShowLoginBox(true); setLoginTab("register"); }}
-                className="w-full rounded-[14px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] py-3 text-sm font-medium text-white shadow-[0_6px_16px_rgba(59,130,246,0.28)] hover:brightness-110 transition-all"
-              >
-                Gratis account aanmaken →
-              </button>
+              {!isPersonalRoute && (
+                <button
+                  type="button"
+                  onClick={() => { setShowUpgradePopup(false); setShowLoginBox(true); setLoginTab("register"); }}
+                  className="w-full rounded-[14px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] py-3 text-sm font-medium text-white shadow-[0_6px_16px_rgba(59,130,246,0.28)] hover:brightness-110 transition-all"
+                >
+                  {({ nl: "Gratis account aanmaken →", en: "Create free account →", de: "Kostenloses Konto erstellen →", fr: "Créer un compte gratuit →", es: "Crear cuenta gratuita →", pt: "Criar conta gratuita →", tr: "Ücretsiz hesap oluştur →", ar: "إنشاء حساب مجاني →", pap: "Krea account gratis →" }[detectedLang] || "Create free account →")}
+                </button>
+              )}
+              {isPersonalRoute && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setShowUpgradePopup(false);
+                    try {
+                      const res = await fetch("/api/stripe/checkout", { method: "POST", credentials: "include" });
+                      if (res.status === 401) return;
+                      const data = await res.json();
+                      if (data.url) window.location.href = data.url;
+                    } catch {}
+                  }}
+                  className="w-full rounded-[14px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] py-3 text-sm font-medium text-white shadow-[0_6px_16px_rgba(59,130,246,0.28)] hover:brightness-110 transition-all"
+                >
+                  {({ nl: "Upgrade naar Go →", en: "Upgrade to Go →", de: "Auf Go upgraden →", fr: "Passer à Go →", es: "Actualizar a Go →", pt: "Upgrade para Go →", tr: "Go'ya Yükselt →", ar: "الترقية إلى Go →", pap: "Upgrade pa Go →" }[detectedLang] || "Upgrade to Go →")}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={async () => {
@@ -6007,14 +6040,14 @@ const transcript = (data.text || "").trim();
                 }}
                 className="w-full rounded-[14px] border border-[#3b82f6]/20 bg-[#3b82f6]/[0.06] py-2.5 text-sm text-[#93c5fd] hover:bg-[#3b82f6]/10 transition-all"
               >
-                Upgrade naar Go — €4,99/maand
+                {({ nl: "Upgrade naar Go — €4,99/maand", en: "Upgrade to Go — €4.99/month", de: "Auf Go upgraden — €4,99/Monat", fr: "Passer à Go — €4,99/mois", es: "Actualizar a Go — €4,99/mes", pt: "Upgrade para Go — €4,99/mês", tr: "Go'ya Yükselt — €4,99/ay", ar: "الترقية إلى Go — €4.99/شهر", pap: "Upgrade pa Go — €4,99/luna" }[detectedLang] || "Upgrade to Go — €4.99/month")}
               </button>
               <button
                 type="button"
                 onClick={() => setShowUpgradePopup(false)}
                 className="w-full rounded-[14px] bg-white/[0.04] py-2.5 text-sm text-white/40 hover:text-white/60 transition-all"
               >
-                Misschien later
+                {({ nl: "Misschien later", en: "Maybe later", de: "Vielleicht später", fr: "Peut-être plus tard", es: "Quizás más tarde", pt: "Talvez mais tarde", tr: "Belki daha sonra", ar: "ربما لاحقاً", pap: "Despues lo" }[detectedLang] || "Maybe later")}
               </button>
             </div>
           </div>
