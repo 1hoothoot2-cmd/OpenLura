@@ -62,14 +62,22 @@ function PhotoStudioContent() {
   const [editImagePreview, setEditImagePreview] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/auth", { method: "GET", credentials: "same-origin" })
-      .then(r => r.json())
-      .then(d => {
+    (async () => {
+      try {
+        let res = await fetch("/api/auth", { method: "GET", credentials: "same-origin", cache: "no-store" });
+        let d = await res.json().catch(() => null);
+        if (!d?.authenticated) {
+          await fetch("/api/auth?action=refresh", { method: "GET", credentials: "same-origin", cache: "no-store" }).catch(() => null);
+          res = await fetch("/api/auth", { method: "GET", credentials: "same-origin", cache: "no-store" });
+          d = await res.json().catch(() => null);
+        }
         if (!d?.authenticated) { router.replace("/personal-workspace"); return; }
         setAuthChecked(true);
         loadStats();
-      })
-      .catch(() => router.replace("/personal-workspace"));
+      } catch {
+        router.replace("/personal-workspace");
+      }
+    })();
   }, []);
 
   useEffect(() => {
@@ -162,12 +170,12 @@ function PhotoStudioContent() {
       setImageUrl(data.url);
       setPoints(data.points);
       setHistory(prev => [{
-        id: crypto.randomUUID(),
+        id: data.id || crypto.randomUUID(),
         url: data.url,
         prompt: prompt.trim(),
         model,
         points: MODELS.find(m => m.id === model)?.points ?? 0,
-        created_at: new Date().toISOString(),
+        created_at: data.created_at || new Date().toISOString(),
       }, ...prev].slice(0, 50));
     } catch {
       setError("Connection error, please try again.");

@@ -11,7 +11,7 @@ export default function AuthCallbackPage() {
     const accessToken = params.get("access_token");
     const refreshToken = params.get("refresh_token");
 
-    if (!accessToken) {
+    if (!accessToken || accessToken.length < 10) {
       router.replace("/chat");
       return;
     }
@@ -25,14 +25,22 @@ export default function AuthCallbackPage() {
         accessToken,
         refreshToken,
       }),
-    }).finally(() => {
-      router.replace("/personal-dashboard");
-    });
+    })
+      .then((res) => {
+        if (res.ok) {
+          router.replace("/personal-dashboard");
+        } else {
+          router.replace("/chat?auth_error=1");
+        }
+      })
+      .catch(() => {
+        router.replace("/chat?auth_error=1");
+      });
   }, []);
 
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-[#050510] text-white">
-      <p className="text-white/50 text-sm">Inloggen...</p>
+      <p className="text-white/50 text-sm">Signing in...</p>
     </div>
   );
 }

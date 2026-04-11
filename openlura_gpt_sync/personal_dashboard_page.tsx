@@ -16,12 +16,14 @@ interface AgendaItem {
 
 // ─── Storage ─────────────────────────────────────────────────────────────────
 
-const AGENDA_KEY = "openlura_dashboard_agenda";
+function getAgendaKey(userId?: string | null) {
+  return userId ? `openlura_dashboard_agenda_${userId}` : "openlura_dashboard_agenda_guest";
+}
 
-function loadItems(): AgendaItem[] {
+function loadItems(userId?: string | null): AgendaItem[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(AGENDA_KEY);
+    const raw = localStorage.getItem(getAgendaKey(userId));
     const parsed: any[] = raw ? JSON.parse(raw) : [];
     const today = toDateStr(new Date());
     return parsed.map((i: any) => ({
@@ -32,8 +34,8 @@ function loadItems(): AgendaItem[] {
   } catch { return []; }
 }
 
-function saveItems(items: AgendaItem[]) {
-  try { localStorage.setItem(AGENDA_KEY, JSON.stringify(items)); } catch {}
+function saveItems(items: AgendaItem[], userId?: string | null) {
+  try { localStorage.setItem(getAgendaKey(userId), JSON.stringify(items)); } catch {}
 }
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
@@ -112,20 +114,26 @@ const COLORS: AgendaItem["color"][] = ["blue", "purple", "green", "amber"];
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-function useLang() {
+function detectLang(): Lang {
   if (typeof navigator === "undefined") return "en";
   const raw = (navigator.language || "en").toLowerCase();
-  if (raw.startsWith("pap")) return "en"; // fallback — pap not in LOCALE_MAP
+  if (raw.startsWith("pap")) return "en";
   if (raw.startsWith("nl")) return "nl";
   if (raw.startsWith("de")) return "de";
   if (raw.startsWith("fr")) return "fr";
   if (raw.startsWith("es")) return "es";
   if (raw.startsWith("pt")) return "pt";
-  if (raw.startsWith("it")) return "en"; // fallback — it not in LOCALE_MAP
-  if (raw.startsWith("tr")) return "en"; // fallback — tr not in LOCALE_MAP
-  if (raw.startsWith("ar")) return "en"; // fallback — ar not in LOCALE_MAP
+  if (raw.startsWith("it")) return "en";
+  if (raw.startsWith("tr")) return "en";
+  if (raw.startsWith("ar")) return "en";
   if (raw.startsWith("hi")) return "hi";
   return "en";
+}
+
+function useLang(): Lang {
+  const [lang, setLang] = useState<Lang>("en");
+  useEffect(() => { setLang(detectLang()); }, []);
+  return lang;
 }
 
 const T = {
@@ -293,11 +301,16 @@ export default function PersonalDashboardPage() {
   useEffect(() => {
     async function check() {
       try {
-        await fetch("/api/auth?action=refresh", { method: "GET", credentials: "same-origin", cache: "no-store" }).catch(() => null);
-        const res = await fetch("/api/auth", { method: "GET", credentials: "same-origin", cache: "no-store" });
-        const data = await res.json().catch(() => null);
+        let res = await fetch("/api/auth", { method: "GET", credentials: "same-origin", cache: "no-store" });
+        let data = await res.json().catch(() => null);
+        if (!data?.authenticated) {
+          await fetch("/api/auth?action=refresh", { method: "GET", credentials: "same-origin", cache: "no-store" }).catch(() => null);
+          res = await fetch("/api/auth", { method: "GET", credentials: "same-origin", cache: "no-store" });
+          data = await res.json().catch(() => null);
+        }
         if (data?.authenticated) {
           setAuthed(true);
+          if (data?.runtime?.userId) setUserId(data.runtime.userId);
           const sr = await fetch("/api/personal-state", { method: "GET", credentials: "same-origin", headers: { "x-openlura-personal-env": "true" }, cache: "no-store" }).catch(() => null);
           if (sr?.ok) {
             const sd = await sr.json().catch(() => null);
@@ -324,9 +337,11 @@ export default function PersonalDashboardPage() {
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, []);
 
+  const [userId, setUserId] = useState<string | null>(null);
+
   // ── Items ─────────────────────────────────────────────────────────────────
-  useEffect(() => { setItems(loadItems()); }, []);
-  useEffect(() => { saveItems(items); }, [items]);
+  useEffect(() => { if (userId !== undefined) setItems(loadItems(userId)); }, [userId]);
+  useEffect(() => { saveItems(items, userId); }, [items, userId]);
   useEffect(() => { if (addOpen) setTimeout(() => inputRef.current?.focus(), 60); }, [addOpen]);
 
   // sync newDate when selectedDate changes
@@ -885,7 +900,7 @@ export default function PersonalDashboardPage() {
                     }}
                     className="w-full rounded-[14px] border border-red-400/20 bg-red-400/[0.04] py-3 text-sm text-red-400/70 hover:text-red-300 hover:bg-red-400/[0.08] transition-all"
                   >
-                    Cancel subscription
+                    {t("cancel", lang)}
                   </button>
                 </div>
               </>

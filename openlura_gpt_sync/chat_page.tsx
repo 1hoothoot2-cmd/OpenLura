@@ -13,7 +13,7 @@ function safeParseJson<T>(raw: string | null, fallback: T): T {
 }
 
 const PERSONAL_ENV_WELCOME_MESSAGE =
-  "👋 Welkom in je persoonlijke omgeving. Hier testen we privé memory, verbeterpunten en training van jouw AI-gedrag.";
+  "👋 Welcome to your personal workspace. This is where your private memory, preferences, and AI behavior are personalized for you.";
 
 export default function ChatPage() {
   const pathname = usePathname();
@@ -6093,7 +6093,7 @@ const transcript = (data.text || "").trim();
                   <div className="space-y-3">
                     <input value={loginUsername} onChange={(e) => setLoginUsername(e.target.value)} placeholder="E-mailadres"
                       className="w-full rounded-[18px] border border-white/8 bg-white/[0.04] px-4 py-3 text-white/95 outline-none placeholder:text-white/30 transition-[border-color,background-color] duration-200 focus:border-white/14 focus:bg-white/[0.06]" />
-                    <input type="password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} placeholder="Wachtwoord"
+                    <input type="password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} placeholder="Password"
                       className="w-full rounded-[18px] border border-white/8 bg-white/[0.04] px-4 py-3 text-white/95 outline-none placeholder:text-white/30 transition-[border-color,background-color] duration-200 focus:border-white/14 focus:bg-white/[0.06]"
                       onKeyDown={(e) => { if (e.key === "Enter" && !loginLoading) handlePersonalLogin(); }} />
                     {loginError && <p className="rounded-xl border border-red-400/16 bg-red-500/[0.08] px-3 py-2 text-sm text-red-300">{loginError}</p>}
@@ -6119,33 +6119,33 @@ const transcript = (data.text || "").trim();
                         <path d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707s.102-1.167.282-1.707V4.961H.957C.347 6.175 0 7.55 0 9s.348 2.825.957 4.039l3.007-2.332z" fill="#FBBC05"/>
                         <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.961L3.964 7.293C4.672 5.166 6.656 3.58 9 3.58z" fill="#EA4335"/>
                       </svg>
-                      Doorgaan met Google
+                      Continue with Google
                     </button>
                   </div>
                   <div className="mt-5 flex gap-2">
                     <button type="button" onClick={() => { setShowLoginBox(false); setLoginError(""); setLoginUsername(""); setLoginPassword(""); }}
-                      className="flex-1 rounded-[18px] border border-white/8 bg-white/[0.04] p-3 text-white/80 transition-colors hover:bg-white/[0.06] hover:text-white">Annuleren</button>
+                      className="flex-1 rounded-[18px] border border-white/8 bg-white/[0.04] p-3 text-white/80 transition-colors hover:bg-white/[0.06] hover:text-white">Cancel</button>
                     <button type="button" onClick={handlePersonalLogin} disabled={loginLoading}
                       className="flex-1 rounded-[18px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] p-3 text-white shadow-[0_10px_24px_rgba(59,130,246,0.24)] transition-[filter,opacity] hover:brightness-110 disabled:opacity-60">
-                      {loginLoading ? "Inloggen..." : "Inloggen"}</button>
+                      {loginLoading ? "Signing in..." : "Sign in"}</button>
                   </div>
-                  <p className="mt-4 text-center text-[12px] text-white/36">Nog geen account?{" "}
-                    <button type="button" onClick={() => setLoginTab("register")} className="text-[#93c5fd] hover:text-white transition-colors">Registreren</button>
+                  <p className="mt-4 text-center text-[12px] text-white/36">No account yet?{" "}
+                    <button type="button" onClick={() => setLoginTab("register")} className="text-[#93c5fd] hover:text-white transition-colors">Sign up</button>
                   </p>
                 </>
               ) : (
                 <>
                   <div className="mb-5 rounded-[20px] border border-white/8 bg-white/[0.03] px-4 py-4">
-                    <p className="text-[11px] uppercase tracking-[0.16em] text-white/38">Nieuw account</p>
-                    <h2 className="mt-1.5 text-xl font-semibold tracking-tight text-white/95">Account aanmaken</h2>
-                    <p className="mt-1.5 text-sm text-white/50">Maak een account voor je persoonlijke AI workspace.</p>
+                    <p className="text-[11px] uppercase tracking-[0.16em] text-white/38">New account</p>
+                    <h2 className="mt-1.5 text-xl font-semibold tracking-tight text-white/95">Create account</h2>
+                    <p className="mt-1.5 text-sm text-white/50">Create an account for your personal AI workspace.</p>
                   </div>
                   <div className="space-y-3">
-                    <input value={registerEmail} onChange={(e) => setRegisterEmail(e.target.value)} placeholder="E-mailadres" type="email"
+                    <input value={registerEmail} onChange={(e) => setRegisterEmail(e.target.value)} placeholder="Email address" type="email"
                       className="w-full rounded-[18px] border border-white/8 bg-white/[0.04] px-4 py-3 text-white/95 outline-none placeholder:text-white/30 transition-[border-color,background-color] duration-200 focus:border-white/14 focus:bg-white/[0.06]" />
-                    <input type="password" value={registerPassword} onChange={(e) => setRegisterPassword(e.target.value)} placeholder="Wachtwoord (min. 6 tekens)"
+                    <input type="password" value={registerPassword} onChange={(e) => setRegisterPassword(e.target.value)} placeholder="Password (min. 8 characters)"
                       className="w-full rounded-[18px] border border-white/8 bg-white/[0.04] px-4 py-3 text-white/95 outline-none placeholder:text-white/30 transition-[border-color,background-color] duration-200 focus:border-white/14 focus:bg-white/[0.06]" />
-                    <input type="password" value={registerPasswordConfirm} onChange={(e) => setRegisterPasswordConfirm(e.target.value)} placeholder="Herhaal wachtwoord"
+                    <input type="password" value={registerPasswordConfirm} onChange={(e) => setRegisterPasswordConfirm(e.target.value)} placeholder="Confirm password"
                       className="w-full rounded-[18px] border border-white/8 bg-white/[0.04] px-4 py-3 text-white/95 outline-none placeholder:text-white/30 transition-[border-color,background-color] duration-200 focus:border-white/14 focus:bg-white/[0.06]"
                       onKeyDown={(e) => { if (e.key === "Enter" && !registerLoading) handleRegister(); }} />
                     {registerError && <p className="rounded-xl border border-red-400/16 bg-red-500/[0.08] px-3 py-2 text-sm text-red-300">{registerError}</p>}
@@ -6154,7 +6154,7 @@ const transcript = (data.text || "").trim();
                   <div className="mt-4">
                     <div className="relative flex items-center gap-3 py-2">
                       <div className="h-px flex-1 bg-white/8" />
-                      <span className="text-[11px] text-white/28">of</span>
+                      <span className="text-[11px] text-white/28">or</span>
                       <div className="h-px flex-1 bg-white/8" />
                     </div>
                     <button
@@ -6172,18 +6172,18 @@ const transcript = (data.text || "").trim();
                         <path d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707s.102-1.167.282-1.707V4.961H.957C.347 6.175 0 7.55 0 9s.348 2.825.957 4.039l3.007-2.332z" fill="#FBBC05"/>
                         <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.961L3.964 7.293C4.672 5.166 6.656 3.58 9 3.58z" fill="#EA4335"/>
                       </svg>
-                      Doorgaan met Google
+                      Continue with Google
                     </button>
                   </div>
                   <div className="mt-5 flex gap-2">
                     <button type="button" onClick={() => { setShowLoginBox(false); setRegisterEmail(""); setRegisterPassword(""); setRegisterPasswordConfirm(""); setRegisterError(""); setRegisterSuccess(""); }}
-                      className="flex-1 rounded-[18px] border border-white/8 bg-white/[0.04] p-3 text-white/80 transition-colors hover:bg-white/[0.06] hover:text-white">Annuleren</button>
+                      className="flex-1 rounded-[18px] border border-white/8 bg-white/[0.04] p-3 text-white/80 transition-colors hover:bg-white/[0.06] hover:text-white">Cancel</button>
                     <button type="button" onClick={handleRegister} disabled={registerLoading || !!registerSuccess}
                       className="flex-1 rounded-[18px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] p-3 text-white shadow-[0_10px_24px_rgba(59,130,246,0.24)] transition-[filter,opacity] hover:brightness-110 disabled:opacity-60">
-                      {registerLoading ? "Account aanmaken..." : "Account aanmaken"}</button>
+                      {registerLoading ? "Creating account..." : "Create account"}</button>
                   </div>
-                  <p className="mt-4 text-center text-[12px] text-white/36">Al een account?{" "}
-                    <button type="button" onClick={() => setLoginTab("login")} className="text-[#93c5fd] hover:text-white transition-colors">Inloggen</button>
+                  <p className="mt-4 text-center text-[12px] text-white/36">Already have an account?{" "}
+                    <button type="button" onClick={() => setLoginTab("login")} className="text-[#93c5fd] hover:text-white transition-colors">Sign in</button>
                   </p>
                 </>
               )}

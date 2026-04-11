@@ -25,22 +25,37 @@ export async function POST(req: NextRequest) {
   const supabaseUrl = process.env.SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
+  // Verify notebook ownership — HARD
+  const ownerCheck = await fetch(
+    `${supabaseUrl}/rest/v1/brain_notebooks?id=eq.${encodeURIComponent(notebookId)}&user_id=eq.${encodeURIComponent(identity.identity.userId)}&select=id`,
+    { headers: { apikey: serviceKey!, Authorization: `Bearer ${serviceKey!}` } }
+  );
+  const ownerRows = ownerCheck.ok ? await ownerCheck.json() : [];
+  if (!Array.isArray(ownerRows) || ownerRows.length === 0) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
   // Fetch chunks
   const chunkRes = await fetch(
-    `${supabaseUrl}/rest/v1/brain_chunks?notebook_id=eq.${notebookId}&order=chunk_index.asc&limit=10&select=content`,
+    `${supabaseUrl}/rest/v1/brain_chunks?notebook_id=eq.${encodeURIComponent(notebookId)}&order=chunk_index.asc&limit=10&select=content`,
     { headers: { apikey: serviceKey!, Authorization: `Bearer ${serviceKey!}` } }
   );
   const chunks = chunkRes.ok ? await chunkRes.json() : [];
   const content = chunks.map((c: any) => c.content).join("\n\n").slice(0, 3000);
 
   // Generate spoken summary via Claude
-  const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": process.env.ANTHROPIC_API_KEY || "",
-      "anthropic-version": "2023-06-01",
-    },
+  const claudeController = new AbortController();
+  const claudeTimeout = setTimeout(() => claudeController.abort(), 15000);
+  let claudeRes: Response;
+  try {
+    claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": process.env.ANTHROPIC_API_KEY || "",
+        "anthropic-version": "2023-06-01",
+      },
+      signal: claudeController.signal,
     body: JSON.stringify({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 400,
@@ -55,7 +70,10 @@ Content:
 ${content}`,
       }],
     }),
-  });
+    });
+  } finally {
+    clearTimeout(claudeTimeout);
+  }
 
   const claudeData = await claudeRes.json();
   const spokenText = claudeData.content?.[0]?.text || `This notebook is called ${notebookName}.`;
@@ -63,13 +81,18 @@ ${content}`,
   // Convert to speech via ElevenLabs
   // Jessica (female) or Adam (male)
   const voiceId = voice === "male" ? "onwK4e9ZLuTAKqWW03F9" : "cgSgspJ2msm6clMCkdW9";
-  const ttsRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "xi-api-key": process.env.ELEVENLABS_API_KEY || "",
-    },
-    body: JSON.stringify({
+  const ttsController = new AbortController();
+  const ttsTimeout = setTimeout(() => ttsController.abort(), 20000);
+  let ttsRes: Response;
+  try {
+    ttsRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "xi-api-key": process.env.ELEVENLABS_API_KEY || "",
+      },
+      signal: ttsController.signal,
+      body: JSON.stringify({
       text: spokenText,
       model_id: "eleven_turbo_v2_5",
       voice_settings: {
@@ -80,6 +103,9 @@ ${content}`,
       },
     }),
   });
+  } finally {
+    clearTimeout(ttsTimeout);
+  }
 
   if (!ttsRes.ok) {
     const err = await ttsRes.text();

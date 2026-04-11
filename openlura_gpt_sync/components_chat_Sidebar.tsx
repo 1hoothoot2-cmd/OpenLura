@@ -54,7 +54,7 @@ type Props = {
 
 function AnonUsageIndicator() {
   const [count, setCount] = useState(0);
-  const limit = 3;
+  const limit = 5; // must match ANON_MAX_REQUESTS in chat_route.ts
 
   useEffect(() => {
     try {
@@ -201,7 +201,11 @@ const [chatTitleDraft, setChatTitleDraft] = useState("");
     }, duration);
   }, []);
 
+  const fetchingPromptsRef = useRef(false);
+
   const fetchPrompts = useCallback(async () => {
+    if (fetchingPromptsRef.current) return;
+    fetchingPromptsRef.current = true;
     try {
       setLoadingPrompts(true);
 
@@ -222,6 +226,7 @@ const [chatTitleDraft, setChatTitleDraft] = useState("");
       console.error("OpenLura prompts load failed:", error);
     } finally {
       setLoadingPrompts(false);
+      fetchingPromptsRef.current = false;
     }
   }, []);
 

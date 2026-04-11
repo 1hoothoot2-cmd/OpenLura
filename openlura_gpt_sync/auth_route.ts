@@ -395,10 +395,10 @@ export async function POST(req: Request) {
         );
       }
 
-      let finalAccess = accessToken;
+      let finalAccess: string | null = null;
       let finalRefresh = refreshToken;
 
-      // Try to refresh if we have a refresh token
+      // Always prefer refreshing via refresh_token to get a verified fresh token
       if (refreshToken) {
         const refreshed = await refreshSupabaseSession(refreshToken);
         if (refreshed?.accessToken) {
@@ -407,9 +407,27 @@ export async function POST(req: Request) {
         }
       }
 
+      // Only fall back to raw accessToken if refresh unavailable — verify it with Supabase
+      if (!finalAccess && accessToken && supabaseUrl && supabaseAnonKey) {
+        try {
+          const verifyRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
+            headers: {
+              apikey: supabaseAnonKey,
+              Authorization: `Bearer ${accessToken}`,
+            },
+            cache: "no-store",
+          });
+          if (verifyRes.ok) {
+            finalAccess = accessToken;
+          }
+        } catch {
+          // verification failed — reject
+        }
+      }
+
       if (!finalAccess) {
         return NextResponse.json(
-          { success: false, error: "Token refresh failed" },
+          { success: false, error: "Token validation failed" },
           { status: 401, headers: buildHeaders(rateLimit) }
         );
       }
@@ -440,9 +458,10 @@ export async function POST(req: Request) {
       const email = typeof body.email === "string" ? body.email.trim() : "";
       const password = typeof body.password === "string" ? body.password : "";
 
-      if (!email || !password || email.length > MAX_USERNAME_LENGTH || password.length > MAX_PASSWORD_LENGTH) {
+      const MIN_PASSWORD_LENGTH = 8;
+      if (!email || !password || email.length > MAX_USERNAME_LENGTH || password.length < MIN_PASSWORD_LENGTH || password.length > MAX_PASSWORD_LENGTH) {
         return NextResponse.json(
-          { success: false, error: "Invalid email or password" },
+          { success: false, error: password.length < MIN_PASSWORD_LENGTH ? "Password must be at least 8 characters" : "Invalid email or password" },
           { status: 400, headers: buildHeaders(rateLimit) }
         );
       }
@@ -452,7 +471,7 @@ export async function POST(req: Request) {
       if (!result || !result.ok) {
         return NextResponse.json(
           { success: false, error: (result as any)?.error || "Signup failed" },
-          { status: 401, headers: buildHeaders(rateLimit) }
+          { status: 400, headers: buildHeaders(rateLimit) }
         );
       }
 

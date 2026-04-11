@@ -58,7 +58,7 @@ function translateLearningRule(rule: string, lang: string): string {
     "More context active": { nl: "Meer context actief", en: "More context active", de: "Mehr Kontext aktiv", fr: "Plus de contexte actif", es: "Más contexto activo" },
     "Bug focus active": { nl: "Bug focus actief", en: "Bug focus active", de: "Bug-Fokus aktiv", fr: "Focalisation sur les bugs active", es: "Foco en bugs activo" },
   };
-  return map[rule]?.["en"] ?? rule;
+  return map[rule]?.[lang] ?? map[rule]?.["en"] ?? rule;
 }
 
 // ─── COMPONENTS ──────────────────────────────────────────────────────────────
@@ -162,7 +162,7 @@ export default function AnalyticsPage() {
     return [f.chatId || "", f.msgIndex ?? "", f.type || "", f.source || "", f.environment || "", f.userScope || "", f.user_id || "", f.userMessage || "", f.message || ""].join("::");
   }
 
-  function getAutoStatus(f: any) { return f.type === "up" ? "klaar" : "nieuw"; }
+  function getAutoStatus(f: any) { return f.type === "up" ? "done" : "new"; }
 
   function getResolvedStatus(f: AnalyticsFeedbackItem) {
     if (f.workflowKey && itemStatus[f.workflowKey]) return itemStatus[f.workflowKey];
@@ -240,7 +240,10 @@ export default function AnalyticsPage() {
 
     const run = () => load().catch(console.error);
     run();
-    const poll = window.setInterval(run, 5000);
+    // Poll every 30s, but only when tab is visible
+    const poll = window.setInterval(() => {
+      if (document.visibilityState === "visible") run();
+    }, 30000);
     const onVis = () => { if (document.visibilityState === "visible") run(); };
     window.addEventListener("openlura_feedback_update", run);
     window.addEventListener("focus", run);
@@ -316,8 +319,8 @@ export default function AnalyticsPage() {
   };
 
   // Workflow counts
-  const bugNewCount = bugs.filter(f => getResolvedStatus(f) === "nieuw").length;
-  const bugBezigCount = bugs.filter(f => getResolvedStatus(f) === "bezig").length;
+  const bugNewCount = bugs.filter(f => ["nieuw", "new"].includes(getResolvedStatus(f))).length;
+  const bugBezigCount = bugs.filter(f => ["bezig", "in_progress"].includes(getResolvedStatus(f))).length;
   const bugDoneCount = bugs.filter(f => getResolvedStatus(f) === "klaar").length;
 
   // ── Insight push ───────────────────────────────────────────────────────────

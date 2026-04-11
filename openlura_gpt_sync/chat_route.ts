@@ -74,12 +74,11 @@ function cleanupRateLimitStore() {
   }
 }
 
-async function checkRateLimit(req: Request) {
+async function checkRateLimit(req: Request, userId?: string | null) {
   cleanupRateLimitStore();
 
   const ip = getRequestIp(req);
-  const identity = await resolveOpenLuraRequestIdentity(req);
-  const userKey = identity?.userId || "anon";
+  const userKey = userId || "anon";
   const rateLimitKey = `${ip}:${userKey}`;
   const now = Date.now();
   const existing = rateLimitStore.get(rateLimitKey);
@@ -3208,7 +3207,12 @@ FOLLOW THIS STYLE STRICTLY.
 }
 
 export async function POST(req: Request) {
-  const rateLimit = await checkRateLimit(req);
+  const requestIdentity = await resolveOpenLuraRequestIdentity(req);
+  const authenticatedUserId =
+    requestIdentity?.isAuthenticated && requestIdentity?.userId
+      ? requestIdentity.userId
+      : null;
+  const rateLimit = await checkRateLimit(req, authenticatedUserId);
 
   if (!rateLimit.allowed) {
     const retryAfterSeconds = Math.max(
@@ -3278,8 +3282,24 @@ export async function POST(req: Request) {
     style: requestStyle,
     memoryEnabled: requestMemoryEnabled,
     feedback,
-    recentMessages,
+    recentMessages: rawRecentMessages,
   } = body;
+
+  // Sanitize client-supplied conversation history to prevent prompt injection
+  const MAX_RECENT_MESSAGES = 20;
+  const MAX_RECENT_MESSAGE_CHARS = 2000;
+  const recentMessages = Array.isArray(rawRecentMessages)
+    ? rawRecentMessages
+        .slice(-MAX_RECENT_MESSAGES)
+        .map((m: any) => ({
+          role: m?.role === "ai" || m?.role === "user" ? m.role : "user",
+          content:
+            typeof m?.content === "string"
+              ? m.content.slice(0, MAX_RECENT_MESSAGE_CHARS)
+              : "",
+        }))
+        .filter((m) => m.content.length > 0)
+    : [];
 
   const detectedLanguage = detectInputLanguage(message);
   const userTimezone = req.headers.get("x-openlura-timezone") || "UTC";
@@ -3293,12 +3313,7 @@ export async function POST(req: Request) {
     });
   }
 
-  const hasAdminSession = false;
-  const requestIdentity = await resolveOpenLuraRequestIdentity(req);
-  const authenticatedUserId =
-    requestIdentity?.isAuthenticated && requestIdentity?.userId
-      ? requestIdentity.userId
-      : null;
+  // requestIdentity and authenticatedUserId already resolved above
 
   // ── Brain context retrieval ──────────────────────────────────────────────
   let brainContext = "";
@@ -3404,7 +3419,7 @@ export async function POST(req: Request) {
 
   const userScope = getUserScopeFromRequest({
     isPersonalEnvironment,
-    hasAdminSession,
+    hasAdminSession: false,
     isAuthenticatedUser: !!authenticatedUserId,
   });
 
@@ -3814,7 +3829,7 @@ Mixed feedback exists: ${hasMixedResponseFeedback ? "yes" : "no"}
     (f: any) =>
       f.type === "workflow_status" &&
       f.source === "analytics_workflow" &&
-      (f.message === "klaar" || f.message === "done")
+      f.message === "done"
   );
 
   const negativeFeedbackTexts = effectiveFeedback

@@ -170,7 +170,7 @@ export async function POST(req: Request) {
         path: storagePath,
         bucket: BUCKET,
       });
-      return NextResponse.json({ error: "Storage upload failed", detail: errText }, { status: 500 });
+      return NextResponse.json({ error: "Storage upload failed" }, { status: 500 });
     }
 
     // Parse content

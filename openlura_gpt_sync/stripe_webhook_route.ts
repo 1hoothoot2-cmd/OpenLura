@@ -6,12 +6,20 @@ const supabaseUrl = process.env.SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const personalStateTable = process.env.OPENLURA_PERSONAL_STATE_TABLE || "openlura_personal_state";
 
+const STRIPE_TIMESTAMP_TOLERANCE_S = 300; // 5 minutes
+
 async function verifyStripeSignature(payload: string, signature: string, secret: string) {
   const parts = signature.split(",");
   const timestamp = parts.find(p => p.startsWith("t="))?.split("=")[1];
   const v1 = parts.find(p => p.startsWith("v1="))?.split("=")[1];
 
   if (!timestamp || !v1) return false;
+
+  // Replay protection — reject webhooks older than 5 minutes
+  const webhookAge = Math.floor(Date.now() / 1000) - Number(timestamp);
+  if (!Number.isFinite(webhookAge) || webhookAge > STRIPE_TIMESTAMP_TOLERANCE_S || webhookAge < -60) {
+    return false;
+  }
 
   const signedPayload = `${timestamp}.${payload}`;
   const encoder = new TextEncoder();
@@ -20,13 +28,18 @@ async function verifyStripeSignature(payload: string, signature: string, secret:
     encoder.encode(secret),
     { name: "HMAC", hash: "SHA-256" },
     false,
-    ["sign"]
+    ["verify"]
   );
 
-  const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(signedPayload));
-  const computed = Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, "0")).join("");
+  // Decode expected signature for timing-safe comparison
+  const expectedBytes = new Uint8Array(
+    v1.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16))
+  );
 
-  return computed === v1;
+  const signedBytes = encoder.encode(signedPayload);
+  const valid = await crypto.subtle.verify("HMAC", key, expectedBytes, signedBytes);
+
+  return valid;
 }
 
 async function setUserTier(userId: string, tier: "pro" | "free", stripeCustomerId?: string) {
@@ -69,20 +82,41 @@ export async function POST(req: Request) {
   const event = JSON.parse(payload);
 
   if (event.type === "checkout.session.completed") {
-    const userId = event.data.object.metadata?.user_id || event.data.object.client_reference_id;
-    const customerId = event.data.object.customer;
+    const session = event.data.object;
+    const userId = session.metadata?.user_id || session.client_reference_id;
+    const customerId = session.customer;
+    const mode = session.mode;
+    const creditAmount = session.metadata?.credit_amount ? parseInt(session.metadata.credit_amount) : null;
+
     if (userId) {
-      await setUserTier(userId, "pro", customerId);
+      if (mode === "subscription") {
+        await setUserTier(userId, "pro", customerId);
+      } else if (mode === "payment" && creditAmount) {
+        // Credits bijkopen
+        const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+        const { data: existing } = await supabase
+          .from(personalStateTable)
+          .select("usage_stats")
+          .eq("user_id", userId)
+          .single();
+        const currentStats = (existing?.usage_stats as Record<string, unknown>) || {};
+        const currentPoints = typeof currentStats.photo_points === "number" ? currentStats.photo_points : 0;
+        await supabase.from(personalStateTable).upsert({
+          user_id: userId,
+          usage_stats: { ...currentStats, photo_points: currentPoints + creditAmount },
+          updated_at: new Date().toISOString(),
+        }, { onConflict: "user_id" });
+      }
     }
   }
 
   if (event.type === "customer.subscription.deleted") {
     const customerId = event.data.object.customer;
     
-    // Zoek user op via stripe_customer_id in Supabase
+    // Look up user by stripe_customer_id
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
     const { data } = await supabase
-      .from("openlura_personal_state")
+      .from(personalStateTable)
       .select("user_id, usage_stats")
       .eq("usage_stats->>stripe_customer_id", customerId)
       .single();

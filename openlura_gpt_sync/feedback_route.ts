@@ -463,6 +463,8 @@ async function resolveFeedbackIdentity(req: Request) {
   };
 }
 
+const MAX_FEEDBACK_PAGES = 10; // max 10_000 rows
+
 async function fetchAllFeedbackEntries(input: {
   feedbackTableUrl: string;
   supabaseServiceRoleKey: string;
@@ -471,8 +473,9 @@ async function fetchAllFeedbackEntries(input: {
   const pageSize = 1000;
   let offset = 0;
   let allRows: unknown[] = [];
+  let page = 0;
 
-  while (true) {
+  while (page < MAX_FEEDBACK_PAGES) {
     const headers = new Headers();
     headers.set("apikey", input.supabaseServiceRoleKey);
     headers.set("Authorization", `Bearer ${input.supabaseServiceRoleKey}`);
@@ -494,6 +497,7 @@ async function fetchAllFeedbackEntries(input: {
     const pageRows = Array.isArray(pageData) ? pageData : [];
 
     allRows = [...allRows, ...pageRows];
+    page += 1;
 
     if (pageRows.length < pageSize) {
       break;
@@ -524,8 +528,14 @@ function normalizeFeedbackEnvironment(
 
 function normalizeFeedbackWorkflowStatus(
   value: unknown
-): "nieuw" | "bezig" | "klaar" | null {
-  return value === "nieuw" || value === "bezig" || value === "klaar"
+): "new" | "in_progress" | "done" | "nieuw" | "bezig" | "klaar" | null {
+  // Support both legacy NL values and new EN values for backwards compatibility
+  return value === "new" ||
+    value === "in_progress" ||
+    value === "done" ||
+    value === "nieuw" ||
+    value === "bezig" ||
+    value === "klaar"
     ? value
     : null;
 }
@@ -542,7 +552,7 @@ function mapFeedbackRowToApi(row: Record<string, unknown>): CanonicalFeedbackEnt
   environment: "default" | "personal" | null;
   timestamp: string | null;
   workflowKey: string | null;
-  workflowStatus: "nieuw" | "bezig" | "klaar" | null;
+  workflowStatus: "new" | "in_progress" | "done" | "nieuw" | "bezig" | "klaar" | null;
   learningType: "style" | "content" | null;
 } {
   const normalizedType = normalizeFeedbackType(row.type);

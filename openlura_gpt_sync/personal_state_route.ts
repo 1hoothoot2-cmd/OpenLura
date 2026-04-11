@@ -345,28 +345,35 @@ function validatePersonalStateBody(body: unknown): PersonalStateBody | null {
     profile?: unknown;
   };
 
+  // Allow partial updates — chats and memory are optional
   const chats = Array.isArray(candidate.chats) ? candidate.chats : null;
   const memory = Array.isArray(candidate.memory) ? candidate.memory : null;
   const profile = normalizePersonalProfile(candidate.profile);
 
-  if (!chats || !memory) {
+  // Require at least one field
+  if (!chats && !memory && !candidate.profile) {
     return null;
   }
 
-  if (
-    chats.length > MAX_ITEMS_PER_COLLECTION ||
-    memory.length > MAX_ITEMS_PER_COLLECTION
-  ) {
+  if (chats && chats.length > MAX_ITEMS_PER_COLLECTION) {
     return null;
   }
 
-  if (!isJsonSafeValue(chats) || !isJsonSafeValue(memory)) {
+  if (memory && memory.length > MAX_ITEMS_PER_COLLECTION) {
+    return null;
+  }
+
+  if (chats && !isJsonSafeValue(chats)) {
+    return null;
+  }
+
+  if (memory && !isJsonSafeValue(memory)) {
     return null;
   }
 
   return {
-    chats: normalizePersonalChats(chats),
-    memory: normalizePersonalMemory(memory),
+    chats: chats ? normalizePersonalChats(chats) : [],
+    memory: memory ? normalizePersonalMemory(memory) : [],
     profile,
   };
 }
@@ -448,11 +455,20 @@ async function fetchPersonalStateRow(input: {
     headers.set("Authorization", `Bearer ${input.accessToken}`);
     headers.set("Accept", "application/json");
 
-    const res = await fetch(`${input.personalStateTableUrl}?${query}`, {
-      method: "GET",
-      headers,
-      cache: "no-store",
-    });
+    const fetchController = new AbortController();
+    const fetchTimeout = setTimeout(() => fetchController.abort(), 8000);
+
+    let res: Response;
+    try {
+      res = await fetch(`${input.personalStateTableUrl}?${query}`, {
+        method: "GET",
+        headers,
+        cache: "no-store",
+        signal: fetchController.signal,
+      });
+    } finally {
+      clearTimeout(fetchTimeout);
+    }
 
     if (res.status === 401 || res.status === 403) {
       return {
@@ -666,13 +682,18 @@ export async function POST(req: Request) {
 
     const { personalStateTableUrl, supabaseAnonKey } = getSupabaseConfig();
 
-    const payload = {
+    const rawBody = parsedBody.body as Record<string, unknown>;
+    const hasChats = Array.isArray(rawBody.chats);
+    const hasMemory = Array.isArray(rawBody.memory);
+
+    const payload: Record<string, unknown> = {
       user_id: identity.userId,
-      chats: body.chats,
-      memory: body.memory,
-      profile: body.profile,
       updated_at: new Date().toISOString(),
+      profile: body.profile,
     };
+
+    if (hasChats) payload.chats = body.chats;
+    if (hasMemory) payload.memory = body.memory;
 
     const headers = new Headers();
     headers.set("Content-Type", "application/json");
@@ -680,15 +701,24 @@ export async function POST(req: Request) {
     headers.set("Authorization", `Bearer ${identity.accessToken}`);
     headers.set("Prefer", "resolution=merge-duplicates,return=representation");
 
-    const res = await fetch(
-      `${personalStateTableUrl}?on_conflict=user_id&select=user_id,chats,memory,profile,style_profile,usage_stats,updated_at`,
-      {
-        method: "POST",
-        headers,
-        body: JSON.stringify(payload),
-        cache: "no-store",
-      }
-    );
+    const postController = new AbortController();
+    const postTimeout = setTimeout(() => postController.abort(), 8000);
+
+    let res: Response;
+    try {
+      res = await fetch(
+        `${personalStateTableUrl}?on_conflict=user_id&select=user_id,chats,memory,profile,style_profile,usage_stats,updated_at`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify(payload),
+          cache: "no-store",
+          signal: postController.signal,
+        }
+      );
+    } finally {
+      clearTimeout(postTimeout);
+    }
 
     if (res.status === 401 || res.status === 403) {
       return unauthorizedResponse();
