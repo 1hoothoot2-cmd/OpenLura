@@ -47,7 +47,9 @@ export async function GET(req: Request) {
       }),
     });
 
-    const response = NextResponse.redirect(new URL("/personal-workspace", appUrl));
+    const redirectParam = url.searchParams.get("redirect");
+    const safePath = redirectParam && redirectParam.startsWith("/") ? redirectParam : "/personal-workspace";
+    const response = NextResponse.redirect(new URL(safePath, appUrl));
 
     const cookieOptions = {
       httpOnly: true,
