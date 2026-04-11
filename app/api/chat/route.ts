@@ -4523,15 +4523,22 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
       }
 
       const fastStream = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-4.1-mini",
         stream: true,
-        max_tokens: 300,
+        max_tokens: 400,
         messages: [
           {
             role: "system",
             content: `You are OpenLura.
 
-Respond in the same language as the user. Supported languages include Dutch, English, French, German, Spanish, Portuguese, Italian, Turkish, Arabic, and Papiamento (spoken on Curaçao, Aruba, and Bonaire). If the user writes in Papiamento, always respond in Papiamento — never switch to Spanish or Portuguese. If the user writes in Turkish, always respond in Turkish. If the user writes in Arabic, always respond in Arabic. If the user writes in Italian, always respond in Italian.
+HARD LANGUAGE RULE — CRITICAL:
+The user is writing in: ${detectedLanguage}
+You MUST respond in this exact language. Never switch languages mid-conversation.
+If the user writes in Dutch (nl), respond ONLY in Dutch — even if a word or name sounds English.
+If the user writes in Dutch and you previously responded in English, correct yourself immediately and switch back to Dutch.
+Never respond in English when the user writes in Dutch. This is a hard rule that overrides everything else.
+Supported languages: Dutch, English, French, German, Spanish, Portuguese, Italian, Turkish, Arabic, Papiamento.
+
 ${isPersonalEnvironment && (personalState.profile as any)?.name ? `The user's name is ${(personalState.profile as any).name}. This is a confirmed fact — you know their name. Never say you don't know it. Use it naturally and sparingly.` : ""}
 Keep short prompts fast, natural, and direct.
 Do not use long structure for greetings or tiny prompts.
@@ -4591,8 +4598,16 @@ Fast-path rules:
 - Do not copy old answers blindly word-for-word
 - If feedback is mixed, create a cleaner balanced version instead of repeating the old answer`,
           },
+          // Inject recent conversation as real multi-turn messages
+          ...recentMessages
+            .filter((m) => m.content?.trim() && m.content !== "…")
+            .slice(-6)
+            .map((m) => ({
+              role: m.role === "ai" ? ("assistant" as const) : ("user" as const),
+              content: m.content.slice(0, 800),
+            })),
           {
-            role: "user",
+            role: "user" as const,
             content: message || "",
           },
         ],
@@ -4655,7 +4670,7 @@ Fast-path rules:
 
         if (isSimpleImageAnalysis && image && !shouldUseWebSearch) {
       const fastImageStream = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-4.1-mini",
         stream: true,
         messages: [
           {
@@ -4760,7 +4775,8 @@ IMPORTANT: If the user asks to edit, adjust, modify, change, transform, or impro
       !shouldUseWebSearch &&
       !conversationDependentFollowUp &&
       !!normalizedMessageForRouting &&
-      normalizedMessageForRouting.length <= 120;
+      normalizedMessageForRouting.length <= 120 &&
+      recentMessages.length === 0; // NOOIT light als er conversatiecontext is
 
     const response = await openai.responses.create({
     model: "gpt-4.1-mini",
@@ -4902,7 +4918,7 @@ IMPORTANT: If the user asks to edit, adjust, modify, change, transform, or impro
   if (shouldRewriteCasualReply && aiText) {
     try {
       const rewrite = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-4.1-mini",
         max_tokens: 300,
         temperature: 0.7,
         messages: [
@@ -4986,17 +5002,19 @@ IMPORTANT: If the user asks to edit, adjust, modify, change, transform, or impro
     if (
       aiText &&
       aiText.trim().length > 40 &&
-      (v91SelfCheck.suggestion === "shorten" || v91SelfCheck.suggestion === "soften") &&
-      isPersonalEnvironment // alleen voor betaalde personal users om kosten te beheersen
+      (v91SelfCheck.suggestion === "shorten" || v91SelfCheck.suggestion === "soften" || v91SelfCheck.suggestion === "rewrite") &&
+      isPersonalEnvironment // alleen voor personal users om kosten te beheersen
     ) {
       try {
         const rewriteInstruction =
-          v91SelfCheck.suggestion === "shorten"
+          v91SelfCheck.suggestion === "rewrite"
+            ? `Rewrite this response in ${detectedLanguage}. The response was in the wrong language. Translate it completely to ${detectedLanguage} and keep the same meaning. Do not explain the translation.`
+            : v91SelfCheck.suggestion === "shorten"
             ? `Rewrite this response. Make it significantly shorter and more direct. Remove all filler. Keep the core answer. Same language as the user (${detectedLanguage}). Max 80 words.`
             : `Rewrite this response. Add more warmth and empathy. Acknowledge the user's emotion first before any information. Same language as the user (${detectedLanguage}). Keep it concise.`;
 
         const selfCheckRewrite = await openai.chat.completions.create({
-          model: "gpt-4o-mini",
+          model: "gpt-4.1-mini",
           max_tokens: 400,
           temperature: 0.5,
           messages: [

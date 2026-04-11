@@ -63,6 +63,7 @@ export default function ChatPage() {
   const [userName, setUserName] = useState<string | null>(null);
   const [showNamePopup, setShowNamePopup] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
 const getBrowserLanguage = () => {
   if (typeof navigator === "undefined") return "en";
@@ -4824,6 +4825,16 @@ updated[index].messages[
                 Settings
               </button>
 
+              {isPersonalRoute && (
+                <button
+                  type="button"
+                  onClick={() => setShowLogoutConfirm(true)}
+                  className="rounded-full border border-white/8 bg-white/[0.03] px-3 py-1 text-[11px] font-medium text-white/46 ol-interactive transition-[background-color,border-color,color,box-shadow] duration-200 hover:border-red-400/20 hover:bg-red-400/8 hover:text-red-300"
+                >
+                  {detectedLang === "nl" ? "Uitloggen" : detectedLang === "de" ? "Abmelden" : detectedLang === "fr" ? "Déconnexion" : detectedLang === "es" ? "Cerrar sesión" : "Log out"}
+                </button>
+              )}
+
               {showExportMenu && (
                 <div
                   data-openlura-export-menu
@@ -5876,7 +5887,7 @@ const transcript = (data.text || "").trim();
           </a>
           <button
             type="button"
-            onClick={handlePersonalLogout}
+            onClick={() => setShowLogoutConfirm(true)}
             className="rounded-full border border-white/8 bg-white/[0.05] px-3.5 py-2 text-sm text-white/78 shadow-[0_12px_28px_rgba(0,0,0,0.18)] backdrop-blur-2xl ol-interactive transition-[transform,background-color,border-color,color,opacity,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.08] hover:text-white hover:shadow-[0_14px_30px_rgba(0,0,0,0.20)] active:scale-95"
           >
             Log out
