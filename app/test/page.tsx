@@ -6233,7 +6233,9 @@ const transcript = (data.text || "").trim();
                       onClick={() => {
                         const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
                         if (!supabaseUrl) return;
-                        window.location.href = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(window.location.origin + "/auth/callback")}`;
+                        const pendingRedirect = (() => { try { return sessionStorage.getItem("ol_login_redirect") || ""; } catch { return ""; } })();
+                        const callbackPath = pendingRedirect ? `/auth/callback?redirect=${encodeURIComponent(pendingRedirect)}` : "/auth/callback";
+                        window.location.href = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(window.location.origin + callbackPath)}`;
                       }}
                       className="flex w-full items-center justify-center gap-3 rounded-[18px] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white/88 transition-[background-color,border-color] duration-200 hover:border-white/16 hover:bg-white/[0.07]"
                     >
@@ -6286,7 +6288,9 @@ const transcript = (data.text || "").trim();
                       onClick={() => {
                         const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
                         if (!supabaseUrl) return;
-                        window.location.href = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(window.location.origin + "/auth/callback")}`;
+                        const pendingRedirect = (() => { try { return sessionStorage.getItem("ol_login_redirect") || ""; } catch { return ""; } })();
+                        const callbackPath = pendingRedirect ? `/auth/callback?redirect=${encodeURIComponent(pendingRedirect)}` : "/auth/callback";
+                        window.location.href = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(window.location.origin + callbackPath)}`;
                       }}
                       className="flex w-full items-center justify-center gap-3 rounded-[18px] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white/88 transition-[background-color,border-color] duration-200 hover:border-white/16 hover:bg-white/[0.07]"
                     >
