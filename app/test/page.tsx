@@ -2778,7 +2778,13 @@ const restoreDeletedChat = (chatId: number) => {
       setShowLoginBox(false);
       setLoginUsername("");
       setLoginPassword("");
-      window.location.href = "/personal-workspace";
+      try {
+        const redirect = sessionStorage.getItem("ol_login_redirect");
+        sessionStorage.removeItem("ol_login_redirect");
+        window.location.href = redirect || "/personal-workspace";
+      } catch {
+        window.location.href = "/personal-workspace";
+      }
     } catch {
       setLoginError("Login failed");
     } finally {
@@ -2824,7 +2830,13 @@ const restoreDeletedChat = (chatId: number) => {
 
       setShowLoginBox(false);
       setRegisterEmail(""); setRegisterPassword(""); setRegisterPasswordConfirm("");
-      window.location.href = "/personal-workspace";
+      try {
+        const redirect = sessionStorage.getItem("ol_login_redirect");
+        sessionStorage.removeItem("ol_login_redirect");
+        window.location.href = redirect || "/personal-workspace";
+      } catch {
+        window.location.href = "/personal-workspace";
+      }
     } catch { setRegisterError("Registratie mislukt"); }
     finally { setRegisterLoading(false); }
   };
