@@ -4882,6 +4882,27 @@ updated[index].messages[
             } catch { return null; }
           })()}
 
+          {/* V91 — PERSONAL LEARNING ACTIVE INDICATOR */}
+          {isPersonalRoute && personalStateLoaded && memory.length > 0 && !upgradeNotice.visible && (
+            <div className="mx-4 mt-3 flex items-center gap-2 rounded-[14px] border border-emerald-400/12 bg-emerald-400/[0.05] px-3 py-2">
+              <span className="relative flex h-1.5 w-1.5 shrink-0">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              </span>
+              <span className="text-[11px] text-emerald-300/80">
+                {detectedLang === "nl"
+                  ? `Persoonlijk leren actief · ${memory.length} geheugenitem${memory.length !== 1 ? "s" : ""}`
+                  : detectedLang === "de"
+                  ? `Persönliches Lernen aktiv · ${memory.length} Erinnerung${memory.length !== 1 ? "en" : ""}`
+                  : detectedLang === "fr"
+                  ? `Apprentissage personnel actif · ${memory.length} souvenir${memory.length !== 1 ? "s" : ""}`
+                  : detectedLang === "es"
+                  ? `Aprendizaje personal activo · ${memory.length} memoria${memory.length !== 1 ? "s" : ""}`
+                  : `Personal learning active · ${memory.length} memory item${memory.length !== 1 ? "s" : ""}`}
+              </span>
+            </div>
+          )}
+
           {usage && usage.percentage >= 0.8 && !upgradeNotice.visible && (
             <div className="mx-4 mt-4 rounded-[24px] border border-amber-300/12 bg-amber-500/[0.065] px-4 py-3 text-sm text-amber-100 shadow-[0_10px_22px_rgba(0,0,0,0.10)] backdrop-blur-xl">
               <div className="flex items-center justify-between gap-3">
