@@ -4354,6 +4354,7 @@ updated[index].messages[
     );
   }}
   userName={userName}
+  isAuthenticated={isPersonalRoute || userTier !== "free"}
 />
       <button
   onClick={() => setMobileMenu(!mobileMenu)}

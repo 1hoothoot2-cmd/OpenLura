@@ -50,6 +50,7 @@ type Props = {
   userTier?: "free" | "pro" | "admin";
   onRenameChat?: (id: number, title: string) => void;
   userName?: string | null;
+  isAuthenticated?: boolean;
 };
 
 function AnonUsageIndicator() {
@@ -113,6 +114,7 @@ export default function Sidebar({
   userTier = "free",
   onRenameChat,
   userName,
+  isAuthenticated = false,
 }: Props) {
   const sidebarRef = useRef<HTMLDivElement | null>(null);
 const promptMessageTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -729,7 +731,7 @@ const [chatTitleDraft, setChatTitleDraft] = useState("");
               type="button"
               onClick={() => {
                 setMobileMenu(false);
-                if (isPersonalRoute) {
+                if (isAuthenticated || isPersonalRoute) {
                   window.location.href = "/brain";
                 } else {
                   try { sessionStorage.setItem("ol_login_redirect", "/brain"); } catch {}
@@ -748,7 +750,7 @@ const [chatTitleDraft, setChatTitleDraft] = useState("");
               type="button"
               onClick={() => {
                 setMobileMenu(false);
-                if (isPersonalRoute) {
+                if (isAuthenticated || isPersonalRoute) {
                   window.location.href = "/photo-studio";
                 } else {
                   try { sessionStorage.setItem("ol_login_redirect", "/photo-studio"); } catch {}
