@@ -5601,6 +5601,7 @@ updated[index].messages[
   onChange={(e) => {
     const nextValue = e.target.value;
     setInput(nextValue);
+    resizeComposerTextarea();
 
     if (!nextValue.trim() && workflowPrefill) {
       clearWorkflowPrefill();
@@ -5643,7 +5644,6 @@ updated[index].messages[
         : t("placeholder_active")
   }
   enterKeyHint="send"
-  rows={1}
 />
 
 {/* 9.4 — VOICE INPUT (Whisper) */}

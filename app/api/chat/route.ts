@@ -390,6 +390,141 @@ async function storeImplicitSignals(input: {
   }
 }
 
+// ─── V91 RUNTIME ENGINE ───────────────────────────────────────────────────────
+
+function detectIntent(input: string): {
+  intent: "question" | "task" | "creative" | "emotional" | "casual" | "technical" | "search";
+  confidence: "high" | "medium" | "low";
+} {
+  const m = (input || "").toLowerCase().trim();
+
+  if (/\b(maak|schrijf|genereer|ontwerp|create|write|generate|design|build|compose)\b/.test(m))
+    return { intent: "creative", confidence: "high" };
+
+  if (/\b(code|bug|error|fix|deploy|api|database|function|script|typescript|javascript|python)\b/.test(m))
+    return { intent: "technical", confidence: "high" };
+
+  if (/\b(zoek|search|find|where|waar|restaurant|news|nieuws|prijs|price|weer|weather|locate|locatie)\b/.test(m))
+    return { intent: "search", confidence: "high" };
+
+  if (/\b(voel|feel|moe|stress|angstig|verdriet|sad|blij|happy|moeilijk|difficult|alleen|lonely|help me)\b/.test(m))
+    return { intent: "emotional", confidence: "high" };
+
+  if (/\b(plan|todo|maak een lijst|schedule|organiseer|remind|stap voor stap|step by step|zet op|set up)\b/.test(m))
+    return { intent: "task", confidence: "high" };
+
+  if (/(\?|\b(wat|hoe|waarom|when|where|who|which|hoeveel|how many|explain|leg uit)\b)/.test(m) && m.length > 20)
+    return { intent: "question", confidence: "medium" };
+
+  if (m.length < 80 && /(\b(hoi|hey|haha|lol|leuk|gezellig|denk je|vind je|en jij)\b|\?)/.test(m))
+    return { intent: "casual", confidence: "medium" };
+
+  return { intent: "question", confidence: "low" };
+}
+
+function detectTone(input: string, recentMessages?: { role: "user" | "ai"; content: string }[]): {
+  tone: "neutral" | "positive" | "frustrated" | "playful" | "sad" | "urgent" | "formal";
+  intensity: "low" | "medium" | "high";
+} {
+  const m = (input || "").toLowerCase().trim();
+  const recent = (recentMessages || []).slice(-4).map(r => (r.content || "").toLowerCase());
+
+  if (/(!{2,}|urgent|asap|nu meteen|direct|snel|immediately|help me nu|crisis)/.test(m))
+    return { tone: "urgent", intensity: "high" };
+
+  if (/\b(boos|angry|frustreer|frustrated|werkt niet|kapot|broken|stupid|dom|useless|nutteloos|al de derde keer|steeds)\b/.test(m))
+    return { tone: "frustrated", intensity: recent.some(r => /frustreer|boos|werkt niet/.test(r)) ? "high" : "medium" };
+
+  if (/\b(verdriet|sad|depressed|depressief|alleen|lonely|moeilijk|pijn|hurt|huil|cry|verlies|loss)\b/.test(m))
+    return { tone: "sad", intensity: "high" };
+
+  if (/\b(haha|lol|hihi|grappig|funny|cute|flirt|speels|lief|gezellig|gek)\b/.test(m))
+    return { tone: "playful", intensity: "medium" };
+
+  if (/\b(geachte|dear|met vriendelijke groet|sincerely|formally|officieel|rapport|verslag|document)\b/.test(m))
+    return { tone: "formal", intensity: "medium" };
+
+  if (/\b(goed|great|super|top|geweldig|awesome|perfect|dank|thanks|fijn|nice|blij)\b/.test(m))
+    return { tone: "positive", intensity: "medium" };
+
+  return { tone: "neutral", intensity: "low" };
+}
+
+function selectMode(intent: string, tone: string): "QUICK" | "DEEP" | "CREATIVE" | "SUPPORT" {
+  if (tone === "sad" || tone === "frustrated" || intent === "emotional")
+    return "SUPPORT";
+
+  if (intent === "creative")
+    return "CREATIVE";
+
+  if (intent === "technical" || intent === "question")
+    return "DEEP";
+
+  // casual, search, task, urgent → QUICK
+  return "QUICK";
+}
+
+function runSelfCheck(input: {
+  userMessage: string;
+  aiText: string;
+  detectedLanguage: string;
+  mode: "QUICK" | "DEEP" | "CREATIVE" | "SUPPORT";
+  isCasualChatRequest: boolean;
+}): {
+  passed: boolean;
+  issues: string[];
+  suggestion: "none" | "shorten" | "rewrite" | "soften";
+} {
+  const issues: string[] = [];
+  const text = (input.aiText || "").trim();
+  const wordCount = text.split(/\s+/).filter(Boolean).length;
+
+  // Check 1: Too long for casual/quick
+  if ((input.mode === "QUICK" || input.isCasualChatRequest) && wordCount > 120)
+    issues.push("Reply too long for casual/quick mode.");
+
+  // Check 2: Empty or near-empty
+  if (wordCount < 3)
+    issues.push("Reply too short or empty.");
+
+  // Check 3: Language mismatch (basic check)
+  const expectedLang = input.detectedLanguage;
+  const nlWords = /\b(de|het|een|en|van|is|dat|niet|ook|maar)\b/g;
+  const enWords = /\b(the|is|are|and|not|but|for|with|you|this)\b/g;
+  const nlCount = (text.match(nlWords) || []).length;
+  const enCount = (text.match(enWords) || []).length;
+  if (expectedLang === "nl" && enCount > nlCount + 3)
+    issues.push("Language mismatch: user wrote NL but reply appears EN.");
+  if (expectedLang === "en" && nlCount > enCount + 3)
+    issues.push("Language mismatch: user wrote EN but reply appears NL.");
+
+  // Check 4: No repetition of question
+  const userWords = new Set((input.userMessage || "").toLowerCase().split(/\s+/).filter(w => w.length > 5));
+  const aiLower = text.toLowerCase();
+  const repeated = [...userWords].filter(w => aiLower.includes(w)).length;
+  if (repeated > 5 && text.length < 200)
+    issues.push("Reply may be repeating the user's question.");
+
+  // Check 5: Support mode — check for warmth signal
+  if (input.mode === "SUPPORT") {
+    const warmSignals = /\b(begrijp|understand|moeilijk|that's hard|er voor je|here for you|voel je|dat klinkt|sounds like)\b/i;
+    if (!warmSignals.test(text))
+      issues.push("Support mode: reply may lack empathy signal.");
+  }
+
+  const suggestion =
+    issues.some(i => i.includes("too long")) ? "shorten" :
+    issues.some(i => i.includes("mismatch")) ? "rewrite" :
+    issues.some(i => i.includes("empathy")) ? "soften" :
+    "none";
+
+  return {
+    passed: issues.length === 0,
+    issues,
+    suggestion,
+  };
+}
+
 // ─── USER PATTERN & QUESTION INTELLIGENCE ────────────────────────────────────
 
 function detectQuestionCategory(message: string): {
@@ -2814,6 +2949,8 @@ type OpenLuraRuntimePromptBuilderInput = {
   userName?: string;
   userTimezone?: string;
   userIntelligenceContext: string;
+  v91Mode?: "QUICK" | "DEEP" | "CREATIVE" | "SUPPORT";
+  activePersonalOverrideBlock?: string;
 };
 
 function buildOpenLuraBasePrompt(detectedLanguage: string = "en", userName?: string, userTimezone?: string) {
@@ -3041,6 +3178,12 @@ ${input.userIntelligenceContext}
 PRIORITY RULE:
 - current user request > personal feedback signals > global consensus > defaults
 
+${input.activePersonalOverrideBlock ? `━━━━━━━━━━━━━━━━━━━
+PERSONAL LEARNING ACTIVE — HIGHEST PRIORITY
+━━━━━━━━━━━━━━━━━━━
+${input.activePersonalOverrideBlock}
+━━━━━━━━━━━━━━━━━━━` : ""}
+
 RESPONSE STYLE PROFILE:
 ${input.sharedStyleInstructionBlock}
 
@@ -3191,6 +3334,12 @@ GOOD OUTPUT:
 - Feels like a premium ChatGPT answer
 - Clear + structured + interesting
 - Slight personality without being childish
+
+V91 RESPONSE MODE: ${input.v91Mode || "QUICK"}
+- QUICK: direct, compact, no filler
+- DEEP: structured, explain the why, thorough
+- CREATIVE: original, engaging, fresh angle
+- SUPPORT: warm, human, empathy first
 
 A/B TEST VARIANT:
 ${input.responseVariant}
@@ -3668,6 +3817,25 @@ Personal issues from this user/session:
 ${personalRecentIssues.join("\n") || "none"}
 `
       : "none";
+
+  // ── PUNT 1: Personal override profile — stuurt runtime AI-gedrag actief aan ──
+  const personalOverrideProfile = buildPersonalOverrideProfile({
+    isPersonalEnvironment,
+    personalFeedbackRows: normalizedPersonalFeedbackRows,
+    personalMemory: resolvedPersonalMemory,
+  });
+
+  const activePersonalOverrideBlock = isPersonalEnvironment && personalOverrideProfile.active
+    ? [
+        personalOverrideProfile.hardRules.length > 0 &&
+          `PERSONAL HARD RULES (follow these always, above global defaults):\n${personalOverrideProfile.hardRules.map(r => `- ${r}`).join("\n")}`,
+        personalOverrideProfile.avoidPatterns.length > 0 &&
+          `PERSONAL AVOID (never do these for this user):\n${personalOverrideProfile.avoidPatterns.map(r => `- ${r}`).join("\n")}`,
+        personalOverrideProfile.memoryDirectives.length > 0 &&
+          `PERSONAL MEMORY DIRECTIVES:\n${personalOverrideProfile.memoryDirectives.map(r => `- ${r}`).join("\n")}`,
+        `PERSONAL PROFILE: tone=${personalOverrideProfile.preferredTone}, brevity=${personalOverrideProfile.preferredBrevity}, clarity=${personalOverrideProfile.preferredClarity}, structure=${personalOverrideProfile.preferredStructure}, depth=${personalOverrideProfile.preferredDepth}`,
+      ].filter(Boolean).join("\n\n")
+    : "";
 
   const normalizePromptText = (text: string) =>
     text
@@ -4236,12 +4404,6 @@ const getWeightedSignalCount = (items: any[], pattern: RegExp) => {
       activeLearningRules: resolvedActiveLearningRules,
     });
 
-    const personalOverrideProfile = buildPersonalOverrideProfile({
-      isPersonalEnvironment,
-      personalFeedbackRows: personalLearningFeedback,
-      personalMemory: effectiveMemoryEnabled ? runtimePersonalMemory : "",
-    });
-
     if ((shouldPersistRuntimeMemory || shouldPersistUsageStats) && personalUserId && accessToken) {
       const detectedPattern = detectUserWritingPattern(recentMessages);
       const detectedExpertise = detectExpertiseLevel(message || "", recentMessages);
@@ -4654,6 +4816,8 @@ IMPORTANT: If the user asks to edit, adjust, modify, change, transform, or impro
       userName: isPersonalEnvironment && personalState.profile
         ? (personalState.profile as any).name || undefined
         : undefined,
+      v91Mode: selectMode(detectIntent(message || "").intent, detectTone(message || "", recentMessages).tone),
+      activePersonalOverrideBlock,
     }),
       input: [
         {
@@ -4802,6 +4966,55 @@ IMPORTANT: If the user asks to edit, adjust, modify, change, transform, or impro
       ...webSearchSources,
     ]).values()
   ).slice(0, 5);
+
+  // V91 SELF-CHECK
+  const v91Intent = detectIntent(message || "");
+  const v91Tone = detectTone(message || "", recentMessages);
+  const v91Mode = selectMode(v91Intent.intent, v91Tone.tone);
+  const v91SelfCheck = runSelfCheck({
+    userMessage: message || "",
+    aiText,
+    detectedLanguage,
+    mode: v91Mode,
+    isCasualChatRequest,
+  });
+
+  if (!v91SelfCheck.passed) {
+    console.warn("[V91 SelfCheck] Issues:", v91SelfCheck.issues, "| Suggestion:", v91SelfCheck.suggestion);
+
+    // Alleen rewriten als het de moeite waard is (niet bij lege of triviale tekst)
+    if (
+      aiText &&
+      aiText.trim().length > 40 &&
+      (v91SelfCheck.suggestion === "shorten" || v91SelfCheck.suggestion === "soften") &&
+      isPersonalEnvironment // alleen voor betaalde personal users om kosten te beheersen
+    ) {
+      try {
+        const rewriteInstruction =
+          v91SelfCheck.suggestion === "shorten"
+            ? `Rewrite this response. Make it significantly shorter and more direct. Remove all filler. Keep the core answer. Same language as the user (${detectedLanguage}). Max 80 words.`
+            : `Rewrite this response. Add more warmth and empathy. Acknowledge the user's emotion first before any information. Same language as the user (${detectedLanguage}). Keep it concise.`;
+
+        const selfCheckRewrite = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          max_tokens: 400,
+          temperature: 0.5,
+          messages: [
+            { role: "system", content: rewriteInstruction },
+            { role: "user", content: `User said: "${(message || "").slice(0, 300)}"\n\nDraft response:\n${aiText.slice(0, 1200)}` },
+          ],
+        });
+
+        const rewritten = selfCheckRewrite.choices?.[0]?.message?.content?.trim() || "";
+        if (rewritten && rewritten.length > 20) {
+          console.log("[V91 SelfCheck] Rewrite applied, suggestion:", v91SelfCheck.suggestion);
+          aiText = rewritten;
+        }
+      } catch (rewriteError) {
+        console.warn("[V91 SelfCheck] Rewrite failed:", toSafeErrorMeta(rewriteError));
+      }
+    }
+  }
 
   const autoDebugSignals = detectAutoDebugSignals({
     userMessage: message || "",
