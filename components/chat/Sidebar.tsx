@@ -723,6 +723,32 @@ const [chatTitleDraft, setChatTitleDraft] = useState("");
             + New Chat
           </button>
 
+          {/* Feature shortcuts — Brain & Photo Studio */}
+          <div className="mb-3 grid grid-cols-2 gap-2">
+            <a
+              href={isPersonalRoute ? "/brain" : "/personal-workspace"}
+              onClick={() => setMobileMenu(false)}
+              className="group flex items-center gap-2 rounded-[16px] border border-white/8 bg-white/[0.03] px-3 py-2.5 transition-[background-color,border-color,box-shadow,transform] duration-200 hover:-translate-y-[1px] hover:border-[#3b82f6]/24 hover:bg-[#3b82f6]/[0.06] hover:shadow-[0_8px_18px_rgba(59,130,246,0.10)] active:scale-95"
+            >
+              <span className="text-base leading-none">🧠</span>
+              <div className="min-w-0">
+                <div className="text-[11px] font-medium text-white/80 group-hover:text-white transition-colors truncate">Brain</div>
+                <div className="text-[9px] text-white/32 truncate">Knowledge base</div>
+              </div>
+            </a>
+            <a
+              href={isPersonalRoute ? "/photo-studio" : "/personal-workspace"}
+              onClick={() => setMobileMenu(false)}
+              className="group flex items-center gap-2 rounded-[16px] border border-white/8 bg-white/[0.03] px-3 py-2.5 transition-[background-color,border-color,box-shadow,transform] duration-200 hover:-translate-y-[1px] hover:border-purple-400/24 hover:bg-purple-400/[0.06] hover:shadow-[0_8px_18px_rgba(168,85,247,0.10)] active:scale-95"
+            >
+              <span className="text-base leading-none">🎨</span>
+              <div className="min-w-0">
+                <div className="text-[11px] font-medium text-white/80 group-hover:text-white transition-colors truncate">Photo Studio</div>
+                <div className="text-[9px] text-white/32 truncate">AI images</div>
+              </div>
+            </a>
+          </div>
+
           <input
   value={search}
   onChange={(e) => setSearch(e.target.value)}
