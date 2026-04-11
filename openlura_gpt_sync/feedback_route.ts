@@ -58,6 +58,7 @@ type FeedbackRequestBody = {
   workflowKey: string | null;
   workflowStatus: string | null;
   learningType: string | null;
+  weight: number | null;
 };
 
 type CanonicalFeedbackEntry = {
@@ -74,6 +75,7 @@ type CanonicalFeedbackEntry = {
   workflowKey: string;
   workflowStatus: string | null;
   learningType: "style" | "content" | null;
+  weight: number;
 };
 
 type RateLimitResult = {
@@ -437,6 +439,9 @@ function parseFeedbackRequestBody(body: unknown): FeedbackRequestBody | null {
     workflowKey: normalizeOptionalString(body.workflowKey, 500),
     workflowStatus: normalizeWorkflowStatus(body.workflowStatus),
     learningType: normalizeLearningType(body.learningType),
+    weight: typeof body.weight === "number" && Number.isFinite(body.weight) && body.weight >= 0
+      ? Math.min(body.weight, 5)
+      : null,
   };
 }
 
@@ -616,6 +621,7 @@ function mapFeedbackEntryToDb(entry: CanonicalFeedbackEntry) {
     workflowKey: entry.workflowKey,
     workflowStatus: entry.workflowStatus,
     learningType: entry.learningType,
+    weight: entry.weight,
   };
 }
 
@@ -729,6 +735,18 @@ function buildCanonicalFeedbackEntry(input: {
       })
   );
 
+  // Weight: personal feedback gets a default boost, admin gets highest, guest gets base
+  const resolvedWeight =
+    input.data.weight !== null && input.data.weight !== undefined
+      ? input.data.weight
+      : userScope === "admin"
+      ? 1.5
+      : environment === "personal"
+      ? 1.75
+      : userScope === "user"
+      ? 1.2
+      : 1.0;
+
   return {
     chatId: input.data.chatId,
     msgIndex: input.data.msgIndex,
@@ -748,6 +766,7 @@ function buildCanonicalFeedbackEntry(input: {
       message,
       userMessage: input.data.userMessage,
     }),
+    weight: resolvedWeight,
   };
 }
 

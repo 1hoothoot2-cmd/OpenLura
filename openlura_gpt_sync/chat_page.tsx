@@ -63,6 +63,7 @@ export default function ChatPage() {
   const [userName, setUserName] = useState<string | null>(null);
   const [showNamePopup, setShowNamePopup] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
 const getBrowserLanguage = () => {
   if (typeof navigator === "undefined") return "en";
@@ -3720,7 +3721,7 @@ setIsWaitingForFirstToken(true);
 
     const resolvedMemoryText = chatSettings.memoryEnabled
       ? memory
-          .filter((m) => m.weight > 0.6)
+          .filter((m) => m.weight > 0.35)
           .map((m) => m.text)
           .join(" | ")
       : "";
@@ -4033,24 +4034,67 @@ updated[index].messages[
       }
     }
 
-    // ✅ MEMORY SAVE
+    // ✅ MEMORY SAVE — inclusief fact extraction
+    const extractMemoryFact = (userMsg: string, aiResponse: string): string | null => {
+      const msg = userMsg.trim();
+      const ai = aiResponse.toLowerCase();
+
+      // Naam hond/huisdier
+      const petMatch = msg.match(/\b(mijn\s+)?(hond|kat|huisdier|konijn|vogel|vis)\s+(heet|is|naam is|noem ik|noemen we)\s+([a-zA-Z\u00C0-\u024F]+)/i);
+      if (petMatch) return `Huisdier van de gebruiker: ${petMatch[2]} heet ${petMatch[4]}`;
+
+      // Eigen naam
+      const nameMatch = msg.match(/\b(ik\s+ben|ik\s+heet|mijn\s+naam\s+is|noem\s+me|call\s+me|i\s+am|my\s+name\s+is)\s+([a-zA-Z\u00C0-\u024F]+)/i);
+      if (nameMatch) return `Naam van de gebruiker: ${nameMatch[2]}`;
+
+      // Beroep/werk
+      const jobMatch = msg.match(/\b(ik\s+werk\s+als|ik\s+ben\s+een|i\s+work\s+as|i\s+am\s+a|mijn\s+werk\s+is)\s+([a-zA-Z\s\u00C0-\u024F]{3,30})/i);
+      if (jobMatch) return `Beroep van de gebruiker: ${jobMatch[2].trim()}`;
+
+      // Woonplaats
+      const cityMatch = msg.match(/\b(ik\s+woon\s+in|i\s+live\s+in|i'm\s+from|ik\s+kom\s+uit)\s+([a-zA-Z\s\u00C0-\u024F]{2,25})/i);
+      if (cityMatch) return `Gebruiker woont in: ${cityMatch[2].trim()}`;
+
+      // Leeftijd
+      const ageMatch = msg.match(/\b(ik\s+ben\s+|i\s+am\s+)(\d{1,3})\s*(jaar|years?\s+old)?/i);
+      if (ageMatch) return `Leeftijd gebruiker: ${ageMatch[2]} jaar`;
+
+      return null;
+    };
+
     if (
       chatSettings.memoryEnabled &&
       rawInputToSend.length < 60 &&
       !isRefinementInstruction(rawInputToSend)
     ) {
       const existing = memory.find((m) => m.text === rawInputToSend);
+      const extractedFact = extractMemoryFact(rawInputToSend, aiText || "");
 
-      let newMemory;
+      let newMemory = [...memory];
 
+      // Sla het geëxtraheerde feit op met hoog gewicht
+      if (extractedFact) {
+        const existingFact = newMemory.find((m) => m.text === extractedFact);
+        if (existingFact) {
+          newMemory = newMemory.map((m) =>
+            m.text === extractedFact
+              ? { ...m, weight: Math.min(m.weight + 0.3, 1) }
+              : m
+          );
+        } else {
+          newMemory = [...newMemory, { text: extractedFact, weight: 0.85 }];
+        }
+      }
+
+      // Sla ook de ruwe input op
       if (existing) {
-        newMemory = memory.map((m) =>
+        newMemory = newMemory.map((m) =>
           m.text === rawInputToSend
             ? { ...m, weight: Math.min(m.weight + 0.2, 1) }
             : m
         );
       } else {
-        newMemory = [...memory, { text: rawInputToSend, weight: 0.5 }];
+        newMemory = [...newMemory, { text: rawInputToSend, weight: 0.65 }];
       }
 
       newMemory = newMemory
@@ -4824,6 +4868,16 @@ updated[index].messages[
                 Settings
               </button>
 
+              {isPersonalRoute && (
+                <button
+                  type="button"
+                  onClick={() => setShowLogoutConfirm(true)}
+                  className="rounded-full border border-white/8 bg-white/[0.03] px-3 py-1 text-[11px] font-medium text-white/46 ol-interactive transition-[background-color,border-color,color,box-shadow] duration-200 hover:border-red-400/20 hover:bg-red-400/8 hover:text-red-300"
+                >
+                  {detectedLang === "nl" ? "Uitloggen" : detectedLang === "de" ? "Abmelden" : detectedLang === "fr" ? "Déconnexion" : detectedLang === "es" ? "Cerrar sesión" : "Log out"}
+                </button>
+              )}
+
               {showExportMenu && (
                 <div
                   data-openlura-export-menu
@@ -4881,6 +4935,27 @@ updated[index].messages[
               );
             } catch { return null; }
           })()}
+
+          {/* V91 — PERSONAL LEARNING ACTIVE INDICATOR */}
+          {isPersonalRoute && personalStateLoaded && memory.length > 0 && !upgradeNotice.visible && (
+            <div className="mx-4 mt-3 flex items-center gap-2 rounded-[14px] border border-emerald-400/12 bg-emerald-400/[0.05] px-3 py-2">
+              <span className="relative flex h-1.5 w-1.5 shrink-0">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              </span>
+              <span className="text-[11px] text-emerald-300/80">
+                {detectedLang === "nl"
+                  ? `Persoonlijk leren actief · ${memory.length} geheugenitem${memory.length !== 1 ? "s" : ""}`
+                  : detectedLang === "de"
+                  ? `Persönliches Lernen aktiv · ${memory.length} Erinnerung${memory.length !== 1 ? "en" : ""}`
+                  : detectedLang === "fr"
+                  ? `Apprentissage personnel actif · ${memory.length} souvenir${memory.length !== 1 ? "s" : ""}`
+                  : detectedLang === "es"
+                  ? `Aprendizaje personal activo · ${memory.length} memoria${memory.length !== 1 ? "s" : ""}`
+                  : `Personal learning active · ${memory.length} memory item${memory.length !== 1 ? "s" : ""}`}
+              </span>
+            </div>
+          )}
 
           {usage && usage.percentage >= 0.8 && !upgradeNotice.visible && (
             <div className="mx-4 mt-4 rounded-[24px] border border-amber-300/12 bg-amber-500/[0.065] px-4 py-3 text-sm text-amber-100 shadow-[0_10px_22px_rgba(0,0,0,0.10)] backdrop-blur-xl">
@@ -5855,7 +5930,7 @@ const transcript = (data.text || "").trim();
           </a>
           <button
             type="button"
-            onClick={handlePersonalLogout}
+            onClick={() => setShowLogoutConfirm(true)}
             className="rounded-full border border-white/8 bg-white/[0.05] px-3.5 py-2 text-sm text-white/78 shadow-[0_12px_28px_rgba(0,0,0,0.18)] backdrop-blur-2xl ol-interactive transition-[transform,background-color,border-color,color,opacity,box-shadow] duration-200 hover:border-white/12 hover:bg-white/[0.08] hover:text-white hover:shadow-[0_14px_30px_rgba(0,0,0,0.20)] active:scale-95"
           >
             Log out
