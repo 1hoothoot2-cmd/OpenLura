@@ -52,7 +52,7 @@ export default function PersoonlijkeOmgevingPage() {
 
   useEffect(() => {
     if (auth !== null && !auth.authenticated) {
-      router.replace("/login");
+      router.replace("/");
     }
   }, [auth, router]);
 
