@@ -72,11 +72,11 @@ export async function POST(req: Request) {
 
     const [document] = await dbRes.json();
 
-    // Increment document_count
-    await fetch(`${SUPABASE_URL}/rest/v1/brain_notebooks?id=eq.${encodeURIComponent(notebookId)}&user_id=eq.${encodeURIComponent(userId)}`, {
-      method: "PATCH",
+    // Increment document_count via RPC
+    await fetch(`${SUPABASE_URL}/rest/v1/rpc/increment_notebook_document_count`, {
+      method: "POST",
       headers: dbHeaders(),
-      body: JSON.stringify({ document_count: `document_count + 1` }),
+      body: JSON.stringify({ notebook_id: notebookId, user_id: userId, delta: 1 }),
     }).catch(() => null);
 
     // Chunk + embed async (non-blocking)

@@ -133,16 +133,45 @@ function decodeJwtUserId(token: string): string | null {
 async function getRequestUserId(req: Request) {
   const token = getBearerTokenFromRequest(req);
   if (token) {
-    const jwtUserId = decodeJwtUserId(token);
-    if (jwtUserId) return jwtUserId;
+    // Verify token with Supabase — do not trust JWT decode alone
+    if (supabaseUrl && supabaseServiceRoleKey) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        let verifiedId: string | null = null;
+        try {
+          const res = await fetch(`${supabaseUrl}/auth/v1/user`, {
+            headers: {
+              apikey: supabaseServiceRoleKey,
+              Authorization: `Bearer ${token}`,
+            },
+            cache: "no-store",
+            signal: controller.signal,
+          });
+          if (res.ok) {
+            const data: unknown = await res.json();
+            if (data && typeof data === "object" && !Array.isArray(data)) {
+              const id = (data as Record<string, unknown>).id;
+              if (typeof id === "string" && id.trim()) verifiedId = id.trim();
+            }
+          }
+        } finally {
+          clearTimeout(timeoutId);
+        }
+        if (verifiedId) return verifiedId;
+      } catch {
+        // verification failed — fall through to null
+      }
+    } else {
+      // No Supabase config — fall back to JWT decode only
+      const jwtUserId = decodeJwtUserId(token);
+      if (jwtUserId) return jwtUserId;
+    }
   }
 
-  const raw = req.headers.get("x-openlura-user-id")?.trim() || "";
-  if (!raw) return null;
-  if (raw.length > MAX_USER_ID_LENGTH) return null;
-  if (/[\r\n]/.test(raw)) return null;
-
-  return raw;
+  // Never trust x-openlura-user-id header for write operations
+  // Only allow for non-auth scenarios (anon prompt read — currently unused)
+  return null;
 }
 
 function getContentLength(req: Request) {

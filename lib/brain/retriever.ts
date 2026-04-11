@@ -24,18 +24,27 @@ export interface RetrievalResult {
 // ─── Embed query ──────────────────────────────────────────────────────────────
 
 async function embedQuery(query: string, apiKey: string): Promise<number[]> {
-  const res = await fetch("https://api.openai.com/v1/embeddings", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: EMBEDDING_MODEL,
-      input: query.slice(0, 8000),
-      dimensions: EMBEDDING_DIMS,
-    }),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+  let res: Response;
+  try {
+    res = await fetch("https://api.openai.com/v1/embeddings", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: EMBEDDING_MODEL,
+        input: query.slice(0, 8000),
+        dimensions: EMBEDDING_DIMS,
+      }),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (!res.ok) {
     const err = await res.text().catch(() => "");
@@ -88,7 +97,7 @@ export async function retrieveChunks({
         Authorization: `Bearer ${serviceKey}`,
       },
       body: JSON.stringify({
-        query_embedding: `[${queryEmbedding.join(",")}]`,
+        query_embedding: queryEmbedding,
         match_notebook_id: notebookId,
         match_user_id: userId,
         match_count: topK,

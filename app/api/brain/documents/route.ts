@@ -212,39 +212,41 @@ export async function POST(req: Request) {
 
     const [document] = await dbRes.json();
 
-    // Increment document_count on notebook
-    await fetch(`${SUPABASE_URL}/rest/v1/brain_notebooks?id=eq.${encodeURIComponent(notebookId)}&user_id=eq.${encodeURIComponent(userId)}`, {
-      method: "PATCH",
+    // Increment document_count on notebook via RPC
+    await fetch(`${SUPABASE_URL}/rest/v1/rpc/increment_notebook_document_count`, {
+      method: "POST",
       headers: dbHeaders(),
-      body: JSON.stringify({ document_count: `document_count + 1` }),
+      body: JSON.stringify({ notebook_id: notebookId, user_id: userId, delta: 1 }),
     }).catch(() => null); // Non-critical
 
-    // Chunk + embed (synchronous — before response)
+    // Chunk + embed — fire-and-forget after response
     if (parsedContent) {
-      try {
-        const { persistChunks } = await import("@/lib/brain/chunker");
-        await persistChunks({
-          documentId: document.id,
-          notebookId,
-          userId,
-          content: parsedContent,
-          supabaseUrl: SUPABASE_URL,
-          serviceKey: SUPABASE_SERVICE_KEY,
-        });
-        const { embedDocumentChunks } = await import("@/lib/brain/embedder");
-        await embedDocumentChunks({
-          documentId: document.id,
-          userId,
-          supabaseUrl: SUPABASE_URL,
-          serviceKey: SUPABASE_SERVICE_KEY,
-          openAiKey: process.env.OPENAI_API_KEY!,
-        });
-      } catch (e) {
-        console.error("[Brain] Chunk/embed failed", e instanceof Error ? e.message : "unknown");
-      }
+      (async () => {
+        try {
+          const { persistChunks } = await import("@/lib/brain/chunker");
+          await persistChunks({
+            documentId: document.id,
+            notebookId,
+            userId,
+            content: parsedContent,
+            supabaseUrl: SUPABASE_URL,
+            serviceKey: SUPABASE_SERVICE_KEY,
+          });
+          const { embedDocumentChunks } = await import("@/lib/brain/embedder");
+          await embedDocumentChunks({
+            documentId: document.id,
+            userId,
+            supabaseUrl: SUPABASE_URL,
+            serviceKey: SUPABASE_SERVICE_KEY,
+            openAiKey: process.env.OPENAI_API_KEY!,
+          });
+        } catch (e) {
+          console.error("[Brain] Chunk/embed failed", e instanceof Error ? e.message : "unknown");
+        }
+      })();
     }
 
-    return NextResponse.json({ document }, { status: 201 });
+    return NextResponse.json({ document, indexing: parsedContent ? "in_progress" : "skipped" }, { status: 201 });
   } catch (err) {
     console.error("[Brain] POST document error", err instanceof Error ? err.message : "unknown");
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
@@ -293,11 +295,11 @@ export async function DELETE(req: Request) {
       headers: storageHeaders(),
     }).catch(() => null); // Non-critical if storage cleanup fails
 
-    // Decrement document_count
-    await fetch(`${SUPABASE_URL}/rest/v1/brain_notebooks?id=eq.${encodeURIComponent(notebookId)}&user_id=eq.${encodeURIComponent(userId)}`, {
-      method: "PATCH",
+    // Decrement document_count via RPC
+    await fetch(`${SUPABASE_URL}/rest/v1/rpc/increment_notebook_document_count`, {
+      method: "POST",
       headers: dbHeaders(),
-      body: JSON.stringify({ document_count: `document_count - 1` }),
+      body: JSON.stringify({ notebook_id: notebookId, user_id: userId, delta: -1 }),
     }).catch(() => null);
 
     return NextResponse.json({ deleted: true });

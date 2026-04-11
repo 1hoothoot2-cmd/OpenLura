@@ -27,8 +27,6 @@ export async function POST(req: NextRequest) {
   // Quick action — fetch all notebook chunks and run custom prompt
   if (quickAction && prompt && notebookId) {
     try {
-      const supabaseUrl = process.env.SUPABASE_URL;
-      const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
       // Verify notebook ownership
       const ownerCheck = await fetch(
         `${supabaseUrl}/rest/v1/brain_notebooks?id=eq.${notebookId}&user_id=eq.${identity.identity.userId}&select=id`,
@@ -71,8 +69,6 @@ export async function POST(req: NextRequest) {
   // Learning tools — quiz or flashcards
   if (learningTool && notebookId) {
     try {
-      const supabaseUrl = process.env.SUPABASE_URL;
-      const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
       // Verify notebook ownership
       const ownerCheck = await fetch(
         `${supabaseUrl}/rest/v1/brain_notebooks?id=eq.${notebookId}&user_id=eq.${identity.identity.userId}&select=id`,
@@ -120,20 +116,23 @@ export async function POST(req: NextRequest) {
   let resolvedContent = content || "";
   if (!resolvedContent && docId) {
     try {
-      const supabaseUrl = process.env.SUPABASE_URL;
-      const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-      const chunkRes = await fetch(
-        `${supabaseUrl}/rest/v1/brain_chunks?document_id=eq.${docId}&order=chunk_index.asc&limit=5&select=content`,
-        {
-          headers: {
-            apikey: serviceKey!,
-            Authorization: `Bearer ${serviceKey!}`,
-          },
-        }
+      const _supabaseUrl = process.env.SUPABASE_URL;
+      const _serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      // Verify document ownership before fetching content
+      const docOwnerCheck = await fetch(
+        `${_supabaseUrl}/rest/v1/brain_documents?id=eq.${encodeURIComponent(docId)}&user_id=eq.${encodeURIComponent(identity.identity.userId)}&select=id`,
+        { headers: { apikey: _serviceKey!, Authorization: `Bearer ${_serviceKey!}` } }
       );
-      if (chunkRes.ok) {
-        const chunks = await chunkRes.json();
-        resolvedContent = chunks.map((c: any) => c.content).join("\n\n");
+      const docOwnerRows = docOwnerCheck.ok ? await docOwnerCheck.json() : [];
+      if (Array.isArray(docOwnerRows) && docOwnerRows.length > 0) {
+        const chunkRes = await fetch(
+          `${_supabaseUrl}/rest/v1/brain_chunks?document_id=eq.${encodeURIComponent(docId)}&order=chunk_index.asc&limit=5&select=content`,
+          { headers: { apikey: _serviceKey!, Authorization: `Bearer ${_serviceKey!}` } }
+        );
+        if (chunkRes.ok) {
+          const chunks = await chunkRes.json();
+          resolvedContent = chunks.map((c: any) => c.content).join("\n\n");
+        }
       }
     } catch {}
   }

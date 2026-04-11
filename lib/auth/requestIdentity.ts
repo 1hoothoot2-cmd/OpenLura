@@ -91,6 +91,9 @@ function parseRequestCookies(req: Request) {
   return cookies;
 }
 
+const MAX_COOKIE_CHUNKS = 10;
+const MAX_ASSEMBLED_COOKIE_LENGTH = 6000;
+
 function getChunkedCookieValue(cookies: Map<string, string>, baseName: string) {
   const directValue = cookies.get(baseName);
 
@@ -113,15 +116,17 @@ function getChunkedCookieValue(cookies: Map<string, string>, baseName: string) {
     })
     .filter(
       (entry): entry is { index: number; value: string } =>
-        !!entry && Number.isInteger(entry.index) && entry.index >= 0
+        !!entry && Number.isInteger(entry.index) && entry.index >= 0 && entry.index < MAX_COOKIE_CHUNKS
     )
-    .sort((a, b) => a.index - b.index);
+    .sort((a, b) => a.index - b.index)
+    .slice(0, MAX_COOKIE_CHUNKS);
 
   if (chunkEntries.length === 0) {
     return null;
   }
 
-  return chunkEntries.map((entry) => entry.value).join("");
+  const assembled = chunkEntries.map((entry) => entry.value).join("");
+  return assembled.length <= MAX_ASSEMBLED_COOKIE_LENGTH ? assembled : null;
 }
 
 function getSupabaseCookieValue(
@@ -270,11 +275,20 @@ export async function fetchSupabaseAuthUser(accessToken?: string | null) {
     headers.set("Authorization", `Bearer ${accessToken}`);
     headers.set("Accept", "application/json");
 
-    const res = await fetch(`${supabaseUrl}/auth/v1/user`, {
-      method: "GET",
-      headers,
-      cache: "no-store",
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+    let res: Response;
+    try {
+      res = await fetch(`${supabaseUrl}/auth/v1/user`, {
+        method: "GET",
+        headers,
+        cache: "no-store",
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (!res.ok) {
       return null;

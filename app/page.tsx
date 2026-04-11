@@ -79,13 +79,12 @@ export default function HomePage() {
 
   function handleGoogleLogin() {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (!supabaseUrl || !supabaseKey) {
-      console.error("Supabase env vars missing");
+    if (!supabaseUrl) {
+      console.error("Supabase URL missing");
       return;
     }
     const redirectTo = `${window.location.origin}/auth/callback`;
-    const url = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirectTo)}&apikey=${supabaseKey}`;
+    const url = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirectTo)}`;
     window.location.href = url;
   }
 
@@ -222,6 +221,19 @@ export default function HomePage() {
         pap: "Kuminsá kaminda e balor ta mas fuerte: e chat.",
         hi: "जहाँ मूल्य सबसे अधिक है वहाँ से शुरू करें: चैट।",
         en: "Start where the value is strongest: the chat.",
+      },
+      hero_chat_placeholder: {
+        nl: "Hoe kan ik je helpen?",
+        de: "Wie kann ich dir helfen?",
+        fr: "Comment puis-je vous aider ?",
+        es: "¿Cómo puedo ayudarte?",
+        pt: "Como posso ajudá-lo?",
+        it: "Come posso aiutarti?",
+        tr: "Sana nasıl yardımcı olabilirim?",
+        ar: "كيف يمكنني مساعدتك؟",
+        pap: "Kon mi por yuda bo?",
+        hi: "मैं आपकी कैसे मदद कर सकता हूँ?",
+        en: "How can I assist you?",
       },
       cta_sub: {
         nl: "Sla de ruis over, open de werkruimte en laat OpenLura je helpen denken, schrijven, plannen en sneller te bewegen.",
@@ -427,11 +439,7 @@ export default function HomePage() {
                     router.push(`/chat?q=${encodeURIComponent(homeChatInput.trim())}`);
                   }
                 }}
-                placeholder={
-                  lang === "nl" ? "Hoe kan ik je helpen?" :
-                  lang === "hi" ? "\u092e\u0948\u0902 \u0906\u092a\u0915\u0940 \u0915\u0948\u0938\u0947 \u092e\u0926\u0926 \u0915\u0930 \u0938\u0915\u0924\u093e \u0939\u0942\u0901?" :
-                  "How can I assist you?"
-                }
+                placeholder={t("hero_chat_placeholder") || "How can I assist you?"}
                 className="flex-1 bg-transparent text-sm text-white outline-none placeholder:text-white/32"
               />
               <button
