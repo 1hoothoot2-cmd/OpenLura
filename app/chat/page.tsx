@@ -3721,7 +3721,7 @@ setIsWaitingForFirstToken(true);
 
     const resolvedMemoryText = chatSettings.memoryEnabled
       ? memory
-          .filter((m) => m.weight > 0.6)
+          .filter((m) => m.weight > 0.35)
           .map((m) => m.text)
           .join(" | ")
       : "";
@@ -4034,24 +4034,67 @@ updated[index].messages[
       }
     }
 
-    // ✅ MEMORY SAVE
+    // ✅ MEMORY SAVE — inclusief fact extraction
+    const extractMemoryFact = (userMsg: string, aiResponse: string): string | null => {
+      const msg = userMsg.trim();
+      const ai = aiResponse.toLowerCase();
+
+      // Naam hond/huisdier
+      const petMatch = msg.match(/\b(mijn\s+)?(hond|kat|huisdier|konijn|vogel|vis)\s+(heet|is|naam is|noem ik|noemen we)\s+([a-zA-Z\u00C0-\u024F]+)/i);
+      if (petMatch) return `Huisdier van de gebruiker: ${petMatch[2]} heet ${petMatch[4]}`;
+
+      // Eigen naam
+      const nameMatch = msg.match(/\b(ik\s+ben|ik\s+heet|mijn\s+naam\s+is|noem\s+me|call\s+me|i\s+am|my\s+name\s+is)\s+([a-zA-Z\u00C0-\u024F]+)/i);
+      if (nameMatch) return `Naam van de gebruiker: ${nameMatch[2]}`;
+
+      // Beroep/werk
+      const jobMatch = msg.match(/\b(ik\s+werk\s+als|ik\s+ben\s+een|i\s+work\s+as|i\s+am\s+a|mijn\s+werk\s+is)\s+([a-zA-Z\s\u00C0-\u024F]{3,30})/i);
+      if (jobMatch) return `Beroep van de gebruiker: ${jobMatch[2].trim()}`;
+
+      // Woonplaats
+      const cityMatch = msg.match(/\b(ik\s+woon\s+in|i\s+live\s+in|i'm\s+from|ik\s+kom\s+uit)\s+([a-zA-Z\s\u00C0-\u024F]{2,25})/i);
+      if (cityMatch) return `Gebruiker woont in: ${cityMatch[2].trim()}`;
+
+      // Leeftijd
+      const ageMatch = msg.match(/\b(ik\s+ben\s+|i\s+am\s+)(\d{1,3})\s*(jaar|years?\s+old)?/i);
+      if (ageMatch) return `Leeftijd gebruiker: ${ageMatch[2]} jaar`;
+
+      return null;
+    };
+
     if (
       chatSettings.memoryEnabled &&
       rawInputToSend.length < 60 &&
       !isRefinementInstruction(rawInputToSend)
     ) {
       const existing = memory.find((m) => m.text === rawInputToSend);
+      const extractedFact = extractMemoryFact(rawInputToSend, aiText || "");
 
-      let newMemory;
+      let newMemory = [...memory];
 
+      // Sla het geëxtraheerde feit op met hoog gewicht
+      if (extractedFact) {
+        const existingFact = newMemory.find((m) => m.text === extractedFact);
+        if (existingFact) {
+          newMemory = newMemory.map((m) =>
+            m.text === extractedFact
+              ? { ...m, weight: Math.min(m.weight + 0.3, 1) }
+              : m
+          );
+        } else {
+          newMemory = [...newMemory, { text: extractedFact, weight: 0.85 }];
+        }
+      }
+
+      // Sla ook de ruwe input op
       if (existing) {
-        newMemory = memory.map((m) =>
+        newMemory = newMemory.map((m) =>
           m.text === rawInputToSend
             ? { ...m, weight: Math.min(m.weight + 0.2, 1) }
             : m
         );
       } else {
-        newMemory = [...memory, { text: rawInputToSend, weight: 0.5 }];
+        newMemory = [...newMemory, { text: rawInputToSend, weight: 0.65 }];
       }
 
       newMemory = newMemory

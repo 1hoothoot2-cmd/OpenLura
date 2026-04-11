@@ -3317,6 +3317,13 @@ Recent conversation:
 ${input.recentConversationTranscript || "none"}
 
 Personal user memory: ${input.memoryEnabled ? input.runtimePersonalMemory || "none" : "disabled"}
+${input.memoryEnabled && input.runtimePersonalMemory ? `
+MEMORY RULES — CRITICAL:
+- The above memory contains confirmed facts about this user from previous conversations
+- ALWAYS use this memory to personalize responses
+- If the user asks about something in their memory (their name, pet, job, city, etc.), answer directly — never say you don't know
+- Do not ask the user to repeat information that is already in memory
+- Treat memory items as facts, not as suggestions` : ""}
 User location: ${input.location ? JSON.stringify(input.location) : "unknown"}
 ${input.brainContextBlock ? input.brainContextBlock : ""}
 
