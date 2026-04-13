@@ -183,7 +183,8 @@ export default function PersonalWorkspacePage() {
             </Link>
 
             {/* Brain — locked, requires sign in */}
-            <a href="/?login=1" className="flex items-start gap-4 rounded-[18px] border border-white/6 bg-white/[0.02] p-5 text-left transition-[border-color] duration-150 hover:border-white/10 active:scale-[0.99] sm:p-6">
+            <button type="button" onClick={() => setShowLoginModal(true)}
+              className="flex items-start gap-4 rounded-[18px] border border-white/6 bg-white/[0.02] p-5 text-left transition-[border-color] duration-150 hover:border-white/10 active:scale-[0.99] sm:p-6">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/[0.04] border border-white/8 text-xl grayscale opacity-50">🧠</div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
@@ -193,10 +194,11 @@ export default function PersonalWorkspacePage() {
                 <p className="text-sm text-white/28">Your AI knowledge base</p>
               </div>
               <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-white/16 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-            </a>
+            </button>
 
             {/* Photo Studio — locked */}
-            <a href="/?login=1" className="flex items-start gap-4 rounded-[18px] border border-white/6 bg-white/[0.02] p-5 text-left transition-[border-color] duration-150 hover:border-white/10 active:scale-[0.99] sm:p-6">
+            <button type="button" onClick={() => setShowLoginModal(true)}
+              className="flex items-start gap-4 rounded-[18px] border border-white/6 bg-white/[0.02] p-5 text-left transition-[border-color] duration-150 hover:border-white/10 active:scale-[0.99] sm:p-6">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/[0.04] border border-white/8 text-xl grayscale opacity-50">🎨</div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
@@ -206,18 +208,86 @@ export default function PersonalWorkspacePage() {
                 <p className="text-sm text-white/28">Generate images with AI</p>
               </div>
               <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-white/16 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-            </a>
+            </button>
 
             {/* Sign in card */}
-            <a href="/?login=1" className="group flex items-start gap-4 rounded-[18px] border border-[#3b82f6]/16 bg-[#0d1733]/60 p-5 text-left transition-[border-color,background-color] duration-150 hover:border-[#3b82f6]/30 hover:bg-[#0d1733]/80 active:scale-[0.99] sm:p-6">
+            <button type="button" onClick={() => setShowLoginModal(true)}
+              className="group flex items-start gap-4 rounded-[18px] border border-[#3b82f6]/16 bg-[#0d1733]/60 p-5 text-left transition-[border-color,background-color] duration-150 hover:border-[#3b82f6]/30 hover:bg-[#0d1733]/80 active:scale-[0.99] sm:p-6">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#1e3a5f]/60 border border-[#3b82f6]/20 text-xl">🔑</div>
               <div className="flex-1 min-w-0">
                 <span className="text-sm font-semibold text-white/90 block mb-1">Sign in / Create account</span>
                 <p className="text-sm text-white/40">Unlock your personal AI workspace</p>
               </div>
-            </a>
+            </button>
           </div>
         </div>
+
+        {/* Login modal — also available for unauthenticated users */}
+        {showLoginModal && (
+          <div className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center px-4 pb-4 sm:pb-0">
+            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowLoginModal(false)} />
+            <div className="relative z-10 w-full max-w-sm rounded-[24px] border border-white/10 bg-[#0c0c18] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.60)]">
+              <button type="button" onClick={() => setShowLoginModal(false)}
+                className="absolute right-4 top-4 h-7 w-7 flex items-center justify-center rounded-full border border-white/8 text-white/40 hover:text-white hover:bg-white/[0.06] transition-all">×</button>
+              <h2 className="text-base font-semibold text-white/92 mb-1">Sign in to continue</h2>
+              <p className="text-sm text-white/44 mb-5">Create an account or sign in to access Brain, Photo Studio and more.</p>
+              <div className="flex rounded-[14px] border border-white/8 bg-white/[0.03] p-1 mb-5">
+                <button type="button" onClick={() => setLoginTab("login")}
+                  className={`flex-1 rounded-[10px] py-2 text-[13px] font-medium transition-colors ${loginTab === "login" ? "bg-white/[0.08] text-white" : "text-white/40 hover:text-white/70"}`}>
+                  Sign in
+                </button>
+                <button type="button" onClick={() => setLoginTab("register")}
+                  className={`flex-1 rounded-[10px] py-2 text-[13px] font-medium transition-colors ${loginTab === "register" ? "bg-white/[0.08] text-white" : "text-white/40 hover:text-white/70"}`}>
+                  Create account
+                </button>
+              </div>
+              <button type="button"
+                onClick={() => {
+                  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+                  if (!supabaseUrl) return;
+                  const redirectTo = `${window.location.origin}/auth/callback`;
+                  window.location.href = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirectTo)}`;
+                }}
+                className="flex w-full items-center justify-center gap-3 rounded-[14px] border border-white/10 bg-white/[0.05] px-4 py-2.5 text-sm text-white/88 transition-colors hover:bg-white/[0.09] mb-4">
+                <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
+                  <path d="M17.64 9.205c0-.639-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615Z" fill="#4285F4"/>
+                  <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18Z" fill="#34A853"/>
+                  <path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332Z" fill="#FBBC05"/>
+                  <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58Z" fill="#EA4335"/>
+                </svg>
+                Continue with Google
+              </button>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="h-px flex-1 bg-white/8" /><span className="text-[11px] text-white/28">or</span><div className="h-px flex-1 bg-white/8" />
+              </div>
+              {loginTab === "login" ? (
+                <div className="space-y-2.5">
+                  <input type="email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)}
+                    placeholder="Email" className="w-full rounded-[12px] border border-white/8 bg-white/[0.04] px-4 py-2.5 text-sm text-white outline-none placeholder:text-white/28 focus:border-white/16" />
+                  <input type="password" value={loginPassword} onChange={e => setLoginPassword(e.target.value)}
+                    placeholder="Password" className="w-full rounded-[12px] border border-white/8 bg-white/[0.04] px-4 py-2.5 text-sm text-white outline-none placeholder:text-white/28 focus:border-white/16" />
+                  {loginError && <p className="text-sm text-red-400">{loginError}</p>}
+                  <button type="button" onClick={handleLoginThenStripe} disabled={loginLoading || !loginEmail.trim() || !loginPassword}
+                    className="w-full rounded-[12px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] py-2.5 text-sm font-semibold text-white transition-[filter,opacity] hover:brightness-110 disabled:opacity-50">
+                    {loginLoading ? "Signing in…" : "Sign in →"}
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  <input type="email" value={registerEmail} onChange={e => setRegisterEmail(e.target.value)}
+                    placeholder="Email" className="w-full rounded-[12px] border border-white/8 bg-white/[0.04] px-4 py-2.5 text-sm text-white outline-none placeholder:text-white/28 focus:border-white/16" />
+                  <input type="password" value={registerPassword} onChange={e => setRegisterPassword(e.target.value)}
+                    placeholder="Password (min. 8 characters)" className="w-full rounded-[12px] border border-white/8 bg-white/[0.04] px-4 py-2.5 text-sm text-white outline-none placeholder:text-white/28 focus:border-white/16" />
+                  {registerError && <p className="text-sm text-red-400">{registerError}</p>}
+                  <button type="button" onClick={handleRegisterThenStripe} disabled={registerLoading || !registerEmail.trim() || !registerPassword}
+                    className="w-full rounded-[12px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] py-2.5 text-sm font-semibold text-white transition-[filter,opacity] hover:brightness-110 disabled:opacity-50">
+                    {registerLoading ? "Creating account…" : "Create account →"}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     );
   }
