@@ -88,20 +88,82 @@ export default function PersonalWorkspacePage() {
   }
 
   if (!auth.authenticated) {
+    // Free users land here — show workspace home with limited access
+    // No forced login for free chat
     return (
-      <div className="fixed inset-0 flex flex-col items-center justify-center bg-[#07070f] px-5">
-        <div className="mb-6 h-10 w-10 rounded-2xl overflow-hidden border border-white/10 bg-white/[0.04]">
-          <img src="/openlura-logo.png" alt="OpenLura" className="h-full w-full object-contain" />
+      <div className="min-h-screen bg-[#07070f] text-white">
+        {/* Top bar */}
+        <div className="flex items-center justify-between border-b border-white/6 px-5 py-3 sm:px-8">
+          <div className="flex items-center gap-2.5">
+            <div className="h-8 w-8 rounded-xl overflow-hidden border border-white/10 bg-white/[0.04] flex items-center justify-center">
+              <img src="/openlura-logo.png" alt="OpenLura" className="h-full w-full object-contain" />
+            </div>
+            <div>
+              <span className="text-sm font-semibold text-white/90">OpenLura</span>
+              <p className="text-[10px] text-white/32 uppercase tracking-widest leading-none mt-0.5">Workspace</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <a href="/?login=1" className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[12px] font-medium text-white/70 transition-colors hover:bg-white/[0.08] hover:text-white">
+              Sign in
+            </a>
+          </div>
         </div>
-        <h1 className="text-xl font-semibold text-white/92 mb-2 text-center">Your workspace awaits</h1>
-        <p className="text-sm text-white/44 text-center mb-8 max-w-xs">Sign in or create a free account to access your personal AI workspace.</p>
-        <div className="flex flex-col gap-3 w-full max-w-xs">
-          <a href="/?login=1" className="w-full rounded-[14px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] py-3.5 text-sm font-semibold text-white text-center shadow-[0_6px_16px_rgba(59,130,246,0.28)] transition-[filter] hover:brightness-110">
-            Sign in
-          </a>
-          <a href="/?login=1" className="w-full rounded-[14px] border border-white/10 bg-white/[0.04] py-3.5 text-sm font-medium text-white/80 text-center transition-[background-color,border-color] hover:bg-white/[0.08] hover:text-white">
-            Create free account
-          </a>
+
+        <div className="mx-auto w-full max-w-4xl px-5 pt-10 pb-24 sm:px-8 sm:pt-14">
+          <div className="mb-10">
+            <h1 className="text-3xl font-semibold text-white sm:text-4xl">Your workspace</h1>
+            <p className="mt-1.5 text-sm text-white/40">Free plan — sign in to unlock your personal workspace.</p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 sm:gap-4">
+            {/* Chat — free, no login needed */}
+            <Link href="/chat" className="group flex items-start gap-4 rounded-[18px] border border-white/8 bg-white/[0.03] p-5 transition-[border-color,background-color] duration-150 hover:border-white/14 hover:bg-white/[0.05] active:scale-[0.99] sm:p-6">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#1e3a5f]/60 border border-[#3b82f6]/20 text-xl">💬</div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-sm font-semibold text-white/90">Chat</span>
+                  <span className="inline-flex items-center rounded-full border border-emerald-400/20 bg-emerald-400/8 px-2 py-0.5 text-[10px] font-medium text-emerald-300/80">Free</span>
+                </div>
+                <p className="text-sm text-white/40">Start chatting without an account</p>
+              </div>
+            </Link>
+
+            {/* Brain — locked, requires sign in */}
+            <a href="/?login=1" className="flex items-start gap-4 rounded-[18px] border border-white/6 bg-white/[0.02] p-5 text-left transition-[border-color] duration-150 hover:border-white/10 active:scale-[0.99] sm:p-6">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/[0.04] border border-white/8 text-xl grayscale opacity-50">🧠</div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-sm font-semibold text-white/40">Brain</span>
+                  <span className="inline-flex items-center rounded-full border border-amber-400/18 bg-amber-400/8 px-2 py-0.5 text-[10px] font-medium text-amber-300/70">Sign in ✦</span>
+                </div>
+                <p className="text-sm text-white/28">Your AI knowledge base</p>
+              </div>
+              <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-white/16 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </a>
+
+            {/* Photo Studio — locked */}
+            <a href="/?login=1" className="flex items-start gap-4 rounded-[18px] border border-white/6 bg-white/[0.02] p-5 text-left transition-[border-color] duration-150 hover:border-white/10 active:scale-[0.99] sm:p-6">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/[0.04] border border-white/8 text-xl grayscale opacity-50">🎨</div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-sm font-semibold text-white/40">Photo Studio</span>
+                  <span className="inline-flex items-center rounded-full border border-amber-400/18 bg-amber-400/8 px-2 py-0.5 text-[10px] font-medium text-amber-300/70">Sign in ✦</span>
+                </div>
+                <p className="text-sm text-white/28">Generate images with AI</p>
+              </div>
+              <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-white/16 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </a>
+
+            {/* Sign in card */}
+            <a href="/?login=1" className="group flex items-start gap-4 rounded-[18px] border border-[#3b82f6]/16 bg-[#0d1733]/60 p-5 text-left transition-[border-color,background-color] duration-150 hover:border-[#3b82f6]/30 hover:bg-[#0d1733]/80 active:scale-[0.99] sm:p-6">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#1e3a5f]/60 border border-[#3b82f6]/20 text-xl">🔑</div>
+              <div className="flex-1 min-w-0">
+                <span className="text-sm font-semibold text-white/90 block mb-1">Sign in / Create account</span>
+                <p className="text-sm text-white/40">Unlock your personal AI workspace</p>
+              </div>
+            </a>
+          </div>
         </div>
       </div>
     );
