@@ -196,8 +196,10 @@ function normalizePersonalMemory(memory: unknown[]) {
       const text =
         typeof item.text === "string" ? item.text.trim().slice(0, MAX_STRING_LENGTH) : "";
       const rawWeight = typeof item.weight === "number" ? item.weight : 0.5;
+      // Max 3.0 zodat high-priority personal memory items (1.8, 2.2, 3.0)
+      // correct worden opgeslagen en teruggelezen door chat_route.ts
       const weight = Number.isFinite(rawWeight)
-        ? Math.max(0.1, Math.min(rawWeight, 1))
+        ? Math.max(0.1, Math.min(rawWeight, 3))
         : 0.5;
 
       if (!text) {

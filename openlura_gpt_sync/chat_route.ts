@@ -2059,6 +2059,7 @@ function mergeLearningFeedbackLayers(input: {
   globalFeedbackSnapshot: OpenLuraFeedbackRow[];
   personalFeedback: OpenLuraFeedbackRow[];
   userFeedback?: OpenLuraFeedbackRow[];
+  isPersonalEnvironment?: boolean; // ← NEW
 }) {
   const normalizeLayerRows = (
     rows: OpenLuraFeedbackRow[],
@@ -2076,7 +2077,7 @@ function mergeLearningFeedbackLayers(input: {
         (typeof item.weight === "number" && Number.isFinite(item.weight)
           ? item.weight
           : 1) *
-        (layer === "user" ? 2.4 : layer === "personal" ? 1.75 : 1),
+        (layer === "user" ? 2.4 : layer === "personal" ? 2.2 : 1),
       source:
         item.source ||
         (layer === "user"
@@ -2088,8 +2089,17 @@ function mergeLearningFeedbackLayers(input: {
       timestamp: item.timestamp || new Date().toISOString(),
     }));
 
+  // ── HARD OVERRIDE: personal env = no global learning ──────────────────────
+  const usePersonalOnly =
+    input.isPersonalEnvironment &&
+    (input.personalFeedback.length > 0 || (input.userFeedback?.length ?? 0) > 0);
+
+  const globalRows = usePersonalOnly
+    ? [] // global uitgeschakeld
+    : normalizeLayerRows(input.globalFeedbackSnapshot, "global");
+
   return [
-    ...normalizeLayerRows(input.globalFeedbackSnapshot, "global"),
+    ...globalRows,
     ...normalizeLayerRows(input.personalFeedback, "personal"),
     ...normalizeLayerRows(input.userFeedback || [], "user"),
   ];
@@ -2256,6 +2266,60 @@ ${profile.memoryDirectives.map((rule) => `- ${rule}`).join("\n") || "- none"}
 
 Soft global rules:
 ${profile.softRules.map((rule) => `- ${rule.replace(/^- /, "")}`).join("\n") || "- none"}`;
+}
+
+// ── V91 CONTEXT BUILDER ───────────────────────────────────────────────────────
+
+function buildContext(input: {
+  message: string;
+  recentMessages: { role: "user" | "ai"; content: string }[];
+  personalMemory: string;
+  brainContextBlock: string;
+  isPersonalEnvironment: boolean;
+  location?: string | null;
+}): {
+  memoryBlock: string;
+  brainBlock: string;
+  locationBlock: string;
+  historyBlock: string;
+} {
+  const memoryBlock = input.personalMemory
+    ? `MEMORY (personal, confirmed facts):\n${input.personalMemory}`
+    : "";
+
+  const brainBlock = input.brainContextBlock || "";
+
+  const locationBlock = input.location ? `User location: ${input.location}` : "";
+
+  const historyBlock = input.recentMessages
+    .slice(-12)
+    .map((m) => `${m.role === "user" ? "User" : "AI"}: ${(m.content || "").slice(0, 600)}`)
+    .join("\n");
+
+  return { memoryBlock, brainBlock, locationBlock, historyBlock };
+}
+
+function filterContext(input: {
+  memoryBlock: string;
+  brainBlock: string;
+  locationBlock: string;
+  historyBlock: string;
+  isPersonalEnvironment: boolean;
+  maxHistoryChars?: number;
+}): {
+  memoryBlock: string;
+  brainBlock: string;
+  locationBlock: string;
+  historyBlock: string;
+} {
+  const maxHistory = input.maxHistoryChars ?? 4000;
+
+  return {
+    memoryBlock: input.memoryBlock,
+    brainBlock: input.brainBlock.slice(0, 2000),
+    locationBlock: input.locationBlock,
+    historyBlock: input.historyBlock.slice(-maxHistory),
+  };
 }
 
 async function resolvePersonalRuntimeContext(input: {
@@ -5006,12 +5070,14 @@ IMPORTANT: If the user asks to edit, adjust, modify, change, transform, or impro
     console.warn("[V91 SelfCheck] Issues:", v91SelfCheck.issues, "| Suggestion:", v91SelfCheck.suggestion);
 
     // Alleen rewriten als het de moeite waard is (niet bij lege of triviale tekst)
-    if (
+    // Rewrite actief voor personal users (kosten) en gratis als het een taalrewrite is
+    const shouldRewrite =
       aiText &&
       aiText.trim().length > 40 &&
       (v91SelfCheck.suggestion === "shorten" || v91SelfCheck.suggestion === "soften" || v91SelfCheck.suggestion === "rewrite") &&
-      isPersonalEnvironment // alleen voor personal users om kosten te beheersen
-    ) {
+      (isPersonalEnvironment || v91SelfCheck.suggestion === "rewrite"); // taalrewrite altijd
+
+    if (shouldRewrite) {
       try {
         const rewriteInstruction =
           v91SelfCheck.suggestion === "rewrite"

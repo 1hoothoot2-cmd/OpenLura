@@ -50,6 +50,7 @@ type Props = {
   userTier?: "free" | "pro" | "admin";
   onRenameChat?: (id: number, title: string) => void;
   userName?: string | null;
+  isAuthenticated?: boolean;
 };
 
 function AnonUsageIndicator() {
@@ -113,6 +114,7 @@ export default function Sidebar({
   userTier = "free",
   onRenameChat,
   userName,
+  isAuthenticated = false,
 }: Props) {
   const sidebarRef = useRef<HTMLDivElement | null>(null);
 const promptMessageTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -722,6 +724,48 @@ const [chatTitleDraft, setChatTitleDraft] = useState("");
           >
             + New Chat
           </button>
+
+          {/* Feature shortcuts — Brain & Photo Studio */}
+          <div className="mb-3 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setMobileMenu(false);
+                if (isAuthenticated || isPersonalRoute) {
+                  window.location.href = "/brain";
+                } else {
+                  try { sessionStorage.setItem("ol_login_redirect", "/brain"); } catch {}
+                  setShowLoginBox(true);
+                }
+              }}
+              className="group flex items-center gap-2 rounded-[16px] border border-white/8 bg-white/[0.03] px-3 py-2.5 text-left transition-[background-color,border-color,box-shadow,transform] duration-200 hover:-translate-y-[1px] hover:border-[#3b82f6]/24 hover:bg-[#3b82f6]/[0.06] hover:shadow-[0_8px_18px_rgba(59,130,246,0.10)] active:scale-95"
+            >
+              <span className="text-base leading-none">🧠</span>
+              <div className="min-w-0">
+                <div className="text-[11px] font-medium text-white/80 group-hover:text-white transition-colors truncate">Brain</div>
+                <div className="text-[9px] text-white/32 truncate">Knowledge base</div>
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMobileMenu(false);
+                if (isAuthenticated || isPersonalRoute) {
+                  window.location.href = "/photo-studio";
+                } else {
+                  try { sessionStorage.setItem("ol_login_redirect", "/photo-studio"); } catch {}
+                  setShowLoginBox(true);
+                }
+              }}
+              className="group flex items-center gap-2 rounded-[16px] border border-white/8 bg-white/[0.03] px-3 py-2.5 text-left transition-[background-color,border-color,box-shadow,transform] duration-200 hover:-translate-y-[1px] hover:border-purple-400/24 hover:bg-purple-400/[0.06] hover:shadow-[0_8px_18px_rgba(168,85,247,0.10)] active:scale-95"
+            >
+              <span className="text-base leading-none">🎨</span>
+              <div className="min-w-0">
+                <div className="text-[11px] font-medium text-white/80 group-hover:text-white transition-colors truncate">Photo Studio</div>
+                <div className="text-[9px] text-white/32 truncate">AI images</div>
+              </div>
+            </button>
+          </div>
 
           <input
   value={search}

@@ -2778,7 +2778,13 @@ const restoreDeletedChat = (chatId: number) => {
       setShowLoginBox(false);
       setLoginUsername("");
       setLoginPassword("");
-      window.location.href = "/personal-workspace";
+      try {
+        const redirect = sessionStorage.getItem("ol_login_redirect");
+        sessionStorage.removeItem("ol_login_redirect");
+        window.location.href = redirect || "/personal-workspace";
+      } catch {
+        window.location.href = "/personal-workspace";
+      }
     } catch {
       setLoginError("Login failed");
     } finally {
@@ -2824,7 +2830,13 @@ const restoreDeletedChat = (chatId: number) => {
 
       setShowLoginBox(false);
       setRegisterEmail(""); setRegisterPassword(""); setRegisterPasswordConfirm("");
-      window.location.href = "/personal-workspace";
+      try {
+        const redirect = sessionStorage.getItem("ol_login_redirect");
+        sessionStorage.removeItem("ol_login_redirect");
+        window.location.href = redirect || "/personal-workspace";
+      } catch {
+        window.location.href = "/personal-workspace";
+      }
     } catch { setRegisterError("Registratie mislukt"); }
     finally { setRegisterLoading(false); }
   };
@@ -4342,6 +4354,7 @@ updated[index].messages[
     );
   }}
   userName={userName}
+  isAuthenticated={isPersonalRoute || userTier !== "free"}
 />
       <button
   onClick={() => setMobileMenu(!mobileMenu)}
@@ -5955,6 +5968,43 @@ const transcript = (data.text || "").trim();
         </div>
       )}
 
+      {showLogoutConfirm && (
+        <div
+          className="fixed inset-0 z-[170] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+          onClick={() => setShowLogoutConfirm(false)}
+        >
+          <div
+            className="w-full max-w-[340px] rounded-[28px] border border-white/10 bg-[#0a0f1d]/98 shadow-[0_22px_60px_rgba(0,0,0,0.44)] backdrop-blur-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-6 py-6">
+              <h2 className="text-lg font-semibold tracking-tight text-white/95 mb-1">
+                {detectedLang === "nl" ? "Uitloggen?" : detectedLang === "de" ? "Abmelden?" : detectedLang === "fr" ? "Se déconnecter ?" : "Log out?"}
+              </h2>
+              <p className="text-sm text-white/46 mb-6">
+                {detectedLang === "nl" ? "Je persoonlijke omgeving wordt afgesloten." : detectedLang === "de" ? "Deine persönliche Umgebung wird geschlossen." : detectedLang === "fr" ? "Ton espace personnel sera fermé." : "Your personal workspace will be closed."}
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowLogoutConfirm(false)}
+                  className="flex-1 rounded-[16px] border border-white/10 bg-white/[0.04] py-2.5 text-sm text-white/60 transition-colors hover:bg-white/[0.07] hover:text-white"
+                >
+                  {detectedLang === "nl" ? "Annuleren" : detectedLang === "de" ? "Abbrechen" : detectedLang === "fr" ? "Annuler" : "Cancel"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handlePersonalLogout}
+                  className="flex-1 rounded-[16px] border border-red-400/20 bg-red-500/[0.10] py-2.5 text-sm font-medium text-red-300 transition-colors hover:bg-red-500/[0.18] hover:text-red-200"
+                >
+                  {detectedLang === "nl" ? "Uitloggen" : detectedLang === "de" ? "Abmelden" : detectedLang === "fr" ? "Déconnexion" : "Log out"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showNamePopup && isPersonalRoute && (
         <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
           <div className="w-full max-w-[380px] rounded-[28px] border border-white/10 bg-[#0a0f1d]/98 shadow-[0_22px_60px_rgba(0,0,0,0.40)] backdrop-blur-2xl overflow-hidden">
@@ -6184,7 +6234,9 @@ const transcript = (data.text || "").trim();
                       onClick={() => {
                         const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
                         if (!supabaseUrl) return;
-                        window.location.href = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(window.location.origin + "/auth/callback")}`;
+                        const pendingRedirect = (() => { try { return sessionStorage.getItem("ol_login_redirect") || ""; } catch { return ""; } })();
+                        const callbackPath = pendingRedirect ? `/auth/callback?redirect=${encodeURIComponent(pendingRedirect)}` : "/auth/callback";
+                        window.location.href = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(window.location.origin + callbackPath)}`;
                       }}
                       className="flex w-full items-center justify-center gap-3 rounded-[18px] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white/88 transition-[background-color,border-color] duration-200 hover:border-white/16 hover:bg-white/[0.07]"
                     >
@@ -6237,7 +6289,9 @@ const transcript = (data.text || "").trim();
                       onClick={() => {
                         const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
                         if (!supabaseUrl) return;
-                        window.location.href = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(window.location.origin + "/auth/callback")}`;
+                        const pendingRedirect = (() => { try { return sessionStorage.getItem("ol_login_redirect") || ""; } catch { return ""; } })();
+                        const callbackPath = pendingRedirect ? `/auth/callback?redirect=${encodeURIComponent(pendingRedirect)}` : "/auth/callback";
+                        window.location.href = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(window.location.origin + callbackPath)}`;
                       }}
                       className="flex w-full items-center justify-center gap-3 rounded-[18px] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white/88 transition-[background-color,border-color] duration-200 hover:border-white/16 hover:bg-white/[0.07]"
                     >
