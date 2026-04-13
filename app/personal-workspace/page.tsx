@@ -102,10 +102,8 @@ export default function PersonalWorkspacePage() {
       });
       if (!res.ok) { setLoginError("Invalid email or password."); return; }
       setShowLoginModal(false);
-      // Now go to Stripe
-      const stripe = await fetch("/api/stripe/checkout", { method: "POST", credentials: "include" });
-      const data = await stripe.json();
-      if (data.url) window.location.href = data.url;
+      // Reload page — user is now authenticated, workspace will render correctly
+      window.location.reload();
     } catch { setLoginError("Something went wrong."); } finally { setLoginLoading(false); }
   }
 
@@ -126,9 +124,8 @@ export default function PersonalWorkspacePage() {
         return;
       }
       setShowLoginModal(false);
-      const stripe = await fetch("/api/stripe/checkout", { method: "POST", credentials: "include" });
-      const stripeData = await stripe.json();
-      if (stripeData.url) window.location.href = stripeData.url;
+      // Reload page — user is now authenticated, workspace will render correctly
+      window.location.reload();
     } catch { setRegisterError("Something went wrong."); } finally { setRegisterLoading(false); }
   }
 
@@ -271,6 +268,7 @@ export default function PersonalWorkspacePage() {
                     className="w-full rounded-[12px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] py-2.5 text-sm font-semibold text-white transition-[filter,opacity] hover:brightness-110 disabled:opacity-50">
                     {loginLoading ? "Signing in…" : "Sign in →"}
                   </button>
+                  <p className="text-center text-[11px] text-white/28 pt-1">After signing in you'll be taken to your workspace</p>
                 </div>
               ) : (
                 <div className="space-y-2.5">
