@@ -37,7 +37,7 @@ export async function POST(req: Request) {
 
   if (!res.ok) {
     const error = await res.text();
-    console.error("Stripe checkout error:", error);
+    console.error("Stripe checkout error:", typeof error === "string" ? error.slice(0, 200) : "unknown");
     return new Response("Failed to create checkout session", { status: 500 });
   }
 

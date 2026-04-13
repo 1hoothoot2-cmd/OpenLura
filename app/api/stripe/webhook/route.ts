@@ -124,7 +124,7 @@ export async function POST(req: Request) {
     if (data?.user_id) {
       await setUserTier(data.user_id, "free");
     } else {
-      console.log("No user found for customer:", customerId);
+      console.warn("Stripe webhook: no user found for customer (customer id omitted from logs)");
     }
   }
 

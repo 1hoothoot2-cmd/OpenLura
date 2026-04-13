@@ -32,8 +32,8 @@ export async function POST(req: Request) {
       "mode": "payment",
       "line_items[0][price]": pkg.priceId,
       "line_items[0][quantity]": "1",
-      "success_url": `${baseUrl}/photo-studio?credits=success`,
-      "cancel_url": `${baseUrl}/photo-studio`,
+      "success_url": `${baseUrl}/personal-workspace/photo-studio?credits=success`,
+      "cancel_url": `${baseUrl}/personal-workspace/photo-studio`,
       "metadata[user_id]": userId,
       "metadata[credit_amount]": String(pkg.credits),
       "client_reference_id": userId,
@@ -42,7 +42,7 @@ export async function POST(req: Request) {
 
   if (!res.ok) {
     const error = await res.text();
-    console.error("Stripe credits error:", error);
+    console.error("Stripe credits error:", typeof error === "string" ? error.slice(0, 200) : "unknown");
     return new Response("Failed", { status: 500 });
   }
 

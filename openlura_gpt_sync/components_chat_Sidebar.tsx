@@ -732,13 +732,13 @@ const [chatTitleDraft, setChatTitleDraft] = useState("");
               onClick={() => {
                 setMobileMenu(false);
                 if (isAuthenticated || isPersonalRoute) {
-                  window.location.href = "/brain";
+                  window.location.href = "/personal-workspace/brain";
                 } else {
-                  try { sessionStorage.setItem("ol_login_redirect", "/brain"); } catch {}
+                  try { sessionStorage.setItem("ol_login_redirect", "/personal-workspace/brain"); } catch {}
                   setShowLoginBox(true);
                 }
               }}
-              className="group flex items-center gap-2 rounded-[16px] border border-white/8 bg-white/[0.03] px-3 py-2.5 text-left transition-[background-color,border-color,box-shadow,transform] duration-200 hover:-translate-y-[1px] hover:border-[#3b82f6]/24 hover:bg-[#3b82f6]/[0.06] hover:shadow-[0_8px_18px_rgba(59,130,246,0.10)] active:scale-95"
+              className="group flex min-h-[44px] items-center gap-2 rounded-[16px] border border-white/8 bg-white/[0.03] px-3 py-2.5 text-left transition-[background-color,border-color,box-shadow,transform] duration-200 hover:-translate-y-[1px] hover:border-[#3b82f6]/24 hover:bg-[#3b82f6]/[0.06] hover:shadow-[0_8px_18px_rgba(59,130,246,0.10)] active:scale-95"
             >
               <span className="text-base leading-none">🧠</span>
               <div className="min-w-0">
@@ -751,13 +751,13 @@ const [chatTitleDraft, setChatTitleDraft] = useState("");
               onClick={() => {
                 setMobileMenu(false);
                 if (isAuthenticated || isPersonalRoute) {
-                  window.location.href = "/photo-studio";
+                  window.location.href = "/personal-workspace/photo-studio";
                 } else {
-                  try { sessionStorage.setItem("ol_login_redirect", "/photo-studio"); } catch {}
+                  try { sessionStorage.setItem("ol_login_redirect", "/personal-workspace/photo-studio"); } catch {}
                   setShowLoginBox(true);
                 }
               }}
-              className="group flex items-center gap-2 rounded-[16px] border border-white/8 bg-white/[0.03] px-3 py-2.5 text-left transition-[background-color,border-color,box-shadow,transform] duration-200 hover:-translate-y-[1px] hover:border-purple-400/24 hover:bg-purple-400/[0.06] hover:shadow-[0_8px_18px_rgba(168,85,247,0.10)] active:scale-95"
+              className="group flex min-h-[44px] items-center gap-2 rounded-[16px] border border-white/8 bg-white/[0.03] px-3 py-2.5 text-left transition-[background-color,border-color,box-shadow,transform] duration-200 hover:-translate-y-[1px] hover:border-purple-400/24 hover:bg-purple-400/[0.06] hover:shadow-[0_8px_18px_rgba(168,85,247,0.10)] active:scale-95"
             >
               <span className="text-base leading-none">🎨</span>
               <div className="min-w-0">
@@ -1165,18 +1165,23 @@ const [chatTitleDraft, setChatTitleDraft] = useState("");
 
           {/* Plan badge — compact, alleen als personal */}
           {isPersonalRoute && (
-            <div className={`mb-2.5 rounded-2xl border px-3 py-2 flex items-center justify-between ${
+            <div className={`mb-2.5 rounded-2xl border px-3 py-2.5 flex items-center justify-between ${
               userTier === "pro" || userTier === "admin"
                 ? "border-emerald-400/16 bg-emerald-400/[0.04]"
-                : "border-white/8 bg-white/[0.03]"
+                : "border-blue-400/12 bg-blue-400/[0.03]"
             }`}>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] uppercase tracking-[0.14em] text-white/30">Plan</span>
-                <span className={`text-xs font-medium ${
-                  userTier === "pro" || userTier === "admin" ? "text-emerald-300" : "text-white/50"
-                }`}>
-                  {userTier === "pro" ? "Go ✓" : userTier === "admin" ? "Admin ✓" : "Free"}
-                </span>
+              <div className="flex flex-col gap-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] uppercase tracking-[0.14em] text-white/30">Plan</span>
+                  <span className={`text-xs font-medium ${
+                    userTier === "pro" || userTier === "admin" ? "text-emerald-300" : "text-white/50"
+                  }`}>
+                    {userTier === "pro" ? "Go ✓" : userTier === "admin" ? "Admin ✓" : "Free"}
+                  </span>
+                </div>
+                {userTier === "free" && (
+                  <span className="text-[10px] text-white/28 leading-tight">Unlimited chats from €4,99/mo</span>
+                )}
               </div>
               {userTier === "free" && (
                 <button
@@ -1191,7 +1196,7 @@ const [chatTitleDraft, setChatTitleDraft] = useState("");
                       if (data.url) window.location.href = data.url;
                     } catch {}
                   }}
-                  className="rounded-xl border border-blue-400/20 bg-blue-400/10 px-3 py-1 text-[11px] font-medium text-blue-200 hover:bg-blue-400/16 hover:text-white transition-colors"
+                  className="shrink-0 rounded-xl border border-blue-400/20 bg-blue-400/10 px-3 py-1.5 text-[11px] font-medium text-blue-200 hover:bg-blue-400/16 hover:text-white transition-colors"
                 >
                   Upgrade →
                 </button>
@@ -1314,13 +1319,13 @@ const [chatTitleDraft, setChatTitleDraft] = useState("");
                       >
                         My profile
                       </button>
-                      <a
-                        href="/personal-dashboard"
-                        onClick={() => { setShowSettingsDropdown(false); setMobileMenu(false); }}
-                        className="block w-full px-3.5 py-2.5 text-left text-sm text-[#93c5fd] hover:bg-white/[0.06] hover:text-white transition-colors rounded-xl"
+                        <button
+                        type="button"
+                        onClick={() => { setShowSettingsDropdown(false); setMobileMenu(false); onOpenDashboard?.(); }}
+                        className="w-full px-3.5 py-2.5 text-left text-sm text-[#93c5fd] hover:bg-white/[0.06] hover:text-white transition-colors rounded-xl"
                       >
                         Dashboard
-                      </a>
+                      </button>
                       <button
                         type="button"
                         onClick={() => { setShowSettingsDropdown(false); setMobileMenu(false); onOpenSettings?.(); }}

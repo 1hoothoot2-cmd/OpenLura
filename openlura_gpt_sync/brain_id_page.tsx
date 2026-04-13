@@ -23,6 +23,7 @@ interface BrainDocument {
 function useLang(): string {
   const [lang, setLang] = useState("en");
   useEffect(() => {
+    if (typeof navigator === "undefined") return;
     const b = navigator.language?.split("-")[0] ?? "en";
     const supported = ["en", "nl", "de", "fr", "es", "pt", "hi"];
     setLang(supported.includes(b) ? b : "en");
@@ -329,9 +330,9 @@ export default function NotebookDetailPage() {
         const ok = !!d?.authenticated;
         setAuthed(ok);
         setAuthChecked(true);
-        if (!ok) router.replace("/personal-dashboard");
+        if (!ok) router.replace("/personal-workspace");
       })
-      .catch(() => { setAuthed(false); setAuthChecked(true); router.replace("/personal-dashboard"); });
+      .catch(() => { setAuthed(false); setAuthChecked(true); router.replace("/personal-workspace"); });
   }, [router]);
 
   useEffect(() => {
@@ -459,7 +460,7 @@ export default function NotebookDetailPage() {
     return (
       <div className="fixed inset-0 flex flex-col items-center justify-center bg-[#050510] text-white/40 text-sm gap-4">
         <p>{tr("not_found", lang)}</p>
-        <a href="/brain" className="text-[#93c5fd] hover:text-white transition-colors text-xs">← {tr("back", lang)}</a>
+        <a href="/personal-workspace/brain" className="text-[#93c5fd] hover:text-white transition-colors text-xs">← Brain</a>
       </div>
     );
   }
@@ -469,11 +470,11 @@ export default function NotebookDetailPage() {
 
       <header className="sticky top-0 z-40 border-b border-white/6 bg-[#050510]/95 backdrop-blur-xl">
         <div className="mx-auto max-w-4xl flex items-center justify-between px-5 h-14">
-          <a href="/brain" className="flex items-center gap-1.5 text-sm text-white/40 hover:text-white transition-colors">
+          <a href="/personal-workspace/brain" className="flex items-center gap-1.5 text-sm text-white/40 hover:text-white transition-colors">
             <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M10 13L5 8l5-5" /></svg>
-            {tr("back", lang)}
+            Brain
           </a>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <button
               type="button"
               onClick={() => setShowSettings(true)}
@@ -536,7 +537,7 @@ export default function NotebookDetailPage() {
             {notebook.description && <p className="text-sm text-white/36 mt-0.5">{notebook.description}</p>}
           </div>
         </div>
-        <div className="ml-[56px] mt-3 flex items-center gap-3">
+        <div className="mt-3 sm:ml-[56px] flex flex-wrap items-center gap-3">
           <p className="text-xs text-white/24">{notebook.document_count} {tr("documents", lang).toLowerCase()}</p>
           <span className="text-[11px] text-white/20 flex items-center gap-1">🔒 Private</span>
           <a
@@ -1173,7 +1174,7 @@ function DocRow({ doc, deleting, onDelete }: { doc: BrainDocument; deleting: boo
       </div>
       <div className="shrink-0 px-2 py-0.5 rounded-full bg-white/[0.04] text-[10px] text-white/30 uppercase tracking-wide">{sourceBadge(doc)}</div>
       <button type="button" onClick={onDelete}
-        className="opacity-0 group-hover:opacity-100 h-7 w-7 flex items-center justify-center rounded-full text-white/20 hover:text-red-400 hover:bg-white/[0.06] transition-all">
+        className="opacity-100 md:opacity-0 md:group-hover:opacity-100 h-7 w-7 flex shrink-0 items-center justify-center rounded-full text-white/20 hover:text-red-400 active:text-red-400 hover:bg-white/[0.06] transition-all">
         <svg viewBox="0 0 14 14" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M2 2l10 10M12 2L2 12" /></svg>
       </button>
     </div>

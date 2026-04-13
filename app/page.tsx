@@ -69,7 +69,7 @@ export default function HomePage() {
         setLoginError("Invalid email or password.");
         return;
       }
-      router.push("/personal-dashboard");
+      router.push("/personal-workspace");
     } catch {
       setLoginError("Something went wrong. Try again.");
     } finally {
@@ -359,10 +359,10 @@ export default function HomePage() {
               Log in
             </button>
             <Link
-              href="/chat"
+              href="/personal-workspace"
               className="inline-flex rounded-full bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-4 py-1.5 text-[13px] font-medium text-white shadow-[0_4px_14px_rgba(59,130,246,0.28)] transition-[filter,box-shadow] duration-150 hover:brightness-110"
             >
-              Start chat
+              Open workspace
             </Link>
           </div>
         </div>
@@ -413,7 +413,7 @@ export default function HomePage() {
             </div>
 
             <Link
-              href="/chat"
+              href="/personal-workspace"
               className="group relative flex flex-col items-start rounded-[22px] border border-white/10 bg-white/[0.03] px-6 py-6 text-left transition-[border-color,background-color] duration-150 hover:border-white/16 hover:bg-white/[0.05] sm:w-72"
             >
               <span className="mb-3 inline-flex items-center rounded-full border border-emerald-400/16 bg-emerald-400/8 px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-emerald-300/80">
@@ -421,7 +421,7 @@ export default function HomePage() {
               </span>
               <span className="text-base font-semibold text-white">Try the chat</span>
               <span className="mt-2 text-sm leading-6 text-white/46">No account needed. Start asking, writing, and planning.</span>
-              <span className="mt-4 text-sm font-medium text-white/40 group-hover:text-white/70 transition-colors duration-150">Open chat {"\u2192"}</span>
+              <span className="mt-4 text-sm font-medium text-white/40 group-hover:text-white/70 transition-colors duration-150">Open workspace {"\u2192"}</span>
             </Link>
           </div>
 
@@ -432,11 +432,11 @@ export default function HomePage() {
                 type="text"
                 value={homeChatInput}
                 onChange={(e) => setHomeChatInput(e.target.value)}
-                onFocus={() => router.prefetch("/chat")}
+                onFocus={() => router.prefetch("/personal-workspace")}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && homeChatInput.trim()) {
                     e.preventDefault();
-                    router.push(`/chat?q=${encodeURIComponent(homeChatInput.trim())}`);
+                    router.push(`/personal-workspace?q=${encodeURIComponent(homeChatInput.trim())}`);
                   }
                 }}
                 placeholder={t("hero_chat_placeholder") || "How can I assist you?"}
@@ -447,7 +447,7 @@ export default function HomePage() {
                 disabled={!homeChatInput.trim()}
                 onClick={() => {
                   if (homeChatInput.trim()) {
-                    router.push(`/chat?q=${encodeURIComponent(homeChatInput.trim())}`);
+                    router.push(`/personal-workspace?q=${encodeURIComponent(homeChatInput.trim())}`);
                   }
                 }}
                 className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] text-sm text-white shadow-[0_4px_12px_rgba(59,130,246,0.28)] transition-[transform,filter,opacity] duration-200 hover:brightness-110 active:scale-95 disabled:cursor-not-allowed disabled:opacity-30"
@@ -464,9 +464,9 @@ export default function HomePage() {
                 <button
                   key={starter}
                   type="button"
-                  onMouseEnter={() => router.prefetch("/chat")}
+                  onMouseEnter={() => router.prefetch("/personal-workspace")}
                   onClick={() => {
-                    router.push(`/chat?q=${encodeURIComponent(starter)}`);
+                    router.push(`/personal-workspace?q=${encodeURIComponent(starter)}`);
                   }}
                   className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] text-white/52 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color] duration-200 hover:border-[#3b82f6]/24 hover:bg-[#3b82f6]/10 hover:text-white/88 active:scale-95"
                 >

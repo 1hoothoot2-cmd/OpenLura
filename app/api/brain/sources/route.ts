@@ -19,11 +19,33 @@ function dbHeaders() {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function isValidUrl(s: string): boolean {
+// Private/internal IP ranges blocked to prevent SSRF
+const BLOCKED_HOSTNAMES = ["localhost", "127.0.0.1", "0.0.0.0", "::1"];
+const BLOCKED_IP_PATTERNS = [
+  /^10\./,                        // RFC1918 private
+  /^172\.(1[6-9]|2\d|3[01])\./,  // RFC1918 private
+  /^192\.168\./,                  // RFC1918 private
+  /^169\.254\./,                  // link-local (AWS metadata etc.)
+  /^127\./,                       // loopback
+  /^0\./,                         // this network
+  /^::1$/,                        // IPv6 loopback
+  /^fc00:/,                       // IPv6 unique local
+  /^fe80:/,                       // IPv6 link-local
+];
+
+function isPublicUrl(s: string): boolean {
   try {
     const u = new URL(s);
-    return u.protocol === "http:" || u.protocol === "https:";
+    if (u.protocol !== "http:" && u.protocol !== "https:") return false;
+    const host = u.hostname.toLowerCase();
+    if (BLOCKED_HOSTNAMES.includes(host)) return false;
+    if (BLOCKED_IP_PATTERNS.some(p => p.test(host))) return false;
+    return true;
   } catch { return false; }
+}
+
+function isValidUrl(s: string): boolean {
+  return isPublicUrl(s);
 }
 
 function isYouTubeUrl(url: string): boolean {
@@ -208,7 +230,8 @@ export async function POST(req: Request) {
       content = result.content;
     }
   } catch (err) {
-    console.error("[Brain] Source fetch error", err instanceof Error ? err.message : "unknown", { url });
+    // URL omitted from logs to avoid leaking user-supplied addresses
+    console.error("[Brain] Source fetch error", err instanceof Error ? err.message : "unknown");
     return NextResponse.json({ error: "Could not fetch URL" }, { status: 422 });
   }
 
