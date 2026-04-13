@@ -676,7 +676,9 @@ const isAgendaConfirm = (text: string): boolean => {
 
 const addToAgenda = (title: string, time: string, dateStr?: string, repeat?: "daily" | "weekly" | "workdays" | "mwf" | null) => {
   try {
-    const AGENDA_KEY = "openlura_dashboard_agenda";
+    const AGENDA_KEY = userScopedStorageId
+    ? `openlura_dashboard_agenda_${userScopedStorageId}`
+    : "openlura_dashboard_agenda";
     const existing = JSON.parse(localStorage.getItem(AGENDA_KEY) || "[]");
     const today = new Date();
     const pad = (n: number) => String(n).padStart(2, "0");
@@ -4373,8 +4375,8 @@ updated[index].messages[
       {/* Header */}
       <div className="flex items-center justify-between border-b border-white/8 px-5 py-4">
         <div>
-          <h2 className="text-sm font-medium text-white/90">Mijn profiel</h2>
-          <p className="text-[11px] text-white/36 mt-0.5">Persoonlijke omgeving overzicht</p>
+          <h2 className="text-sm font-medium text-white/90">My profile</h2>
+          <p className="text-[11px] text-white/36 mt-0.5">Personal workspace overview</p>
         </div>
         <button type="button" onClick={() => setShowDashboard(false)} className="rounded-full p-1.5 text-white/36 hover:bg-white/8 hover:text-white/70 transition-colors">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 2l10 10M12 2L2 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
@@ -4415,16 +4417,16 @@ updated[index].messages[
               </div>
               <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-3 py-3 text-center">
                 <div className="text-xl font-semibold text-white/90">{settingsPreferences.length}</div>
-                <div className="text-[11px] text-white/36 mt-0.5">Voorkeuren</div>
+                <div className="text-[11px] text-white/36 mt-0.5">Preferences</div>
               </div>
             </div>
 
             {/* Usage */}
             {usage && usage.limit > 0 && (
               <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3">
-                <div className="text-[11px] uppercase tracking-[0.14em] text-white/36 mb-2">Gebruik deze maand</div>
+                <div className="text-[11px] uppercase tracking-[0.14em] text-white/36 mb-2">Usage this month</div>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-[13px] text-white/54">{usage.used} / {usage.limit} berichten</span>
+                  <span className="text-[13px] text-white/54">{usage.used} / {usage.limit} messages</span>
                   <span className={`text-[13px] font-medium ${usage.percentage >= 0.8 ? "text-amber-400/80" : "text-white/60"}`}>{Math.round(usage.percentage * 100)}%</span>
                 </div>
                 <div className="h-1.5 w-full rounded-full bg-white/8 overflow-hidden">
@@ -4439,7 +4441,7 @@ updated[index].messages[
             {/* Memory items */}
             {memory.length > 0 && (
               <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3">
-                <div className="text-[11px] uppercase tracking-[0.14em] text-white/36 mb-2">Geheugen items</div>
+                <div className="text-[11px] uppercase tracking-[0.14em] text-white/36 mb-2">Memory items</div>
                 <div className="space-y-1.5">
                   {memory.slice(0, 5).map((m: any, i: number) => (
                     <div key={i} className="flex items-center gap-2">
@@ -4454,10 +4456,10 @@ updated[index].messages[
               </div>
             )}
 
-            {/* Lege state */}
+            {/* Empty state */}
             {memory.length === 0 && chats.filter((c: any) => !c.deleted).length === 0 && (
               <div className="rounded-2xl border border-dashed border-white/8 px-4 py-6 text-center">
-                <p className="text-sm text-white/36">Nog geen activiteit. Start een chat om te beginnen.</p>
+                <p className="text-sm text-white/36">No activity yet. Start a chat to begin.</p>
               </div>
             )}
           </>
@@ -4491,11 +4493,11 @@ updated[index].messages[
         <div className="flex justify-between items-center">
           <button type="button" onClick={() => { setShowDashboard(false); setShowSettingsBox(true); }}
             className="text-[12px] text-white/42 hover:text-white/70 transition-colors">
-            Naar instellingen →
+            Settings →
           </button>
           <button type="button" onClick={() => setShowDashboard(false)}
             className="rounded-2xl border border-white/8 bg-white/[0.04] px-4 py-2 text-sm text-white/60 hover:text-white/80 transition-colors">
-            Sluiten
+            Close
           </button>
         </div>
       </div>
@@ -4511,9 +4513,9 @@ updated[index].messages[
       {/* Header */}
       <div className="flex items-center justify-between border-b border-white/8 px-5 py-4">
         <div>
-          <h2 className="text-sm font-medium text-white/90">Instellingen</h2>
+          <h2 className="text-sm font-medium text-white/90">Settings</h2>
           <p className="text-[11px] text-white/36 mt-0.5">
-            {isPersonalRoute ? "Persoonlijke omgeving — opgeslagen per account" : "Globaal voor deze sessie"}
+            {isPersonalRoute ? "Personal workspace — saved per account" : "Global for this session"}
           </p>
         </div>
         <button type="button" onClick={() => setShowSettingsBox(false)} className="rounded-full p-1.5 text-white/36 hover:bg-white/8 hover:text-white/70 transition-colors">
@@ -4528,19 +4530,19 @@ updated[index].messages[
           <div className="flex items-center gap-2 mb-1">
             <span className={`h-1.5 w-1.5 rounded-full ${isPersonalRoute ? "bg-emerald-400/80" : "bg-white/30"}`} />
             <span className="text-[11px] uppercase tracking-[0.14em] text-white/40">
-              {isPersonalRoute ? "Persoonlijk actief" : "Globale sessie"}
+              {isPersonalRoute ? "Personal workspace" : "Global session"}
             </span>
           </div>
           <p className="text-[12px] text-white/44 leading-relaxed">
             {isPersonalRoute
-              ? "Instellingen worden opgeslagen in je account en gebruikt bij elke chat."
-              : "Instellingen gelden alleen voor deze sessie en worden niet opgeslagen."}
+              ? "Settings are saved to your account and applied to every chat."
+              : "Settings apply to this session only and are not saved."}
           </p>
         </div>
 
         {/* Tone */}
         <div>
-          <div className="mb-2.5 text-[11px] uppercase tracking-[0.14em] text-white/34">Toon</div>
+          <div className="mb-2.5 text-[11px] uppercase tracking-[0.14em] text-white/34">Tone</div>
           <div className="grid grid-cols-2 gap-2">
             {(["default", "friendly", "direct", "professional"] as const).map((opt) => (
               <button key={opt} type="button"
@@ -4551,8 +4553,8 @@ updated[index].messages[
                     : "border-white/8 bg-white/[0.03] text-white/50 hover:border-white/12 hover:bg-white/[0.05] hover:text-white/70"
                 }`}
               >
-                <div className="text-sm font-medium capitalize">{opt === "default" ? "Default" : opt === "friendly" ? "Vriendelijk" : opt === "direct" ? "Direct" : "Professioneel"}</div>
-                <div className="text-[11px] text-white/32 mt-0.5">{opt === "default" ? "Gebalanceerd" : opt === "friendly" ? "Warm & informeel" : opt === "direct" ? "To the point" : "Formeel & helder"}</div>
+                <div className="text-sm font-medium capitalize">{opt === "default" ? "Default" : opt === "friendly" ? "Friendly" : opt === "direct" ? "Direct" : "Professional"}</div>
+                <div className="text-[11px] text-white/32 mt-0.5">{opt === "default" ? "Balanced" : opt === "friendly" ? "Warm & informal" : opt === "direct" ? "To the point" : "Formal & clear"}</div>
               </button>
             ))}
           </div>
@@ -4560,7 +4562,7 @@ updated[index].messages[
 
         {/* Style */}
         <div>
-          <div className="mb-2.5 text-[11px] uppercase tracking-[0.14em] text-white/34">Antwoordstijl</div>
+          <div className="mb-2.5 text-[11px] uppercase tracking-[0.14em] text-white/34">Response style</div>
           <div className="grid grid-cols-2 gap-2">
             {(["default", "concise", "structured", "detailed"] as const).map((opt) => (
               <button key={opt} type="button"
@@ -4571,8 +4573,8 @@ updated[index].messages[
                     : "border-white/8 bg-white/[0.03] text-white/50 hover:border-white/12 hover:bg-white/[0.05] hover:text-white/70"
                 }`}
               >
-                <div className="text-sm font-medium">{opt === "default" ? "Default" : opt === "concise" ? "Kort" : opt === "structured" ? "Gestructureerd" : "Uitgebreid"}</div>
-                <div className="text-[11px] text-white/32 mt-0.5">{opt === "default" ? "Gebalanceerd" : opt === "concise" ? "Zo compact mogelijk" : opt === "structured" ? "Met duidelijke opbouw" : "Meer context & diepte"}</div>
+                <div className="text-sm font-medium">{opt === "default" ? "Default" : opt === "concise" ? "Concise" : opt === "structured" ? "Structured" : "Detailed"}</div>
+                <div className="text-[11px] text-white/32 mt-0.5">{opt === "default" ? "Balanced" : opt === "concise" ? "As compact as possible" : opt === "structured" ? "Clear structure" : "More context & depth"}</div>
               </button>
             ))}
           </div>
@@ -4712,7 +4714,7 @@ updated[index].messages[
             }}
             className="rounded-2xl border border-white/14 bg-white/[0.08] px-5 py-2 text-sm text-white/90 hover:bg-white/[0.12] hover:text-white disabled:opacity-50 transition-all"
           >
-            {settingsSaving ? "Opslaan..." : settingsSaved ? "✓ Opgeslagen" : "Opslaan"}
+            {settingsSaving ? "Saving..." : settingsSaved ? "✓ Saved" : "Save"}
           </button>
         )}
       </div>
@@ -4974,13 +4976,13 @@ updated[index].messages[
             <div className="mx-4 mt-4 rounded-[24px] border border-amber-300/12 bg-amber-500/[0.065] px-4 py-3 text-sm text-amber-100 shadow-[0_10px_22px_rgba(0,0,0,0.10)] backdrop-blur-xl">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <div className="font-medium">Bijna op je limiet</div>
+                  <div className="font-medium">Approaching your limit</div>
                   <div className="mt-0.5 text-[12px] opacity-80">
-                    {usage.used} / {usage.limit} berichten gebruikt ({Math.round(usage.percentage * 100)}%)
+                    {usage.used} / {usage.limit} messages used ({Math.round(usage.percentage * 100)}%)
                   </div>
                 </div>
                 <a href="/#plans" className="shrink-0 rounded-full border border-amber-300/20 bg-amber-400/10 px-3 py-1.5 text-[11px] font-medium text-amber-200 transition-colors hover:bg-amber-400/16 hover:text-white">
-                  Bekijk plannen →
+                  View plans →
                 </a>
               </div>
             </div>
@@ -5055,7 +5057,7 @@ updated[index].messages[
 }`}
 >
                         {activeMessages.length === 0 ? (
-              <div className="flex h-full w-full max-w-2xl -mt-20 flex-col items-center justify-center px-4 md:px-6 text-center">
+              <div className="flex h-full w-full max-w-2xl -mt-8 sm:-mt-16 flex-col items-center justify-center px-4 md:px-6 text-center">
                 <div className="rounded-[28px] border border-white/8 bg-white/[0.032] px-8 py-8 shadow-[0_16px_36px_rgba(0,0,0,0.16)] backdrop-blur-xl md:px-10 md:py-10">
                   <h1 className="mb-3 bg-gradient-to-r from-white via-white to-white/70 bg-clip-text text-2xl font-semibold tracking-tight text-transparent md:text-4xl">
                     {t("welcome_title")}
@@ -5251,13 +5253,13 @@ updated[index].messages[
             <span className="text-lg">🎨</span>
             <div className="flex-1">
               <p className="text-[13px] font-medium text-blue-200">Photo Studio</p>
-              <p className="text-[11px] text-white/40">Bewerk je afbeelding met AI</p>
+              <p className="text-[11px] text-white/40">Edit your image with AI</p>
             </div>
             <a
-              href="/photo-studio"
+              href="/personal-workspace/photo-studio"
               className="rounded-[10px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-3 py-1.5 text-[12px] font-medium text-white hover:brightness-110 transition-all"
             >
-              Openen →
+              Open →
             </a>
           </div>
         )}
@@ -5787,14 +5789,7 @@ const resolvedVoiceLang =
 
 form.append("lang", resolvedVoiceLang);
 
-console.log("VOICE submit", {
-  voiceInputLang,
-  detectedLang,
-  browserLang: getBrowserLanguage(),
-  resolvedVoiceLang,
-  blobType: blob.type,
-  blobSize: blob.size,
-});
+// Voice submit — debug log removed for production
 
 const res = await fetch("/api/voice", {
   method: "POST",
