@@ -12,7 +12,7 @@ export default function AuthCallbackPage() {
     const refreshToken = params.get("refresh_token");
 
     if (!accessToken || accessToken.length < 10) {
-      router.replace("/chat");
+      router.replace("/personal-workspace");
       return;
     }
 
@@ -28,13 +28,14 @@ export default function AuthCallbackPage() {
     })
       .then((res) => {
         if (res.ok) {
-          router.replace("/personal-dashboard");
+          const redirect = (() => { try { return sessionStorage.getItem("ol_login_redirect") || "/personal-workspace"; } catch { return "/personal-workspace"; } })();
+          router.replace(redirect);
         } else {
-          router.replace("/chat?auth_error=1");
+          router.replace("/personal-workspace?auth_error=1");
         }
       })
       .catch(() => {
-        router.replace("/chat?auth_error=1");
+        router.replace("/personal-workspace?auth_error=1");
       });
   }, []);
 

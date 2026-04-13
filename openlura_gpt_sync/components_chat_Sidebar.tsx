@@ -673,6 +673,19 @@ const [chatTitleDraft, setChatTitleDraft] = useState("");
         mobileMenu ? "translate-x-0" : "-translate-x-full"
       }`}
     >
+      {/* Mobile-only workspace back link */}
+      {isPersonalRoute && (
+        <div className="md:hidden mb-2 px-1 pt-[max(env(safe-area-inset-top),4px)]">
+          <a
+            href="/personal-workspace"
+            className="flex items-center gap-2 rounded-xl px-3 py-2 text-[12px] font-medium text-white/40 hover:text-white/70 transition-colors"
+            onClick={() => setMobileMenu(false)}
+          >
+            <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+            Back to workspace
+          </a>
+        </div>
+      )}
             <div className="flex h-full min-h-0 flex-col">
         <div className="sticky top-0 z-20 -mx-3 mb-3 border-b border-white/8 bg-[linear-gradient(180deg,rgba(10,15,29,0.98),rgba(10,15,29,0.92))] px-3 pb-3 pt-[max(env(safe-area-inset-top),12px)] backdrop-blur-2xl md:mx-0 md:border-b-0 md:bg-transparent md:px-0 md:pb-1 md:pt-0">
           <div className="mb-3 flex items-center justify-between">
@@ -1319,13 +1332,14 @@ const [chatTitleDraft, setChatTitleDraft] = useState("");
                       >
                         My profile
                       </button>
-                        <button
-                        type="button"
-                        onClick={() => { setShowSettingsDropdown(false); setMobileMenu(false); onOpenDashboard?.(); }}
-                        className="w-full px-3.5 py-2.5 text-left text-sm text-[#93c5fd] hover:bg-white/[0.06] hover:text-white transition-colors rounded-xl"
+                      <a
+                        href="/personal-workspace"
+                        className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-sm text-[#93c5fd] hover:bg-white/[0.06] hover:text-white transition-colors rounded-xl"
+                        onClick={() => { setShowSettingsDropdown(false); setMobileMenu(false); }}
                       >
-                        Dashboard
-                      </button>
+                        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                        Workspace
+                      </a>
                       <button
                         type="button"
                         onClick={() => { setShowSettingsDropdown(false); setMobileMenu(false); onOpenSettings?.(); }}

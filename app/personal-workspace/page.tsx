@@ -102,7 +102,15 @@ export default function PersonalWorkspacePage() {
       });
       if (!res.ok) { setLoginError("Invalid email or password."); return; }
       setShowLoginModal(false);
-      // Reload page — user is now authenticated, workspace will render correctly
+      // After login, try Stripe checkout directly instead of just reloading
+      try {
+        const stripeRes = await fetch("/api/stripe/checkout", { method: "POST", credentials: "include" });
+        if (stripeRes.ok) {
+          const stripeData = await stripeRes.json();
+          if (stripeData.url) { window.location.href = stripeData.url; return; }
+        }
+      } catch {}
+      // Fallback: reload page
       window.location.reload();
     } catch { setLoginError("Something went wrong."); } finally { setLoginLoading(false); }
   }

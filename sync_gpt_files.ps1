@@ -38,7 +38,8 @@ $filesToSync = @(
     @{ Source = "app\personal-dashboard\page.tsx"; Destination = "personal_dashboard_page.tsx" },
     @{ Source = "app\brain\page.tsx"; Destination = "brain_page.tsx" },
     @{ Source = "app\brain\[id]\page.tsx"; Destination = "brain_id_page.tsx" },
-
+    @{ Source = "app\personal-workspace\page.tsx"; Destination = "personal_workspace_page.tsx" },
+    
     # MEMORY FILES
     @{ Source = "OPENLURA_PROJECT_MEMORY.md"; Destination = "OPENLURA_PROJECT_MEMORY.md" },
     @{ Source = "OPENLURA_RULES.md"; Destination = "OPENLURA_RULES.md" },
