@@ -12,6 +12,17 @@ export default function PersonalWorkspacePage() {
   const [upgradeLoading, setUpgradeLoading] = useState(false);
   const [showPlanModal, setShowPlanModal] = useState(false);
   const [portalLoading, setPortalLoading] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [loginTab, setLoginTab] = useState<"login" | "register">("login");
+  const [registerName, setRegisterName] = useState("");
+  const [registerEmail, setRegisterEmail] = useState("");
+  const [registerPassword, setRegisterPassword] = useState("");
+  const [registerError, setRegisterError] = useState("");
+  const [registerLoading, setRegisterLoading] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -63,20 +74,57 @@ export default function PersonalWorkspacePage() {
   }, []);
 
   async function handleUpgrade() {
-    // Must be logged in before going to Stripe
     if (!auth?.authenticated) {
-      window.location.href = "/?login=1";
+      setShowPlanModal(false);
+      setShowLoginModal(true);
       return;
     }
     setUpgradeLoading(true);
     try {
       const res = await fetch("/api/stripe/checkout", { method: "POST", credentials: "include" });
-      if (res.status === 401) { window.location.href = "/?login=1"; return; }
+      if (res.status === 401) { setShowLoginModal(true); return; }
       const data = await res.json();
       if (data.url) window.location.href = data.url;
     } catch {} finally {
       setUpgradeLoading(false);
     }
+  }
+
+  async function handleLoginThenStripe() {
+    setLoginLoading(true);
+    setLoginError("");
+    try {
+      const res = await fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ action: "login", username: loginEmail.trim(), password: loginPassword }),
+      });
+      if (!res.ok) { setLoginError("Invalid email or password."); return; }
+      setShowLoginModal(false);
+      // Now go to Stripe
+      const stripe = await fetch("/api/stripe/checkout", { method: "POST", credentials: "include" });
+      const data = await stripe.json();
+      if (data.url) window.location.href = data.url;
+    } catch { setLoginError("Something went wrong."); } finally { setLoginLoading(false); }
+  }
+
+  async function handleRegisterThenStripe() {
+    setRegisterLoading(true);
+    setRegisterError("");
+    try {
+      const res = await fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ action: "register", username: registerEmail.trim(), password: registerPassword, name: registerName.trim() }),
+      });
+      if (!res.ok) { setRegisterError("Registration failed. Try a different email."); return; }
+      setShowLoginModal(false);
+      const stripe = await fetch("/api/stripe/checkout", { method: "POST", credentials: "include" });
+      const data = await stripe.json();
+      if (data.url) window.location.href = data.url;
+    } catch { setRegisterError("Something went wrong."); } finally { setRegisterLoading(false); }
   }
 
   if (auth === null) {
@@ -379,6 +427,83 @@ export default function PersonalWorkspacePage() {
           </div>
         )}
       </div>
+
+      {/* Login modal — shown before Stripe for unauthenticated users */}
+      {showLoginModal && (
+        <div className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center px-4 pb-4 sm:pb-0">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowLoginModal(false)} />
+          <div className="relative z-10 w-full max-w-sm rounded-[24px] border border-white/10 bg-[#0c0c18] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.60)]">
+            <button type="button" onClick={() => setShowLoginModal(false)}
+              className="absolute right-4 top-4 h-7 w-7 flex items-center justify-center rounded-full border border-white/8 text-white/40 hover:text-white hover:bg-white/[0.06] transition-all">×</button>
+
+            <h2 className="text-base font-semibold text-white/92 mb-1">Sign in to upgrade</h2>
+            <p className="text-sm text-white/44 mb-5">Create an account or sign in, then complete your upgrade.</p>
+
+            {/* Tabs */}
+            <div className="flex rounded-[14px] border border-white/8 bg-white/[0.03] p-1 mb-5">
+              <button type="button" onClick={() => setLoginTab("login")}
+                className={`flex-1 rounded-[10px] py-2 text-[13px] font-medium transition-colors ${loginTab === "login" ? "bg-white/[0.08] text-white" : "text-white/40 hover:text-white/70"}`}>
+                Sign in
+              </button>
+              <button type="button" onClick={() => setLoginTab("register")}
+                className={`flex-1 rounded-[10px] py-2 text-[13px] font-medium transition-colors ${loginTab === "register" ? "bg-white/[0.08] text-white" : "text-white/40 hover:text-white/70"}`}>
+                Create account
+              </button>
+            </div>
+
+            {/* Google */}
+            <button type="button"
+              onClick={() => {
+                const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+                if (!supabaseUrl) return;
+                try { sessionStorage.setItem("ol_after_login_stripe", "1"); } catch {}
+                const redirectTo = `${window.location.origin}/auth/callback`;
+                window.location.href = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirectTo)}`;
+              }}
+              className="flex w-full items-center justify-center gap-3 rounded-[14px] border border-white/10 bg-white/[0.05] px-4 py-2.5 text-sm text-white/88 transition-colors hover:bg-white/[0.09] mb-4">
+              <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
+                <path d="M17.64 9.205c0-.639-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615Z" fill="#4285F4"/>
+                <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18Z" fill="#34A853"/>
+                <path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332Z" fill="#FBBC05"/>
+                <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58Z" fill="#EA4335"/>
+              </svg>
+              Continue with Google
+            </button>
+
+            <div className="flex items-center gap-3 mb-4">
+              <div className="h-px flex-1 bg-white/8" /><span className="text-[11px] text-white/28">or</span><div className="h-px flex-1 bg-white/8" />
+            </div>
+
+            {loginTab === "login" ? (
+              <div className="space-y-2.5">
+                <input type="email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)}
+                  placeholder="Email" className="w-full rounded-[12px] border border-white/8 bg-white/[0.04] px-4 py-2.5 text-sm text-white outline-none placeholder:text-white/28 focus:border-white/16" />
+                <input type="password" value={loginPassword} onChange={e => setLoginPassword(e.target.value)}
+                  placeholder="Password" className="w-full rounded-[12px] border border-white/8 bg-white/[0.04] px-4 py-2.5 text-sm text-white outline-none placeholder:text-white/28 focus:border-white/16" />
+                {loginError && <p className="text-sm text-red-400">{loginError}</p>}
+                <button type="button" onClick={handleLoginThenStripe} disabled={loginLoading || !loginEmail.trim() || !loginPassword}
+                  className="w-full rounded-[12px] bg-gradient-to-r from-[#d97706] to-[#f59e0b] py-2.5 text-sm font-semibold text-black transition-[filter,opacity] hover:brightness-110 disabled:opacity-50">
+                  {loginLoading ? "Signing in…" : "Sign in & upgrade →"}
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                <input type="text" value={registerName} onChange={e => setRegisterName(e.target.value)}
+                  placeholder="Your name" className="w-full rounded-[12px] border border-white/8 bg-white/[0.04] px-4 py-2.5 text-sm text-white outline-none placeholder:text-white/28 focus:border-white/16" />
+                <input type="email" value={registerEmail} onChange={e => setRegisterEmail(e.target.value)}
+                  placeholder="Email" className="w-full rounded-[12px] border border-white/8 bg-white/[0.04] px-4 py-2.5 text-sm text-white outline-none placeholder:text-white/28 focus:border-white/16" />
+                <input type="password" value={registerPassword} onChange={e => setRegisterPassword(e.target.value)}
+                  placeholder="Password" className="w-full rounded-[12px] border border-white/8 bg-white/[0.04] px-4 py-2.5 text-sm text-white outline-none placeholder:text-white/28 focus:border-white/16" />
+                {registerError && <p className="text-sm text-red-400">{registerError}</p>}
+                <button type="button" onClick={handleRegisterThenStripe} disabled={registerLoading || !registerEmail.trim() || !registerPassword}
+                  className="w-full rounded-[12px] bg-gradient-to-r from-[#d97706] to-[#f59e0b] py-2.5 text-sm font-semibold text-black transition-[filter,opacity] hover:brightness-110 disabled:opacity-50">
+                  {registerLoading ? "Creating account…" : "Create account & upgrade →"}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Plan modal */}
       {showPlanModal && (
