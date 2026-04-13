@@ -354,7 +354,7 @@ export default function HomePage() {
             <button
               type="button"
               onClick={() => setIsLoginOpen(true)}
-              className="hidden rounded-full border border-white/10 bg-white/[0.04] px-4 py-1.5 text-[13px] font-medium text-white/80 transition-colors duration-150 hover:border-white/16 hover:bg-white/[0.07] hover:text-white sm:inline-flex"
+              className="inline-flex rounded-full border border-white/10 bg-white/[0.04] px-4 py-1.5 text-[13px] font-medium text-white/80 transition-colors duration-150 hover:border-white/16 hover:bg-white/[0.07] hover:text-white"
             >
               Log in
             </button>
@@ -408,7 +408,7 @@ export default function HomePage() {
               <span className="mt-4 text-sm font-medium text-blue-400 group-hover:text-blue-300 transition-colors duration-150">Sign in {"\u2192"}</span>
             </button>
 
-            <div className="flex items-center justify-center px-1">
+            <div className="flex items-center justify-center">
               <span className="text-[12px] text-white/24">or</span>
             </div>
 
@@ -516,7 +516,7 @@ export default function HomePage() {
                   <div className="flex items-center gap-2.5"><span className="h-1.5 w-1.5 rounded-full bg-white/40" /><p className="text-sm text-white/68">150 messages per month</p></div>
                 </div>
                 <Link
-                  href="/chat"
+                  href="/personal-workspace"
                   className="mt-6 inline-flex w-full items-center justify-center rounded-[16px] border border-white/10 bg-white/[0.04] py-3 text-sm font-medium text-white/80 transition-[background-color,border-color,color] duration-150 hover:border-white/16 hover:bg-white/[0.07] hover:text-white"
                 >
                   Start for free
@@ -928,7 +928,7 @@ export default function HomePage() {
               </p>
               <div className="mt-7 flex flex-wrap gap-3">
                 <Link
-                  href="/chat"
+                  href="/personal-workspace"
                   className="inline-flex h-10 items-center justify-center rounded-full bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-6 text-sm font-medium text-white shadow-[0_8px_20px_rgba(59,130,246,0.28)] transition-[filter,box-shadow] duration-150 hover:brightness-110"
                 >
                   {t("btn_open_chat")}

@@ -67,6 +67,7 @@ export default function BrainPage() {
 
   const [authChecked, setAuthChecked] = useState(false);
   const [authed, setAuthed] = useState(false);
+  const [tier, setTier] = useState<"free" | "pro" | "admin">("free");
 
   const [notebooks, setNotebooks] = useState<Notebook[]>([]);
   const [loadingNbs, setLoadingNbs] = useState(true);
@@ -90,8 +91,19 @@ export default function BrainPage() {
         const d = await r.json().catch(() => null);
         const ok = !!d?.authenticated;
         setAuthed(ok);
+        if (!ok) { setAuthChecked(true); router.replace("/personal-workspace"); return; }
+        // Check tier — Brain is Go-only
+        const sd = await fetch("/api/personal-state", { method: "GET", credentials: "same-origin", cache: "no-store" })
+          .then(r2 => r2.json()).catch(() => null);
+        const t = sd?.usageStats?.tier || sd?.usage_stats?.tier;
+        if (t === "pro" || t === "admin") {
+          setTier(t);
+        } else {
+          // Free user — send back to workspace so plan modal can be triggered
+          router.replace("/personal-workspace?plan=1");
+          return;
+        }
         setAuthChecked(true);
-        if (!ok) router.replace("/personal-workspace");
       })
       .catch(() => { setAuthed(false); setAuthChecked(true); router.replace("/personal-workspace"); });
   }, [router]);

@@ -72,6 +72,14 @@ function PhotoStudioContent() {
           d = await res.json().catch(() => null);
         }
         if (!d?.authenticated) { router.replace("/personal-workspace"); return; }
+        // Check tier — Photo Studio is Go-only
+        const sd = await fetch("/api/personal-state", { method: "GET", credentials: "same-origin", cache: "no-store" })
+          .then(r2 => r2.json()).catch(() => null);
+        const t = sd?.usageStats?.tier || sd?.usage_stats?.tier;
+        if (t !== "pro" && t !== "admin") {
+          router.replace("/personal-workspace?plan=1");
+          return;
+        }
         setAuthChecked(true);
         loadStats();
       } catch {

@@ -14,6 +14,15 @@ export default function PersonalWorkspacePage() {
   const [portalLoading, setPortalLoading] = useState(false);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("plan") === "1") {
+      setShowPlanModal(true);
+      window.history.replaceState({}, "", "/personal-workspace");
+    }
+  }, []);
+
+  useEffect(() => {
     try {
       if (typeof sessionStorage !== "undefined") {
         sessionStorage.setItem("ol_login_redirect", "/personal-workspace");
@@ -53,10 +62,6 @@ export default function PersonalWorkspacePage() {
     initAuth();
   }, []);
 
-  useEffect(() => {
-    if (auth !== null && !auth.authenticated) router.replace("/");
-  }, [auth, router]);
-
   async function handleUpgrade() {
     setUpgradeLoading(true);
     try {
@@ -79,8 +84,20 @@ export default function PersonalWorkspacePage() {
 
   if (!auth.authenticated) {
     return (
-      <div className="fixed inset-0 flex items-center justify-center bg-[#050510]">
-        <div className="h-5 w-5 rounded-full border-2 border-[#3b82f6]/30 border-t-[#3b82f6] animate-spin" />
+      <div className="fixed inset-0 flex flex-col items-center justify-center bg-[#07070f] px-5">
+        <div className="mb-6 h-10 w-10 rounded-2xl overflow-hidden border border-white/10 bg-white/[0.04]">
+          <img src="/openlura-logo.png" alt="OpenLura" className="h-full w-full object-contain" />
+        </div>
+        <h1 className="text-xl font-semibold text-white/92 mb-2 text-center">Your workspace awaits</h1>
+        <p className="text-sm text-white/44 text-center mb-8 max-w-xs">Sign in or create a free account to access your personal AI workspace.</p>
+        <div className="flex flex-col gap-3 w-full max-w-xs">
+          <a href="/" className="w-full rounded-[14px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] py-3.5 text-sm font-semibold text-white text-center shadow-[0_6px_16px_rgba(59,130,246,0.28)] transition-[filter] hover:brightness-110">
+            Sign in
+          </a>
+          <a href="/" className="w-full rounded-[14px] border border-white/10 bg-white/[0.04] py-3.5 text-sm font-medium text-white/80 text-center transition-[background-color,border-color] hover:bg-white/[0.08] hover:text-white">
+            Create free account
+          </a>
+        </div>
       </div>
     );
   }
@@ -192,7 +209,7 @@ export default function PersonalWorkspacePage() {
           ) : (
             <button
               type="button"
-              onClick={handleUpgrade}
+              onClick={() => setShowPlanModal(true)}
               className="flex items-start gap-4 rounded-[18px] border border-white/6 bg-white/[0.02] p-5 text-left transition-[border-color] duration-150 hover:border-white/10 active:scale-[0.99] sm:p-6"
             >
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/[0.04] border border-white/8 text-xl grayscale opacity-50">
@@ -229,7 +246,7 @@ export default function PersonalWorkspacePage() {
           ) : (
             <button
               type="button"
-              onClick={handleUpgrade}
+              onClick={() => setShowPlanModal(true)}
               className="flex items-start gap-4 rounded-[18px] border border-white/6 bg-white/[0.02] p-5 text-left transition-[border-color] duration-150 hover:border-white/10 active:scale-[0.99] sm:p-6"
             >
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/[0.04] border border-white/8 text-xl grayscale opacity-50">
