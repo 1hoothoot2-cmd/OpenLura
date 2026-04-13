@@ -72,7 +72,10 @@ export default function HomePage() {
         setLoginError("Invalid email or password.");
         return;
       }
-      router.push("/personal-workspace");
+      // Check if user was trying to upgrade — redirect to workspace with plan=1
+      let dest = "/personal-workspace";
+      try { if (sessionStorage.getItem("ol_after_login_stripe") === "1") { sessionStorage.removeItem("ol_after_login_stripe"); dest = "/personal-workspace?plan=1"; } } catch {}
+      router.push(dest);
     } catch {
       setLoginError("Something went wrong. Try again.");
     } finally {
@@ -552,7 +555,10 @@ export default function HomePage() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setIsLoginOpen(true)}
+                  onClick={() => {
+                    try { sessionStorage.setItem("ol_after_login_stripe", "1"); } catch {}
+                    setIsLoginOpen(true);
+                  }}
                   className="mt-6 inline-flex w-full items-center justify-center rounded-[16px] border border-blue-400/20 bg-blue-400/10 py-3 text-sm font-medium text-blue-200 transition-[background-color,border-color,color] duration-150 hover:border-blue-400/30 hover:bg-blue-400/16 hover:text-white"
                 >
                   Get started with Go
@@ -602,7 +608,10 @@ export default function HomePage() {
                 <div className="mt-8 flex flex-wrap gap-3">
                   <button
                     type="button"
-                    onClick={() => setIsLoginOpen(true)}
+                    onClick={() => {
+                      try { sessionStorage.setItem("ol_after_login_stripe", "1"); } catch {}
+                      setIsLoginOpen(true);
+                    }}
                     className="inline-flex h-10 items-center justify-center rounded-full bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-6 text-sm font-medium text-white shadow-[0_8px_20px_rgba(59,130,246,0.28)] hover:brightness-110 transition-all"
                   >
                     Open Brain {"\u2192"}
@@ -968,6 +977,10 @@ export default function HomePage() {
                   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
                   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
                   if (!supabaseUrl || !supabaseKey) return;
+                  try {
+                    const upgradeIntent = sessionStorage.getItem("ol_after_login_stripe") === "1";
+                    sessionStorage.setItem("ol_login_redirect", upgradeIntent ? "/personal-workspace?plan=1" : "/personal-workspace");
+                  } catch {}
                   const redirectTo = `${window.location.origin}/auth/callback`;
                   window.location.href = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirectTo)}&apikey=${supabaseKey}`;
                 }}
@@ -1022,9 +1035,9 @@ export default function HomePage() {
               </form>
 
               <p className="mt-5 text-center text-[12px] text-white/30">
-                No account yet?{" "}
-                <a href="/personal-workspace" className="text-blue-400/80 hover:text-blue-300 transition-colors duration-150">
-                  Create one here
+                No account yet? Sign up with Google above, or{" "}
+                <a href="/personal-workspace" onClick={(e) => { e.preventDefault(); resetLoginModal(); router.push("/personal-workspace?login=register"); }} className="text-blue-400/80 hover:text-blue-300 transition-colors duration-150">
+                  create one here
                 </a>
               </p>
             </div>
