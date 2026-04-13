@@ -1030,7 +1030,7 @@ export default function HomePage() {
 
               <p className="mt-5 text-center text-[12px] text-white/30">
                 No account yet?{" "}
-                <a href="/personal-dashboard" className="text-blue-400/80 hover:text-blue-300 transition-colors duration-150">
+                <a href="/personal-workspace" className="text-blue-400/80 hover:text-blue-300 transition-colors duration-150">
                   Create one here
                 </a>
               </p>

@@ -10,6 +10,8 @@ export default function PersonalWorkspacePage() {
   const [tier, setTier] = useState<"free" | "pro" | "admin">("free");
   const [userName, setUserName] = useState<string | null>(null);
   const [upgradeLoading, setUpgradeLoading] = useState(false);
+  const [showPlanModal, setShowPlanModal] = useState(false);
+  const [portalLoading, setPortalLoading] = useState(false);
 
   useEffect(() => {
     try {
@@ -244,10 +246,11 @@ export default function PersonalWorkspacePage() {
             </button>
           )}
 
-          {/* Subscription card — always visible */}
-          <Link
-            href="/personal-dashboard#subscription"
-            className="group flex items-start gap-4 rounded-[18px] border border-white/8 bg-white/[0.03] p-5 transition-[border-color,background-color] duration-150 hover:border-white/14 hover:bg-white/[0.05] active:scale-[0.99] sm:p-6"
+          {/* Subscription card */}
+          <button
+            type="button"
+            onClick={() => setShowPlanModal(true)}
+            className="group flex items-start gap-4 rounded-[18px] border border-white/8 bg-white/[0.03] p-5 text-left transition-[border-color,background-color] duration-150 hover:border-white/14 hover:bg-white/[0.05] active:scale-[0.99] sm:p-6"
           >
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#1a3a2a]/60 border border-emerald-400/16 text-xl">
               💳
@@ -256,7 +259,7 @@ export default function PersonalWorkspacePage() {
               <span className="text-sm font-semibold text-white/90 block mb-1">Subscription</span>
               <p className="text-sm text-white/40">Manage your plan</p>
             </div>
-          </Link>
+          </button>
         </div>
 
         {/* Upgrade banner — free users only */}
@@ -292,6 +295,91 @@ export default function PersonalWorkspacePage() {
           </div>
         )}
       </div>
+
+      {/* Plan modal */}
+      {showPlanModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center px-4 pb-4 sm:pb-0">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowPlanModal(false)} />
+          <div className="relative z-10 w-full max-w-sm rounded-[24px] border border-white/10 bg-[#0c0c18] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.60)]">
+            <button
+              type="button"
+              onClick={() => setShowPlanModal(false)}
+              className="absolute right-4 top-4 h-7 w-7 flex items-center justify-center rounded-full border border-white/8 text-white/40 hover:text-white hover:bg-white/[0.06] transition-all"
+            >
+              ×
+            </button>
+
+            <h2 className="text-base font-semibold text-white/92 mb-1">Your plan</h2>
+
+            {/* Current plan badge */}
+            <div className="mb-5">
+              {isPro ? (
+                <div className="inline-flex items-center gap-2 rounded-full border border-blue-400/20 bg-blue-400/10 px-3 py-1.5 text-sm font-medium text-blue-300">
+                  <span className="h-2 w-2 rounded-full bg-blue-400" />
+                  Go plan — active
+                </div>
+              ) : (
+                <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-sm font-medium text-white/60">
+                  <span className="h-2 w-2 rounded-full bg-white/30" />
+                  Free plan
+                </div>
+              )}
+            </div>
+
+            {/* Feature list */}
+            <ul className="space-y-2.5 mb-6">
+              {[
+                { label: "Chat", free: true },
+                { label: "Unlimited messages", free: false },
+                { label: "Personal AI memory", free: false },
+                { label: "Brain — docs & AI insights", free: false },
+                { label: "Photo Studio — AI images", free: false },
+                { label: "Web search", free: false },
+              ].map(f => (
+                <li key={f.label} className="flex items-center gap-2.5">
+                  {f.free || isPro ? (
+                    <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-emerald-400" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-white/20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+                  )}
+                  <span className={`text-sm ${f.free || isPro ? "text-white/72" : "text-white/28"}`}>{f.label}</span>
+                </li>
+              ))}
+            </ul>
+
+            {/* Actions */}
+            {isPro ? (
+              <button
+                type="button"
+                disabled={portalLoading}
+                onClick={async () => {
+                  setPortalLoading(true);
+                  try {
+                    const res = await fetch("/api/stripe/portal", { method: "POST", credentials: "include" });
+                    const data = await res.json();
+                    if (data.url) window.location.href = data.url;
+                  } catch {} finally { setPortalLoading(false); }
+                }}
+                className="w-full rounded-[14px] border border-white/10 bg-white/[0.04] py-3 text-sm font-medium text-white/70 transition-[background-color,border-color] hover:bg-white/[0.08] hover:text-white disabled:opacity-50"
+              >
+                {portalLoading ? "Loading…" : "Manage / cancel subscription →"}
+              </button>
+            ) : (
+              <div className="space-y-2.5">
+                <button
+                  type="button"
+                  onClick={() => { setShowPlanModal(false); handleUpgrade(); }}
+                  disabled={upgradeLoading}
+                  className="w-full rounded-[14px] bg-gradient-to-r from-[#d97706] to-[#f59e0b] py-3 text-sm font-semibold text-black shadow-[0_6px_16px_rgba(245,158,11,0.20)] transition-[filter,opacity] hover:brightness-110 disabled:opacity-60"
+                >
+                  {upgradeLoading ? "Loading…" : "Upgrade to Go ✦"}
+                </button>
+                <p className="text-center text-[11px] text-white/28">Includes Brain, Photo Studio, unlimited chat & memory</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
