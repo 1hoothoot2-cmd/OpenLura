@@ -63,10 +63,15 @@ export default function PersonalWorkspacePage() {
   }, []);
 
   async function handleUpgrade() {
+    // Must be logged in before going to Stripe
+    if (!auth?.authenticated) {
+      window.location.href = "/?login=1";
+      return;
+    }
     setUpgradeLoading(true);
     try {
       const res = await fetch("/api/stripe/checkout", { method: "POST", credentials: "include" });
-      if (res.status === 401) { router.push("/"); return; }
+      if (res.status === 401) { window.location.href = "/?login=1"; return; }
       const data = await res.json();
       if (data.url) window.location.href = data.url;
     } catch {} finally {
@@ -91,10 +96,10 @@ export default function PersonalWorkspacePage() {
         <h1 className="text-xl font-semibold text-white/92 mb-2 text-center">Your workspace awaits</h1>
         <p className="text-sm text-white/44 text-center mb-8 max-w-xs">Sign in or create a free account to access your personal AI workspace.</p>
         <div className="flex flex-col gap-3 w-full max-w-xs">
-          <a href="/" className="w-full rounded-[14px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] py-3.5 text-sm font-semibold text-white text-center shadow-[0_6px_16px_rgba(59,130,246,0.28)] transition-[filter] hover:brightness-110">
+          <a href="/?login=1" className="w-full rounded-[14px] bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] py-3.5 text-sm font-semibold text-white text-center shadow-[0_6px_16px_rgba(59,130,246,0.28)] transition-[filter] hover:brightness-110">
             Sign in
           </a>
-          <a href="/" className="w-full rounded-[14px] border border-white/10 bg-white/[0.04] py-3.5 text-sm font-medium text-white/80 text-center transition-[background-color,border-color] hover:bg-white/[0.08] hover:text-white">
+          <a href="/?login=1" className="w-full rounded-[14px] border border-white/10 bg-white/[0.04] py-3.5 text-sm font-medium text-white/80 text-center transition-[background-color,border-color] hover:bg-white/[0.08] hover:text-white">
             Create free account
           </a>
         </div>

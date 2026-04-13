@@ -35,7 +35,10 @@ function SectionFooter({
 export default function HomePage() {
   const router = useRouter();
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
-  const [isLoginOpen, setIsLoginOpen] = useState(false);
+  const [isLoginOpen, setIsLoginOpen] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return new URLSearchParams(window.location.search).get("login") === "1";
+  });
   const [homeChatInput, setHomeChatInput] = useState("");
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -549,17 +552,7 @@ export default function HomePage() {
                 </div>
                 <button
                   type="button"
-                  onClick={async () => {
-                    try {
-                      const res = await fetch("/api/stripe/checkout", { method: "POST", credentials: "include" });
-                      if (res.status === 401) { router.push("/personal-workspace"); return; }
-                      const text = await res.text();
-                      const data = JSON.parse(text);
-                      if (data.url) window.location.href = data.url;
-                    } catch (err) {
-                      console.error("Stripe checkout error:", err);
-                    }
-                  }}
+                  onClick={() => setIsLoginOpen(true)}
                   className="mt-6 inline-flex w-full items-center justify-center rounded-[16px] border border-blue-400/20 bg-blue-400/10 py-3 text-sm font-medium text-blue-200 transition-[background-color,border-color,color] duration-150 hover:border-blue-400/30 hover:bg-blue-400/16 hover:text-white"
                 >
                   Get started with Go
