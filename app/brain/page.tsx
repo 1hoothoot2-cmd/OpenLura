@@ -20,6 +20,7 @@ interface Notebook {
 function useLang(): string {
   const [lang, setLang] = useState("en");
   useEffect(() => {
+    if (typeof navigator === "undefined") return;
     const b = navigator.language?.split("-")[0] ?? "en";
     const supported = ["en", "nl", "de", "fr", "es", "pt", "hi"];
     setLang(supported.includes(b) ? b : "en");
@@ -90,9 +91,9 @@ export default function BrainPage() {
         const ok = !!d?.authenticated;
         setAuthed(ok);
         setAuthChecked(true);
-        if (!ok) router.replace("/personal-dashboard");
+        if (!ok) router.replace("/personal-workspace");
       })
-      .catch(() => { setAuthed(false); setAuthChecked(true); router.replace("/personal-dashboard"); });
+      .catch(() => { setAuthed(false); setAuthChecked(true); router.replace("/personal-workspace"); });
   }, [router]);
 
   // ── Load notebooks ────────────────────────────────────────────────────────
@@ -145,7 +146,6 @@ export default function BrainPage() {
 
   // ── Delete notebook ───────────────────────────────────────────────────────
   async function handleDelete(id: string) {
-    if (!confirm(tr("delete_confirm", lang))) return;
     setDeletingId(id);
     try {
       await fetch(`/api/brain/notebooks?id=${encodeURIComponent(id)}`, {
@@ -153,6 +153,8 @@ export default function BrainPage() {
         credentials: "same-origin",
       });
       setNotebooks(prev => prev.filter(n => n.id !== id));
+    } catch {
+      // silent — notebook stays visible if delete fails
     } finally {
       setDeletingId(null);
     }
@@ -181,13 +183,13 @@ export default function BrainPage() {
       <header className="sticky top-0 z-40 border-b border-white/6 bg-[#050510]/95 backdrop-blur-xl">
         <div className="mx-auto max-w-5xl flex items-center justify-between px-5 h-14">
           <a
-            href="/personal-dashboard"
+            href="/personal-workspace"
             className="flex items-center gap-1.5 text-sm text-white/40 hover:text-white transition-colors"
           >
             <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
               <path d="M10 13L5 8l5-5" />
             </svg>
-            {tr("back", lang)}
+            Workspace
           </a>
 
           <button
@@ -209,13 +211,13 @@ export default function BrainPage() {
           <span className="text-3xl">🧠</span>
           <h1 className="text-2xl font-semibold tracking-tight">{tr("brain", lang)}</h1>
         </div>
-        <p className="text-sm text-white/38 ml-[52px]">{tr("sub", lang)}</p>
-        <div className="ml-[52px] mt-2 flex items-center gap-1.5">
+        <p className="text-sm text-white/38 mt-1 sm:ml-[52px]">{tr("sub", lang)}</p>
+        <div className="mt-2 sm:ml-[52px] flex items-center gap-1.5">
           <span className="text-[11px] text-white/24">🔒</span>
           <span className="text-[11px] text-white/24">Private — only you can access your notebooks</span>
         </div>
         {notebooks.length > 0 && (
-          <div className="ml-[52px] mt-3 flex items-center gap-4">
+          <div className="mt-3 sm:ml-[52px] flex items-center gap-4">
             <span className="text-xs text-white/24">{notebooks.length} {notebooks.length === 1 ? "notebook" : "notebooks"}</span>
             <span className="text-white/10">·</span>
             <span className="text-xs text-white/24">{notebooks.reduce((s, n) => s + (n.document_count || 0), 0)} sources</span>
@@ -393,11 +395,11 @@ function NotebookCard({
           </div>
         </div>
 
-        {/* Delete button */}
+        {/* Delete button — always visible on mobile (no hover), hover-only on desktop */}
         <button
           type="button"
           onClick={onDelete}
-          className="opacity-0 group-hover:opacity-100 h-7 w-7 flex items-center justify-center rounded-full text-white/20 hover:text-red-400 hover:bg-white/[0.06] transition-all"
+          className="opacity-100 md:opacity-0 md:group-hover:opacity-100 h-7 w-7 flex items-center justify-center rounded-full text-white/20 hover:text-red-400 hover:bg-white/[0.06] active:text-red-400 transition-all"
           title="Delete"
         >
           <svg viewBox="0 0 14 14" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
@@ -413,7 +415,7 @@ function NotebookCard({
 
       {/* Open button */}
       <a
-        href={`/brain/${notebook.id}`}
+        href={`/personal-workspace/brain/${notebook.id}`}
         className="flex items-center justify-center gap-1.5 w-full rounded-[12px] border border-white/8 py-2 text-xs text-white/50 hover:border-[#3b82f6]/30 hover:text-[#93c5fd] hover:bg-[#3b82f6]/[0.06] transition-all"
       >
         {tr2("open")}

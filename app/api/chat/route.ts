@@ -5098,7 +5098,7 @@ IMPORTANT: If the user asks to edit, adjust, modify, change, transform, or impro
 
         const rewritten = selfCheckRewrite.choices?.[0]?.message?.content?.trim() || "";
         if (rewritten && rewritten.length > 20) {
-          console.log("[V91 SelfCheck] Rewrite applied, suggestion:", v91SelfCheck.suggestion);
+          // V91 rewrite applied — removed production log
           aiText = rewritten;
         }
       } catch (rewriteError) {

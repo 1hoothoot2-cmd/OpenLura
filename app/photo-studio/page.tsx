@@ -157,7 +157,7 @@ function PhotoStudioContent() {
       });
       const data = await res.json();
       if (data?.code === "upgrade_required") {
-        router.push("/personal-dashboard");
+        router.push("/personal-workspace");
         return;
       }
       if (data?.code === "no_points") {
@@ -218,7 +218,7 @@ function PhotoStudioContent() {
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={() => router.push("/personal-dashboard")}
+            onClick={() => router.push("/personal-workspace")}
             className="h-8 w-8 flex items-center justify-center rounded-xl border border-white/8 bg-white/[0.04] text-white/50 hover:text-white hover:bg-white/[0.08] transition-all"
           >
             <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M15 18l-6-6 6-6" /></svg>
@@ -263,7 +263,7 @@ function PhotoStudioContent() {
       )}
 
       <div className="mx-auto max-w-5xl px-6 py-8">
-        <div className={`grid gap-8 ${showHistory ? "lg:grid-cols-[1fr_320px]" : ""}`}>
+        <div className={`grid gap-8 ${showHistory ? "xl:grid-cols-[1fr_320px]" : ""}`}>
 
           {/* LEFT: Generator */}
           <div className="space-y-6">
@@ -384,8 +384,8 @@ function PhotoStudioContent() {
                   onChange={e => setPrompt(e.target.value)}
                   onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) generate(); }}
                   placeholder="Describe the image you want to generate..."
-                  rows={4}
-                  className="w-full bg-transparent px-5 py-4 text-sm text-white/85 placeholder:text-white/24 outline-none resize-none"
+                  rows={3}
+                  className="w-full bg-transparent px-5 py-4 text-sm text-white/85 placeholder:text-white/24 outline-none resize-none sm:rows-4"
                 />
                 <div className="flex items-center justify-between px-4 py-3 border-t border-white/6">
                   <span className="text-[11px] text-white/24">{prompt.length}/1000 · costs {activeModel.points}pt</span>
@@ -459,14 +459,14 @@ function PhotoStudioContent() {
                     <div key={item.id} className="group relative rounded-[14px] overflow-hidden border border-white/8 aspect-square cursor-pointer"
                       onClick={() => setLightbox(item)}>
                       <img src={item.url} alt={item.prompt} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-2.5">
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex flex-col justify-end p-2.5">
                         <p className="text-[10px] text-white/90 line-clamp-2 leading-3.5">{item.prompt}</p>
                         <div className="flex items-center justify-between mt-1.5">
                           <span className="text-[10px] text-white/40">{item.points}pt</span>
                           <button
                             type="button"
                             onClick={e => { e.stopPropagation(); deleteFromHistory(item.id); }}
-                            className="h-5 w-5 flex items-center justify-center rounded-full bg-red-500/80 hover:bg-red-500 transition-colors"
+                            className="h-5 w-5 flex items-center justify-center rounded-full bg-red-500/80 hover:bg-red-500 active:bg-red-500 transition-colors"
                           >
                             <svg viewBox="0 0 14 14" className="h-2.5 w-2.5" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round"><path d="M2 2l10 10M12 2L2 12" /></svg>
                           </button>
@@ -548,7 +548,7 @@ function PhotoStudioContent() {
             <div className="mb-1 text-2xl">⚡</div>
             <h2 className="text-lg font-semibold text-white/92">Photo Credits</h2>
             <p className="mt-1 text-sm text-white/40 mb-2">Current balance: <span className={`font-semibold ${(points ?? 0) < 10 ? "text-red-400" : "text-emerald-400"}`}>{points ?? 0} credits</span></p>
-            <p className="text-xs text-white/30 mb-5">Go plan: 100 credits/month included. Buy extra credits below.</p>
+            <p className="text-xs text-white/30 mb-5">Buy extra credits below. Credits never expire.</p>
             <div className="space-y-2 mb-4">
               {CREDIT_PACKAGES.map(pkg => (
                 <button

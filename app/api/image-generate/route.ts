@@ -157,8 +157,8 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ url, model, points: newPoints, cost }, { headers: NO_STORE });
   } catch (err: any) {
-    console.error("Image generate failed", err?.message);
-    return NextResponse.json({ error: err?.message || "Generation failed" }, { status: 500, headers: NO_STORE });
+    console.error("Image generate failed", typeof err?.message === "string" ? err.message.slice(0, 200) : "unknown");
+    return NextResponse.json({ error: "Generation failed" }, { status: 500, headers: NO_STORE });
   }
 }
 
