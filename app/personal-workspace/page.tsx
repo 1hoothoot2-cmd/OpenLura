@@ -117,13 +117,18 @@ export default function PersonalWorkspacePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
-        body: JSON.stringify({ action: "register", username: registerEmail.trim(), password: registerPassword, name: registerName.trim() }),
+        body: JSON.stringify({ action: "signup", email: registerEmail.trim(), password: registerPassword }),
       });
-      if (!res.ok) { setRegisterError("Registration failed. Try a different email."); return; }
+      const data = await res.json();
+      if (!res.ok) { setRegisterError(data?.error || "Registration failed. Try a different email."); return; }
+      if (data?.requiresConfirmation) {
+        setRegisterError("Check your email to confirm your account, then sign in.");
+        return;
+      }
       setShowLoginModal(false);
       const stripe = await fetch("/api/stripe/checkout", { method: "POST", credentials: "include" });
-      const data = await stripe.json();
-      if (data.url) window.location.href = data.url;
+      const stripeData = await stripe.json();
+      if (stripeData.url) window.location.href = stripeData.url;
     } catch { setRegisterError("Something went wrong."); } finally { setRegisterLoading(false); }
   }
 
