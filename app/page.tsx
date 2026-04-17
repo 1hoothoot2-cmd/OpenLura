@@ -37,13 +37,19 @@ export default function HomePage() {
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(() => {
     if (typeof window === "undefined") return false;
-    return new URLSearchParams(window.location.search).get("login") === "1";
+    const p = new URLSearchParams(window.location.search).get("login");
+    return p === "1" || p === "register";
   });
   const [homeChatInput, setHomeChatInput] = useState("");
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
+  const [loginTab, setLoginTab] = useState<"login" | "register">("login");
+  const [registerEmail, setRegisterEmail] = useState("");
+  const [registerPassword, setRegisterPassword] = useState("");
+  const [registerError, setRegisterError] = useState("");
+  const [registerLoading, setRegisterLoading] = useState(false);
 
   function resetLoginModal() {
     setIsLoginOpen(false);
@@ -51,6 +57,11 @@ export default function HomePage() {
     setLoginPassword("");
     setLoginError("");
     setLoginLoading(false);
+    setLoginTab("login");
+    setRegisterEmail("");
+    setRegisterPassword("");
+    setRegisterError("");
+    setRegisterLoading(false);
   }
 
   async function handleEmailLogin(e: FormEvent<HTMLFormElement>) {
@@ -80,6 +91,33 @@ export default function HomePage() {
       setLoginError("Something went wrong. Try again.");
     } finally {
       setLoginLoading(false);
+    }
+  }
+
+  async function handleRegister() {
+    setRegisterLoading(true);
+    setRegisterError("");
+    try {
+      const res = await fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ action: "signup", email: registerEmail.trim(), password: registerPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setRegisterError(data?.error || "Registration failed. Try a different email."); return; }
+      if (data?.requiresConfirmation) {
+        setRegisterError("Check your email to confirm your account, then sign in.");
+        return;
+      }
+      // Account created + auto-logged in — check upgrade intent
+      let dest = "/personal-workspace";
+      try { if (sessionStorage.getItem("ol_after_login_stripe") === "1") { sessionStorage.removeItem("ol_after_login_stripe"); dest = "/personal-workspace?plan=1"; } } catch {}
+      router.push(dest);
+    } catch {
+      setRegisterError("Something went wrong. Try again.");
+    } finally {
+      setRegisterLoading(false);
     }
   }
 
@@ -365,7 +403,7 @@ export default function HomePage() {
               Log in
             </button>
             <Link
-              href="/personal-workspace"
+              href="/personal-dashboard"
               className="inline-flex rounded-full bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-4 py-1.5 text-[13px] font-medium text-white shadow-[0_4px_14px_rgba(59,130,246,0.28)] transition-[filter,box-shadow] duration-150 hover:brightness-110"
             >
               Open workspace
@@ -396,9 +434,8 @@ export default function HomePage() {
           </p>
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-stretch">
-            <button
-              type="button"
-              onClick={() => setIsLoginOpen(true)}
+            <Link
+              href="/personal-dashboard"
               className="group relative flex flex-col items-start rounded-[22px] border border-[#3b82f6]/24 bg-gradient-to-b from-[#0d1733] to-[#0a1022] px-6 py-6 text-left shadow-[0_8px_28px_rgba(29,78,216,0.16)] transition-[border-color,box-shadow] duration-150 hover:border-[#3b82f6]/40 hover:shadow-[0_12px_36px_rgba(29,78,216,0.22)] sm:w-72"
             >
               <span className="mb-3 inline-flex items-center rounded-full border border-[#3b82f6]/20 bg-[#3b82f6]/10 px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-blue-300">
@@ -412,14 +449,14 @@ export default function HomePage() {
                 <span className="inline-flex items-center rounded-full border border-[#3b82f6]/20 bg-[#3b82f6]/8 px-2 py-0.5 text-[10px] text-blue-300/80">Photo Studio ✦</span>
               </div>
               <span className="mt-4 text-sm font-medium text-blue-400 group-hover:text-blue-300 transition-colors duration-150">Sign in {"\u2192"}</span>
-            </button>
+            </Link>
 
             <div className="flex items-center justify-center">
               <span className="text-[12px] text-white/24">or</span>
             </div>
 
             <Link
-              href="/personal-workspace"
+              href="/personal-dashboard"
               className="group relative flex flex-col items-start rounded-[22px] border border-white/10 bg-white/[0.03] px-6 py-6 text-left transition-[border-color,background-color] duration-150 hover:border-white/16 hover:bg-white/[0.05] sm:w-72"
             >
               <span className="mb-3 inline-flex items-center rounded-full border border-emerald-400/16 bg-emerald-400/8 px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-emerald-300/80">
