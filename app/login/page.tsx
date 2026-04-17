@@ -137,9 +137,13 @@ export default function LoginPage() {
               </div>
             )}
 
-            <p className="mt-4 text-center text-xs text-white/36">
-              <a href="/" className="text-white/42 hover:text-white/70 transition-colors">← Terug naar home</a>
-            </p>
+            <div className="mt-5 flex flex-col items-center gap-3">
+              <a href="/chat"
+                className="w-full rounded-[18px] border border-emerald-400/16 bg-emerald-400/[0.06] px-4 py-3 text-center text-sm font-medium text-emerald-300/80 transition-[background-color,border-color,color] duration-200 hover:border-emerald-400/28 hover:bg-emerald-400/[0.10] hover:text-emerald-200">
+                Skip — continue for free →
+              </a>
+              <a href="/" className="text-xs text-white/42 hover:text-white/70 transition-colors">← Terug naar home</a>
+            </div>
           </div>
         </div>
       </div>
