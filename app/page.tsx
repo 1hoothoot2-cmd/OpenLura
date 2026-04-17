@@ -451,21 +451,6 @@ export default function HomePage() {
               <span className="mt-4 text-sm font-medium text-blue-400 group-hover:text-blue-300 transition-colors duration-150">Sign in {"\u2192"}</span>
             </Link>
 
-            <div className="flex items-center justify-center">
-              <span className="text-[12px] text-white/24">or</span>
-            </div>
-
-            <Link
-              href="/personal-dashboard"
-              className="group relative flex flex-col items-start rounded-[22px] border border-white/10 bg-white/[0.03] px-6 py-6 text-left transition-[border-color,background-color] duration-150 hover:border-white/16 hover:bg-white/[0.05] sm:w-72"
-            >
-              <span className="mb-3 inline-flex items-center rounded-full border border-emerald-400/16 bg-emerald-400/8 px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-emerald-300/80">
-                Free
-              </span>
-              <span className="text-base font-semibold text-white">Try the chat</span>
-              <span className="mt-2 text-sm leading-6 text-white/46">No account needed. Start asking, writing, and planning.</span>
-              <span className="mt-4 text-sm font-medium text-white/40 group-hover:text-white/70 transition-colors duration-150">Open workspace {"\u2192"}</span>
-            </Link>
           </div>
 
           {/* HOMEPAGE CHAT ENTRY */}
