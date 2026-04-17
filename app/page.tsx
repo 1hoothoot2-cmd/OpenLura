@@ -436,19 +436,25 @@ export default function HomePage() {
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-stretch">
             <Link
               href="/personal-dashboard"
-              className="group relative flex flex-col items-start rounded-[22px] border border-[#3b82f6]/24 bg-gradient-to-b from-[#0d1733] to-[#0a1022] px-6 py-6 text-left shadow-[0_8px_28px_rgba(29,78,216,0.16)] transition-[border-color,box-shadow] duration-150 hover:border-[#3b82f6]/40 hover:shadow-[0_12px_36px_rgba(29,78,216,0.22)] sm:w-72"
+              className="group relative flex flex-col items-start rounded-[22px] border border-[#3b82f6]/24 bg-gradient-to-b from-[#0d1733] to-[#0a1022] px-6 py-6 text-left shadow-[0_8px_28px_rgba(29,78,216,0.16)] transition-[border-color,box-shadow] duration-150 hover:border-[#3b82f6]/40 hover:shadow-[0_12px_36px_rgba(29,78,216,0.22)] w-full sm:max-w-md"
             >
-              <span className="mb-3 inline-flex items-center rounded-full border border-[#3b82f6]/20 bg-[#3b82f6]/10 px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-blue-300">
-                Personal
-              </span>
-              <span className="text-base font-semibold text-white">Log in to your dashboard</span>
-              <span className="mt-2 text-sm leading-6 text-white/46">Your workspace, history, and AI — all in one place.</span>
+              <div className="flex items-center gap-2.5 mb-3">
+                <span className="inline-flex items-center rounded-full border border-[#3b82f6]/20 bg-[#3b82f6]/10 px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-blue-300">
+                  Personal
+                </span>
+                <span className="inline-flex items-center rounded-full border border-emerald-400/16 bg-emerald-400/8 px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-emerald-300/80">
+                  Free to start
+                </span>
+              </div>
+              <span className="text-base font-semibold text-white">Open your AI workspace</span>
+              <span className="mt-2 text-sm leading-6 text-white/46">Chat, search, and create — no account needed. Sign in to unlock memory, Brain, and Photo Studio.</span>
               <div className="mt-3 flex flex-wrap gap-1.5">
+                <span className="inline-flex items-center rounded-full border border-emerald-400/16 bg-emerald-400/8 px-2 py-0.5 text-[10px] text-emerald-300/70">Free chat</span>
                 <span className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] text-white/46">Memory</span>
                 <span className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] text-white/46">Web search</span>
                 <span className="inline-flex items-center rounded-full border border-[#3b82f6]/20 bg-[#3b82f6]/8 px-2 py-0.5 text-[10px] text-blue-300/80">Photo Studio ✦</span>
               </div>
-              <span className="mt-4 text-sm font-medium text-blue-400 group-hover:text-blue-300 transition-colors duration-150">Sign in {"\u2192"}</span>
+              <span className="mt-4 text-sm font-medium text-blue-400 group-hover:text-blue-300 transition-colors duration-150">Get started {"\u2192"}</span>
             </Link>
 
           </div>
@@ -460,11 +466,11 @@ export default function HomePage() {
                 type="text"
                 value={homeChatInput}
                 onChange={(e) => setHomeChatInput(e.target.value)}
-                onFocus={() => router.prefetch("/personal-workspace")}
+                onFocus={() => router.prefetch("/personal-dashboard")}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && homeChatInput.trim()) {
                     e.preventDefault();
-                    router.push(`/personal-workspace?q=${encodeURIComponent(homeChatInput.trim())}`);
+                    router.push(`/personal-dashboard?q=${encodeURIComponent(homeChatInput.trim())}`);
                   }
                 }}
                 placeholder={t("hero_chat_placeholder") || "How can I assist you?"}
@@ -475,7 +481,7 @@ export default function HomePage() {
                 disabled={!homeChatInput.trim()}
                 onClick={() => {
                   if (homeChatInput.trim()) {
-                    router.push(`/personal-workspace?q=${encodeURIComponent(homeChatInput.trim())}`);
+                    router.push(`/personal-dashboard?q=${encodeURIComponent(homeChatInput.trim())}`);
                   }
                 }}
                 className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] text-sm text-white shadow-[0_4px_12px_rgba(59,130,246,0.28)] transition-[transform,filter,opacity] duration-200 hover:brightness-110 active:scale-95 disabled:cursor-not-allowed disabled:opacity-30"
@@ -492,9 +498,9 @@ export default function HomePage() {
                 <button
                   key={starter}
                   type="button"
-                  onMouseEnter={() => router.prefetch("/personal-workspace")}
+                  onMouseEnter={() => router.prefetch("/personal-dashboard")}
                   onClick={() => {
-                    router.push(`/personal-workspace?q=${encodeURIComponent(starter)}`);
+                    router.push(`/personal-dashboard?q=${encodeURIComponent(starter)}`);
                   }}
                   className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] text-white/52 backdrop-blur-xl ol-interactive transition-[transform,background-color,border-color,color] duration-200 hover:border-[#3b82f6]/24 hover:bg-[#3b82f6]/10 hover:text-white/88 active:scale-95"
                 >
@@ -544,7 +550,7 @@ export default function HomePage() {
                   <div className="flex items-center gap-2.5"><span className="h-1.5 w-1.5 rounded-full bg-white/40" /><p className="text-sm text-white/68">150 messages per month</p></div>
                 </div>
                 <Link
-                  href="/personal-workspace"
+                  href="/personal-dashboard"
                   className="mt-6 inline-flex w-full items-center justify-center rounded-[16px] border border-white/10 bg-white/[0.04] py-3 text-sm font-medium text-white/80 transition-[background-color,border-color,color] duration-150 hover:border-white/16 hover:bg-white/[0.07] hover:text-white"
                 >
                   Start for free
