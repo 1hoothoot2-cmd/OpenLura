@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
+import { PublicFooter } from "@/components/footer/PublicFooter";
+import { PublicNavigation } from "@/components/navigation/PublicNavigation";
+import { skyTrackerProduct } from "@/products";
 
 export const metadata: Metadata = {
   alternates: {
@@ -20,34 +22,7 @@ export default function HomePage() {
         className="pointer-events-none absolute -left-32 top-72 h-80 w-80 rounded-full bg-blue-700/[0.06] blur-[100px]"
       />
 
-      <nav
-        aria-label="Primary navigation"
-        className="relative z-20 border-b border-white/[0.06] bg-[#050510]/88 backdrop-blur-xl"
-      >
-        <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-[11px] border border-[#3b82f6]/20 bg-[radial-gradient(circle_at_30%_30%,rgba(96,165,250,0.18),rgba(29,78,216,0.06)_52%,transparent_78%)]">
-              <Image
-                src="/openlura-logo.png"
-                alt=""
-                width={36}
-                height={36}
-                className="h-full w-full object-contain"
-              />
-            </div>
-            <span className="text-sm font-semibold tracking-[-0.02em] text-white/92">
-              OpenLura
-            </span>
-          </div>
-
-          <Link
-            href="/skytracker"
-            className="rounded-full px-3 py-2 text-sm font-medium text-white/64 transition-colors duration-200 hover:bg-white/[0.05] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#050510]"
-          >
-            SkyTracker
-          </Link>
-        </div>
-      </nav>
+      <PublicNavigation variant="home" />
 
       <div className="relative z-10 mx-auto flex w-full max-w-6xl flex-col px-4 pb-10 pt-16 sm:px-6 sm:pb-12 sm:pt-20 lg:px-8 lg:pt-24">
         <section aria-labelledby="homepage-title" className="max-w-3xl">
@@ -104,11 +79,10 @@ export default function HomePage() {
                   id="skytracker-title"
                   className="mt-5 text-3xl font-semibold tracking-[-0.03em] text-white/94 sm:text-4xl"
                 >
-                  SkyTracker
+                  {skyTrackerProduct.name}
                 </h2>
                 <p className="mt-3 max-w-xl text-base leading-7 text-white/56">
-                  A modern aircraft tracking experience built for people who
-                  want to explore the sky with clarity.
+                  {skyTrackerProduct.shortDescription}
                 </p>
 
                 <ul className="mt-7 grid gap-3 text-sm text-white/68 sm:grid-cols-2">
@@ -147,16 +121,7 @@ export default function HomePage() {
         </section>
       </div>
 
-      <footer className="relative z-10 border-t border-white/[0.06]">
-        <div className="mx-auto flex w-full max-w-6xl items-center px-4 py-6 sm:px-6 lg:px-8">
-          <Link
-            href="/privacy"
-            className="text-sm text-white/38 transition-colors duration-200 hover:text-white/72 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#050510]"
-          >
-            Privacy
-          </Link>
-        </div>
-      </footer>
+      <PublicFooter variant="home" />
     </main>
   );
 }

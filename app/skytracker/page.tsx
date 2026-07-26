@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import { ProductLayout } from "@/components/product/ProductLayout";
+import { skyTrackerProduct } from "@/products";
 
 export const metadata: Metadata = {
   title: "SkyTracker",
@@ -377,46 +379,7 @@ function ProductPreview() {
 
 export default function SkyTrackerPage() {
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[#04050c] text-white">
-      <nav
-        aria-label="Primary navigation"
-        className="relative z-30 border-b border-white/[0.06] bg-[#04050c]/90 backdrop-blur-xl"
-      >
-        <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          <Link
-            href="/"
-            className="flex min-h-11 items-center gap-2.5 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#04050c]"
-          >
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-[11px] border border-blue-400/20 bg-blue-500/[0.08]">
-              <Image
-                src="/openlura-logo.png"
-                alt=""
-                width={36}
-                height={36}
-                className="h-full w-full object-contain"
-              />
-            </span>
-            <span className="text-sm font-semibold tracking-[-0.02em]">
-              OpenLura
-            </span>
-          </Link>
-
-          <div className="flex items-center gap-1 sm:gap-3">
-            <Link
-              href="/"
-              className="flex min-h-11 items-center rounded-full px-3 text-sm text-white/52 transition-colors hover:bg-white/[0.05] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
-            >
-              Home
-            </Link>
-            <span
-              aria-current="page"
-              className="flex min-h-9 items-center rounded-full border border-white/[0.06] bg-white/[0.06] px-3 text-sm font-medium text-white/90"
-            >
-              SkyTracker
-            </span>
-          </div>
-        </div>
-      </nav>
+    <ProductLayout product={skyTrackerProduct}>
 
       <section
         aria-labelledby="skytracker-heading"
@@ -725,25 +688,6 @@ export default function SkyTrackerPage() {
         </div>
       </section>
 
-      <footer className="border-t border-white/[0.06]">
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-7 text-sm sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
-          <p className="text-white/30">OpenLura · SkyTracker in development</p>
-          <div className="flex items-center gap-5">
-            <Link
-              href="/"
-              className="flex min-h-11 items-center text-white/42 transition-colors hover:text-white/76 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 motion-reduce:transition-none"
-            >
-              Home
-            </Link>
-            <Link
-              href="/privacy"
-              className="flex min-h-11 items-center text-white/42 transition-colors hover:text-white/76 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 motion-reduce:transition-none"
-            >
-              Privacy
-            </Link>
-          </div>
-        </div>
-      </footer>
-    </main>
+    </ProductLayout>
   );
 }
