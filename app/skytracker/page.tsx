@@ -426,15 +426,15 @@ export default function SkyTrackerPage() {
               interface.
             </p>
             <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-              <a
-                href="#status"
+              <Link
+                href="/skytracker/live"
                 className="ol-interactive inline-flex min-h-12 items-center justify-center rounded-full bg-gradient-to-r from-cyan-400 to-blue-500 px-6 py-3 text-sm font-semibold text-[#03111a] shadow-[0_14px_38px_rgba(34,211,238,0.2)] motion-safe:hover:-translate-y-0.5 motion-safe:hover:brightness-110 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200 focus-visible:ring-offset-2 focus-visible:ring-offset-[#04050c]"
               >
-                Follow development
+                Open Live Map
                 <span aria-hidden="true" className="ml-2">
-                  ↓
+                  →
                 </span>
-              </a>
+              </Link>
               <Link
                 href="/"
                 className="ol-interactive inline-flex min-h-12 items-center justify-center rounded-full border border-white/12 bg-white/[0.035] px-6 py-3 text-sm font-medium text-white/68 motion-safe:hover:-translate-y-0.5 hover:border-white/22 hover:bg-white/[0.06] hover:text-white motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200 focus-visible:ring-offset-2 focus-visible:ring-offset-[#04050c]"
@@ -572,9 +572,9 @@ export default function SkyTrackerPage() {
               Built carefully, tested honestly
             </h2>
             <p className="mt-5 max-w-md text-base leading-7 text-white/43">
-              SkyTracker remains in active Android development. The current
-              experience is not yet available as a public download, and there
-              is no web version.
+              SkyTracker remains in active development. The Android experience
+              is not yet available as a public download, while the web map is
+              currently a technical preview without aircraft data.
             </p>
             <a
               href="#openlura"
