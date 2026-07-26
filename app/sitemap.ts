@@ -1,6 +1,21 @@
-export default function sitemap() {
+import type { MetadataRoute } from "next";
+
+export default function sitemap(): MetadataRoute.Sitemap {
   return [
-    { url: 'https://openlura.ai', lastModified: new Date() },
-    { url: 'https://openlura.ai/chat', lastModified: new Date() },
-  ]
+    {
+      url: "https://openlura.ai",
+      changeFrequency: "monthly",
+      priority: 1,
+    },
+    {
+      url: "https://openlura.ai/skytracker",
+      changeFrequency: "monthly",
+      priority: 0.9,
+    },
+    {
+      url: "https://openlura.ai/privacy",
+      changeFrequency: "yearly",
+      priority: 0.3,
+    },
+  ];
 }
