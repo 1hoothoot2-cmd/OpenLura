@@ -19,6 +19,7 @@ type AircraftMotionRuntimeOptions = Readonly<{
   window: Window;
   document: Document;
   reducedMotionQuery: MediaQueryList;
+  onFrame?: (aircraft: readonly Aircraft[], frameTimeMillis: number) => void;
 }>;
 
 export class AircraftMotionRuntime {
@@ -29,6 +30,7 @@ export class AircraftMotionRuntime {
   private readonly window: Window;
   private readonly document: Document;
   private readonly reducedMotionQuery: MediaQueryList;
+  private readonly onFrame: AircraftMotionRuntimeOptions["onFrame"];
   private readonly clock: ReplayClock;
   private selectedAircraftId: AircraftId | null;
   private frameHandle: number | null = null;
@@ -43,6 +45,7 @@ export class AircraftMotionRuntime {
     this.window = options.window;
     this.document = options.document;
     this.reducedMotionQuery = options.reducedMotionQuery;
+    this.onFrame = options.onFrame;
     this.clock = new ReplayClock(() => options.window.performance.now());
   }
 
@@ -153,6 +156,7 @@ export class AircraftMotionRuntime {
     }
 
     const movedAircraft = this.sampleAircraft(currentTimeMillis);
+    this.onFrame?.(movedAircraft, currentTimeMillis);
     const collection = createAircraftFeatureCollection(
       presentAircraft(movedAircraft, this.selectedAircraftId),
     );

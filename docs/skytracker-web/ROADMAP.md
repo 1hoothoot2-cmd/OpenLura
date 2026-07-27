@@ -7,7 +7,7 @@ Legenda: ✅ geaccepteerd · 🟡 technisch gereed, acceptatie open · ⬜ gepla
 - ✅ L2 — Aircraft Rendering
 - ✅ L3 — Smooth Motion
 - 🟡 L4 — Local Backend Integration
-- ⬜ L5 — Aircraft Details
+- 🟡 L5 — Aircraft Details & Follow
 - ⬜ L5A — Monetization Foundation
 - ⬜ L6 — Search
 - ⬜ L7 — Filters
@@ -20,3 +20,7 @@ Legenda: ✅ geaccepteerd · 🟡 technisch gereed, acceptatie open · ⬜ gepla
 L4 gebruikt lokaal uitsluitend backend-developmentdata. De technische
 integratie is gereed; normale Product Owner-Chromeacceptatie en specifieke
 desktop/tablet/mobilecontrole blijven de sluitingscriteria.
+
+L5 gebruikt uitsluitend `GET /v1/aircraft` en de bestaande motionpipeline.
+Details en Follow zijn technisch en lokaal in de browser bewezen; definitieve
+Product Owner-Chromeacceptatie en de volledige responsive matrix blijven open.

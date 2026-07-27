@@ -10,6 +10,7 @@ import {
   type ErrorEvent,
 } from "maplibre-gl";
 import type { Aircraft, AircraftId } from "../../aircraft/domain/aircraft";
+import { aircraftDetailItems } from "../../aircraft/presentation/aircraftDetails";
 import { createAircraftFeatureCollection } from "../../aircraft/presentation/aircraftGeoJson";
 import { presentAircraft } from "../../aircraft/presentation/presentedAircraft";
 import { normalizeViewportBounds } from "../../backend/domain/viewportBounds";
@@ -34,6 +35,10 @@ import {
   type SkyTrackerMapStyle,
 } from "../infrastructure/mapConfig";
 import { AircraftMotionRuntime } from "../infrastructure/aircraftMotionRuntime";
+import {
+  shouldUpdateFollowCamera,
+  type FollowCameraSample,
+} from "../domain/followCameraPolicy";
 
 type MapStatus = "loading" | "ready" | "error";
 
@@ -66,13 +71,19 @@ export function SkyTrackerLiveMap({
   });
   const [selectedAircraftId, setSelectedAircraftId] =
     useState<AircraftId | null>(null);
+  const [followEnabled, setFollowEnabled] = useState(false);
   const mapRef = useRef<MapLibreMap | null>(null);
   const currentAircraftRef = useRef<readonly Aircraft[]>([]);
   const initialSelectionAttemptedRef = useRef(false);
+  const selectedAircraftIdRef = useRef<AircraftId | null>(null);
 
   useEffect(() => {
     currentAircraftRef.current = aircraft;
   }, [aircraft]);
+
+  useEffect(() => {
+    selectedAircraftIdRef.current = selectedAircraftId;
+  }, [selectedAircraftId]);
 
   const presentedAircraft = useMemo(
     () =>
@@ -86,7 +97,9 @@ export function SkyTrackerLiveMap({
     () => createAircraftFeatureCollection(presentedAircraft),
     [presentedAircraft],
   );
-  const selectedAircraft = presentedAircraft.find((item) => item.selected) ?? null;
+  const selectedAircraft = aircraft.find((item) => item.id === selectedAircraftId) ?? null;
+  const selectedPresentedAircraft =
+    presentedAircraft.find((item) => item.selected) ?? null;
 
   const selectAircraft = useCallback((aircraftId: AircraftId | null) => {
     const validSelection =
@@ -94,6 +107,7 @@ export function SkyTrackerLiveMap({
       currentAircraftRef.current.some((item) => item.id === aircraftId)
         ? aircraftId
         : null;
+    if (validSelection !== selectedAircraftIdRef.current) setFollowEnabled(false);
     setSelectedAircraftId(validSelection);
     updateAircraftQuery(validSelection);
   }, []);
@@ -101,6 +115,12 @@ export function SkyTrackerLiveMap({
   const acceptSnapshot = useCallback((nextAircraft: readonly Aircraft[], nextStatus: BackendStatus) => {
     setAircraft([...nextAircraft]);
     setBackendStatus(nextStatus);
+    if (
+      selectedAircraftIdRef.current &&
+      !nextAircraft.some((item) => item.id === selectedAircraftIdRef.current)
+    ) {
+      setFollowEnabled(false);
+    }
     setSelectedAircraftId((current) => {
       if (!initialSelectionAttemptedRef.current) {
         initialSelectionAttemptedRef.current = true;
@@ -114,6 +134,8 @@ export function SkyTrackerLiveMap({
       return null;
     });
   }, [initialAircraftId]);
+
+  const stopFollowing = useCallback(() => setFollowEnabled(false), []);
 
   const retryMap = useCallback(() => {
     setStatus("loading");
@@ -177,20 +199,22 @@ export function SkyTrackerLiveMap({
           aircraftFeatures={aircraftFeatures}
           aircraft={aircraft}
           selectedAircraftId={selectedAircraftId}
+          followEnabled={followEnabled}
           backendStatus={backendStatus}
           onBackendStatusChange={setBackendStatus}
           onSnapshot={acceptSnapshot}
           onStatusChange={setStatus}
           onBearingChange={setBearing}
           onSelectAircraft={selectAircraft}
+          onFollowStopped={stopFollowing}
           onRetry={retryMap}
         />
 
-        {selectedAircraft && (
+        {selectedAircraft && selectedPresentedAircraft && (
           <aside
             aria-live="polite"
-            aria-label={`${selectedAircraft.displayCallsign} selected aircraft`}
-            className="absolute bottom-5 left-3 z-20 w-[min(22rem,calc(100%-5.5rem))] rounded-[22px] border border-amber-200/18 bg-[#0a111c]/88 p-4 shadow-[0_18px_55px_rgba(0,0,0,0.4)] backdrop-blur-xl sm:bottom-6 sm:left-5 sm:p-5 lg:left-7"
+            aria-label={`${selectedPresentedAircraft.displayCallsign} aircraft details`}
+            className="absolute bottom-3 left-3 z-20 max-h-[min(70vh,38rem)] w-[min(25rem,calc(100%-1.5rem))] overflow-y-auto rounded-[22px] border border-amber-200/18 bg-[#0a111c]/90 p-4 shadow-[0_18px_55px_rgba(0,0,0,0.4)] backdrop-blur-xl sm:bottom-5 sm:left-5 sm:w-[24rem] sm:p-5 lg:left-7"
           >
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
@@ -198,7 +222,7 @@ export function SkyTrackerLiveMap({
                   Selected aircraft
                 </p>
                 <p className="mt-2 truncate text-base font-semibold text-white/92">
-                  {selectedAircraft.displayCallsign}
+                  {selectedPresentedAircraft.displayCallsign}
                 </p>
                 {selectedAircraft.registration && (
                   <p className="mt-1 text-sm text-white/48">
@@ -211,13 +235,33 @@ export function SkyTrackerLiveMap({
                 className="mt-1 h-3 w-3 shrink-0 rounded-full border-2 border-amber-200 bg-amber-400 shadow-[0_0_16px_rgba(251,191,36,0.65)]"
               />
             </div>
-            <button
-              type="button"
-              onClick={() => selectAircraft(null)}
-              className="ol-interactive mt-4 min-h-11 rounded-full border border-white/10 px-4 text-sm text-white/68 hover:border-white/18 hover:bg-white/[0.05] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
-            >
-              Clear selection
-            </button>
+            <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-white/[0.07] pt-4">
+              {aircraftDetailItems(selectedAircraft).map((item) => (
+                <div key={item.label} className="min-w-0">
+                  <dt className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/36">
+                    {item.label}
+                  </dt>
+                  <dd className="mt-1 break-words text-sm text-white/76">{item.value}</dd>
+                </div>
+              ))}
+            </dl>
+            <div className="mt-5 flex flex-wrap gap-2 border-t border-white/[0.07] pt-4">
+              <button
+                type="button"
+                aria-pressed={followEnabled}
+                onClick={() => setFollowEnabled((current) => !current)}
+                className="ol-interactive min-h-11 rounded-full border border-cyan-200/18 bg-cyan-200/[0.07] px-4 text-sm font-medium text-cyan-50 hover:bg-cyan-200/[0.12] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+              >
+                {followEnabled ? "Stop following" : "Follow aircraft"}
+              </button>
+              <button
+                type="button"
+                onClick={() => selectAircraft(null)}
+                className="ol-interactive min-h-11 rounded-full border border-white/10 px-4 text-sm text-white/68 hover:border-white/18 hover:bg-white/[0.05] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
+              >
+                Clear selection
+              </button>
+            </div>
           </aside>
         )}
       </section>
@@ -233,12 +277,14 @@ type MapViewportProps = {
   aircraftFeatures: ReturnType<typeof createAircraftFeatureCollection>;
   aircraft: readonly Aircraft[];
   selectedAircraftId: AircraftId | null;
+  followEnabled: boolean;
   backendStatus: BackendStatus;
   onBackendStatusChange: (status: BackendStatus) => void;
   onSnapshot: (aircraft: readonly Aircraft[], status: BackendStatus) => void;
   onStatusChange: (status: MapStatus) => void;
   onBearingChange: (bearing: number) => void;
   onSelectAircraft: (aircraftId: AircraftId | null) => void;
+  onFollowStopped: () => void;
   onRetry: () => void;
 };
 
@@ -250,12 +296,14 @@ function MapViewport({
   aircraftFeatures,
   aircraft,
   selectedAircraftId,
+  followEnabled,
   backendStatus,
   onBackendStatusChange,
   onSnapshot,
   onStatusChange,
   onBearingChange,
   onSelectAircraft,
+  onFollowStopped,
   onRetry,
 }: MapViewportProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -267,12 +315,20 @@ function MapViewport({
   const schedulerRef = useRef<ViewportPollingScheduler | null>(null);
   const requestRef = useRef<AbortController | null>(null);
   const moveDebounceRef = useRef<number | null>(null);
+  const followEnabledRef = useRef(followEnabled);
+  const lastFollowSampleRef = useRef<FollowCameraSample | null>(null);
+  const followMoveRef = useRef(false);
 
   useEffect(() => {
     aircraftFeaturesRef.current = aircraftFeatures;
     selectedAircraftIdRef.current = selectedAircraftId;
     motionRuntimeRef.current?.setSelectedAircraftId(selectedAircraftId);
   }, [aircraftFeatures, selectedAircraftId]);
+
+  useEffect(() => {
+    followEnabledRef.current = followEnabled;
+    if (!followEnabled) lastFollowSampleRef.current = null;
+  }, [followEnabled]);
 
   useEffect(() => {
     aircraftRef.current = aircraft;
@@ -368,6 +424,10 @@ function MapViewport({
     };
 
     const handleMoveEnd = () => {
+      if (followMoveRef.current) {
+        followMoveRef.current = false;
+        return;
+      }
       if (moveDebounceRef.current !== null) {
         window.clearTimeout(moveDebounceRef.current);
       }
@@ -375,6 +435,13 @@ function MapViewport({
         requestRef.current?.abort();
         schedulerRef.current?.reset();
       }, MOVE_END_DEBOUNCE_MILLIS);
+    };
+
+    const handleDragStart = () => {
+      if (!followEnabledRef.current) return;
+      followEnabledRef.current = false;
+      lastFollowSampleRef.current = null;
+      onFollowStopped();
     };
 
     const handleVisibility = () => {
@@ -403,6 +470,28 @@ function MapViewport({
         reducedMotionQuery: window.matchMedia(
           "(prefers-reduced-motion: reduce)",
         ),
+        onFrame: (frameAircraft, frameTimeMillis) => {
+          if (!followEnabledRef.current || !selectedAircraftIdRef.current) return;
+          const target = frameAircraft.find(
+            (item) => item.id === selectedAircraftIdRef.current,
+          );
+          if (!target) return;
+          const sample = {
+            longitudeDegrees: target.longitudeDegrees,
+            latitudeDegrees: target.latitudeDegrees,
+            timestampMillis: frameTimeMillis,
+          };
+          if (!shouldUpdateFollowCamera(lastFollowSampleRef.current, sample)) return;
+          lastFollowSampleRef.current = sample;
+          followMoveRef.current = true;
+          map.easeTo({
+            center: [sample.longitudeDegrees, sample.latitudeDegrees],
+            duration: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+              ? 0
+              : 450,
+            essential: false,
+          });
+        },
       });
       motionRuntimeRef.current.start();
       if (API_CONFIG.configured) {
@@ -428,6 +517,7 @@ function MapViewport({
     map.on("error", handleError);
     map.on("rotate", handleRotate);
     map.on("moveend", handleMoveEnd);
+    map.on("dragstart", handleDragStart);
     document.addEventListener("visibilitychange", handleVisibility);
 
     const resizeObserver = new ResizeObserver(() => {
@@ -459,6 +549,7 @@ function MapViewport({
       map.off("error", handleError);
       map.off("rotate", handleRotate);
       map.off("moveend", handleMoveEnd);
+      map.off("dragstart", handleDragStart);
       document.removeEventListener("visibilitychange", handleVisibility);
       map.remove();
       if (mapRef.current === map) mapRef.current = null;
@@ -468,6 +559,7 @@ function MapViewport({
     onBearingChange,
     onBackendStatusChange,
     onSnapshot,
+    onFollowStopped,
     onSelectAircraft,
     onStatusChange,
     style,
