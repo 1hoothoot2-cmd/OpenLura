@@ -2,12 +2,24 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AttributionControl,
   Map as MapLibreMap,
   type ErrorEvent,
 } from "maplibre-gl";
+import type { AircraftId } from "../../aircraft/domain/aircraft";
+import { validateAircraftSnapshot } from "../../aircraft/domain/aircraftValidation";
+import {
+  DEVELOPMENT_AIRCRAFT,
+  INITIAL_SELECTED_AIRCRAFT_ID,
+} from "../../aircraft/fixtures/developmentAircraft";
+import { createAircraftFeatureCollection } from "../../aircraft/presentation/aircraftGeoJson";
+import { presentAircraft } from "../../aircraft/presentation/presentedAircraft";
+import {
+  registerAircraftMapPresentation,
+  type AircraftMapRegistration,
+} from "../presentation/aircraftMapRenderer";
 import {
   SKYTRACKER_INITIAL_CENTER,
   SKYTRACKER_INITIAL_ZOOM,
@@ -19,11 +31,46 @@ import {
 
 type MapStatus = "loading" | "ready" | "error";
 
-export function SkyTrackerLiveMap() {
+const VALIDATED_FIXTURES = validateAircraftSnapshot(DEVELOPMENT_AIRCRAFT);
+
+type SkyTrackerLiveMapProps = {
+  initialAircraftId?: string | null;
+};
+
+export function SkyTrackerLiveMap({
+  initialAircraftId = null,
+}: SkyTrackerLiveMapProps) {
+  const initialSelection = resolveInitialSelection(initialAircraftId);
   const [retryKey, setRetryKey] = useState(0);
   const [status, setStatus] = useState<MapStatus>("loading");
   const [bearing, setBearing] = useState(0);
+  const [selectedAircraftId, setSelectedAircraftId] =
+    useState<AircraftId | null>(initialSelection);
   const mapRef = useRef<MapLibreMap | null>(null);
+
+  const presentedAircraft = useMemo(
+    () =>
+      presentAircraft(
+        VALIDATED_FIXTURES.validAircraft,
+        selectedAircraftId,
+      ),
+    [selectedAircraftId],
+  );
+  const aircraftFeatures = useMemo(
+    () => createAircraftFeatureCollection(presentedAircraft),
+    [presentedAircraft],
+  );
+  const selectedAircraft = presentedAircraft.find((item) => item.selected) ?? null;
+
+  const selectAircraft = useCallback((aircraftId: AircraftId | null) => {
+    const validSelection =
+      aircraftId &&
+      VALIDATED_FIXTURES.validAircraft.some((aircraft) => aircraft.id === aircraftId)
+        ? aircraftId
+        : null;
+    setSelectedAircraftId(validSelection);
+    updateAircraftQuery(validSelection);
+  }, []);
 
   const retryMap = useCallback(() => {
     setStatus("loading");
@@ -33,7 +80,7 @@ export function SkyTrackerLiveMap() {
 
   return (
     <main className="relative isolate flex h-dvh min-h-[520px] w-full flex-col overflow-hidden bg-[#030711] text-white">
-      <h1 className="sr-only">SkyTracker live map preview</h1>
+      <h1 className="sr-only">SkyTracker aircraft map preview</h1>
 
       <header className="relative z-30 flex h-16 shrink-0 items-center justify-between border-b border-white/[0.07] bg-[#040711]/88 px-3 backdrop-blur-xl sm:px-5 lg:px-7">
         <Link
@@ -63,7 +110,7 @@ export function SkyTrackerLiveMap() {
               aria-hidden="true"
               className="h-1.5 w-1.5 rounded-full bg-cyan-300 shadow-[0_0_10px_rgba(103,232,249,0.55)]"
             />
-            Preview
+            Fixture data
           </span>
           <Link
             href="/skytracker"
@@ -75,7 +122,7 @@ export function SkyTrackerLiveMap() {
       </header>
 
       <section
-        aria-label="Interactive SkyTracker map"
+        aria-label="Interactive SkyTracker map with 12 development fixture aircraft. Select an aircraft on the map, or use the clear selection button after selecting one."
         className="relative min-h-0 flex-1"
       >
         <MapViewport
@@ -84,10 +131,47 @@ export function SkyTrackerLiveMap() {
           style={SKYTRACKER_MAP_STYLE_URL}
           status={status}
           bearing={bearing}
+          aircraftFeatures={aircraftFeatures}
           onStatusChange={setStatus}
           onBearingChange={setBearing}
+          onSelectAircraft={selectAircraft}
           onRetry={retryMap}
         />
+
+        {selectedAircraft && (
+          <aside
+            aria-live="polite"
+            aria-label={`${selectedAircraft.displayCallsign} selected aircraft`}
+            className="absolute bottom-5 left-3 z-20 w-[min(22rem,calc(100%-5.5rem))] rounded-[22px] border border-amber-200/18 bg-[#0a111c]/88 p-4 shadow-[0_18px_55px_rgba(0,0,0,0.4)] backdrop-blur-xl sm:bottom-6 sm:left-5 sm:p-5 lg:left-7"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-200/62">
+                  Selected aircraft
+                </p>
+                <p className="mt-2 truncate text-base font-semibold text-white/92">
+                  {selectedAircraft.displayCallsign}
+                </p>
+                {selectedAircraft.registration && (
+                  <p className="mt-1 text-sm text-white/48">
+                    {selectedAircraft.registration}
+                  </p>
+                )}
+              </div>
+              <span
+                aria-hidden="true"
+                className="mt-1 h-3 w-3 shrink-0 rounded-full border-2 border-amber-200 bg-amber-400 shadow-[0_0_16px_rgba(251,191,36,0.65)]"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => selectAircraft(null)}
+              className="ol-interactive mt-4 min-h-11 rounded-full border border-white/10 px-4 text-sm text-white/68 hover:border-white/18 hover:bg-white/[0.05] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
+            >
+              Clear selection
+            </button>
+          </aside>
+        )}
       </section>
     </main>
   );
@@ -98,8 +182,10 @@ type MapViewportProps = {
   style: SkyTrackerMapStyle;
   status: MapStatus;
   bearing: number;
+  aircraftFeatures: ReturnType<typeof createAircraftFeatureCollection>;
   onStatusChange: (status: MapStatus) => void;
   onBearingChange: (bearing: number) => void;
+  onSelectAircraft: (aircraftId: AircraftId | null) => void;
   onRetry: () => void;
 };
 
@@ -108,11 +194,20 @@ function MapViewport({
   style,
   status,
   bearing,
+  aircraftFeatures,
   onStatusChange,
   onBearingChange,
+  onSelectAircraft,
   onRetry,
 }: MapViewportProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const registrationRef = useRef<AircraftMapRegistration | null>(null);
+  const aircraftFeaturesRef = useRef(aircraftFeatures);
+
+  useEffect(() => {
+    aircraftFeaturesRef.current = aircraftFeatures;
+    registrationRef.current?.sourceWriter.write(aircraftFeatures);
+  }, [aircraftFeatures]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -138,16 +233,16 @@ function MapViewport({
     });
 
     mapRef.current = map;
-    map.addControl(
-      new AttributionControl({
-        compact: true,
-      }),
-      "bottom-right",
-    );
+    map.addControl(new AttributionControl({ compact: true }), "bottom-right");
 
     const handleLoad = () => {
       if (disposed) return;
       styleReady = true;
+      registrationRef.current = registerAircraftMapPresentation(
+        map,
+        aircraftFeaturesRef.current,
+        onSelectAircraft,
+      );
       onStatusChange("ready");
       onBearingChange(map.getBearing());
     };
@@ -180,31 +275,24 @@ function MapViewport({
       disposed = true;
       resizeObserver.disconnect();
       if (resizeFrame !== null) window.cancelAnimationFrame(resizeFrame);
+      registrationRef.current?.remove();
+      registrationRef.current = null;
       map.off("style.load", handleLoad);
       map.off("error", handleError);
       map.off("rotate", handleRotate);
       map.remove();
       if (mapRef.current === map) mapRef.current = null;
     };
-  }, [mapRef, onBearingChange, onStatusChange, style]);
+  }, [
+    mapRef,
+    onBearingChange,
+    onSelectAircraft,
+    onStatusChange,
+    style,
+  ]);
 
   const animationDuration = () =>
     window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 200;
-
-  const zoomIn = () => {
-    mapRef.current?.zoomIn({ duration: animationDuration() });
-  };
-
-  const zoomOut = () => {
-    mapRef.current?.zoomOut({ duration: animationDuration() });
-  };
-
-  const resetBearing = () => {
-    mapRef.current?.easeTo({
-      bearing: 0,
-      duration: animationDuration(),
-    });
-  };
 
   const compassVisible = Math.abs(bearing) > 0.5;
 
@@ -212,9 +300,9 @@ function MapViewport({
     <>
       <div
         ref={containerRef}
-        className="absolute inset-0 bg-[#06101c]"
+        className="h-full w-full bg-[#06101c]"
         role="region"
-        aria-label="Map of Western Europe. Use arrow keys to pan and plus or minus to zoom when the map has focus."
+        aria-label="Map of Western Europe with development fixture aircraft. Use arrow keys to pan and plus or minus to zoom when the map has focus."
       />
 
       <div
@@ -235,7 +323,7 @@ function MapViewport({
             />
             <p className="mt-5 text-sm font-medium text-white/72">Loading map</p>
             <p className="mt-1 text-xs text-white/34">
-              Preparing the aviation view
+              Preparing aircraft fixtures
             </p>
           </div>
         </div>
@@ -265,21 +353,21 @@ function MapViewport({
       )}
 
       {status === "ready" && (
-        <aside className="absolute bottom-5 left-3 z-10 max-w-[calc(100%-5.5rem)] rounded-[20px] border border-white/10 bg-[#06101b]/72 px-4 py-3 shadow-[0_16px_40px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:bottom-6 sm:left-5 sm:max-w-xs sm:px-5 sm:py-4 lg:left-7">
+        <aside className="absolute left-3 top-3 z-10 max-w-[calc(100%-5.5rem)] rounded-[18px] border border-white/10 bg-[#06101b]/72 px-4 py-3 shadow-[0_16px_40px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:left-5 sm:top-5 lg:left-7">
           <div className="flex items-center gap-2">
             <span
               aria-hidden="true"
-              className="h-1.5 w-1.5 rounded-full bg-emerald-300"
+              className="h-1.5 w-1.5 rounded-full bg-cyan-300"
             />
             <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/48">
-              Map preview
+              Development fixture data
             </p>
           </div>
           <p className="mt-2 text-sm font-medium text-white/82">
-            Aircraft data coming next
+            {aircraftFeatures.features.length} fixture aircraft
           </p>
           <p className="mt-1 hidden text-xs leading-5 text-white/36 sm:block">
-            Interactive development basemap
+            No live provider connection
           </p>
         </aside>
       )}
@@ -291,19 +379,31 @@ function MapViewport({
         <MapControlButton
           label="Zoom in"
           disabled={status !== "ready"}
-          onClick={zoomIn}
+          onClick={() =>
+            mapRef.current?.zoomIn({ duration: animationDuration() })
+          }
         >
           <path d="M12 5v14M5 12h14" />
         </MapControlButton>
         <MapControlButton
           label="Zoom out"
           disabled={status !== "ready"}
-          onClick={zoomOut}
+          onClick={() =>
+            mapRef.current?.zoomOut({ duration: animationDuration() })
+          }
         >
           <path d="M5 12h14" />
         </MapControlButton>
         {compassVisible && (
-          <MapControlButton label="Reset bearing to North Up" onClick={resetBearing}>
+          <MapControlButton
+            label="Reset bearing to North Up"
+            onClick={() =>
+              mapRef.current?.easeTo({
+                bearing: 0,
+                duration: animationDuration(),
+              })
+            }
+          >
             <g
               style={{
                 transform: `rotate(${-bearing}deg)`,
@@ -355,4 +455,20 @@ function MapControlButton({
       </svg>
     </button>
   );
+}
+
+function resolveInitialSelection(value: string | null): AircraftId | null {
+  if (value === null) return INITIAL_SELECTED_AIRCRAFT_ID;
+  const normalized = value.trim().toLowerCase();
+  return (
+    VALIDATED_FIXTURES.validAircraft.find((aircraft) => aircraft.id === normalized)
+      ?.id ?? null
+  );
+}
+
+function updateAircraftQuery(aircraftId: AircraftId | null) {
+  const url = new URL(window.location.href);
+  if (aircraftId) url.searchParams.set("aircraft", aircraftId);
+  else url.searchParams.delete("aircraft");
+  window.history.replaceState(window.history.state, "", url);
 }
