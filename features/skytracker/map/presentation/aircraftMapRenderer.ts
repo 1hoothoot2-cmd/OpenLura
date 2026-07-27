@@ -1,6 +1,10 @@
 import type { AircraftFeatureCollection } from "../../aircraft/presentation/aircraftGeoJson";
 import type { AircraftId } from "../../aircraft/domain/aircraft";
-import type { Map as MapLibreMap, MapMouseEvent } from "maplibre-gl";
+import type {
+  FilterSpecification,
+  Map as MapLibreMap,
+  MapMouseEvent,
+} from "maplibre-gl";
 import {
   AIRCRAFT_HIT_LAYER_IDS,
   AIRCRAFT_ICON_ID,
@@ -17,6 +21,7 @@ type AircraftSelectionHandler = (aircraftId: AircraftId | null) => void;
 
 export type AircraftMapRegistration = Readonly<{
   sourceWriter: AircraftMapSourceWriter;
+  setVisibleAircraftIds: (aircraftIds: readonly AircraftId[]) => void;
   remove: () => void;
 }>;
 
@@ -65,6 +70,8 @@ export function registerAircraftMapPresentation(
 
   return {
     sourceWriter,
+    setVisibleAircraftIds: (aircraftIds) =>
+      applyAircraftVisibilityFilter(map, aircraftIds),
     remove: () => {
       sourceWriter.dispose();
       map.off("click", handleClick);
@@ -72,6 +79,37 @@ export function registerAircraftMapPresentation(
       map.getCanvas().removeEventListener("mouseleave", handleMouseLeave);
     },
   };
+}
+
+export function applyAircraftVisibilityFilter(
+  map: Pick<MapLibreMap, "getLayer" | "setFilter">,
+  aircraftIds: readonly AircraftId[],
+) {
+  const visible = [
+    "in",
+    ["get", "aircraft_id"],
+    ["literal", [...aircraftIds]],
+  ] as unknown as FilterSpecification;
+  setLayerFilter(map, AIRCRAFT_NORMAL_FOOTPRINT_LAYER_ID, false, visible);
+  setLayerFilter(map, AIRCRAFT_NORMAL_LAYER_ID, false, visible);
+  setLayerFilter(map, AIRCRAFT_SELECTED_GLOW_LAYER_ID, true, visible);
+  setLayerFilter(map, AIRCRAFT_SELECTED_LAYER_ID, true, visible);
+  setLayerFilter(map, AIRCRAFT_LABEL_LAYER_ID, true, visible);
+}
+
+function setLayerFilter(
+  map: Pick<MapLibreMap, "getLayer" | "setFilter">,
+  layerId: string,
+  selected: boolean,
+  visible: FilterSpecification,
+) {
+  if (!map.getLayer(layerId)) return;
+  const filter = [
+    "all",
+    ["==", ["get", "selected"], selected],
+    visible,
+  ] as unknown as FilterSpecification;
+  map.setFilter(layerId, filter);
 }
 
 function addLayers(map: MapLibreMap) {

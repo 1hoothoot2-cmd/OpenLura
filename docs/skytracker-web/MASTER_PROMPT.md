@@ -114,3 +114,63 @@ Codex wijzigt niet zelfstandig:
 
 Iedere toekomstige sprint leest eerst dit bestand, daarna de roadmap en
 vervolgens uitsluitend het betreffende sprintbestand.
+
+## Local Development Runtime
+
+Voor browseracceptatie gebruikt Codex eerst:
+
+```powershell
+.\scripts\skytracker-dev-start.ps1
+```
+
+Codex:
+
+- controleert eerst of backend en frontend al draaien;
+- gebruikt bestaande processen opnieuw;
+- start geen dubbele servers;
+- wacht tot poort 8080 en 3000 bereikbaar zijn;
+- voert browseracceptatie pas daarna uit;
+- laat services na technische acceptatie draaien, tenzij de sprint expliciet
+  opruimen vereist.
+
+Voor status:
+
+```powershell
+.\scripts\skytracker-dev-status.ps1
+```
+
+Voor gecontroleerd stoppen:
+
+```powershell
+.\scripts\skytracker-dev-stop.ps1
+```
+
+## Sprint Execution Workflow
+
+Iedere SkyTracker-sprint verloopt voortaan als volgt:
+
+1. Lees volledig:
+   - `MASTER_PROMPT.md`;
+   - `ROADMAP.md`;
+   - het betreffende sprintbestand.
+2. Controleer de lokale runtime:
+
+   ```powershell
+   .\scripts\skytracker-dev-status.ps1
+   ```
+
+3. Start de runtime alleen wanneer nodig:
+
+   ```powershell
+   .\scripts\skytracker-dev-start.ps1
+   ```
+
+4. Voer uitsluitend de betreffende sprint uit.
+5. Voer alle voor de sprint vereiste tests en verificaties uit.
+6. Voer de voorgeschreven browseracceptatie uit.
+7. Laat backend en frontend actief voor Product Owner-controle.
+8. Stop de runtime alleen wanneer dit expliciet wordt gevraagd:
+
+   ```powershell
+   .\scripts\skytracker-dev-stop.ps1
+   ```

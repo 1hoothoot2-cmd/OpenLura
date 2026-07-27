@@ -10,6 +10,19 @@ import {
   type ErrorEvent,
 } from "maplibre-gl";
 import type { Aircraft, AircraftId } from "../../aircraft/domain/aircraft";
+import {
+  countActiveAircraftFilters,
+  DEFAULT_AIRCRAFT_FILTERS,
+  filterAircraft,
+  toggleAircraftFilter,
+  type AircraftFilterGroup,
+  type AircraftFilterValue,
+} from "../../aircraft/domain/aircraftFilters";
+import {
+  searchAircraft,
+  type AircraftSearchResult,
+} from "../../aircraft/domain/aircraftSearch";
+import { AircraftFilterPanel } from "../../aircraft/presentation/AircraftFilterPanel";
 import { aircraftDetailItems } from "../../aircraft/presentation/aircraftDetails";
 import { createAircraftFeatureCollection } from "../../aircraft/presentation/aircraftGeoJson";
 import { presentAircraft } from "../../aircraft/presentation/presentedAircraft";
@@ -56,6 +69,11 @@ type SkyTrackerLiveMapProps = {
   initialAircraftId?: string | null;
 };
 
+type SearchFocusRequest = Readonly<{
+  aircraftId: AircraftId;
+  requestId: number;
+}>;
+
 export function SkyTrackerLiveMap({
   initialAircraftId = null,
 }: SkyTrackerLiveMapProps) {
@@ -72,7 +90,17 @@ export function SkyTrackerLiveMap({
   const [selectedAircraftId, setSelectedAircraftId] =
     useState<AircraftId | null>(null);
   const [followEnabled, setFollowEnabled] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [filters, setFilters] = useState(DEFAULT_AIRCRAFT_FILTERS);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeSearchIndex, setActiveSearchIndex] = useState(0);
+  const [searchFocusRequest, setSearchFocusRequest] =
+    useState<SearchFocusRequest | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const filtersButtonRef = useRef<HTMLButtonElement | null>(null);
+  const searchRequestIdRef = useRef(0);
   const currentAircraftRef = useRef<readonly Aircraft[]>([]);
   const initialSelectionAttemptedRef = useRef(false);
   const selectedAircraftIdRef = useRef<AircraftId | null>(null);
@@ -96,6 +124,27 @@ export function SkyTrackerLiveMap({
   const aircraftFeatures = useMemo(
     () => createAircraftFeatureCollection(presentedAircraft),
     [presentedAircraft],
+  );
+  const searchResults = useMemo(
+    () => searchAircraft(aircraft, searchQuery),
+    [aircraft, searchQuery],
+  );
+  const visibleAircraft = useMemo(
+    () => filterAircraft(aircraft, filters),
+    [aircraft, filters],
+  );
+  const visibleAircraftIds = useMemo(
+    () => visibleAircraft.map((item) => item.id),
+    [visibleAircraft],
+  );
+  const visibleAircraftIdSet = useMemo(
+    () => new Set<AircraftId>(visibleAircraftIds),
+    [visibleAircraftIds],
+  );
+  const activeFilterCount = countActiveAircraftFilters(filters);
+  const boundedActiveSearchIndex = Math.min(
+    activeSearchIndex,
+    Math.max(0, searchResults.length - 1),
   );
   const selectedAircraft = aircraft.find((item) => item.id === selectedAircraftId) ?? null;
   const selectedPresentedAircraft =
@@ -137,6 +186,45 @@ export function SkyTrackerLiveMap({
 
   const stopFollowing = useCallback(() => setFollowEnabled(false), []);
 
+  const closeSearch = useCallback(() => {
+    setSearchOpen(false);
+    setSearchQuery("");
+    setActiveSearchIndex(0);
+  }, []);
+
+  const closeFilters = useCallback(() => {
+    setFiltersOpen(false);
+    window.requestAnimationFrame(() => filtersButtonRef.current?.focus());
+  }, []);
+
+  const toggleFilter = useCallback(
+    (group: AircraftFilterGroup, value: AircraftFilterValue) => {
+      setFilters((current) => toggleAircraftFilter(current, group, value));
+    },
+    [],
+  );
+
+  const selectSearchResult = useCallback(
+    (result: AircraftSearchResult) => {
+      if (!currentAircraftRef.current.some((item) => item.id === result.aircraft.id)) {
+        return;
+      }
+      setFollowEnabled(false);
+      selectAircraft(result.aircraft.id);
+      searchRequestIdRef.current += 1;
+      setSearchFocusRequest({
+        aircraftId: result.aircraft.id,
+        requestId: searchRequestIdRef.current,
+      });
+      closeSearch();
+    },
+    [closeSearch, selectAircraft],
+  );
+
+  useEffect(() => {
+    if (searchOpen) searchInputRef.current?.focus();
+  }, [searchOpen]);
+
   const retryMap = useCallback(() => {
     setStatus("loading");
     setBearing(0);
@@ -170,7 +258,79 @@ export function SkyTrackerLiveMap({
         </Link>
 
         <div className="flex items-center gap-2.5">
-          <span className="inline-flex min-h-8 items-center gap-2 rounded-full border border-cyan-200/12 bg-cyan-200/[0.045] px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-100/62">
+          <button
+            type="button"
+            aria-label={searchOpen ? "Close aircraft search" : "Search aircraft"}
+            aria-expanded={searchOpen}
+            onClick={() => {
+              if (searchOpen) closeSearch();
+              else {
+                setFiltersOpen(false);
+                setSearchOpen(true);
+              }
+            }}
+            className="ol-interactive flex h-11 w-11 items-center justify-center rounded-full border border-white/10 text-white/66 hover:border-cyan-200/20 hover:bg-cyan-200/[0.06] hover:text-cyan-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+          >
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              className="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.7"
+              strokeLinecap="round"
+            >
+              {searchOpen ? (
+                <path d="m7 7 10 10M17 7 7 17" />
+              ) : (
+                <>
+                  <circle cx="11" cy="11" r="6" />
+                  <path d="m16 16 4 4" />
+                </>
+              )}
+            </svg>
+          </button>
+          <button
+            ref={filtersButtonRef}
+            type="button"
+            aria-label={
+              activeFilterCount === 0
+                ? "Open aircraft filters"
+                : `Open aircraft filters, ${activeFilterCount} active`
+            }
+            aria-controls="aircraft-filter-panel"
+            aria-expanded={filtersOpen}
+            onClick={() => {
+              if (filtersOpen) closeFilters();
+              else {
+                closeSearch();
+                setFiltersOpen(true);
+              }
+            }}
+            className="ol-interactive relative flex h-11 w-11 items-center justify-center rounded-full border border-white/10 text-white/66 hover:border-cyan-200/20 hover:bg-cyan-200/[0.06] hover:text-cyan-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+          >
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              className="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.7"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M4 7h16M7 12h10M10 17h4" />
+            </svg>
+            {activeFilterCount > 0 && (
+              <span
+                aria-hidden="true"
+                className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full border border-[#07101b] bg-cyan-300 px-1 text-[10px] font-bold text-[#041019]"
+              >
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
+          <span className="hidden min-h-8 items-center gap-2 rounded-full border border-cyan-200/12 bg-cyan-200/[0.045] px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-100/62 sm:inline-flex">
             <span
               aria-hidden="true"
               className="h-1.5 w-1.5 rounded-full bg-cyan-300 shadow-[0_0_10px_rgba(103,232,249,0.55)]"
@@ -198,8 +358,10 @@ export function SkyTrackerLiveMap({
           bearing={bearing}
           aircraftFeatures={aircraftFeatures}
           aircraft={aircraft}
+          visibleAircraftIds={visibleAircraftIds}
           selectedAircraftId={selectedAircraftId}
           followEnabled={followEnabled}
+          searchFocusRequest={searchFocusRequest}
           backendStatus={backendStatus}
           onBackendStatusChange={setBackendStatus}
           onSnapshot={acceptSnapshot}
@@ -209,6 +371,132 @@ export function SkyTrackerLiveMap({
           onFollowStopped={stopFollowing}
           onRetry={retryMap}
         />
+
+        {searchOpen && (
+          <aside
+            aria-label="Aircraft search"
+            className="absolute left-3 top-3 z-20 w-[min(28rem,calc(100%-1.5rem))] rounded-[22px] border border-cyan-200/14 bg-[#07101b]/92 p-3 shadow-[0_20px_60px_rgba(0,0,0,0.44)] backdrop-blur-xl sm:left-5 sm:top-5 sm:p-4 lg:left-7"
+          >
+            <label
+              htmlFor="aircraft-search"
+              className="text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-100/54"
+            >
+              Search aircraft
+            </label>
+            <div className="mt-2 flex items-center gap-2">
+              <input
+                ref={searchInputRef}
+                id="aircraft-search"
+                type="search"
+                value={searchQuery}
+                autoComplete="off"
+                spellCheck={false}
+                aria-controls="aircraft-search-results"
+                aria-activedescendant={
+                  searchResults.length > 0
+                    ? `aircraft-search-result-${boundedActiveSearchIndex}`
+                    : undefined
+                }
+                placeholder="Callsign, registration or aircraft ID"
+                onChange={(event) => {
+                  setSearchQuery(event.target.value);
+                  setActiveSearchIndex(0);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    closeSearch();
+                    return;
+                  }
+                  if (!searchQuery.trim() || searchResults.length === 0) return;
+                  if (event.key === "ArrowDown") {
+                    event.preventDefault();
+                    setActiveSearchIndex((current) =>
+                      Math.min(
+                        Math.min(current, searchResults.length - 1) + 1,
+                        searchResults.length - 1,
+                      ),
+                    );
+                  } else if (event.key === "ArrowUp") {
+                    event.preventDefault();
+                    setActiveSearchIndex(
+                      Math.max(boundedActiveSearchIndex - 1, 0),
+                    );
+                  } else if (event.key === "Enter") {
+                    event.preventDefault();
+                    const result = searchResults[boundedActiveSearchIndex];
+                    if (result) selectSearchResult(result);
+                  }
+                }}
+                className="min-h-11 min-w-0 flex-1 rounded-xl border border-white/10 bg-white/[0.045] px-3 text-sm text-white outline-none placeholder:text-white/28 focus:border-cyan-200/28 focus:ring-2 focus:ring-cyan-300/35"
+              />
+              <button
+                type="button"
+                onClick={closeSearch}
+                className="ol-interactive min-h-11 rounded-xl border border-white/10 px-3 text-sm text-white/58 hover:bg-white/[0.05] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+              >
+                Close
+              </button>
+            </div>
+
+            {searchQuery.trim() && (
+              <div
+                id="aircraft-search-results"
+                role="listbox"
+                aria-label="Aircraft search results"
+                className="mt-3 max-h-[min(48vh,22rem)] overflow-y-auto border-t border-white/[0.07] pt-2"
+              >
+                {searchResults.length === 0 ? (
+                  <p role="status" className="px-2 py-4 text-sm text-white/46">
+                    No matching aircraft found
+                  </p>
+                ) : (
+                  searchResults.map((result, index) => (
+                    <button
+                      key={result.aircraft.id}
+                      id={`aircraft-search-result-${index}`}
+                      type="button"
+                      role="option"
+                      aria-selected={index === boundedActiveSearchIndex}
+                      onMouseEnter={() => setActiveSearchIndex(index)}
+                      onClick={() => selectSearchResult(result)}
+                      className={`ol-interactive flex min-h-14 w-full items-center justify-between gap-4 rounded-xl px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-300 ${
+                        index === boundedActiveSearchIndex
+                          ? "bg-cyan-200/[0.09]"
+                          : "hover:bg-white/[0.045]"
+                      }`}
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-medium text-white/88">
+                          {result.aircraft.callsign?.trim() ||
+                            result.aircraft.registration?.trim() ||
+                            result.aircraft.id.toUpperCase()}
+                        </span>
+                        <span className="mt-0.5 block truncate text-xs text-white/42">
+                          {result.aircraft.registration?.trim() || "Registration unknown"}
+                        </span>
+                      </span>
+                      <span className="shrink-0 font-mono text-[11px] uppercase tracking-[0.08em] text-cyan-100/46">
+                        {result.aircraft.id}
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </aside>
+        )}
+
+        {filtersOpen && (
+          <AircraftFilterPanel
+            filters={filters}
+            visibleCount={visibleAircraft.length}
+            totalCount={aircraft.length}
+            onToggle={toggleFilter}
+            onReset={() => setFilters(DEFAULT_AIRCRAFT_FILTERS)}
+            onClose={closeFilters}
+          />
+        )}
 
         {selectedAircraft && selectedPresentedAircraft && (
           <aside
@@ -245,6 +533,15 @@ export function SkyTrackerLiveMap({
                 </div>
               ))}
             </dl>
+            {!visibleAircraftIdSet.has(selectedAircraft.id) && (
+              <p
+                role="status"
+                className="mt-4 rounded-xl border border-amber-200/14 bg-amber-200/[0.07] px-3 py-2 text-xs leading-5 text-amber-100/72"
+              >
+                This aircraft is currently hidden by active filters. Details and
+                Follow remain available.
+              </p>
+            )}
             <div className="mt-5 flex flex-wrap gap-2 border-t border-white/[0.07] pt-4">
               <button
                 type="button"
@@ -276,8 +573,10 @@ type MapViewportProps = {
   bearing: number;
   aircraftFeatures: ReturnType<typeof createAircraftFeatureCollection>;
   aircraft: readonly Aircraft[];
+  visibleAircraftIds: readonly AircraftId[];
   selectedAircraftId: AircraftId | null;
   followEnabled: boolean;
+  searchFocusRequest: SearchFocusRequest | null;
   backendStatus: BackendStatus;
   onBackendStatusChange: (status: BackendStatus) => void;
   onSnapshot: (aircraft: readonly Aircraft[], status: BackendStatus) => void;
@@ -295,8 +594,10 @@ function MapViewport({
   bearing,
   aircraftFeatures,
   aircraft,
+  visibleAircraftIds,
   selectedAircraftId,
   followEnabled,
+  searchFocusRequest,
   backendStatus,
   onBackendStatusChange,
   onSnapshot,
@@ -312,12 +613,14 @@ function MapViewport({
   const aircraftFeaturesRef = useRef(aircraftFeatures);
   const selectedAircraftIdRef = useRef(selectedAircraftId);
   const aircraftRef = useRef(aircraft);
+  const visibleAircraftIdsRef = useRef(visibleAircraftIds);
   const schedulerRef = useRef<ViewportPollingScheduler | null>(null);
   const requestRef = useRef<AbortController | null>(null);
   const moveDebounceRef = useRef<number | null>(null);
   const followEnabledRef = useRef(followEnabled);
   const lastFollowSampleRef = useRef<FollowCameraSample | null>(null);
   const followMoveRef = useRef(false);
+  const motionAircraftRef = useRef<readonly Aircraft[]>(aircraft);
 
   useEffect(() => {
     aircraftFeaturesRef.current = aircraftFeatures;
@@ -332,8 +635,34 @@ function MapViewport({
 
   useEffect(() => {
     aircraftRef.current = aircraft;
+    motionAircraftRef.current = aircraft;
     motionRuntimeRef.current?.setAircraftSnapshot(aircraft);
   }, [aircraft]);
+
+  useEffect(() => {
+    visibleAircraftIdsRef.current = visibleAircraftIds;
+    registrationRef.current?.setVisibleAircraftIds(visibleAircraftIds);
+  }, [visibleAircraftIds]);
+
+  useEffect(() => {
+    if (!searchFocusRequest || !mapRef.current) return;
+    const target =
+      motionAircraftRef.current.find(
+        (item) => item.id === searchFocusRequest.aircraftId,
+      ) ??
+      aircraftRef.current.find(
+        (item) => item.id === searchFocusRequest.aircraftId,
+      );
+    if (!target) return;
+    followMoveRef.current = true;
+    mapRef.current.easeTo({
+      center: [target.longitudeDegrees, target.latitudeDegrees],
+      duration: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? 0
+        : 450,
+      essential: false,
+    });
+  }, [mapRef, searchFocusRequest]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -461,6 +790,9 @@ function MapViewport({
         aircraftFeaturesRef.current,
         onSelectAircraft,
       );
+      registrationRef.current.setVisibleAircraftIds(
+        visibleAircraftIdsRef.current,
+      );
       motionRuntimeRef.current = new AircraftMotionRuntime({
         aircraft: aircraftRef.current,
         sourceWriter: registrationRef.current.sourceWriter,
@@ -471,6 +803,7 @@ function MapViewport({
           "(prefers-reduced-motion: reduce)",
         ),
         onFrame: (frameAircraft, frameTimeMillis) => {
+          motionAircraftRef.current = frameAircraft;
           if (!followEnabledRef.current || !selectedAircraftIdRef.current) return;
           const target = frameAircraft.find(
             (item) => item.id === selectedAircraftIdRef.current,

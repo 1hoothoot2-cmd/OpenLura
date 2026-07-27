@@ -13,3 +13,14 @@ Iedere toekomstige Codex-sprint volgt deze volgorde:
 Een sprint wijzigt geen architectuur, design, dependency, backendcontract,
 provider, monetization of AI zonder expliciete opdracht. Bestaande sprintdocs
 blijven historisch bewijs; de centrale documenten zijn leidend bij conflict.
+
+## Browseracceptatie
+
+Voor iedere browseracceptatie:
+
+1. voer `.\scripts\skytracker-dev-status.ps1` uit;
+2. voer indien nodig `.\scripts\skytracker-dev-start.ps1` uit;
+3. start geen handmatige nieuwe servers wanneer bestaande services gezond zijn;
+4. laat services na acceptatie standaard draaien voor Product Owner-controle;
+5. gebruik uitsluitend `.\scripts\skytracker-dev-stop.ps1` wanneer opruimen
+   expliciet nodig is.

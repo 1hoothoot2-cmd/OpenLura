@@ -9,8 +9,8 @@ Legenda: ✅ geaccepteerd · 🟡 technisch gereed, acceptatie open · ⬜ gepla
 - 🟡 L4 — Local Backend Integration
 - 🟡 L5 — Aircraft Details & Follow
 - ⬜ L5A — Monetization Foundation
-- ⬜ L6 — Search
-- ⬜ L7 — Filters
+- 🟡 L6 — Search
+- 🟡 L7 — Discovery & Filters
 - ⬜ L8 — Favorites
 - ⬜ L9 — Historical Track
 - ⬜ L10 — Replay Product
@@ -24,3 +24,12 @@ desktop/tablet/mobilecontrole blijven de sluitingscriteria.
 L5 gebruikt uitsluitend `GET /v1/aircraft` en de bestaande motionpipeline.
 Details en Follow zijn technisch en lokaal in de browser bewezen; definitieve
 Product Owner-Chromeacceptatie en de volledige responsive matrix blijven open.
+
+L6 doorzoekt uitsluitend de laatste geldige lokale backend-snapshot.
+Callsign-, registratie- en aircraft-ID-search zijn technisch en lokaal in de
+browser bewezen; definitieve Product Owner-Chromeacceptatie en de volledige
+responsive matrix blijven open.
+
+L7 filtert uitsluitend de MapLibre-presentatie van de actuele snapshot.
+Domainstate, polling, selectie en motion blijven behouden; definitieve Product
+Owner-Chromeacceptatie en de volledige responsive matrix blijven open.
