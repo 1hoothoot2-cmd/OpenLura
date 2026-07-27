@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import type { Map as MapLibreMap } from "maplibre-gl";
 import { aircraftId, type Aircraft } from "../domain/aircraft.ts";
 import { validateAircraftSnapshot } from "../domain/aircraftValidation.ts";
 import { DEVELOPMENT_AIRCRAFT } from "../fixtures/developmentAircraft.ts";
@@ -12,6 +13,7 @@ import {
   normalizeHeading,
   presentAircraft,
 } from "../presentation/presentedAircraft.ts";
+import { AircraftMapSourceWriter } from "../../map/infrastructure/aircraftSourceWriter.ts";
 
 test("development fixtures are valid, unique and deterministic", () => {
   const first = validateAircraftSnapshot(DEVELOPMENT_AIRCRAFT);
@@ -96,3 +98,87 @@ test("content fingerprint suppresses equal writes and detects selection changes"
   assert.equal(shouldWriteAircraftFeatures(fingerprint, normal), false);
   assert.equal(shouldWriteAircraftFeatures(fingerprint, selected), true);
 });
+
+test("sourcewriter defers an initial write until the source becomes available", () => {
+  const normal = featureCollection(null);
+  const harness = sourceWriterHarness(true);
+  const writer = new AircraftMapSourceWriter(harness.map, normal);
+
+  assert.equal(writer.writes, 0);
+  assert.equal(harness.setDataCalls.length, 0);
+
+  harness.makeSourceAvailable();
+  assert.equal(writer.write(normal), true);
+  assert.equal(writer.writes, 1);
+  assert.equal(harness.setDataCalls.length, 1);
+});
+
+test("sourcewriter deduplicates only after a successful setData call", () => {
+  const normal = featureCollection(null);
+  const harness = sourceWriterHarness(false);
+  const writer = new AircraftMapSourceWriter(harness.map, normal);
+
+  assert.equal(writer.writes, 1);
+  assert.equal(harness.setDataCalls.length, 1);
+  assert.equal(writer.write(normal), false);
+  assert.equal(writer.writes, 1);
+  assert.equal(harness.setDataCalls.length, 1);
+});
+
+test("sourcewriter writes one changed selection after the initial collection", () => {
+  const normal = featureCollection(null);
+  const selected = featureCollection(aircraftId("d00003"));
+  const harness = sourceWriterHarness(false);
+  const writer = new AircraftMapSourceWriter(harness.map, normal);
+
+  assert.equal(writer.write(selected), true);
+  assert.equal(writer.writes, 2);
+  assert.equal(harness.setDataCalls.length, 2);
+  assert.deepEqual(harness.setDataCalls[1], selected);
+});
+
+test("disposed sourcewriter rejects all later writes", () => {
+  const normal = featureCollection(null);
+  const selected = featureCollection(aircraftId("d00003"));
+  const harness = sourceWriterHarness(false);
+  const writer = new AircraftMapSourceWriter(harness.map, normal);
+
+  writer.dispose();
+
+  assert.equal(writer.write(selected), false);
+  assert.equal(writer.writes, 1);
+  assert.equal(harness.setDataCalls.length, 1);
+});
+
+function featureCollection(selectedAircraftId: ReturnType<typeof aircraftId> | null) {
+  return createAircraftFeatureCollection(
+    presentAircraft(DEVELOPMENT_AIRCRAFT, selectedAircraftId),
+  );
+}
+
+function sourceWriterHarness(deferSourceOnAdd: boolean) {
+  const setDataCalls: ReturnType<typeof featureCollection>[] = [];
+  let sourceAvailable = false;
+  const source = {
+    setData(collection: ReturnType<typeof featureCollection>) {
+      setDataCalls.push(collection);
+      return source;
+    },
+  };
+  const map = {
+    getSource() {
+      return sourceAvailable ? source : undefined;
+    },
+    addSource() {
+      if (!deferSourceOnAdd) sourceAvailable = true;
+    },
+  };
+
+  return {
+    map: map as unknown as MapLibreMap,
+    setDataCalls,
+    makeSourceAvailable() {
+      sourceAvailable = true;
+    },
+  };
+}

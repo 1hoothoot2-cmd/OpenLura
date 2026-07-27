@@ -3,26 +3,27 @@ import {
   aircraftFeatureFingerprint,
   shouldWriteAircraftFeatures,
   type AircraftFeatureCollection,
-} from "../../aircraft/presentation/aircraftGeoJson";
-import { AIRCRAFT_SOURCE_ID } from "./aircraftMapIds";
+} from "../../aircraft/presentation/aircraftGeoJson.ts";
+import { AIRCRAFT_SOURCE_ID } from "./aircraftMapIds.ts";
 
 export class AircraftMapSourceWriter {
+  private readonly map: MapLibreMap;
   private lastFingerprint: string | null = null;
   private disposed = false;
   private writeCount = 0;
 
   constructor(
-    private readonly map: MapLibreMap,
+    map: MapLibreMap,
     initialCollection: AircraftFeatureCollection,
   ) {
+    this.map = map;
     if (!map.getSource(AIRCRAFT_SOURCE_ID)) {
       map.addSource(AIRCRAFT_SOURCE_ID, {
         type: "geojson",
-        data: initialCollection,
+        data: emptyAircraftFeatureCollection(),
       });
-      this.lastFingerprint = aircraftFeatureFingerprint(initialCollection);
-      this.writeCount = 1;
     }
+    this.write(initialCollection);
   }
 
   write(collection: AircraftFeatureCollection): boolean {
@@ -36,9 +37,9 @@ export class AircraftMapSourceWriter {
       return false;
     }
 
+    void (source as GeoJSONSource).setData(collection);
     this.lastFingerprint = fingerprint;
     this.writeCount += 1;
-    void (source as GeoJSONSource).setData(collection);
     return true;
   }
 
@@ -50,4 +51,11 @@ export class AircraftMapSourceWriter {
     this.disposed = true;
     this.lastFingerprint = null;
   }
+}
+
+function emptyAircraftFeatureCollection(): AircraftFeatureCollection {
+  return {
+    type: "FeatureCollection",
+    features: [],
+  };
 }

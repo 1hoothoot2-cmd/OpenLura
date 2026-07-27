@@ -64,6 +64,27 @@ Expected writes:
 All listeners and the writer are disposed before the L1 map instance is
 removed.
 
+## L2A.1 initial source write recovery
+
+The production symptom was a healthy basemap and a twelve-aircraft React
+snapshot without visible MapLibre aircraft. The sourcewriter registered its
+source with the initial collection, then immediately committed that
+collection's fingerprint and counted a write without calling
+`GeoJSONSource.setData()`. A later attempt with identical content was therefore
+deduplicated even though no real sourcewriter write had occurred.
+
+The writer now registers an empty GeoJSON source and immediately attempts the
+normal write path. It commits the candidate fingerprint and increments its
+write count only after `setData()` has been invoked. If the source is not yet
+available, the attempt remains uncommitted and the same collection can be
+retried. Remounting creates a fresh writer; disposal rejects all later writes.
+
+Regression coverage proves deferred first write, one retry with identical
+content, post-success deduplication, one selection-content update, and disposed
+writer behavior. No timeout, polling, retry loop, debug layer, or diagnostic
+overlay was added. Final visual acceptance remains a Product Owner check in a
+normal Chrome browser.
+
 ## Selection and URL
 
 React stores only the selected aircraft ID. Selection rewrites the same
