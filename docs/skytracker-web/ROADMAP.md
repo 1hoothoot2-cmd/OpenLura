@@ -11,11 +11,13 @@ Legenda: ✅ geaccepteerd · 🟡 technisch gereed, acceptatie open · ⬜ gepla
 - ⬜ L5A — Monetization Foundation
 - 🟡 L6 — Search
 - 🟡 L7 — Discovery & Filters
-- ⬜ L8 — Favorites
-- ⬜ L9 — Historical Track
-- ⬜ L10 — Replay Product
-- ⬜ L11 — Accounts & Sync
-- ⬜ L12 — Contextual AI
+- 🟡 L8 — Airport Pages
+- 🟡 L9 — Personalization (Favorites)
+- 🟡 L10A — Flight Timeline
+- ⬜ L10B — Replay
+- ⬜ L11 — Historical Track
+- ⬜ L12 — Accounts & Sync
+- ⬜ L13 — Contextual AI
 
 L4 gebruikt lokaal uitsluitend backend-developmentdata. De technische
 integratie is gereed; normale Product Owner-Chromeacceptatie en specifieke
@@ -33,3 +35,18 @@ responsive matrix blijven open.
 L7 filtert uitsluitend de MapLibre-presentatie van de actuele snapshot.
 Domainstate, polling, selectie en motion blijven behouden; definitieve Product
 Owner-Chromeacceptatie en de volledige responsive matrix blijven open.
+
+L8 breidt de bestaande Search-ervaring uit met een lokale Airports-tab en een
+Airport Detail Panel op basis van het bestaande providerneutrale
+airportcontract. Browseracceptatie is technisch afgerond; expliciete Product
+Owner-acceptatie blijft het sluitingscriterium.
+
+L9 bewaart aircraft- en airportfavorieten uitsluitend lokaal via één
+versioned Local Storage-repository. De Favorites-tab, detailtoggles,
+refreshpersistentie en responsive browsermatrix zijn technisch bewezen;
+expliciete Product Owner-acceptatie blijft het sluitingscriterium.
+
+L10A leidt de actuele vluchtfase providerneutraal af uit de bestaande
+aircraftsnapshot en toont een verticale, eerlijke tijdlijn zonder verzonnen
+historische events. Tests, live polling en de responsive browsermatrix zijn
+technisch bewezen; expliciete Product Owner-acceptatie blijft open.

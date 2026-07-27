@@ -24,6 +24,7 @@ import {
 } from "../../aircraft/domain/aircraftSearch";
 import { AircraftFilterPanel } from "../../aircraft/presentation/AircraftFilterPanel";
 import { aircraftDetailItems } from "../../aircraft/presentation/aircraftDetails";
+import { FlightTimeline } from "../../aircraft/presentation/FlightTimeline";
 import { createAircraftFeatureCollection } from "../../aircraft/presentation/aircraftGeoJson";
 import { presentAircraft } from "../../aircraft/presentation/presentedAircraft";
 import { normalizeViewportBounds } from "../../backend/domain/viewportBounds";
@@ -52,6 +53,32 @@ import {
   shouldUpdateFollowCamera,
   type FollowCameraSample,
 } from "../domain/followCameraPolicy";
+import type { AirportDetails } from "../../airports/domain/airport";
+import {
+  searchAirports,
+  type AirportSearchResult,
+} from "../../airports/domain/airportSearch";
+import { createAirportMapFocus } from "../../airports/domain/airportMapPolicy";
+import {
+  DEVELOPMENT_AIRPORTS,
+  developmentAirportDetails,
+} from "../../airports/fixtures/developmentAirports";
+import { AirportDetailPanel } from "../../airports/presentation/AirportDetailPanel";
+import {
+  EMPTY_FAVORITES,
+  favoriteAircraftSnapshot,
+  favoriteAirportSnapshot,
+  type FavoriteAirport,
+  type SkyTrackerFavorites,
+} from "../../favorites/domain/favorites";
+import {
+  searchFavorites,
+  type FavoriteSearchResult,
+} from "../../favorites/domain/favoriteSearch";
+import {
+  createBrowserFavoritesRepository,
+  type FavoritesRepository,
+} from "../../favorites/infrastructure/favoritesRepository";
 
 type MapStatus = "loading" | "ready" | "error";
 
@@ -69,10 +96,15 @@ type SkyTrackerLiveMapProps = {
   initialAircraftId?: string | null;
 };
 
-type SearchFocusRequest = Readonly<{
-  aircraftId: AircraftId;
-  requestId: number;
-}>;
+type MapFocusRequest =
+  | Readonly<{ aircraftId: AircraftId; requestId: number }>
+  | Readonly<{
+      longitudeDegrees: number;
+      latitudeDegrees: number;
+      requestId: number;
+    }>;
+
+type SearchTab = "aircraft" | "airports" | "favorites";
 
 export function SkyTrackerLiveMap({
   initialAircraftId = null,
@@ -91,16 +123,25 @@ export function SkyTrackerLiveMap({
     useState<AircraftId | null>(null);
   const [followEnabled, setFollowEnabled] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [searchTab, setSearchTab] = useState<SearchTab>("aircraft");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [filters, setFilters] = useState(DEFAULT_AIRCRAFT_FILTERS);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeSearchIndex, setActiveSearchIndex] = useState(0);
-  const [searchFocusRequest, setSearchFocusRequest] =
-    useState<SearchFocusRequest | null>(null);
+  const [mapFocusRequest, setMapFocusRequest] =
+    useState<MapFocusRequest | null>(null);
+  const [selectedAirport, setSelectedAirport] =
+    useState<AirportDetails | null>(null);
+  const [favorites, setFavorites] =
+    useState<SkyTrackerFavorites>(EMPTY_FAVORITES);
+  const [favoriteAnnouncement, setFavoriteAnnouncement] = useState("");
+  const [firstDetectedAtByAircraftId, setFirstDetectedAtByAircraftId] =
+    useState<ReadonlyMap<AircraftId, number>>(() => new Map());
   const mapRef = useRef<MapLibreMap | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const filtersButtonRef = useRef<HTMLButtonElement | null>(null);
   const searchRequestIdRef = useRef(0);
+  const favoritesRepositoryRef = useRef<FavoritesRepository | null>(null);
   const currentAircraftRef = useRef<readonly Aircraft[]>([]);
   const initialSelectionAttemptedRef = useRef(false);
   const selectedAircraftIdRef = useRef<AircraftId | null>(null);
@@ -113,13 +154,30 @@ export function SkyTrackerLiveMap({
     selectedAircraftIdRef.current = selectedAircraftId;
   }, [selectedAircraftId]);
 
+  useEffect(() => {
+    const repository = createBrowserFavoritesRepository();
+    favoritesRepositoryRef.current = repository;
+    let active = true;
+    queueMicrotask(() => {
+      if (active) setFavorites(repository.load());
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const favoriteAircraftIds = useMemo(
+    () => new Set(favorites.aircraft.map((item) => item.aircraftId)),
+    [favorites.aircraft],
+  );
   const presentedAircraft = useMemo(
     () =>
       presentAircraft(
         aircraft,
         selectedAircraftId,
+        favoriteAircraftIds,
       ),
-    [aircraft, selectedAircraftId],
+    [aircraft, favoriteAircraftIds, selectedAircraftId],
   );
   const aircraftFeatures = useMemo(
     () => createAircraftFeatureCollection(presentedAircraft),
@@ -128,6 +186,14 @@ export function SkyTrackerLiveMap({
   const searchResults = useMemo(
     () => searchAircraft(aircraft, searchQuery),
     [aircraft, searchQuery],
+  );
+  const airportSearchResults = useMemo(
+    () => searchAirports(DEVELOPMENT_AIRPORTS, searchQuery),
+    [searchQuery],
+  );
+  const favoriteSearchResults = useMemo(
+    () => searchFavorites(favorites, searchQuery),
+    [favorites, searchQuery],
   );
   const visibleAircraft = useMemo(
     () => filterAircraft(aircraft, filters),
@@ -142,9 +208,15 @@ export function SkyTrackerLiveMap({
     [visibleAircraftIds],
   );
   const activeFilterCount = countActiveAircraftFilters(filters);
+  const activeSearchResultsLength =
+    searchTab === "aircraft"
+      ? searchResults.length
+      : searchTab === "airports"
+        ? airportSearchResults.length
+        : favoriteSearchResults.length;
   const boundedActiveSearchIndex = Math.min(
     activeSearchIndex,
-    Math.max(0, searchResults.length - 1),
+    Math.max(0, activeSearchResultsLength - 1),
   );
   const selectedAircraft = aircraft.find((item) => item.id === selectedAircraftId) ?? null;
   const selectedPresentedAircraft =
@@ -157,11 +229,21 @@ export function SkyTrackerLiveMap({
         ? aircraftId
         : null;
     if (validSelection !== selectedAircraftIdRef.current) setFollowEnabled(false);
+    if (validSelection) setSelectedAirport(null);
     setSelectedAircraftId(validSelection);
     updateAircraftQuery(validSelection);
   }, []);
 
   const acceptSnapshot = useCallback((nextAircraft: readonly Aircraft[], nextStatus: BackendStatus) => {
+    setFirstDetectedAtByAircraftId((current) => {
+      const additions = nextAircraft.filter((item) => !current.has(item.id));
+      if (additions.length === 0) return current;
+      const next = new Map(current);
+      for (const item of additions) {
+        next.set(item.id, item.positionTimestampEpochMillis);
+      }
+      return next;
+    });
     setAircraft([...nextAircraft]);
     setBackendStatus(nextStatus);
     if (
@@ -212,7 +294,7 @@ export function SkyTrackerLiveMap({
       setFollowEnabled(false);
       selectAircraft(result.aircraft.id);
       searchRequestIdRef.current += 1;
-      setSearchFocusRequest({
+      setMapFocusRequest({
         aircraftId: result.aircraft.id,
         requestId: searchRequestIdRef.current,
       });
@@ -220,6 +302,80 @@ export function SkyTrackerLiveMap({
     },
     [closeSearch, selectAircraft],
   );
+
+  const selectAirportSearchResult = useCallback(
+    (result: AirportSearchResult) => {
+      setSelectedAirport(developmentAirportDetails(result.entry));
+      closeSearch();
+    },
+    [closeSearch],
+  );
+
+  const selectFavoriteSearchResult = useCallback(
+    (result: FavoriteSearchResult) => {
+      if (result.kind === "airport") {
+        setSelectedAirport(favoriteAirportDetails(result.favorite));
+        closeSearch();
+        return;
+      }
+      const current = currentAircraftRef.current.find(
+        (item) => item.id === result.favorite.aircraftId,
+      );
+      if (!current) return;
+      selectSearchResult({
+        aircraft: current,
+        matchedField: "aircraftId",
+        matchType: "exact",
+      });
+    },
+    [closeSearch, selectSearchResult],
+  );
+
+  const toggleSelectedAircraftFavorite = useCallback(() => {
+    if (!selectedAircraft || !favoritesRepositoryRef.current) return;
+    const wasFavorite = favoriteAircraftIds.has(selectedAircraft.id);
+    setFavorites(
+      favoritesRepositoryRef.current.toggleAircraft(
+        favoriteAircraftSnapshot(selectedAircraft),
+      ),
+    );
+    setFavoriteAnnouncement(
+      wasFavorite
+        ? "Aircraft removed from favorites"
+        : "Aircraft added to favorites",
+    );
+  }, [favoriteAircraftIds, selectedAircraft]);
+
+  const toggleSelectedAirportFavorite = useCallback(() => {
+    if (!selectedAirport || !favoritesRepositoryRef.current) return;
+    const icaoCode = selectedAirport.airport.icaoCode;
+    if (!icaoCode) return;
+    const wasFavorite = favorites.airports.some(
+      (item) => item.icaoCode === icaoCode,
+    );
+    setFavorites(
+      favoritesRepositoryRef.current.toggleAirport(
+        favoriteAirportSnapshot(selectedAirport),
+      ),
+    );
+    setFavoriteAnnouncement(
+      wasFavorite
+        ? "Airport removed from favorites"
+        : "Airport added to favorites",
+    );
+  }, [favorites.airports, selectedAirport]);
+
+  const showSelectedAirportOnMap = useCallback(() => {
+    if (!selectedAirport) return;
+    const focus = createAirportMapFocus(selectedAirport);
+    if (focus.stopFollowing) setFollowEnabled(false);
+    searchRequestIdRef.current += 1;
+    setMapFocusRequest({
+      longitudeDegrees: focus.longitudeDegrees,
+      latitudeDegrees: focus.latitudeDegrees,
+      requestId: searchRequestIdRef.current,
+    });
+  }, [selectedAirport]);
 
   useEffect(() => {
     if (searchOpen) searchInputRef.current?.focus();
@@ -358,10 +514,11 @@ export function SkyTrackerLiveMap({
           bearing={bearing}
           aircraftFeatures={aircraftFeatures}
           aircraft={aircraft}
+          favoriteAircraftIds={favoriteAircraftIds}
           visibleAircraftIds={visibleAircraftIds}
           selectedAircraftId={selectedAircraftId}
           followEnabled={followEnabled}
-          searchFocusRequest={searchFocusRequest}
+          mapFocusRequest={mapFocusRequest}
           backendStatus={backendStatus}
           onBackendStatusChange={setBackendStatus}
           onSnapshot={acceptSnapshot}
@@ -374,30 +531,70 @@ export function SkyTrackerLiveMap({
 
         {searchOpen && (
           <aside
-            aria-label="Aircraft search"
-            className="absolute left-3 top-3 z-20 w-[min(28rem,calc(100%-1.5rem))] rounded-[22px] border border-cyan-200/14 bg-[#07101b]/92 p-3 shadow-[0_20px_60px_rgba(0,0,0,0.44)] backdrop-blur-xl sm:left-5 sm:top-5 sm:p-4 lg:left-7"
+            aria-label="SkyTracker search"
+            className="absolute left-3 top-3 z-30 w-[min(28rem,calc(100%-1.5rem))] rounded-[22px] border border-cyan-200/14 bg-[#07101b]/92 p-3 shadow-[0_20px_60px_rgba(0,0,0,0.44)] backdrop-blur-xl sm:left-5 sm:top-5 sm:p-4 lg:left-7"
           >
-            <label
-              htmlFor="aircraft-search"
-              className="text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-100/54"
+            <div
+              className="flex rounded-xl border border-white/[0.08] bg-black/15 p-1"
+              role="tablist"
+              aria-label="Search category"
             >
-              Search aircraft
+              {(["aircraft", "airports", "favorites"] as const).map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  role="tab"
+                  id={`search-${tab}-tab`}
+                  aria-selected={searchTab === tab}
+                  aria-controls="skytracker-search-results"
+                  onClick={() => {
+                    setSearchTab(tab);
+                    setActiveSearchIndex(0);
+                    window.requestAnimationFrame(() =>
+                      searchInputRef.current?.focus(),
+                    );
+                  }}
+                  className={`ol-interactive min-h-10 flex-1 rounded-lg px-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
+                    searchTab === tab
+                      ? "bg-cyan-200/[0.1] text-cyan-50"
+                      : "text-white/46 hover:bg-white/[0.04] hover:text-white/76"
+                  }`}
+                >
+                  {tab === "aircraft"
+                    ? "Aircraft"
+                    : tab === "airports"
+                      ? "Airports"
+                      : "Favorites"}
+                </button>
+              ))}
+            </div>
+            <label
+              htmlFor="skytracker-search"
+              className="mt-3 block text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-100/54"
+            >
+              Search {searchTab}
             </label>
             <div className="mt-2 flex items-center gap-2">
               <input
                 ref={searchInputRef}
-                id="aircraft-search"
+                id="skytracker-search"
                 type="search"
                 value={searchQuery}
                 autoComplete="off"
                 spellCheck={false}
-                aria-controls="aircraft-search-results"
+                aria-controls="skytracker-search-results"
                 aria-activedescendant={
-                  searchResults.length > 0
-                    ? `aircraft-search-result-${boundedActiveSearchIndex}`
+                  activeSearchResultsLength > 0
+                    ? `skytracker-search-result-${boundedActiveSearchIndex}`
                     : undefined
                 }
-                placeholder="Callsign, registration or aircraft ID"
+                placeholder={
+                  searchTab === "aircraft"
+                    ? "Callsign, registration or aircraft ID"
+                    : searchTab === "airports"
+                      ? "ICAO, IATA, airport name or city"
+                      : "Search saved favorites"
+                }
                 onChange={(event) => {
                   setSearchQuery(event.target.value);
                   setActiveSearchIndex(0);
@@ -408,13 +605,13 @@ export function SkyTrackerLiveMap({
                     closeSearch();
                     return;
                   }
-                  if (!searchQuery.trim() || searchResults.length === 0) return;
+                  if (!searchQuery.trim() || activeSearchResultsLength === 0) return;
                   if (event.key === "ArrowDown") {
                     event.preventDefault();
                     setActiveSearchIndex((current) =>
                       Math.min(
-                        Math.min(current, searchResults.length - 1) + 1,
-                        searchResults.length - 1,
+                        Math.min(current, activeSearchResultsLength - 1) + 1,
+                        activeSearchResultsLength - 1,
                       ),
                     );
                   } else if (event.key === "ArrowUp") {
@@ -424,8 +621,18 @@ export function SkyTrackerLiveMap({
                     );
                   } else if (event.key === "Enter") {
                     event.preventDefault();
-                    const result = searchResults[boundedActiveSearchIndex];
-                    if (result) selectSearchResult(result);
+                    if (searchTab === "aircraft") {
+                      const result = searchResults[boundedActiveSearchIndex];
+                      if (result) selectSearchResult(result);
+                    } else if (searchTab === "airports") {
+                      const result =
+                        airportSearchResults[boundedActiveSearchIndex];
+                      if (result) selectAirportSearchResult(result);
+                    } else {
+                      const result =
+                        favoriteSearchResults[boundedActiveSearchIndex];
+                      if (result) selectFavoriteSearchResult(result);
+                    }
                   }
                 }}
                 className="min-h-11 min-w-0 flex-1 rounded-xl border border-white/10 bg-white/[0.045] px-3 text-sm text-white outline-none placeholder:text-white/28 focus:border-cyan-200/28 focus:ring-2 focus:ring-cyan-300/35"
@@ -439,22 +646,25 @@ export function SkyTrackerLiveMap({
               </button>
             </div>
 
-            {searchQuery.trim() && (
+            {(searchTab === "favorites" || searchQuery.trim()) && (
               <div
-                id="aircraft-search-results"
+                id="skytracker-search-results"
                 role="listbox"
-                aria-label="Aircraft search results"
+                aria-label={`${searchTab === "aircraft" ? "Aircraft" : "Airport"} search results`}
+                aria-labelledby={`search-${searchTab}-tab`}
                 className="mt-3 max-h-[min(48vh,22rem)] overflow-y-auto border-t border-white/[0.07] pt-2"
               >
-                {searchResults.length === 0 ? (
+                {activeSearchResultsLength === 0 ? (
                   <p role="status" className="px-2 py-4 text-sm text-white/46">
-                    No matching aircraft found
+                    {searchTab === "favorites"
+                      ? "No favorites saved yet"
+                      : `No matching ${searchTab === "aircraft" ? "aircraft" : "airports"} found`}
                   </p>
-                ) : (
+                ) : searchTab === "aircraft" ? (
                   searchResults.map((result, index) => (
                     <button
                       key={result.aircraft.id}
-                      id={`aircraft-search-result-${index}`}
+                      id={`skytracker-search-result-${index}`}
                       type="button"
                       role="option"
                       aria-selected={index === boundedActiveSearchIndex}
@@ -481,6 +691,56 @@ export function SkyTrackerLiveMap({
                       </span>
                     </button>
                   ))
+                ) : searchTab === "airports" ? (
+                  airportSearchResults.map((result, index) => (
+                    <button
+                      key={result.entry.airport.icaoCode ?? result.entry.airport.iataCode}
+                      id={`skytracker-search-result-${index}`}
+                      type="button"
+                      role="option"
+                      aria-selected={index === boundedActiveSearchIndex}
+                      onMouseEnter={() => setActiveSearchIndex(index)}
+                      onClick={() => selectAirportSearchResult(result)}
+                      className={`ol-interactive flex min-h-16 w-full items-center justify-between gap-4 rounded-xl px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-300 ${
+                        index === boundedActiveSearchIndex
+                          ? "bg-cyan-200/[0.09]"
+                          : "hover:bg-white/[0.045]"
+                      }`}
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-medium text-white/88">
+                          {result.entry.airport.name}
+                        </span>
+                        <span className="mt-0.5 block truncate text-xs text-white/42">
+                          {[result.entry.city, countryName(result.entry.airport.countryCode)]
+                            .filter(Boolean)
+                            .join(", ")}
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-right font-mono text-[11px] uppercase tracking-[0.08em] text-cyan-100/56">
+                        {result.entry.airport.iataCode}
+                        <span className="block text-white/32">
+                          {result.entry.airport.icaoCode}
+                        </span>
+                      </span>
+                    </button>
+                  ))
+                ) : (
+                  favoriteSearchResults.map((result, index) => (
+                    <FavoriteSearchOption
+                      key={
+                        result.kind === "aircraft"
+                          ? `aircraft-${result.favorite.aircraftId}`
+                          : `airport-${result.favorite.icaoCode}`
+                      }
+                      result={result}
+                      index={index}
+                      active={index === boundedActiveSearchIndex}
+                      currentAircraft={aircraft}
+                      onActivate={() => selectFavoriteSearchResult(result)}
+                      onHover={() => setActiveSearchIndex(index)}
+                    />
+                  ))
                 )}
               </div>
             )}
@@ -498,7 +758,20 @@ export function SkyTrackerLiveMap({
           />
         )}
 
-        {selectedAircraft && selectedPresentedAircraft && (
+        {selectedAirport && (
+          <AirportDetailPanel
+            details={selectedAirport}
+            favorite={favorites.airports.some(
+              (item) =>
+                item.icaoCode === selectedAirport.airport.icaoCode,
+            )}
+            onClose={() => setSelectedAirport(null)}
+            onToggleFavorite={toggleSelectedAirportFavorite}
+            onShowOnMap={showSelectedAirportOnMap}
+          />
+        )}
+
+        {!selectedAirport && selectedAircraft && selectedPresentedAircraft && (
           <aside
             aria-live="polite"
             aria-label={`${selectedPresentedAircraft.displayCallsign} aircraft details`}
@@ -533,6 +806,13 @@ export function SkyTrackerLiveMap({
                 </div>
               ))}
             </dl>
+            <FlightTimeline
+              aircraft={selectedAircraft}
+              detectedAtEpochMillis={
+                firstDetectedAtByAircraftId.get(selectedAircraft.id) ??
+                selectedAircraft.positionTimestampEpochMillis
+              }
+            />
             {!visibleAircraftIdSet.has(selectedAircraft.id) && (
               <p
                 role="status"
@@ -543,6 +823,21 @@ export function SkyTrackerLiveMap({
               </p>
             )}
             <div className="mt-5 flex flex-wrap gap-2 border-t border-white/[0.07] pt-4">
+              <button
+                type="button"
+                aria-pressed={favoriteAircraftIds.has(selectedAircraft.id)}
+                aria-label={
+                  favoriteAircraftIds.has(selectedAircraft.id)
+                    ? "Remove aircraft from favorites"
+                    : "Add aircraft to favorites"
+                }
+                onClick={toggleSelectedAircraftFavorite}
+                className="ol-interactive min-h-11 rounded-full border border-amber-200/18 bg-amber-200/[0.06] px-4 text-sm font-medium text-amber-100 hover:bg-amber-200/[0.11] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
+              >
+                {favoriteAircraftIds.has(selectedAircraft.id)
+                  ? "★ Favorite"
+                  : "☆ Add Favorite"}
+              </button>
               <button
                 type="button"
                 aria-pressed={followEnabled}
@@ -561,6 +856,9 @@ export function SkyTrackerLiveMap({
             </div>
           </aside>
         )}
+        <p className="sr-only" aria-live="polite">
+          {favoriteAnnouncement}
+        </p>
       </section>
     </main>
   );
@@ -573,10 +871,11 @@ type MapViewportProps = {
   bearing: number;
   aircraftFeatures: ReturnType<typeof createAircraftFeatureCollection>;
   aircraft: readonly Aircraft[];
+  favoriteAircraftIds: ReadonlySet<string>;
   visibleAircraftIds: readonly AircraftId[];
   selectedAircraftId: AircraftId | null;
   followEnabled: boolean;
-  searchFocusRequest: SearchFocusRequest | null;
+  mapFocusRequest: MapFocusRequest | null;
   backendStatus: BackendStatus;
   onBackendStatusChange: (status: BackendStatus) => void;
   onSnapshot: (aircraft: readonly Aircraft[], status: BackendStatus) => void;
@@ -594,10 +893,11 @@ function MapViewport({
   bearing,
   aircraftFeatures,
   aircraft,
+  favoriteAircraftIds,
   visibleAircraftIds,
   selectedAircraftId,
   followEnabled,
-  searchFocusRequest,
+  mapFocusRequest,
   backendStatus,
   onBackendStatusChange,
   onSnapshot,
@@ -613,6 +913,7 @@ function MapViewport({
   const aircraftFeaturesRef = useRef(aircraftFeatures);
   const selectedAircraftIdRef = useRef(selectedAircraftId);
   const aircraftRef = useRef(aircraft);
+  const favoriteAircraftIdsRef = useRef(favoriteAircraftIds);
   const visibleAircraftIdsRef = useRef(visibleAircraftIds);
   const schedulerRef = useRef<ViewportPollingScheduler | null>(null);
   const requestRef = useRef<AbortController | null>(null);
@@ -640,29 +941,39 @@ function MapViewport({
   }, [aircraft]);
 
   useEffect(() => {
+    favoriteAircraftIdsRef.current = favoriteAircraftIds;
+    motionRuntimeRef.current?.setFavoriteAircraftIds(favoriteAircraftIds);
+  }, [favoriteAircraftIds]);
+
+  useEffect(() => {
     visibleAircraftIdsRef.current = visibleAircraftIds;
     registrationRef.current?.setVisibleAircraftIds(visibleAircraftIds);
   }, [visibleAircraftIds]);
 
   useEffect(() => {
-    if (!searchFocusRequest || !mapRef.current) return;
+    if (!mapFocusRequest || !mapRef.current) return;
     const target =
-      motionAircraftRef.current.find(
-        (item) => item.id === searchFocusRequest.aircraftId,
-      ) ??
-      aircraftRef.current.find(
-        (item) => item.id === searchFocusRequest.aircraftId,
-      );
+      "aircraftId" in mapFocusRequest
+        ? motionAircraftRef.current.find(
+            (item) => item.id === mapFocusRequest.aircraftId,
+          ) ??
+          aircraftRef.current.find(
+            (item) => item.id === mapFocusRequest.aircraftId,
+          )
+        : mapFocusRequest;
     if (!target) return;
     followMoveRef.current = true;
     mapRef.current.easeTo({
-      center: [target.longitudeDegrees, target.latitudeDegrees],
+      center: [
+        target.longitudeDegrees,
+        target.latitudeDegrees,
+      ],
       duration: window.matchMedia("(prefers-reduced-motion: reduce)").matches
         ? 0
         : 450,
       essential: false,
     });
-  }, [mapRef, searchFocusRequest]);
+  }, [mapFocusRequest, mapRef]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -797,6 +1108,7 @@ function MapViewport({
         aircraft: aircraftRef.current,
         sourceWriter: registrationRef.current.sourceWriter,
         selectedAircraftId: selectedAircraftIdRef.current,
+        favoriteAircraftIds: favoriteAircraftIdsRef.current,
         window,
         document,
         reducedMotionQuery: window.matchMedia(
@@ -1038,6 +1350,96 @@ type MapControlButtonProps = {
   children: React.ReactNode;
 };
 
+type FavoriteSearchOptionProps = {
+  result: FavoriteSearchResult;
+  index: number;
+  active: boolean;
+  currentAircraft: readonly Aircraft[];
+  onActivate: () => void;
+  onHover: () => void;
+};
+
+function FavoriteSearchOption({
+  result,
+  index,
+  active,
+  currentAircraft,
+  onActivate,
+  onHover,
+}: FavoriteSearchOptionProps) {
+  const isAvailable =
+    result.kind === "airport" ||
+    currentAircraft.some((aircraft) => aircraft.id === result.favorite.aircraftId);
+  const title =
+    result.kind === "aircraft"
+      ? result.favorite.callsign ||
+        result.favorite.registration ||
+        result.favorite.aircraftId.toUpperCase()
+      : result.favorite.name;
+  const detail =
+    result.kind === "aircraft"
+      ? [
+          result.favorite.registration,
+          isAvailable ? "Visible now" : "Not currently visible",
+        ]
+          .filter(Boolean)
+          .join(" · ")
+      : [
+          result.favorite.iataCode,
+          result.favorite.icaoCode,
+          result.favorite.city,
+        ]
+          .filter(Boolean)
+          .join(" · ");
+
+  return (
+    <button
+      id={`skytracker-search-result-${index}`}
+      type="button"
+      role="option"
+      aria-selected={active}
+      aria-disabled={!isAvailable}
+      onMouseEnter={onHover}
+      onClick={isAvailable ? onActivate : undefined}
+      className={`ol-interactive flex min-h-16 w-full items-center justify-between gap-4 rounded-xl px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-300 ${
+        active ? "bg-amber-200/[0.09]" : "hover:bg-white/[0.045]"
+      } ${isAvailable ? "" : "cursor-not-allowed opacity-55"}`}
+    >
+      <span className="min-w-0">
+        <span className="block truncate text-sm font-medium text-white/88">
+          {title}
+        </span>
+        <span className="mt-0.5 block truncate text-xs text-white/42">
+          {detail}
+        </span>
+      </span>
+      <span
+        aria-hidden="true"
+        className="shrink-0 text-base text-amber-200/80"
+      >
+        ★
+      </span>
+    </button>
+  );
+}
+
+function favoriteAirportDetails(favorite: FavoriteAirport): AirportDetails {
+  return {
+    airport: {
+      icaoCode: favorite.icaoCode,
+      iataCode: favorite.iataCode,
+      name: favorite.name,
+      latitudeDegrees: favorite.latitudeDegrees,
+      longitudeDegrees: favorite.longitudeDegrees,
+      countryCode: favorite.countryCode,
+    },
+    city: favorite.city,
+    elevationMeters: null,
+    timezone: null,
+    runways: [],
+  };
+}
+
 function MapControlButton({
   label,
   disabled = false,
@@ -1098,4 +1500,13 @@ function backendStatusDetail(status: BackendStatus) {
   if (status.state === "connecting") return "Waiting for the first development snapshot";
   const cache = status.cacheStatus ? ` · cache ${status.cacheStatus}` : "";
   return `Backend development data${cache}`;
+}
+
+function countryName(code: string | null) {
+  if (!code) return null;
+  try {
+    return new Intl.DisplayNames(["en"], { type: "region" }).of(code) ?? code;
+  } catch {
+    return code;
+  }
 }

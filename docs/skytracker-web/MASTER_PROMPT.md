@@ -174,3 +174,21 @@ Iedere SkyTracker-sprint verloopt voortaan als volgt:
    ```powershell
    .\scripts\skytracker-dev-stop.ps1
    ```
+
+## Deployment Policy
+
+Tijdens normale ontwikkelsprints voert Codex niet automatisch een commit,
+push of deployment uit.
+
+Na expliciete Product Owner-goedkeuring, of wanneer de sprint aantoonbaar als
+volledig geaccepteerd is gemarkeerd, mag Codex automatisch:
+
+1. alle sprintwijzigingen controleren en committen;
+2. een duidelijke sprintgebonden commit message genereren;
+3. pushen naar de ingestelde branch;
+4. wachten op de gekoppelde automatische deployment;
+5. controleren of de deployment succesvol is;
+6. de productie-URL en commit-hash rapporteren.
+
+Zonder deze acceptatie blijft de worktree lokaal en worden releasehandelingen
+niet uitgevoerd.

@@ -12,6 +12,7 @@ export type PresentedAircraft = Readonly<{
   displayCallsign: string;
   registration: string | null;
   selected: boolean;
+  favorite: boolean;
   onGround: boolean;
   category: AircraftCategory;
 }>;
@@ -19,6 +20,7 @@ export type PresentedAircraft = Readonly<{
 export function presentAircraft(
   aircraft: readonly Aircraft[],
   selectedAircraftId: AircraftId | null,
+  favoriteAircraftIds: ReadonlySet<string> = new Set(),
 ): readonly PresentedAircraft[] {
   return aircraft.map((item) => ({
     id: item.id,
@@ -32,6 +34,7 @@ export function presentAircraft(
       cleanLabel(item.callsign) ?? cleanLabel(item.registration) ?? item.id.toUpperCase(),
     registration: cleanLabel(item.registration),
     selected: item.id === selectedAircraftId,
+    favorite: favoriteAircraftIds.has(item.id),
     onGround: item.onGround,
     category: item.category,
   }));

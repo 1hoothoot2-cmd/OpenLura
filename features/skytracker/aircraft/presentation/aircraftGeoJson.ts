@@ -7,6 +7,7 @@ export type AircraftFeatureProperties = Readonly<{
   heading_known: boolean;
   display_label: string;
   selected: boolean;
+  favorite: boolean;
   on_ground: boolean;
 }>;
 
@@ -32,6 +33,7 @@ export function createAircraftFeatureCollection(
         heading_known: item.hasKnownHeading,
         display_label: item.displayCallsign,
         selected: item.selected,
+        favorite: item.favorite,
         on_ground: item.onGround,
       },
     }),
@@ -55,6 +57,7 @@ export function aircraftFeatureFingerprint(
         Number(properties.heading_known),
         properties.display_label,
         Number(properties.selected),
+        Number(properties.favorite),
         Number(properties.on_ground),
       ].join(":");
     })

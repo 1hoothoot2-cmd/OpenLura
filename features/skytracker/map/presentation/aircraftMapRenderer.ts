@@ -122,8 +122,13 @@ function addLayers(map: MapLibreMap) {
       paint: {
         "circle-radius": 10,
         "circle-color": "rgba(85,217,242,0.08)",
-        "circle-stroke-color": "rgba(85,217,242,0.2)",
-        "circle-stroke-width": 0.8,
+        "circle-stroke-color": [
+          "case",
+          ["get", "favorite"],
+          "rgba(251,191,36,0.72)",
+          "rgba(85,217,242,0.2)",
+        ],
+        "circle-stroke-width": ["case", ["get", "favorite"], 1.6, 0.8],
       },
     });
   }

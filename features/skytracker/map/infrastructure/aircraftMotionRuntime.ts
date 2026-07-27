@@ -16,6 +16,7 @@ type AircraftMotionRuntimeOptions = Readonly<{
   aircraft: readonly Aircraft[];
   sourceWriter: AircraftMapSourceWriter;
   selectedAircraftId: AircraftId | null;
+  favoriteAircraftIds?: ReadonlySet<string>;
   window: Window;
   document: Document;
   reducedMotionQuery: MediaQueryList;
@@ -33,6 +34,7 @@ export class AircraftMotionRuntime {
   private readonly onFrame: AircraftMotionRuntimeOptions["onFrame"];
   private readonly clock: ReplayClock;
   private selectedAircraftId: AircraftId | null;
+  private favoriteAircraftIds: ReadonlySet<string>;
   private frameHandle: number | null = null;
   private lastWriteAtMillis = Number.NEGATIVE_INFINITY;
   private disposed = false;
@@ -42,6 +44,7 @@ export class AircraftMotionRuntime {
     this.plans = options.aircraft.map((item) => createMotionPlan(item));
     this.sourceWriter = options.sourceWriter;
     this.selectedAircraftId = options.selectedAircraftId;
+    this.favoriteAircraftIds = options.favoriteAircraftIds ?? new Set();
     this.window = options.window;
     this.document = options.document;
     this.reducedMotionQuery = options.reducedMotionQuery;
@@ -63,6 +66,12 @@ export class AircraftMotionRuntime {
   setSelectedAircraftId(aircraftId: AircraftId | null) {
     if (this.disposed || this.selectedAircraftId === aircraftId) return;
     this.selectedAircraftId = aircraftId;
+    this.renderCurrentFrame(true);
+  }
+
+  setFavoriteAircraftIds(aircraftIds: ReadonlySet<string>) {
+    if (this.disposed) return;
+    this.favoriteAircraftIds = new Set(aircraftIds);
     this.renderCurrentFrame(true);
   }
 
@@ -158,7 +167,11 @@ export class AircraftMotionRuntime {
     const movedAircraft = this.sampleAircraft(currentTimeMillis);
     this.onFrame?.(movedAircraft, currentTimeMillis);
     const collection = createAircraftFeatureCollection(
-      presentAircraft(movedAircraft, this.selectedAircraftId),
+      presentAircraft(
+        movedAircraft,
+        this.selectedAircraftId,
+        this.favoriteAircraftIds,
+      ),
     );
     if (this.sourceWriter.write(collection)) {
       this.lastWriteAtMillis = currentTimeMillis;
