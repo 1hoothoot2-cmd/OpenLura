@@ -9,14 +9,18 @@ import {
   setWorkerUrl,
   type ErrorEvent,
 } from "maplibre-gl";
-import type { AircraftId } from "../../aircraft/domain/aircraft";
-import { validateAircraftSnapshot } from "../../aircraft/domain/aircraftValidation";
-import {
-  DEVELOPMENT_AIRCRAFT,
-  INITIAL_SELECTED_AIRCRAFT_ID,
-} from "../../aircraft/fixtures/developmentAircraft";
+import type { Aircraft, AircraftId } from "../../aircraft/domain/aircraft";
 import { createAircraftFeatureCollection } from "../../aircraft/presentation/aircraftGeoJson";
 import { presentAircraft } from "../../aircraft/presentation/presentedAircraft";
+import { normalizeViewportBounds } from "../../backend/domain/viewportBounds";
+import { reconcileSnapshot } from "../../backend/domain/snapshotReconciliation";
+import { fetchLiveAircraft } from "../../backend/infrastructure/liveAircraftClient";
+import { resolveSkyTrackerApiConfig } from "../../backend/infrastructure/skyTrackerApiConfig";
+import {
+  MOVE_END_DEBOUNCE_MILLIS,
+  REQUEST_TIMEOUT_MILLIS,
+  ViewportPollingScheduler,
+} from "../../backend/infrastructure/viewportPollingScheduler";
 import {
   registerAircraftMapPresentation,
   type AircraftMapRegistration,
@@ -33,8 +37,15 @@ import { AircraftMotionRuntime } from "../infrastructure/aircraftMotionRuntime";
 
 type MapStatus = "loading" | "ready" | "error";
 
-const VALIDATED_FIXTURES = validateAircraftSnapshot(DEVELOPMENT_AIRCRAFT);
 const MAPLIBRE_WORKER_URL = "/maplibre/maplibre-gl-worker.mjs";
+const API_CONFIG = resolveSkyTrackerApiConfig();
+
+type BackendStatus = Readonly<{
+  state: "not-configured" | "connecting" | "connected" | "reconnecting" | "invalid-viewport";
+  aircraftCount: number;
+  updatedAt: number | null;
+  cacheStatus: string | null;
+}>;
 
 type SkyTrackerLiveMapProps = {
   initialAircraftId?: string | null;
@@ -43,21 +54,33 @@ type SkyTrackerLiveMapProps = {
 export function SkyTrackerLiveMap({
   initialAircraftId = null,
 }: SkyTrackerLiveMapProps) {
-  const initialSelection = resolveInitialSelection(initialAircraftId);
   const [retryKey, setRetryKey] = useState(0);
   const [status, setStatus] = useState<MapStatus>("loading");
   const [bearing, setBearing] = useState(0);
+  const [aircraft, setAircraft] = useState<readonly Aircraft[]>([]);
+  const [backendStatus, setBackendStatus] = useState<BackendStatus>({
+    state: API_CONFIG.configured ? "connecting" : "not-configured",
+    aircraftCount: 0,
+    updatedAt: null,
+    cacheStatus: null,
+  });
   const [selectedAircraftId, setSelectedAircraftId] =
-    useState<AircraftId | null>(initialSelection);
+    useState<AircraftId | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
+  const currentAircraftRef = useRef<readonly Aircraft[]>([]);
+  const initialSelectionAttemptedRef = useRef(false);
+
+  useEffect(() => {
+    currentAircraftRef.current = aircraft;
+  }, [aircraft]);
 
   const presentedAircraft = useMemo(
     () =>
       presentAircraft(
-        VALIDATED_FIXTURES.validAircraft,
+        aircraft,
         selectedAircraftId,
       ),
-    [selectedAircraftId],
+    [aircraft, selectedAircraftId],
   );
   const aircraftFeatures = useMemo(
     () => createAircraftFeatureCollection(presentedAircraft),
@@ -68,12 +91,29 @@ export function SkyTrackerLiveMap({
   const selectAircraft = useCallback((aircraftId: AircraftId | null) => {
     const validSelection =
       aircraftId &&
-      VALIDATED_FIXTURES.validAircraft.some((aircraft) => aircraft.id === aircraftId)
+      currentAircraftRef.current.some((item) => item.id === aircraftId)
         ? aircraftId
         : null;
     setSelectedAircraftId(validSelection);
     updateAircraftQuery(validSelection);
   }, []);
+
+  const acceptSnapshot = useCallback((nextAircraft: readonly Aircraft[], nextStatus: BackendStatus) => {
+    setAircraft([...nextAircraft]);
+    setBackendStatus(nextStatus);
+    setSelectedAircraftId((current) => {
+      if (!initialSelectionAttemptedRef.current) {
+        initialSelectionAttemptedRef.current = true;
+        const requestedId = initialAircraftId?.trim().toLowerCase();
+        const initialMatch = nextAircraft.find((item) => item.id === requestedId);
+        if (initialMatch) return initialMatch.id;
+      }
+      const reconciled = reconcileSnapshot(nextAircraft, current);
+      if (!reconciled.selectionRemoved) return current;
+      updateAircraftQuery(null);
+      return null;
+    });
+  }, [initialAircraftId]);
 
   const retryMap = useCallback(() => {
     setStatus("loading");
@@ -113,7 +153,7 @@ export function SkyTrackerLiveMap({
               aria-hidden="true"
               className="h-1.5 w-1.5 rounded-full bg-cyan-300 shadow-[0_0_10px_rgba(103,232,249,0.55)]"
             />
-            Fixture data
+            Backend development data
           </span>
           <Link
             href="/skytracker"
@@ -125,7 +165,7 @@ export function SkyTrackerLiveMap({
       </header>
 
       <section
-        aria-label="Interactive SkyTracker map with 12 development fixture aircraft. Select an aircraft on the map, or use the clear selection button after selecting one."
+        aria-label="Interactive SkyTracker map using local backend development data. Select an aircraft on the map, or use the clear selection button after selecting one."
         className="relative min-h-0 flex-1"
       >
         <MapViewport
@@ -135,7 +175,11 @@ export function SkyTrackerLiveMap({
           status={status}
           bearing={bearing}
           aircraftFeatures={aircraftFeatures}
+          aircraft={aircraft}
           selectedAircraftId={selectedAircraftId}
+          backendStatus={backendStatus}
+          onBackendStatusChange={setBackendStatus}
+          onSnapshot={acceptSnapshot}
           onStatusChange={setStatus}
           onBearingChange={setBearing}
           onSelectAircraft={selectAircraft}
@@ -187,7 +231,11 @@ type MapViewportProps = {
   status: MapStatus;
   bearing: number;
   aircraftFeatures: ReturnType<typeof createAircraftFeatureCollection>;
+  aircraft: readonly Aircraft[];
   selectedAircraftId: AircraftId | null;
+  backendStatus: BackendStatus;
+  onBackendStatusChange: (status: BackendStatus) => void;
+  onSnapshot: (aircraft: readonly Aircraft[], status: BackendStatus) => void;
   onStatusChange: (status: MapStatus) => void;
   onBearingChange: (bearing: number) => void;
   onSelectAircraft: (aircraftId: AircraftId | null) => void;
@@ -200,7 +248,11 @@ function MapViewport({
   status,
   bearing,
   aircraftFeatures,
+  aircraft,
   selectedAircraftId,
+  backendStatus,
+  onBackendStatusChange,
+  onSnapshot,
   onStatusChange,
   onBearingChange,
   onSelectAircraft,
@@ -211,12 +263,21 @@ function MapViewport({
   const motionRuntimeRef = useRef<AircraftMotionRuntime | null>(null);
   const aircraftFeaturesRef = useRef(aircraftFeatures);
   const selectedAircraftIdRef = useRef(selectedAircraftId);
+  const aircraftRef = useRef(aircraft);
+  const schedulerRef = useRef<ViewportPollingScheduler | null>(null);
+  const requestRef = useRef<AbortController | null>(null);
+  const moveDebounceRef = useRef<number | null>(null);
 
   useEffect(() => {
     aircraftFeaturesRef.current = aircraftFeatures;
     selectedAircraftIdRef.current = selectedAircraftId;
     motionRuntimeRef.current?.setSelectedAircraftId(selectedAircraftId);
   }, [aircraftFeatures, selectedAircraftId]);
+
+  useEffect(() => {
+    aircraftRef.current = aircraft;
+    motionRuntimeRef.current?.setAircraftSnapshot(aircraft);
+  }, [aircraft]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -245,6 +306,86 @@ function MapViewport({
     mapRef.current = map;
     map.addControl(new AttributionControl({ compact: true }), "bottom-right");
 
+    const requestViewport = async () => {
+      if (!API_CONFIG.configured || disposed || document.hidden) return false;
+      const mapBounds = map.getBounds();
+      const bounds = normalizeViewportBounds({
+        minLat: mapBounds.getSouth(),
+        minLon: mapBounds.getWest(),
+        maxLat: mapBounds.getNorth(),
+        maxLon: mapBounds.getEast(),
+      });
+      if (!bounds.valid) {
+        onBackendStatusChange({
+          state: "invalid-viewport",
+          aircraftCount: aircraftRef.current.length,
+          updatedAt: null,
+          cacheStatus: null,
+        });
+        return true;
+      }
+
+      requestRef.current?.abort();
+      const controller = new AbortController();
+      requestRef.current = controller;
+      const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MILLIS);
+      try {
+        const result = await fetchLiveAircraft(
+          API_CONFIG.baseUrl,
+          bounds.bounds,
+          controller.signal,
+        );
+        if (controller.signal.aborted || disposed) return true;
+        if (result.ok) {
+          onSnapshot(result.snapshot.aircraft, {
+            state: "connected",
+            aircraftCount: result.snapshot.aircraft.length,
+            updatedAt: Date.now(),
+            cacheStatus: result.cacheStatus,
+          });
+          return true;
+        }
+        onBackendStatusChange({
+          state: result.category === "viewport" ? "invalid-viewport" : "reconnecting",
+          aircraftCount: aircraftRef.current.length,
+          updatedAt: null,
+          cacheStatus: null,
+        });
+        return !result.retryable;
+      } catch {
+        if (controller.signal.aborted || disposed) return true;
+        onBackendStatusChange({
+          state: "reconnecting",
+          aircraftCount: aircraftRef.current.length,
+          updatedAt: null,
+          cacheStatus: null,
+        });
+        return false;
+      } finally {
+        window.clearTimeout(timeout);
+        if (requestRef.current === controller) requestRef.current = null;
+      }
+    };
+
+    const handleMoveEnd = () => {
+      if (moveDebounceRef.current !== null) {
+        window.clearTimeout(moveDebounceRef.current);
+      }
+      moveDebounceRef.current = window.setTimeout(() => {
+        requestRef.current?.abort();
+        schedulerRef.current?.reset();
+      }, MOVE_END_DEBOUNCE_MILLIS);
+    };
+
+    const handleVisibility = () => {
+      if (document.hidden) {
+        requestRef.current?.abort();
+        schedulerRef.current?.pause();
+      } else {
+        schedulerRef.current?.resume();
+      }
+    };
+
     const handleLoad = () => {
       if (disposed) return;
       styleReady = true;
@@ -254,7 +395,7 @@ function MapViewport({
         onSelectAircraft,
       );
       motionRuntimeRef.current = new AircraftMotionRuntime({
-        aircraft: VALIDATED_FIXTURES.validAircraft,
+        aircraft: aircraftRef.current,
         sourceWriter: registrationRef.current.sourceWriter,
         selectedAircraftId: selectedAircraftIdRef.current,
         window,
@@ -264,6 +405,10 @@ function MapViewport({
         ),
       });
       motionRuntimeRef.current.start();
+      if (API_CONFIG.configured) {
+        schedulerRef.current = new ViewportPollingScheduler(requestViewport);
+        schedulerRef.current.start();
+      }
       onStatusChange("ready");
       onBearingChange(map.getBearing());
     };
@@ -282,6 +427,8 @@ function MapViewport({
     map.once("style.load", handleLoad);
     map.on("error", handleError);
     map.on("rotate", handleRotate);
+    map.on("moveend", handleMoveEnd);
+    document.addEventListener("visibilitychange", handleVisibility);
 
     const resizeObserver = new ResizeObserver(() => {
       if (resizeFrame !== null) return;
@@ -298,17 +445,29 @@ function MapViewport({
       if (resizeFrame !== null) window.cancelAnimationFrame(resizeFrame);
       motionRuntimeRef.current?.dispose();
       motionRuntimeRef.current = null;
+      schedulerRef.current?.dispose();
+      schedulerRef.current = null;
+      requestRef.current?.abort();
+      requestRef.current = null;
+      if (moveDebounceRef.current !== null) {
+        window.clearTimeout(moveDebounceRef.current);
+        moveDebounceRef.current = null;
+      }
       registrationRef.current?.remove();
       registrationRef.current = null;
       map.off("style.load", handleLoad);
       map.off("error", handleError);
       map.off("rotate", handleRotate);
+      map.off("moveend", handleMoveEnd);
+      document.removeEventListener("visibilitychange", handleVisibility);
       map.remove();
       if (mapRef.current === map) mapRef.current = null;
     };
   }, [
     mapRef,
     onBearingChange,
+    onBackendStatusChange,
+    onSnapshot,
     onSelectAircraft,
     onStatusChange,
     style,
@@ -325,7 +484,7 @@ function MapViewport({
         ref={containerRef}
         className="h-full w-full bg-[#06101c]"
         role="region"
-        aria-label="Map of Western Europe with development fixture aircraft. Use arrow keys to pan and plus or minus to zoom when the map has focus."
+        aria-label="Map of Western Europe with local backend development aircraft. Use arrow keys to pan and plus or minus to zoom when the map has focus."
       />
 
       <div
@@ -346,7 +505,7 @@ function MapViewport({
             />
             <p className="mt-5 text-sm font-medium text-white/72">Loading map</p>
             <p className="mt-1 text-xs text-white/34">
-              Preparing aircraft fixtures
+              Preparing local backend connection
             </p>
           </div>
         </div>
@@ -376,21 +535,26 @@ function MapViewport({
       )}
 
       {status === "ready" && (
-        <aside className="absolute left-3 top-3 z-10 max-w-[calc(100%-5.5rem)] rounded-[18px] border border-white/10 bg-[#06101b]/72 px-4 py-3 shadow-[0_16px_40px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:left-5 sm:top-5 lg:left-7">
+        <aside
+          aria-live="polite"
+          className="absolute left-3 top-3 z-10 max-w-[calc(100%-5.5rem)] rounded-[18px] border border-white/10 bg-[#06101b]/72 px-4 py-3 shadow-[0_16px_40px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:left-5 sm:top-5 lg:left-7"
+        >
           <div className="flex items-center gap-2">
             <span
               aria-hidden="true"
               className="h-1.5 w-1.5 rounded-full bg-cyan-300"
             />
             <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/48">
-              Development fixture data
+              {backendStatusTitle(backendStatus.state)}
             </p>
           </div>
-          <p className="mt-2 text-sm font-medium text-white/82">
-            {aircraftFeatures.features.length} fixture aircraft
-          </p>
+          {backendStatus.state !== "not-configured" && (
+            <p className="mt-2 text-sm font-medium text-white/82">
+              {backendStatus.aircraftCount} aircraft from local backend
+            </p>
+          )}
           <p className="mt-1 hidden text-xs leading-5 text-white/36 sm:block">
-            No live provider connection
+            {backendStatusDetail(backendStatus)}
           </p>
         </aside>
       )}
@@ -480,18 +644,33 @@ function MapControlButton({
   );
 }
 
-function resolveInitialSelection(value: string | null): AircraftId | null {
-  if (value === null) return INITIAL_SELECTED_AIRCRAFT_ID;
-  const normalized = value.trim().toLowerCase();
-  return (
-    VALIDATED_FIXTURES.validAircraft.find((aircraft) => aircraft.id === normalized)
-      ?.id ?? null
-  );
-}
-
 function updateAircraftQuery(aircraftId: AircraftId | null) {
   const url = new URL(window.location.href);
   if (aircraftId) url.searchParams.set("aircraft", aircraftId);
   else url.searchParams.delete("aircraft");
   window.history.replaceState(window.history.state, "", url);
+}
+
+function backendStatusTitle(state: BackendStatus["state"]) {
+  switch (state) {
+    case "not-configured":
+      return "Backend not configured";
+    case "connecting":
+      return "Connecting to local backend";
+    case "connected":
+      return "Local backend connected";
+    case "reconnecting":
+      return "Backend temporarily unavailable";
+    case "invalid-viewport":
+      return "Zoom in to load aircraft";
+  }
+}
+
+function backendStatusDetail(status: BackendStatus) {
+  if (status.state === "reconnecting") return "Using last valid snapshot";
+  if (status.state === "not-configured") return "Set the public local API base URL";
+  if (status.state === "invalid-viewport") return "The current viewport exceeds backend limits";
+  if (status.state === "connecting") return "Waiting for the first development snapshot";
+  const cache = status.cacheStatus ? ` · cache ${status.cacheStatus}` : "";
+  return `Backend development data${cache}`;
 }

@@ -2,6 +2,7 @@ import type { Aircraft, AircraftId } from "../../aircraft/domain/aircraft.ts";
 import {
   applyMotionSample,
   createMotionPlan,
+  interpolateMotionPlan,
   type MotionPlan,
 } from "../../aircraft/motion/aircraftMotion.ts";
 import { ReplayClock } from "../../aircraft/motion/replayClock.ts";
@@ -21,8 +22,9 @@ type AircraftMotionRuntimeOptions = Readonly<{
 }>;
 
 export class AircraftMotionRuntime {
-  private readonly aircraft: readonly Aircraft[];
-  private readonly plans: readonly MotionPlan[];
+  private aircraft: readonly Aircraft[];
+  private plans: readonly MotionPlan[];
+  private targetDriven = false;
   private readonly sourceWriter: AircraftMapSourceWriter;
   private readonly window: Window;
   private readonly document: Document;
@@ -58,6 +60,34 @@ export class AircraftMotionRuntime {
   setSelectedAircraftId(aircraftId: AircraftId | null) {
     if (this.disposed || this.selectedAircraftId === aircraftId) return;
     this.selectedAircraftId = aircraftId;
+    this.renderCurrentFrame(true);
+  }
+
+  setAircraftSnapshot(aircraft: readonly Aircraft[]) {
+    if (this.disposed) return;
+    const time = this.clock.currentTime();
+    const currentById = new Map(
+      this.sampleAircraft(time).map((item) => [item.id, item]),
+    );
+    this.aircraft = aircraft;
+    this.plans = aircraft.map((target) => {
+      const current = currentById.get(target.id) ?? target;
+      return {
+        startPosition: {
+          latitudeDegrees: current.latitudeDegrees,
+          longitudeDegrees: current.longitudeDegrees,
+        },
+        targetPosition: {
+          latitudeDegrees: target.latitudeDegrees,
+          longitudeDegrees: target.longitudeDegrees,
+        },
+        headingDegrees: target.headingDegrees ?? 0,
+        speedMetersPerSecond: target.groundSpeedMetersPerSecond ?? 0,
+        startTimeMillis: time,
+        durationMillis: 4_000,
+      };
+    });
+    this.targetDriven = true;
     this.renderCurrentFrame(true);
   }
 
@@ -122,15 +152,27 @@ export class AircraftMotionRuntime {
       return;
     }
 
-    const movedAircraft = this.aircraft.map((item, index) =>
-      applyMotionSample(item, this.plans[index], currentTimeMillis),
-    );
+    const movedAircraft = this.sampleAircraft(currentTimeMillis);
     const collection = createAircraftFeatureCollection(
       presentAircraft(movedAircraft, this.selectedAircraftId),
     );
     if (this.sourceWriter.write(collection)) {
       this.lastWriteAtMillis = currentTimeMillis;
     }
+  }
+
+  private sampleAircraft(currentTimeMillis: number) {
+    return this.aircraft.map((item, index) => {
+      if (!this.targetDriven) {
+        return applyMotionSample(item, this.plans[index], currentTimeMillis);
+      }
+      const position = interpolateMotionPlan(this.plans[index], currentTimeMillis);
+      return {
+        ...item,
+        latitudeDegrees: position.latitudeDegrees,
+        longitudeDegrees: position.longitudeDegrees,
+      };
+    });
   }
 
   private stopFrameLoop() {

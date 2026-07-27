@@ -7,6 +7,8 @@ export type AircraftCategory =
   | "helicopter"
   | "unknown";
 
+export type AircraftLifecycle = "FRESH" | "STALE";
+
 export type Aircraft = Readonly<{
   id: AircraftId;
   latitudeDegrees: number;
@@ -16,8 +18,10 @@ export type Aircraft = Readonly<{
   registration: string | null;
   altitudeMeters: number | null;
   groundSpeedMetersPerSecond: number | null;
+  verticalRateMetersPerSecond?: number | null;
   onGround: boolean;
   category: AircraftCategory;
+  lifecycle?: AircraftLifecycle;
   positionTimestampEpochMillis: number;
 }>;
 
