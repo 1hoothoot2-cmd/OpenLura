@@ -85,6 +85,29 @@ writer behavior. No timeout, polling, retry loop, debug layer, or diagnostic
 overlay was added. Final visual acceptance remains a Product Owner check in a
 normal Chrome browser.
 
+## L2B render pipeline verification
+
+The remaining invisible-aircraft defect was outside the aircraft data path.
+Next/Turbopack emitted MapLibre GL JS 6's ESM worker with a hashed filename,
+while the worker retained its relative import of
+`./maplibre-gl-shared.mjs`. Only a hashed shared module existed in the build;
+the required relative URL returned HTTP 404. The worker therefore never
+completed GeoJSON processing: source and layers existed, but
+`querySourceFeatures()` returned zero and the map did not reach idle.
+
+SkyTracker now serves the unmodified, version-matched MapLibre worker and shared
+module at stable same-origin URLs under `public/maplibre`. The live map calls
+`setWorkerUrl()` before constructing MapLibre. No provider, polling, or second
+aircraft source was added.
+
+The temporary pipeline probe measured 12 fixtures, 12 validated records, 12
+presented records, and 12 GeoJSON points. Before the fix it measured zero source
+features, zero debug-circle features, zero symbol features, and no idle event.
+After the fix, at 1440×1000, it measured 12 debug circles, 11 normal symbols,
+one selected symbol, all 12 unique aircraft IDs, and `idle=true`. The temporary
+circle layer, overlay, counters, diagnostic retry, and feature-query listeners
+were removed before the final build.
+
 ## Selection and URL
 
 React stores only the selected aircraft ID. Selection rewrites the same

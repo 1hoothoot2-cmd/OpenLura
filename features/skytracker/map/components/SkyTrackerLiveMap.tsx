@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AttributionControl,
   Map as MapLibreMap,
+  setWorkerUrl,
   type ErrorEvent,
 } from "maplibre-gl";
 import type { AircraftId } from "../../aircraft/domain/aircraft";
@@ -32,6 +33,7 @@ import {
 type MapStatus = "loading" | "ready" | "error";
 
 const VALIDATED_FIXTURES = validateAircraftSnapshot(DEVELOPMENT_AIRCRAFT);
+const MAPLIBRE_WORKER_URL = "/maplibre/maplibre-gl-worker.mjs";
 
 type SkyTrackerLiveMapProps = {
   initialAircraftId?: string | null;
@@ -217,6 +219,7 @@ function MapViewport({
     let resizeFrame: number | null = null;
     let disposed = false;
 
+    setWorkerUrl(MAPLIBRE_WORKER_URL);
     const map = new MapLibreMap({
       container,
       style,
