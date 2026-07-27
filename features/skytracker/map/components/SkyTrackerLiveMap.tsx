@@ -29,6 +29,7 @@ import {
   SKYTRACKER_MIN_ZOOM,
   type SkyTrackerMapStyle,
 } from "../infrastructure/mapConfig";
+import { AircraftMotionRuntime } from "../infrastructure/aircraftMotionRuntime";
 
 type MapStatus = "loading" | "ready" | "error";
 
@@ -134,6 +135,7 @@ export function SkyTrackerLiveMap({
           status={status}
           bearing={bearing}
           aircraftFeatures={aircraftFeatures}
+          selectedAircraftId={selectedAircraftId}
           onStatusChange={setStatus}
           onBearingChange={setBearing}
           onSelectAircraft={selectAircraft}
@@ -185,6 +187,7 @@ type MapViewportProps = {
   status: MapStatus;
   bearing: number;
   aircraftFeatures: ReturnType<typeof createAircraftFeatureCollection>;
+  selectedAircraftId: AircraftId | null;
   onStatusChange: (status: MapStatus) => void;
   onBearingChange: (bearing: number) => void;
   onSelectAircraft: (aircraftId: AircraftId | null) => void;
@@ -197,6 +200,7 @@ function MapViewport({
   status,
   bearing,
   aircraftFeatures,
+  selectedAircraftId,
   onStatusChange,
   onBearingChange,
   onSelectAircraft,
@@ -204,12 +208,15 @@ function MapViewport({
 }: MapViewportProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const registrationRef = useRef<AircraftMapRegistration | null>(null);
+  const motionRuntimeRef = useRef<AircraftMotionRuntime | null>(null);
   const aircraftFeaturesRef = useRef(aircraftFeatures);
+  const selectedAircraftIdRef = useRef(selectedAircraftId);
 
   useEffect(() => {
     aircraftFeaturesRef.current = aircraftFeatures;
-    registrationRef.current?.sourceWriter.write(aircraftFeatures);
-  }, [aircraftFeatures]);
+    selectedAircraftIdRef.current = selectedAircraftId;
+    motionRuntimeRef.current?.setSelectedAircraftId(selectedAircraftId);
+  }, [aircraftFeatures, selectedAircraftId]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -246,6 +253,17 @@ function MapViewport({
         aircraftFeaturesRef.current,
         onSelectAircraft,
       );
+      motionRuntimeRef.current = new AircraftMotionRuntime({
+        aircraft: VALIDATED_FIXTURES.validAircraft,
+        sourceWriter: registrationRef.current.sourceWriter,
+        selectedAircraftId: selectedAircraftIdRef.current,
+        window,
+        document,
+        reducedMotionQuery: window.matchMedia(
+          "(prefers-reduced-motion: reduce)",
+        ),
+      });
+      motionRuntimeRef.current.start();
       onStatusChange("ready");
       onBearingChange(map.getBearing());
     };
@@ -278,6 +296,8 @@ function MapViewport({
       disposed = true;
       resizeObserver.disconnect();
       if (resizeFrame !== null) window.cancelAnimationFrame(resizeFrame);
+      motionRuntimeRef.current?.dispose();
+      motionRuntimeRef.current = null;
       registrationRef.current?.remove();
       registrationRef.current = null;
       map.off("style.load", handleLoad);
