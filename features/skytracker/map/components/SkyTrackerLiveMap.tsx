@@ -112,6 +112,7 @@ import {
 type MapStatus = "loading" | "ready" | "error";
 
 const MAPLIBRE_WORKER_URL = "/maplibre/maplibre-gl-worker.mjs";
+const IS_PRODUCTION_BUILD = process.env.NODE_ENV === "production";
 
 type BackendStatus = Readonly<{
   state: "not-configured" | "connecting" | "connected" | "reconnecting" | "invalid-viewport";
@@ -722,7 +723,9 @@ export function SkyTrackerLiveMap({
             />
             {replayState.mode === "replay"
               ? "Local session replay"
-              : "Backend development data"}
+              : IS_PRODUCTION_BUILD
+                ? "Live backend data"
+                : "Backend development data"}
           </span>
           <Link
             href="/skytracker"
@@ -734,7 +737,9 @@ export function SkyTrackerLiveMap({
       </header>
 
       <section
-        aria-label="Interactive SkyTracker map using local backend development data. Select an aircraft on the map, or use the clear selection button after selecting one."
+        aria-label={`Interactive SkyTracker map using ${
+          IS_PRODUCTION_BUILD ? "live backend data" : "local backend development data"
+        }. Select an aircraft on the map, or use the clear selection button after selecting one.`}
         className="relative min-h-0 flex-1"
       >
         <MapViewport
@@ -1510,7 +1515,9 @@ function MapViewport({
         ref={containerRef}
         className="h-full w-full bg-[#06101c]"
         role="region"
-        aria-label="Map of Western Europe with local backend development aircraft. Use arrow keys to pan and plus or minus to zoom when the map has focus."
+        aria-label={`Map of Western Europe with ${
+          IS_PRODUCTION_BUILD ? "live backend aircraft" : "local backend development aircraft"
+        }. Use arrow keys to pan and plus or minus to zoom when the map has focus.`}
       />
 
       <div
@@ -1531,7 +1538,7 @@ function MapViewport({
             />
             <p className="mt-5 text-sm font-medium text-white/72">Loading map</p>
             <p className="mt-1 text-xs text-white/34">
-              Preparing local backend connection
+              Preparing SkyTracker backend connection
             </p>
           </div>
         </div>
@@ -1582,7 +1589,7 @@ function MapViewport({
             </p>
           ) : backendStatus.state !== "not-configured" && (
             <p className="mt-2 text-sm font-medium text-white/82">
-              {backendStatus.aircraftCount} aircraft from local backend
+              {backendStatus.aircraftCount} aircraft from SkyTracker backend
             </p>
           )}
           <p className="mt-1 hidden text-xs leading-5 text-white/36 sm:block">
@@ -1780,9 +1787,9 @@ function backendStatusTitle(state: BackendStatus["state"]) {
     case "not-configured":
       return "Backend not configured";
     case "connecting":
-      return "Connecting to local backend";
+      return "Connecting to SkyTracker backend";
     case "connected":
-      return "Local backend connected";
+      return "SkyTracker backend connected";
     case "reconnecting":
       return "Backend temporarily unavailable";
     case "invalid-viewport":
@@ -1792,11 +1799,15 @@ function backendStatusTitle(state: BackendStatus["state"]) {
 
 function backendStatusDetail(status: BackendStatus) {
   if (status.state === "reconnecting") return "Using last valid snapshot";
-  if (status.state === "not-configured") return "Set the public local API base URL";
+  if (status.state === "not-configured") return "Configure the server API base URL";
   if (status.state === "invalid-viewport") return "The current viewport exceeds backend limits";
-  if (status.state === "connecting") return "Waiting for the first development snapshot";
+  if (status.state === "connecting") {
+    return IS_PRODUCTION_BUILD
+      ? "Waiting for the first live snapshot"
+      : "Waiting for the first development snapshot";
+  }
   const cache = status.cacheStatus ? ` · cache ${status.cacheStatus}` : "";
-  return `Backend development data${cache}`;
+  return `${IS_PRODUCTION_BUILD ? "Live backend data" : "Backend development data"}${cache}`;
 }
 
 function countryName(code: string | null) {
