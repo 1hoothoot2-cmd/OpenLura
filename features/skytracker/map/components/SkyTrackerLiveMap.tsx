@@ -11,6 +11,10 @@ import {
 } from "maplibre-gl";
 import type { Aircraft, AircraftId } from "../../aircraft/domain/aircraft";
 import {
+  updateFlightPhaseSessions,
+  type FlightPhaseSessions,
+} from "../../aircraft/domain/flightPhaseSession";
+import {
   countActiveAircraftFilters,
   DEFAULT_AIRCRAFT_FILTERS,
   filterAircraft,
@@ -49,6 +53,7 @@ import {
   type SkyTrackerMapStyle,
 } from "../infrastructure/mapConfig";
 import { AircraftMotionRuntime } from "../infrastructure/aircraftMotionRuntime";
+import { ReplayClock } from "../../aircraft/motion/replayClock";
 import {
   shouldUpdateFollowCamera,
   type FollowCameraSample,
@@ -79,6 +84,21 @@ import {
   createBrowserFavoritesRepository,
   type FavoritesRepository,
 } from "../../favorites/infrastructure/favoritesRepository";
+import {
+  enterReplayState,
+  LIVE_REPLAY_STATE,
+  pauseReplayState,
+  playReplayState,
+  seekReplayState,
+  type ReplayState,
+} from "../../replay/domain/replayState";
+import {
+  recordedFrameToAircraft,
+  replayFrameAt,
+  SessionRecorder,
+  type RecordedSessionFrame,
+} from "../../replay/domain/sessionRecorder";
+import { ReplayControls } from "../../replay/presentation/ReplayControls";
 
 type MapStatus = "loading" | "ready" | "error";
 
@@ -135,14 +155,25 @@ export function SkyTrackerLiveMap({
   const [favorites, setFavorites] =
     useState<SkyTrackerFavorites>(EMPTY_FAVORITES);
   const [favoriteAnnouncement, setFavoriteAnnouncement] = useState("");
-  const [firstDetectedAtByAircraftId, setFirstDetectedAtByAircraftId] =
-    useState<ReadonlyMap<AircraftId, number>>(() => new Map());
+  const [flightPhaseSessions, setFlightPhaseSessions] =
+    useState<FlightPhaseSessions>(() => new Map());
+  const [recorder] = useState(() => new SessionRecorder());
+  const [replayClock] = useState(
+    () => new ReplayClock(() => performance.now()),
+  );
+  const [recordingDurationMillis, setRecordingDurationMillis] = useState(0);
+  const [replayState, setReplayState] =
+    useState<ReplayState>(LIVE_REPLAY_STATE);
   const mapRef = useRef<MapLibreMap | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const filtersButtonRef = useRef<HTMLButtonElement | null>(null);
   const searchRequestIdRef = useRef(0);
   const favoritesRepositoryRef = useRef<FavoritesRepository | null>(null);
   const currentAircraftRef = useRef<readonly Aircraft[]>([]);
+  const latestLiveAircraftRef = useRef<readonly Aircraft[]>([]);
+  const livePhaseSessionsRef = useRef<FlightPhaseSessions>(new Map());
+  const replayFramesRef = useRef<readonly RecordedSessionFrame[]>([]);
+  const replayModeRef = useRef<ReplayState["mode"]>("live");
   const initialSelectionAttemptedRef = useRef(false);
   const selectedAircraftIdRef = useRef<AircraftId | null>(null);
 
@@ -153,6 +184,10 @@ export function SkyTrackerLiveMap({
   useEffect(() => {
     selectedAircraftIdRef.current = selectedAircraftId;
   }, [selectedAircraftId]);
+
+  useEffect(() => {
+    replayModeRef.current = replayState.mode;
+  }, [replayState.mode]);
 
   useEffect(() => {
     const repository = createBrowserFavoritesRepository();
@@ -221,6 +256,9 @@ export function SkyTrackerLiveMap({
   const selectedAircraft = aircraft.find((item) => item.id === selectedAircraftId) ?? null;
   const selectedPresentedAircraft =
     presentedAircraft.find((item) => item.selected) ?? null;
+  const selectedFlightPhaseSession = selectedAircraftId
+    ? flightPhaseSessions.get(selectedAircraftId) ?? null
+    : null;
 
   const selectAircraft = useCallback((aircraftId: AircraftId | null) => {
     const validSelection =
@@ -235,17 +273,19 @@ export function SkyTrackerLiveMap({
   }, []);
 
   const acceptSnapshot = useCallback((nextAircraft: readonly Aircraft[], nextStatus: BackendStatus) => {
-    setFirstDetectedAtByAircraftId((current) => {
-      const additions = nextAircraft.filter((item) => !current.has(item.id));
-      if (additions.length === 0) return current;
-      const next = new Map(current);
-      for (const item of additions) {
-        next.set(item.id, item.positionTimestampEpochMillis);
-      }
-      return next;
-    });
-    setAircraft([...nextAircraft]);
+    recorder.record(nextStatus.updatedAt ?? Date.now(), nextAircraft);
+    setRecordingDurationMillis(recorder.durationMillis);
+    latestLiveAircraftRef.current = nextAircraft;
+    const nextLiveSessions = updateFlightPhaseSessions(
+      livePhaseSessionsRef.current,
+      nextAircraft,
+    );
+    livePhaseSessionsRef.current = nextLiveSessions;
     setBackendStatus(nextStatus);
+    if (replayModeRef.current === "replay") return;
+
+    setFlightPhaseSessions(nextLiveSessions);
+    setAircraft([...nextAircraft]);
     if (
       selectedAircraftIdRef.current &&
       !nextAircraft.some((item) => item.id === selectedAircraftIdRef.current)
@@ -264,7 +304,108 @@ export function SkyTrackerLiveMap({
       updateAircraftQuery(null);
       return null;
     });
-  }, [initialAircraftId]);
+  }, [initialAircraftId, recorder]);
+
+  const applyReplayPosition = useCallback(
+    (positionMillis: number, resetTimeline: boolean) => {
+      const frame = replayFrameAt(replayFramesRef.current, positionMillis);
+      if (!frame) return;
+      const replayAircraft = recordedFrameToAircraft(
+        frame,
+        latestLiveAircraftRef.current,
+      );
+      setAircraft(replayAircraft);
+      setFlightPhaseSessions((current) =>
+        updateFlightPhaseSessions(
+          resetTimeline ? new Map() : current,
+          replayAircraft,
+        ),
+      );
+    },
+    [],
+  );
+
+  const enterReplay = useCallback(() => {
+    const frames = recorder.snapshot();
+    if (frames.length < 2 || recorder.durationMillis <= 0) return;
+    replayFramesRef.current = frames;
+    replayModeRef.current = "replay";
+    replayClock.pause();
+    replayClock.seek(0);
+    setFollowEnabled(false);
+    setReplayState(enterReplayState(recorder.durationMillis));
+    applyReplayPosition(0, true);
+  }, [applyReplayPosition, recorder, replayClock]);
+
+  const pauseReplay = useCallback(() => {
+    replayClock.pause();
+    setReplayState((current) =>
+      pauseReplayState(current, replayClock.currentTime()),
+    );
+  }, [replayClock]);
+
+  const playReplay = useCallback(() => {
+    setReplayState((current) => {
+      if (current.positionMillis >= current.durationMillis) replayClock.seek(0);
+      replayClock.play();
+      return playReplayState(current);
+    });
+  }, [replayClock]);
+
+  const seekReplay = useCallback(
+    (positionMillis: number) => {
+      replayClock.pause();
+      replayClock.seek(positionMillis);
+      setReplayState((current) => seekReplayState(current, positionMillis));
+      applyReplayPosition(positionMillis, true);
+    },
+    [applyReplayPosition, replayClock],
+  );
+
+  const returnToLive = useCallback(() => {
+    replayClock.pause();
+    replayModeRef.current = "live";
+    setReplayState(LIVE_REPLAY_STATE);
+    setAircraft([...latestLiveAircraftRef.current]);
+    setFlightPhaseSessions(livePhaseSessionsRef.current);
+  }, [replayClock]);
+
+  useEffect(() => {
+    if (replayState.mode !== "replay" || !replayState.playing) return;
+    let frameHandle = 0;
+    let lastPresentationUpdate = Number.NEGATIVE_INFINITY;
+    const update = () => {
+      const positionMillis = Math.min(
+        replayClock.currentTime(),
+        replayState.durationMillis,
+      );
+      if (
+        positionMillis - lastPresentationUpdate >= 200 ||
+        positionMillis >= replayState.durationMillis
+      ) {
+        lastPresentationUpdate = positionMillis;
+        applyReplayPosition(positionMillis, false);
+        setReplayState((current) => ({
+          ...current,
+          positionMillis,
+          playing: positionMillis < current.durationMillis,
+        }));
+      }
+      if (positionMillis >= replayState.durationMillis) {
+        replayClock.pause();
+        return;
+      }
+      frameHandle = window.requestAnimationFrame(update);
+    };
+    frameHandle = window.requestAnimationFrame(update);
+    return () => window.cancelAnimationFrame(frameHandle);
+  }, [
+    applyReplayPosition,
+    replayClock,
+    replayState.durationMillis,
+    replayState.mode,
+    replayState.playing,
+  ]);
 
   const stopFollowing = useCallback(() => setFollowEnabled(false), []);
 
@@ -486,12 +627,30 @@ export function SkyTrackerLiveMap({
               </span>
             )}
           </button>
+          <button
+            type="button"
+            disabled={recordingDurationMillis <= 0}
+            aria-label={
+              replayState.mode === "replay"
+                ? "Return to live aircraft"
+                : "Open session replay"
+            }
+            aria-pressed={replayState.mode === "replay"}
+            onClick={
+              replayState.mode === "replay" ? returnToLive : enterReplay
+            }
+            className="ol-interactive min-h-11 rounded-full border border-cyan-200/14 px-3 text-xs font-semibold uppercase tracking-[0.11em] text-cyan-100/70 hover:bg-cyan-200/[0.07] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 disabled:cursor-not-allowed disabled:opacity-35"
+          >
+            {replayState.mode === "replay" ? "Live" : "Replay"}
+          </button>
           <span className="hidden min-h-8 items-center gap-2 rounded-full border border-cyan-200/12 bg-cyan-200/[0.045] px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-100/62 sm:inline-flex">
             <span
               aria-hidden="true"
               className="h-1.5 w-1.5 rounded-full bg-cyan-300 shadow-[0_0_10px_rgba(103,232,249,0.55)]"
             />
-            Backend development data
+            {replayState.mode === "replay"
+              ? "Local session replay"
+              : "Backend development data"}
           </span>
           <Link
             href="/skytracker"
@@ -520,6 +679,7 @@ export function SkyTrackerLiveMap({
           followEnabled={followEnabled}
           mapFocusRequest={mapFocusRequest}
           backendStatus={backendStatus}
+          replayMode={replayState.mode === "replay"}
           onBackendStatusChange={setBackendStatus}
           onSnapshot={acceptSnapshot}
           onStatusChange={setStatus}
@@ -806,13 +966,24 @@ export function SkyTrackerLiveMap({
                 </div>
               ))}
             </dl>
-            <FlightTimeline
-              aircraft={selectedAircraft}
-              detectedAtEpochMillis={
-                firstDetectedAtByAircraftId.get(selectedAircraft.id) ??
-                selectedAircraft.positionTimestampEpochMillis
-              }
-            />
+            {selectedFlightPhaseSession && (
+              <FlightTimeline
+                aircraft={selectedAircraft}
+                session={selectedFlightPhaseSession}
+              />
+            )}
+            {replayState.mode === "replay" && (
+              <ReplayControls
+                playing={replayState.playing}
+                positionMillis={replayState.positionMillis}
+                durationMillis={replayState.durationMillis}
+                onPlay={playReplay}
+                onPause={pauseReplay}
+                onBegin={() => seekReplay(0)}
+                onLive={returnToLive}
+                onSeek={seekReplay}
+              />
+            )}
             {!visibleAircraftIdSet.has(selectedAircraft.id) && (
               <p
                 role="status"
@@ -877,6 +1048,7 @@ type MapViewportProps = {
   followEnabled: boolean;
   mapFocusRequest: MapFocusRequest | null;
   backendStatus: BackendStatus;
+  replayMode: boolean;
   onBackendStatusChange: (status: BackendStatus) => void;
   onSnapshot: (aircraft: readonly Aircraft[], status: BackendStatus) => void;
   onStatusChange: (status: MapStatus) => void;
@@ -899,6 +1071,7 @@ function MapViewport({
   followEnabled,
   mapFocusRequest,
   backendStatus,
+  replayMode,
   onBackendStatusChange,
   onSnapshot,
   onStatusChange,
@@ -1282,16 +1455,24 @@ function MapViewport({
               className="h-1.5 w-1.5 rounded-full bg-cyan-300"
             />
             <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/48">
-              {backendStatusTitle(backendStatus.state)}
+              {replayMode
+                ? "Local session replay"
+                : backendStatusTitle(backendStatus.state)}
             </p>
           </div>
-          {backendStatus.state !== "not-configured" && (
+          {replayMode ? (
+            <p className="mt-2 text-sm font-medium text-white/82">
+              Live recording continues in the background
+            </p>
+          ) : backendStatus.state !== "not-configured" && (
             <p className="mt-2 text-sm font-medium text-white/82">
               {backendStatus.aircraftCount} aircraft from local backend
             </p>
           )}
           <p className="mt-1 hidden text-xs leading-5 text-white/36 sm:block">
-            {backendStatusDetail(backendStatus)}
+            {replayMode
+              ? "Showing an in-memory session snapshot"
+              : backendStatusDetail(backendStatus)}
           </p>
         </aside>
       )}

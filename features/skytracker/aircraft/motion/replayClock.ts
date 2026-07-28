@@ -21,6 +21,13 @@ export class ReplayClock {
     this.startedAtMillis = null;
   }
 
+  seek(timeMillis: number) {
+    this.accumulatedMillis = Math.max(0, Number.isFinite(timeMillis) ? timeMillis : 0);
+    if (this.startedAtMillis !== null) {
+      this.startedAtMillis = this.now();
+    }
+  }
+
   currentTime() {
     return this.startedAtMillis === null
       ? this.accumulatedMillis

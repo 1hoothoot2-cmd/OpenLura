@@ -1,10 +1,11 @@
 import type { Aircraft } from "../domain/aircraft";
+import type { FlightPhaseSession } from "../domain/flightPhaseSession";
 import { aircraftDetailItems } from "./aircraftDetails";
 import { createFlightTimelineModel } from "./flightTimelineModel";
 
 type FlightTimelineProps = {
   aircraft: Aircraft;
-  detectedAtEpochMillis: number;
+  session: FlightPhaseSession;
 };
 
 const SUMMARY_LABELS = new Set([
@@ -17,9 +18,9 @@ const SUMMARY_LABELS = new Set([
 
 export function FlightTimeline({
   aircraft,
-  detectedAtEpochMillis,
+  session,
 }: FlightTimelineProps) {
-  const model = createFlightTimelineModel(aircraft, detectedAtEpochMillis);
+  const model = createFlightTimelineModel(aircraft, session);
   const summary = aircraftDetailItems(aircraft).filter((item) =>
     SUMMARY_LABELS.has(item.label),
   );
@@ -63,8 +64,9 @@ export function FlightTimeline({
 
       <ol aria-label="Flight timeline" className="mt-5">
         {model.steps.map((step, index) => {
-          const current = step.state === "current";
-          const detected = step.state === "detected";
+          const current = step.status === "CURRENT";
+          const confirmed = step.status === "CONFIRMED";
+          const upcoming = step.status === "UPCOMING";
           return (
             <li
               key={step.id}
@@ -79,14 +81,18 @@ export function FlightTimeline({
               )}
               <span
                 aria-hidden="true"
-                className={`relative z-10 mt-1 h-3 w-3 rounded-full border ${
+                className={`relative z-10 mt-1 flex h-3 w-3 items-center justify-center rounded-full border text-[8px] leading-none ${
                   current
                     ? "border-cyan-200 bg-cyan-300 shadow-[0_0_12px_rgba(103,232,249,0.5)]"
-                    : detected
-                      ? "border-cyan-200/45 bg-cyan-200/20"
-                      : "border-white/18 bg-[#0a111c]"
+                    : confirmed
+                      ? "border-cyan-200/45 bg-cyan-200/18 text-cyan-50"
+                      : upcoming
+                        ? "border-white/30 bg-[#0a111c]"
+                        : "border-transparent bg-white/[0.04] text-white/42"
                 }`}
-              />
+              >
+                {confirmed ? "✓" : step.status === "UNKNOWN" ? "–" : ""}
+              </span>
               <div className="pb-4">
                 <p
                   className={`text-sm font-medium ${
@@ -95,7 +101,13 @@ export function FlightTimeline({
                 >
                   {step.label}
                 </p>
-                <p className="mt-0.5 text-xs text-white/38">{step.detail}</p>
+                <p
+                  className={`mt-0.5 text-xs ${
+                    step.status === "UNKNOWN" ? "text-white/30" : "text-white/42"
+                  }`}
+                >
+                  {step.detail}
+                </p>
               </div>
             </li>
           );

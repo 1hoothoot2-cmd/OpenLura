@@ -14,7 +14,7 @@ Legenda: ✅ geaccepteerd · 🟡 technisch gereed, acceptatie open · ⬜ gepla
 - 🟡 L8 — Airport Pages
 - 🟡 L9 — Personalization (Favorites)
 - 🟡 L10A — Flight Timeline
-- ⬜ L10B — Replay
+- 🟡 L10B — Replay
 - ⬜ L11 — Historical Track
 - ⬜ L12 — Accounts & Sync
 - ⬜ L13 — Contextual AI
@@ -48,5 +48,14 @@ expliciete Product Owner-acceptatie blijft het sluitingscriterium.
 
 L10A leidt de actuele vluchtfase providerneutraal af uit de bestaande
 aircraftsnapshot en toont een verticale, eerlijke tijdlijn zonder verzonnen
-historische events. Tests, live polling en de responsive browsermatrix zijn
-technisch bewezen; expliciete Product Owner-acceptatie blijft open.
+historische events. L10A.1 onderscheidt confirmed, current, upcoming en
+unknown op basis van uitsluitend lokaal waargenomen sessiefases. Tests, live
+polling en de responsive browsermatrix zijn technisch bewezen; expliciete
+Product Owner-acceptatie blijft open.
+
+L10B neemt maximaal dertig minuten providerneutrale backendsnapshots op in een
+begrensde in-memory ringbuffer. Replay gebruikt `ReplayClock` en dezelfde
+motionpipeline als Live, terwijl polling en recording op de achtergrond
+doorgaan. Play, pause, begin, terugkeer naar Live en de responsive
+browsermatrix zijn technisch bewezen; de handmatige Product Owner-controle van
+de tijdslider blijft het sluitingscriterium.
