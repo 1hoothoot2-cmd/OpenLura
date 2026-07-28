@@ -85,6 +85,7 @@ P1.2A laadt het focusgebied onmiddellijk en vult zichtbare plus aangrenzende
 gebieden daarna sequentieel en progressief. Verouderde wachtrijen worden bij
 een regiowissel vervangen en de focusregio houdt een vaste refreshprioriteit.
 Wereldwijde Search wordt alleen expliciet gestart, gebruikt de same-origin
-Next.js-proxy en een begrensde, gecachete backendzoekroute. De technische
+Next.js-proxy en een gedeelde, gecachete backendzoekindex zonder dagelijkse
+gebruikerslimiet. De technische
 implementatie is lokaal gereed; productieacceptatie wacht op de afzonderlijke
 Cloud Run-wijzigingsgate.

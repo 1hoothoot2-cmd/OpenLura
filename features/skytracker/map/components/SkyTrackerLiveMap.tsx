@@ -1037,7 +1037,9 @@ export function SkyTrackerLiveMap({
                                 result.aircraft.id.toUpperCase()}
                             </span>
                             <span className="mt-0.5 block text-xs text-cyan-100/48">
-                              Worldwide live result
+                              {result.aircraft.lifecycle === "FRESH"
+                                ? "Worldwide live result"
+                                : "Worldwide cached result"}
                             </span>
                           </span>
                           <span className="shrink-0 font-mono text-[11px] uppercase tracking-[0.08em] text-cyan-100/46">
@@ -1168,7 +1170,9 @@ export function SkyTrackerLiveMap({
                             result.aircraft.id.toUpperCase()}
                         </span>
                         <span className="mt-0.5 block text-xs text-cyan-100/48">
-                          Worldwide live result
+                          {result.aircraft.lifecycle === "FRESH"
+                            ? "Worldwide live result"
+                            : "Worldwide cached result"}
                         </span>
                       </span>
                       <span className="shrink-0 font-mono text-[11px] uppercase tracking-[0.08em] text-cyan-100/46">
