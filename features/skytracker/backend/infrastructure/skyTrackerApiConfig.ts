@@ -3,7 +3,7 @@ export type SkyTrackerApiConfigResult =
   | Readonly<{ configured: false; reason: "missing" | "production-localhost" | "invalid" }>;
 
 export function resolveSkyTrackerApiConfig(
-  value = process.env.NEXT_PUBLIC_SKYTRACKER_API_BASE_URL,
+  value = process.env.SKYTRACKER_API_BASE_URL,
   environment = process.env.NODE_ENV,
 ): SkyTrackerApiConfigResult {
   const candidate = value?.trim();

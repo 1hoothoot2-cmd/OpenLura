@@ -1,49 +1,33 @@
-# SkyTracker Web L4.1 — Local Viewport Backend Integration
+# SkyTracker Web backend integration
 
-## Status and scope
+## Request path
 
-The live map consumes the locally running provider-neutral SkyTracker backend.
-The development backend currently returns deterministic data; this is not a
-claim of a live provider connection or production aircraft coverage.
+The browser never receives or calls the Cloud Run origin. Live aircraft use:
 
-## Environment
+```text
+Browser
+-> GET /api/skytracker/aircraft
+-> Next.js route handler
+-> GET {SKYTRACKER_API_BASE_URL}/v1/aircraft
+-> provider-neutral snapshot
+```
 
-Set the public, non-secret variable before starting Next.js:
+`SKYTRACKER_API_BASE_URL` is server-only. It must be configured in every
+deployment environment and must not use a `NEXT_PUBLIC_` prefix. Local
+development uses:
 
 ```powershell
-$env:NEXT_PUBLIC_SKYTRACKER_API_BASE_URL="http://localhost:8080"
+$env:SKYTRACKER_API_BASE_URL="http://localhost:8080"
 npm.cmd run dev
 ```
 
-The URL is normalized centrally. Missing or invalid configuration produces an
-honest empty-map status. A production build rejects localhost. No `.env.local`
-or credential is committed.
+The route validates and normalizes the viewport before contacting the backend,
+uses a 14-second upstream timeout, preserves upstream status codes and the safe
+`Content-Type`, `Cache-Control`, `ETag`, `X-Cache-Status`, and `X-Request-ID`
+headers, and returns provider-neutral Problem Details for proxy failures.
 
-Start the accepted local backend with:
-
-```powershell
-docker run --rm --name skytracker-api-local -p 8080:8080 `
-  -e SKYTRACKER_ENVIRONMENT=development `
-  -e HOST=0.0.0.0 skytracker-api:5.5-local
-```
-
-## Client pipeline
-
-```text
-MapLibre bounds
-→ bounded/precision-normalized viewport
-→ GET /v1/aircraft
-→ snapshot and record validation
-→ provider-neutral Aircraft domain
-→ ID reconciliation
-→ existing AircraftMotionRuntime
-→ existing presentation/GeoJSON/sourcewriter/layers
-```
-
-The client sends SI units through unchanged: metres, metres per second,
-degrees and Unix epoch milliseconds. Nullable provider fields stay nullable.
-Invalid individual records are rejected while valid records remain. A malformed
-snapshot is rejected as a whole and the last valid snapshot remains visible.
+Historical Track uses the same server-only base URL through its existing
+same-origin route.
 
 ## Viewport and scheduling
 
@@ -51,55 +35,49 @@ snapshot is rejected as a whole and the last valid snapshot remains visible.
 - maximum longitude span: 60 degrees;
 - antimeridian crossing is rejected locally;
 - query precision: five decimal places;
-- initial request: after MapLibre style, source and layers are ready;
-- poll cadence: 4 seconds, scheduled only after completion;
-- moveend debounce: 400 ms;
-- request timeout: 8 seconds;
-- one AbortController per request;
+- initial request starts after MapLibre is ready;
+- normal poll cadence: 6 minutes;
+- move-end debounce: 400 milliseconds;
+- request timeout: 14 seconds;
+- one in-flight request at a time;
 - hidden tabs pause polling and motion;
 - unmount aborts and disposes all work.
 
-Retries use 4, 8, 16 and at most 30 seconds. Success resets the backoff.
-Viewport 400/413 responses do not retry unchanged bounds. Network, malformed,
-502/503 and rate-limit failures retain the last accepted snapshot.
-
-The backend documents ETag for content identity but not conditional 304.
-L4.1 therefore records ETag only as client metadata and deliberately does not
-send `If-None-Match`.
+Viewport changes and visibility resumes respect the remaining six-minute
+interval instead of forcing an extra request. A continuously open browser
+therefore schedules at most 240 normal polls in 24 hours, leaving headroom
+under the backend's hard daily provider limit of 300. The backend cache and
+Budget Gate remain authoritative; the proxy forwards cache diagnostics and
+does not add an independent cache.
 
 ## Reconciliation and motion
 
-Selection remains ID-based. Existing IDs receive a new four-second motion plan
-from the currently presented position to the new backend target. New IDs start
-at their received position. Missing IDs are removed; missing selected IDs also
-clear the selection and query parameter. `STALE` remains present while the
-backend returns it and stops at its received target rather than extrapolating
-without limit.
+The response continues through the existing provider-neutral snapshot parser,
+ID reconciliation, motion runtime, presentation mapping, GeoJSON writer and
+MapLibre layers. Selection, Search, Filters, Favorites, Follow, Timeline,
+Historical Track and Session Replay retain their existing contracts.
 
-React owns snapshot/status/selection state but never owns animation frames.
-The existing ReplayClock, requestAnimationFrame loop, approximately 30 Hz
-sourcewriter cadence and reduced-motion behavior remain in place.
+## Local workflow
 
-## Status and failures
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\skytracker-dev-status.ps1
 
-The compact overlay distinguishes configuration missing, connecting,
-connected, invalid viewport and reconnecting. It never names a provider and
-never claims worldwide or production data. Normal aborts are not product
-errors. Problem Details bodies and internal request parameters are not shown.
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\skytracker-dev-start.ps1
+```
 
-## Product Owner acceptance
+The start script writes only the server-side local backend URL to ignored
+`.env.local`. It leaves backend and frontend running for Product Owner review.
 
-1. Start the local backend container.
-2. Set `NEXT_PUBLIC_SKYTRACKER_API_BASE_URL=http://localhost:8080`.
-3. Start OpenLura and open `/skytracker/live`.
-4. Confirm exactly three backend aircraft and smooth movement.
-5. Select an aircraft and verify URL state.
-6. Pan/zoom and verify the request follows after moveend.
-7. Stop the backend and confirm the last snapshot remains with reconnecting.
-8. Restart the backend and confirm automatic recovery without page refresh.
+## Production configuration
 
-## Remaining production gates
+Configure this Vercel variable for Production:
 
-No direct provider request exists in the web app. A real backend-only aircraft
-provider, staging URL, edge abuse protection and cloud acceptance are required
-before replacing the development wording or claiming live production data.
+```text
+SKYTRACKER_API_BASE_URL=https://<cloud-run-service-origin>
+```
+
+Do not commit the production value and do not expose it through browser
+JavaScript. After deployment, browser network inspection must show requests to
+`openlura.ai/api/skytracker/aircraft`, never to `a.run.app`.

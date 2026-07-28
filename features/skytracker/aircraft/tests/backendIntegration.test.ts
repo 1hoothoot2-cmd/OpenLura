@@ -5,7 +5,10 @@ import { reconcileSnapshot } from "../../backend/domain/snapshotReconciliation.t
 import { normalizeViewportBounds } from "../../backend/domain/viewportBounds.ts";
 import { fetchLiveAircraft } from "../../backend/infrastructure/liveAircraftClient.ts";
 import { resolveSkyTrackerApiConfig } from "../../backend/infrastructure/skyTrackerApiConfig.ts";
-import { ViewportPollingScheduler } from "../../backend/infrastructure/viewportPollingScheduler.ts";
+import {
+  POLL_INTERVAL_MILLIS,
+  ViewportPollingScheduler,
+} from "../../backend/infrastructure/viewportPollingScheduler.ts";
 import { aircraftId } from "../domain/aircraft.ts";
 
 const VALID_AIRCRAFT = {
@@ -115,7 +118,6 @@ test("client builds the bounded URL and reads safe response headers", async () =
   let requested = "";
   let receivedSignal: AbortSignal | undefined;
   const result = await fetchLiveAircraft(
-    "http://localhost:8080",
     { minLat: 50, minLon: 3, maxLat: 54, maxLon: 9 },
     new AbortController().signal,
     async (input, init) => {
@@ -131,6 +133,7 @@ test("client builds the bounded URL and reads safe response headers", async () =
       });
     },
   );
+  assert.match(requested, /^\/api\/skytracker\/aircraft\?/);
   assert.match(requested, /minLat=50/);
   assert.ok(receivedSignal);
   assert.equal(result.ok, true);
@@ -143,7 +146,7 @@ test("client builds the bounded URL and reads safe response headers", async () =
 test("client maps viewport, unavailable and malformed responses", async () => {
   const signal = new AbortController().signal;
   const fetchStatus = (status: number) =>
-    fetchLiveAircraft("http://localhost:8080", { minLat: 1, minLon: 1, maxLat: 2, maxLon: 2 }, signal,
+    fetchLiveAircraft({ minLat: 1, minLon: 1, maxLat: 2, maxLon: 2 }, signal,
       async () => new Response("{}", { status }));
   assert.deepEqual(await fetchStatus(413), {
     ok: false, category: "viewport", retryable: false, requestId: null,
@@ -152,7 +155,6 @@ test("client maps viewport, unavailable and malformed responses", async () => {
     ok: false, category: "unavailable", retryable: true, requestId: null,
   });
   const malformed = await fetchLiveAircraft(
-    "http://localhost:8080",
     { minLat: 1, minLon: 1, maxLat: 2, maxLon: 2 },
     signal,
     async () => new Response("{", { status: 200 }),
@@ -176,7 +178,8 @@ test("reconciliation preserves or clears ID based selection deterministically", 
 test("polling scheduler starts once, avoids overlap and schedules after completion", async () => {
   const callbacks: Array<() => void> = [];
   const delays: number[] = [];
-  let resolveRun: ((value: boolean) => void) | null = null;
+  let resolveRun: (value: boolean) => void = () =>
+    assert.fail("polling run resolver was not initialized");
   let calls = 0;
   const scheduler = new ViewportPollingScheduler(
     () => {
@@ -198,9 +201,9 @@ test("polling scheduler starts once, avoids overlap and schedules after completi
   callbacks.shift()?.();
   callbacks.shift()?.();
   assert.equal(calls, 1);
-  resolveRun?.(true);
+  resolveRun(true);
   await Promise.resolve();
-  assert.equal(delays.at(-1), 4_000);
+  assert.equal(delays.at(-1), POLL_INTERVAL_MILLIS);
   scheduler.dispose();
 });
 
@@ -222,7 +225,12 @@ test("polling scheduler applies bounded backoff and resets after success", async
     callbacks.shift()?.();
     await Promise.resolve();
   }
-  assert.deepEqual(delays, [0, 4_000, 8_000, 4_000]);
+  assert.deepEqual(delays, [
+    0,
+    POLL_INTERVAL_MILLIS,
+    2 * POLL_INTERVAL_MILLIS,
+    POLL_INTERVAL_MILLIS,
+  ]);
   scheduler.dispose();
 });
 
@@ -230,11 +238,11 @@ test("polling scheduler default browser timers remain bound", () => {
   const originalSetTimeout = globalThis.setTimeout;
   const originalClearTimeout = globalThis.clearTimeout;
   let scheduled = false;
-  globalThis.setTimeout = function () {
+  globalThis.setTimeout = function (this: typeof globalThis) {
     assert.equal(this, globalThis);
     scheduled = true;
     return 1 as unknown as ReturnType<typeof setTimeout>;
-  } as typeof setTimeout;
+  } as unknown as typeof setTimeout;
   globalThis.clearTimeout = (() => undefined) as typeof clearTimeout;
   try {
     const scheduler = new ViewportPollingScheduler(async () => true);
@@ -250,7 +258,8 @@ test("polling scheduler default browser timers remain bound", () => {
 test("polling scheduler immediately replaces an aborted obsolete viewport run", async () => {
   const callbacks: Array<() => void> = [];
   const delays: number[] = [];
-  let resolveRun: ((value: boolean) => void) | null = null;
+  let resolveRun: (value: boolean) => void = () =>
+    assert.fail("polling run resolver was not initialized");
   const scheduler = new ViewportPollingScheduler(
     () => new Promise<boolean>((resolve) => {
       resolveRun = resolve;
@@ -265,8 +274,36 @@ test("polling scheduler immediately replaces an aborted obsolete viewport run", 
   scheduler.start();
   callbacks.shift()?.();
   scheduler.reset();
-  resolveRun?.(true);
+  resolveRun(true);
   await Promise.resolve();
-  assert.deepEqual(delays, [0, 0]);
+  assert.deepEqual(delays, [0, POLL_INTERVAL_MILLIS]);
+  scheduler.dispose();
+});
+
+test("polling scheduler does not let resets or visibility resumes bypass the provider budget interval", async () => {
+  const callbacks: Array<() => void> = [];
+  const delays: number[] = [];
+  let now = 1_000;
+  const scheduler = new ViewportPollingScheduler(
+    async () => true,
+    ((callback: () => void, delay?: number) => {
+      callbacks.push(callback);
+      delays.push(delay ?? 0);
+      return callbacks.length as unknown as ReturnType<typeof setTimeout>;
+    }),
+    () => undefined,
+    () => now,
+  );
+
+  scheduler.start();
+  callbacks.shift()?.();
+  await Promise.resolve();
+  now += 30_000;
+  scheduler.reset();
+  scheduler.pause();
+  scheduler.resume();
+
+  assert.equal(delays[0], 0);
+  assert.equal(delays.at(-1), POLL_INTERVAL_MILLIS - 30_000);
   scheduler.dispose();
 });

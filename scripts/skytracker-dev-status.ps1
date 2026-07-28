@@ -9,7 +9,7 @@ $FrontendPidFile = Join-Path $FrontendProject "scripts\.runtime\skytracker-front
 $FrontendLogFile = Join-Path $FrontendProject "scripts\.runtime\skytracker-frontend.log"
 $FrontendErrorLogFile = Join-Path $FrontendProject "scripts\.runtime\skytracker-frontend-error.log"
 $EnvironmentFile = Join-Path $FrontendProject ".env.local"
-$RequiredEnvironmentLine = "NEXT_PUBLIC_SKYTRACKER_API_BASE_URL=http://localhost:8080"
+$RequiredEnvironmentLine = "SKYTRACKER_API_BASE_URL=http://localhost:8080"
 $FrontendMarker = "SKYTRACKER_MANAGED_FRONTEND"
 
 function Test-HttpEndpoint {
@@ -91,7 +91,7 @@ $environmentCorrect = $false
 if (Test-Path -LiteralPath $EnvironmentFile) {
     $targetLines = @(
         Get-Content -LiteralPath $EnvironmentFile -Encoding UTF8 |
-            Where-Object { $_ -match "^NEXT_PUBLIC_SKYTRACKER_API_BASE_URL=" }
+            Where-Object { $_ -match "^SKYTRACKER_API_BASE_URL=" }
     )
     $environmentCorrect = (
         $targetLines.Count -eq 1 -and

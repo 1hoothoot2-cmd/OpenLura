@@ -34,7 +34,6 @@ import { presentAircraft } from "../../aircraft/presentation/presentedAircraft";
 import { normalizeViewportBounds } from "../../backend/domain/viewportBounds";
 import { reconcileSnapshot } from "../../backend/domain/snapshotReconciliation";
 import { fetchLiveAircraft } from "../../backend/infrastructure/liveAircraftClient";
-import { resolveSkyTrackerApiConfig } from "../../backend/infrastructure/skyTrackerApiConfig";
 import {
   MOVE_END_DEBOUNCE_MILLIS,
   REQUEST_TIMEOUT_MILLIS,
@@ -113,7 +112,6 @@ import {
 type MapStatus = "loading" | "ready" | "error";
 
 const MAPLIBRE_WORKER_URL = "/maplibre/maplibre-gl-worker.mjs";
-const API_CONFIG = resolveSkyTrackerApiConfig();
 
 type BackendStatus = Readonly<{
   state: "not-configured" | "connecting" | "connected" | "reconnecting" | "invalid-viewport";
@@ -148,7 +146,7 @@ export function SkyTrackerLiveMap({
   const [bearing, setBearing] = useState(0);
   const [aircraft, setAircraft] = useState<readonly Aircraft[]>([]);
   const [backendStatus, setBackendStatus] = useState<BackendStatus>({
-    state: API_CONFIG.configured ? "connecting" : "not-configured",
+    state: "connecting",
     aircraftCount: 0,
     updatedAt: null,
     cacheStatus: null,
@@ -293,10 +291,8 @@ export function SkyTrackerLiveMap({
         if (active) setHistoricalTrackState(state);
       });
     };
-    if (!selectedAircraftId || !API_CONFIG.configured) {
-      publish(
-        selectedAircraftId ? { status: "unavailable" } : { status: "idle" },
-      );
+    if (!selectedAircraftId) {
+      publish({ status: "idle" });
       return () => {
         active = false;
       };
@@ -1291,7 +1287,7 @@ function MapViewport({
     map.addControl(new AttributionControl({ compact: true }), "bottom-right");
 
     const requestViewport = async () => {
-      if (!API_CONFIG.configured || disposed || document.hidden) return false;
+      if (disposed || document.hidden) return false;
       const mapBounds = map.getBounds();
       const bounds = normalizeViewportBounds({
         minLat: mapBounds.getSouth(),
@@ -1315,7 +1311,6 @@ function MapViewport({
       const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MILLIS);
       try {
         const result = await fetchLiveAircraft(
-          API_CONFIG.baseUrl,
           bounds.bounds,
           controller.signal,
         );
@@ -1432,10 +1427,8 @@ function MapViewport({
         },
       });
       motionRuntimeRef.current.start();
-      if (API_CONFIG.configured) {
-        schedulerRef.current = new ViewportPollingScheduler(requestViewport);
-        schedulerRef.current.start();
-      }
+      schedulerRef.current = new ViewportPollingScheduler(requestViewport);
+      schedulerRef.current.start();
       onStatusChange("ready");
       onBearingChange(map.getBearing());
     };

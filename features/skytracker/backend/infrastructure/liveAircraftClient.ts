@@ -7,16 +7,19 @@ export type LiveAircraftClientResult =
   | Readonly<{ ok: false; category: "viewport" | "unavailable" | "malformed"; retryable: boolean; requestId: string | null }>;
 
 export async function fetchLiveAircraft(
-  baseUrl: string,
   bounds: ViewportBounds,
   signal: AbortSignal,
   fetcher: typeof fetch = fetch,
 ): Promise<LiveAircraftClientResult> {
-  const url = new URL("/v1/aircraft", `${baseUrl}/`);
+  const url = new URL("/api/skytracker/aircraft", "http://localhost");
   for (const [key, value] of Object.entries(bounds)) {
     url.searchParams.set(key, String(value));
   }
-  const response = await fetcher(url, { method: "GET", signal, headers: { Accept: "application/json" } });
+  const response = await fetcher(`${url.pathname}${url.search}`, {
+    method: "GET",
+    signal,
+    headers: { Accept: "application/json" },
+  });
   const requestId = response.headers.get("x-request-id");
   if (!response.ok) {
     return {

@@ -1,7 +1,12 @@
-export const POLL_INTERVAL_MILLIS = 4_000;
-export const REQUEST_TIMEOUT_MILLIS = 8_000;
+export const POLL_INTERVAL_MILLIS = 6 * 60_000;
+export const REQUEST_TIMEOUT_MILLIS = 14_000;
 export const MOVE_END_DEBOUNCE_MILLIS = 400;
-const BACKOFF = [4_000, 8_000, 16_000, 30_000] as const;
+const BACKOFF = [
+  POLL_INTERVAL_MILLIS,
+  2 * POLL_INTERVAL_MILLIS,
+  4 * POLL_INTERVAL_MILLIS,
+  5 * POLL_INTERVAL_MILLIS,
+] as const;
 type Schedule = (
   callback: () => void,
   delay: number,
@@ -12,7 +17,9 @@ export class ViewportPollingScheduler {
   private readonly run: () => Promise<boolean>;
   private readonly schedule: Schedule;
   private readonly cancel: Cancel;
+  private readonly now: () => number;
   private timer: ReturnType<typeof setTimeout> | null = null;
+  private lastRunStartedAt: number | null = null;
   private failures = 0;
   private disposed = false;
   private running = false;
@@ -24,16 +31,18 @@ export class ViewportPollingScheduler {
     schedule: Schedule = (callback, delay) =>
       globalThis.setTimeout(callback, delay),
     cancel: Cancel = (handle) => globalThis.clearTimeout(handle),
+    now: () => number = Date.now,
   ) {
     this.run = run;
     this.schedule = schedule;
     this.cancel = cancel;
+    this.now = now;
   }
 
   start(immediate = true) {
     if (this.disposed || this.timer !== null || this.running) return;
     this.paused = false;
-    this.queue(immediate ? 0 : POLL_INTERVAL_MILLIS);
+    this.queue(immediate ? this.delayUntilNextRun() : POLL_INTERVAL_MILLIS);
   }
 
   pause() {
@@ -69,12 +78,13 @@ export class ViewportPollingScheduler {
       this.timer = null;
       if (this.disposed || this.running) return;
       this.running = true;
+      this.lastRunStartedAt = this.now();
       const success = await this.run();
       this.running = false;
       if (this.disposed || this.paused) return;
       if (this.restartRequested) {
         this.restartRequested = false;
-        this.queue(0);
+        this.queue(this.delayUntilNextRun());
         return;
       }
       this.failures = success ? 0 : Math.min(this.failures + 1, BACKOFF.length);
@@ -83,5 +93,12 @@ export class ViewportPollingScheduler {
         : BACKOFF[Math.min(this.failures - 1, BACKOFF.length - 1)];
       this.queue(next);
     }, delay);
+  }
+
+  private delayUntilNextRun() {
+    if (this.lastRunStartedAt === null) return 0;
+    const elapsed = this.now() - this.lastRunStartedAt;
+    if (elapsed <= 0) return POLL_INTERVAL_MILLIS;
+    return Math.max(0, POLL_INTERVAL_MILLIS - elapsed);
   }
 }
