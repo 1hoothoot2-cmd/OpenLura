@@ -1357,7 +1357,6 @@ function MapViewport({
         window.clearTimeout(moveDebounceRef.current);
       }
       moveDebounceRef.current = window.setTimeout(() => {
-        requestRef.current?.abort();
         schedulerRef.current?.reset();
       }, MOVE_END_DEBOUNCE_MILLIS);
     };

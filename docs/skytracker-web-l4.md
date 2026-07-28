@@ -51,6 +51,11 @@ under the backend's hard daily provider limit of 300. The backend cache and
 Budget Gate remain authoritative; the proxy forwards cache diagnostics and
 does not add an independent cache.
 
+Map movement never cancels an already accepted in-flight backend request.
+This prevents MapLibre's initialization `moveend` event from discarding a
+valid cold-start response. The changed viewport is picked up by the next
+budget-safe poll.
+
 ## Reconciliation and motion
 
 The response continues through the existing provider-neutral snapshot parser,
