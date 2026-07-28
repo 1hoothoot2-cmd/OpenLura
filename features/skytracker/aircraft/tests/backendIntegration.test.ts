@@ -44,15 +44,17 @@ test("API config normalizes trailing slashes and rejects missing or production l
 
 test("viewport bounds are precise, bounded and reject antimeridian and non-finite values", () => {
   assert.deepEqual(
-    normalizeViewportBounds({ minLat: 50.123456, minLon: 3, maxLat: 54, maxLon: 9 }),
+    normalizeViewportBounds({ minLat: 50.123456, minLon: 3, maxLat: 54, maxLon: 7 }),
     {
       valid: true,
-      bounds: { minLat: 50.12346, minLon: 3, maxLat: 54, maxLon: 9 },
-      key: "50.12346:3:54:9",
+      bounds: { minLat: 50.12346, minLon: 3, maxLat: 54, maxLon: 7 },
+      key: "50.12346:3:54:7",
     },
   );
   assert.equal(normalizeViewportBounds({ minLat: 0, minLon: 170, maxLat: 1, maxLon: -170 }).valid, false);
   assert.equal(normalizeViewportBounds({ minLat: 0, minLon: 0, maxLat: 31, maxLon: 1 }).valid, false);
+  assert.equal(normalizeViewportBounds({ minLat: 50, minLon: 3, maxLat: 55, maxLon: 7 }).valid, false);
+  assert.equal(normalizeViewportBounds({ minLat: 50.5, minLon: 3.5, maxLat: 54.5, maxLon: 7.5 }).valid, true);
   assert.equal(normalizeViewportBounds({ minLat: Number.NaN, minLon: 0, maxLat: 1, maxLon: 1 }).valid, false);
 });
 

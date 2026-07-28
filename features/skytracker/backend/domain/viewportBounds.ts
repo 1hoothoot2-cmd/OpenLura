@@ -26,7 +26,13 @@ export function normalizeViewportBounds(bounds: ViewportBounds): ViewportBoundsR
   if (bounds.minLon > bounds.maxLon) {
     return { valid: false, reason: "antimeridian" };
   }
-  if (bounds.maxLat - bounds.minLat > 30 || bounds.maxLon - bounds.minLon > 60) {
+  const latitudeSpan = bounds.maxLat - bounds.minLat;
+  const longitudeSpan = bounds.maxLon - bounds.minLon;
+  if (
+    latitudeSpan > 30 ||
+    longitudeSpan > 60 ||
+    latitudeSpan * longitudeSpan > 16
+  ) {
     return { valid: false, reason: "too-large" };
   }
   const normalized = {

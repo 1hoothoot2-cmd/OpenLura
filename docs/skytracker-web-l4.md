@@ -33,6 +33,7 @@ same-origin route.
 
 - maximum latitude span: 30 degrees;
 - maximum longitude span: 60 degrees;
+- maximum viewport area: 16 square degrees;
 - antimeridian crossing is rejected locally;
 - query precision: five decimal places;
 - initial request starts after MapLibre is ready;

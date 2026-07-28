@@ -1330,7 +1330,9 @@ function MapViewport({
           updatedAt: null,
           cacheStatus: null,
         });
-        return !result.retryable;
+        return result.category === "viewport"
+          ? "skipped" as const
+          : !result.retryable;
       } catch {
         if (controller.signal.aborted || disposed) return true;
         onBackendStatusChange({
