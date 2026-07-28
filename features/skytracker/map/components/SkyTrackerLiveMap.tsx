@@ -8,7 +8,6 @@ import {
   Map as MapLibreMap,
   setWorkerUrl,
   type ErrorEvent,
-  type MapStyleImageMissingEvent,
 } from "maplibre-gl";
 import type { Aircraft, AircraftId } from "../../aircraft/domain/aircraft";
 import {
@@ -1498,15 +1497,14 @@ function MapViewport({
     });
 
     mapRef.current = map;
-    const handleStyleImageMissing = (event: MapStyleImageMissingEvent) => {
-      if (!/^circle-\d+$/.test(event.id) || map.hasImage(event.id)) return;
-      map.addImage(event.id, {
+    map.setMissingStyleImageResolver((imageId) => {
+      if (!/^circle-\d+$/.test(imageId) || map.hasImage(imageId)) return;
+      map.addImage(imageId, {
         width: 1,
         height: 1,
         data: new Uint8Array([0, 0, 0, 0]),
       });
-    };
-    map.on("styleimagemissing", handleStyleImageMissing);
+    });
     map.addControl(new AttributionControl({ compact: true }), "bottom-right");
 
     const publishPlan = (
@@ -1800,7 +1798,7 @@ function MapViewport({
       map.off("rotate", handleRotate);
       map.off("moveend", handleMoveEnd);
       map.off("dragstart", handleDragStart);
-      map.off("styleimagemissing", handleStyleImageMissing);
+      map.setMissingStyleImageResolver(null);
       document.removeEventListener("visibilitychange", handleVisibility);
       map.remove();
       if (mapRef.current === map) mapRef.current = null;
