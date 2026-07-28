@@ -17,6 +17,7 @@ Legenda: ✅ geaccepteerd · 🟡 technisch gereed, acceptatie open · ⬜ gepla
 - 🟡 L10B — Replay
 - 🟡 L11 — Historical Track
 - 🟡 P1.1 — Global Live Map
+- 🟡 P1.2 — Adaptive Global Tile Engine
 - ⬜ L12 — Accounts & Sync
 - ⬜ L13 — Contextual AI
 
@@ -71,3 +72,10 @@ P1.1 projecteert ieder wereldwijd kaartcentrum op een deterministisch,
 begrensd 4° × 4° queryvenster. Regiowissels worden gededupliceerd,
 debounced en per browsersessie begrensd; de zesminutenrefresh, proxyketen,
 motionarchitectuur en backend Budget Gate blijven behouden.
+
+P1.2 deelt de zichtbare kaart op in stabiele 4° × 4° tegels. Regionale
+viewports laden alle benodigde tegels; zeer ver uitgezoomde viewports gebruiken
+een eerlijke, deterministische steekproef van maximaal twaalf gebieden.
+Resultaten worden begrensd hergebruikt en op aircraft-ID samengevoegd, terwijl
+de status loaded/planned coverage zichtbaar maakt en het bestaande
+providerbudget hard begrensd blijft.

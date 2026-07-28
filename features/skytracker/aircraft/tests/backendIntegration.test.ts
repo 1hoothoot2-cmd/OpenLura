@@ -8,7 +8,13 @@ import {
   createGlobalViewportQuery,
   GLOBAL_QUERY_SPAN_DEGREES,
 } from "../../backend/domain/globalViewportQuery.ts";
+import {
+  MAXIMUM_VISIBLE_TILES,
+  planAdaptiveViewport,
+} from "../../backend/domain/adaptiveViewportTiles.ts";
+import { AircraftTileCache } from "../../backend/domain/aircraftTileCache.ts";
 import { fetchLiveAircraft } from "../../backend/infrastructure/liveAircraftClient.ts";
+import { AdaptiveTileScheduler } from "../../backend/infrastructure/adaptiveTileScheduler.ts";
 import {
   AIRCRAFT_EDGE_CACHE_SECONDS,
   aircraftProxyCacheHeaders,
@@ -536,4 +542,110 @@ test("client request ceiling remains below the backend daily provider budget", (
   assert.equal(MAXIMUM_CLIENT_REQUESTS_PER_DAY, 240);
   assert.ok(MAXIMUM_CLIENT_REQUESTS_PER_DAY < 300);
   assert.ok(REGION_CHANGE_MIN_INTERVAL_MILLIS > MOVE_END_DEBOUNCE_MILLIS);
+});
+
+test("adaptive viewport tiles cover a regional viewport without overlap", () => {
+  const plan = planAdaptiveViewport({
+    south: 50,
+    west: 2,
+    north: 55,
+    east: 9,
+  });
+  assert.equal(plan.sampled, false);
+  assert.equal(plan.tiles.length, 6);
+  assert.equal(plan.totalTileCount, 6);
+  assert.equal(new Set(plan.tiles.map((tile) => tile.key)).size, 6);
+  for (const tile of plan.tiles) {
+    assert.equal(
+      (tile.bounds.maxLat - tile.bounds.minLat) *
+        (tile.bounds.maxLon - tile.bounds.minLon),
+      16,
+    );
+  }
+});
+
+test("adaptive viewport uses deterministic representative coverage when zoomed out", () => {
+  const world = { south: -85, west: -180, north: 85, east: 180 };
+  const first = planAdaptiveViewport(world);
+  const second = planAdaptiveViewport(world);
+  assert.equal(first.sampled, true);
+  assert.equal(first.tiles.length, MAXIMUM_VISIBLE_TILES);
+  assert.ok(first.totalTileCount > first.tiles.length);
+  assert.deepEqual(first, second);
+  assert.ok(first.tiles.some((tile) => tile.bounds.minLon < -100));
+  assert.ok(first.tiles.some((tile) => tile.bounds.maxLon > 100));
+});
+
+test("adaptive viewport handles an antimeridian viewport with valid tiles", () => {
+  const plan = planAdaptiveViewport({
+    south: -5,
+    west: 170,
+    north: 5,
+    east: 190,
+  });
+  assert.ok(plan.tiles.length > 0);
+  assert.ok(plan.tiles.every((tile) => tile.bounds.minLon >= -180));
+  assert.ok(plan.tiles.every((tile) => tile.bounds.maxLon <= 180));
+  assert.ok(plan.tiles.some((tile) => tile.bounds.minLon < -170));
+  assert.ok(plan.tiles.some((tile) => tile.bounds.maxLon > 170));
+});
+
+test("tile cache reuses snapshots, deduplicates aircraft and evicts old entries", () => {
+  const cache = new AircraftTileCache(2, 1_000);
+  const firstAircraft = parseLiveAircraftSnapshot({
+    snapshotId: "tile-one",
+    generatedAt: 1_000,
+    aircraft: [VALID_AIRCRAFT],
+  }).aircraft[0];
+  const newerAircraft = {
+    ...firstAircraft,
+    latitudeDegrees: 52.3,
+    positionTimestampEpochMillis: 1_700_000_001_000,
+  };
+  cache.put("one", [firstAircraft], 100);
+  cache.put("two", [newerAircraft], 200);
+  assert.equal(cache.loadedCount(["one", "two"], 500), 2);
+  assert.deepEqual(cache.merge(["one", "two"], 500), [newerAircraft]);
+  cache.put("three", [], 300);
+  assert.equal(cache.loadedCount(["one", "two", "three"], 500), 2);
+  assert.equal(cache.loadedCount(["two", "three"], 1_301), 0);
+});
+
+test("adaptive scheduler loads missing tiles sequentially and reuses fresh tiles", async () => {
+  const callbacks: Array<() => void> = [];
+  const delays: number[] = [];
+  const loaded = new Set<string>();
+  let now = 1_000;
+  const runs: string[] = [];
+  const scheduler = new AdaptiveTileScheduler(
+    async (tile: { key: string }) => {
+      runs.push(tile.key);
+      loaded.add(tile.key);
+      return true;
+    },
+    (tile) => loaded.has(tile.key),
+    ((callback: () => void, delay?: number) => {
+      callbacks.push(callback);
+      delays.push(delay ?? 0);
+      return callbacks.length as unknown as ReturnType<typeof setTimeout>;
+    }),
+    () => undefined,
+    () => now,
+  );
+
+  scheduler.setTiles([{ key: "a" }, { key: "b" }]);
+  callbacks.shift()?.();
+  await Promise.resolve();
+  assert.deepEqual(runs, ["a"]);
+  assert.equal(delays.at(-1), REGION_CHANGE_MIN_INTERVAL_MILLIS);
+
+  now += REGION_CHANGE_MIN_INTERVAL_MILLIS;
+  callbacks.shift()?.();
+  await Promise.resolve();
+  assert.deepEqual(runs, ["a", "b"]);
+  assert.equal(delays.at(-1), POLL_INTERVAL_MILLIS);
+
+  scheduler.setTiles([{ key: "a" }, { key: "b" }]);
+  assert.equal(delays.at(-1), POLL_INTERVAL_MILLIS);
+  scheduler.dispose();
 });

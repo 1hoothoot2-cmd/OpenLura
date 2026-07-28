@@ -31,15 +31,20 @@ import { aircraftDetailItems } from "../../aircraft/presentation/aircraftDetails
 import { FlightTimeline } from "../../aircraft/presentation/FlightTimeline";
 import { createAircraftFeatureCollection } from "../../aircraft/presentation/aircraftGeoJson";
 import { presentAircraft } from "../../aircraft/presentation/presentedAircraft";
-import { createGlobalViewportQuery } from "../../backend/domain/globalViewportQuery";
+import {
+  planAdaptiveViewport,
+  type AdaptiveViewportPlan,
+  type AdaptiveViewportTile,
+} from "../../backend/domain/adaptiveViewportTiles";
+import { AircraftTileCache } from "../../backend/domain/aircraftTileCache";
 import { reconcileSnapshot } from "../../backend/domain/snapshotReconciliation";
 import { SnapshotAcceptancePolicy } from "../../backend/domain/snapshotAcceptance";
 import { fetchLiveAircraft } from "../../backend/infrastructure/liveAircraftClient";
 import {
   MOVE_END_DEBOUNCE_MILLIS,
   REQUEST_TIMEOUT_MILLIS,
-  ViewportPollingScheduler,
 } from "../../backend/infrastructure/viewportPollingScheduler";
+import { AdaptiveTileScheduler } from "../../backend/infrastructure/adaptiveTileScheduler";
 import {
   registerAircraftMapPresentation,
   type AircraftMapRegistration,
@@ -126,6 +131,9 @@ type BackendStatus = Readonly<{
   aircraftCount: number;
   updatedAt: number | null;
   cacheStatus: string | null;
+  loadedRegionCount?: number;
+  plannedRegionCount?: number;
+  totalVisibleRegionCount?: number;
 }>;
 
 type SkyTrackerLiveMapProps = {
@@ -1206,8 +1214,13 @@ function MapViewport({
   const aircraftRef = useRef(aircraft);
   const favoriteAircraftIdsRef = useRef(favoriteAircraftIds);
   const visibleAircraftIdsRef = useRef(visibleAircraftIds);
-  const schedulerRef = useRef<ViewportPollingScheduler | null>(null);
-  const snapshotAcceptanceRef = useRef(new SnapshotAcceptancePolicy());
+  const schedulerRef = useRef<AdaptiveTileScheduler<AdaptiveViewportTile> | null>(
+    null,
+  );
+  const snapshotAcceptanceRef = useRef(
+    new Map<string, SnapshotAcceptancePolicy>(),
+  );
+  const tileCacheRef = useRef(new AircraftTileCache());
   const requestRef = useRef<AbortController | null>(null);
   const moveDebounceRef = useRef<number | null>(null);
   const followEnabledRef = useRef(followEnabled);
@@ -1279,8 +1292,7 @@ function MapViewport({
     let styleReady = false;
     let resizeFrame: number | null = null;
     let disposed = false;
-    let desiredRegionKey: string | null = null;
-    let displayedRegionKey: string | null = null;
+    let desiredPlan: AdaptiveViewportPlan | null = null;
 
     setWorkerUrl(MAPLIBRE_WORKER_URL);
     const map = new MapLibreMap({
@@ -1301,51 +1313,97 @@ function MapViewport({
     mapRef.current = map;
     map.addControl(new AttributionControl({ compact: true }), "bottom-right");
 
-    const requestViewport = async () => {
-      if (disposed || document.hidden) return "skipped" as const;
-      const center = map.getCenter();
-      const query = createGlobalViewportQuery(center.lat, center.lng);
-      if (!query.valid) {
+    const publishPlan = (
+      plan: AdaptiveViewportPlan,
+      state: BackendStatus["state"],
+      cacheStatus: string | null,
+    ) => {
+      const keys = plan.tiles.map((tile) => tile.key);
+      const now = Date.now();
+      const loadedRegionCount = tileCacheRef.current.loadedCount(keys, now);
+      const loadedAircraft = tileCacheRef.current.merge(keys, now);
+      const mergedAircraft =
+        loadedRegionCount < plan.tiles.length
+          ? mergeAircraftByNewestPosition(aircraftRef.current, loadedAircraft)
+          : loadedAircraft;
+      const nextStatus: BackendStatus = {
+        state,
+        aircraftCount: mergedAircraft.length,
+        updatedAt: now,
+        cacheStatus,
+        loadedRegionCount,
+        plannedRegionCount: plan.tiles.length,
+        totalVisibleRegionCount: plan.totalTileCount,
+      };
+      if (loadedRegionCount > 0 || state === "connected") {
+        onSnapshot(mergedAircraft, nextStatus);
+      } else {
+        onBackendStatusChange({
+          ...nextStatus,
+          aircraftCount: aircraftRef.current.length,
+          updatedAt: null,
+        });
+      }
+    };
+
+    const planCurrentViewport = () => {
+      const bounds = map.getBounds();
+      return planAdaptiveViewport({
+        south: bounds.getSouth(),
+        west: bounds.getWest(),
+        north: bounds.getNorth(),
+        east: bounds.getEast(),
+      });
+    };
+
+    const applyPlan = (plan: AdaptiveViewportPlan) => {
+      if (plan.tiles.length === 0) {
         onBackendStatusChange({
           state: "invalid-viewport",
           aircraftCount: aircraftRef.current.length,
           updatedAt: null,
           cacheStatus: null,
         });
-        return "skipped" as const;
+        return;
       }
-      const requestedRegionKey = query.key;
-      desiredRegionKey = requestedRegionKey;
-      if (displayedRegionKey !== requestedRegionKey) {
-        onBackendStatusChange({
-          state: "loading-region",
-          aircraftCount: aircraftRef.current.length,
-          updatedAt: null,
-          cacheStatus: null,
-        });
-      }
+      desiredPlan = plan;
+      const loaded = tileCacheRef.current.loadedCount(
+        plan.tiles.map((tile) => tile.key),
+        Date.now(),
+      );
+      publishPlan(
+        plan,
+        loaded === plan.tiles.length ? "connected" : "loading-region",
+        loaded > 0 ? "memory" : null,
+      );
+      schedulerRef.current?.setTiles(plan.tiles);
+    };
 
+    const requestTile = async (tile: AdaptiveViewportTile) => {
+      if (disposed || document.hidden) return "skipped" as const;
       requestRef.current?.abort();
       const controller = new AbortController();
       requestRef.current = controller;
       const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MILLIS);
       try {
         const result = await fetchLiveAircraft(
-          query.bounds,
+          tile.bounds,
           controller.signal,
         );
         if (
           controller.signal.aborted ||
           disposed ||
-          desiredRegionKey !== requestedRegionKey
+          !desiredPlan?.tiles.some((candidate) => candidate.key === tile.key)
         ) {
           return "skipped" as const;
         }
         if (result.ok) {
-          if (displayedRegionKey !== requestedRegionKey) {
-            snapshotAcceptanceRef.current = new SnapshotAcceptancePolicy();
+          let policy = snapshotAcceptanceRef.current.get(tile.key);
+          if (!policy) {
+            policy = new SnapshotAcceptancePolicy();
+            snapshotAcceptanceRef.current.set(tile.key, policy);
           }
-          const decision = snapshotAcceptanceRef.current.evaluate(result.snapshot);
+          const decision = policy.evaluate(result.snapshot);
           if (!decision.accepted) {
             if (process.env.NODE_ENV === "development") {
               console.debug("[SkyTracker polling] snapshot rejected", {
@@ -1365,13 +1423,19 @@ function MapViewport({
               aircraftCount: result.snapshot.aircraft.length,
             });
           }
-          displayedRegionKey = requestedRegionKey;
-          onSnapshot(result.snapshot.aircraft, {
-            state: "connected",
-            aircraftCount: result.snapshot.aircraft.length,
-            updatedAt: Date.now(),
-            cacheStatus: result.cacheStatus,
-          });
+          tileCacheRef.current.put(tile.key, result.snapshot.aircraft, Date.now());
+          const plan = desiredPlan;
+          if (plan) {
+            const loaded = tileCacheRef.current.loadedCount(
+              plan.tiles.map((candidate) => candidate.key),
+              Date.now(),
+            );
+            publishPlan(
+              plan,
+              loaded === plan.tiles.length ? "connected" : "loading-region",
+              result.cacheStatus,
+            );
+          }
           return true;
         }
         onBackendStatusChange({
@@ -1407,18 +1471,10 @@ function MapViewport({
         window.clearTimeout(moveDebounceRef.current);
       }
       moveDebounceRef.current = window.setTimeout(() => {
-        const center = map.getCenter();
-        const query = createGlobalViewportQuery(center.lat, center.lng);
-        if (!query.valid || query.key === desiredRegionKey) return;
-        desiredRegionKey = query.key;
+        const plan = planCurrentViewport();
+        if (plan.signature === desiredPlan?.signature) return;
         requestRef.current?.abort();
-        onBackendStatusChange({
-          state: "loading-region",
-          aircraftCount: aircraftRef.current.length,
-          updatedAt: null,
-          cacheStatus: null,
-        });
-        schedulerRef.current?.regionChanged(query.key);
+        applyPlan(plan);
       }, MOVE_END_DEBOUNCE_MILLIS);
     };
 
@@ -1489,15 +1545,11 @@ function MapViewport({
         },
       });
       motionRuntimeRef.current.start();
-      schedulerRef.current = new ViewportPollingScheduler(requestViewport);
-      const center = map.getCenter();
-      const initialQuery = createGlobalViewportQuery(center.lat, center.lng);
-      if (initialQuery.valid) {
-        desiredRegionKey = initialQuery.key;
-        schedulerRef.current.regionChanged(initialQuery.key);
-      } else {
-        schedulerRef.current.start();
-      }
+      schedulerRef.current = new AdaptiveTileScheduler(
+        requestTile,
+        (tile, now) => tileCacheRef.current.hasFresh(tile.key, now),
+      );
+      applyPlan(planCurrentViewport());
       onStatusChange("ready");
       onBearingChange(map.getBearing());
     };
@@ -1864,7 +1916,16 @@ function backendStatusTitle(state: BackendStatus["state"]) {
 
 function backendStatusDetail(status: BackendStatus) {
   if (status.state === "reconnecting") return "Using last valid snapshot";
-  if (status.state === "loading-region") return "Keeping the previous region visible while loading";
+  if (status.state === "loading-region") {
+    const loaded = status.loadedRegionCount ?? 0;
+    const planned = status.plannedRegionCount ?? 0;
+    const sampled =
+      status.totalVisibleRegionCount &&
+      status.totalVisibleRegionCount > planned
+        ? ` · sampling ${planned} of ${status.totalVisibleRegionCount} visible regions`
+        : "";
+    return `Keeping loaded aircraft visible · ${loaded} of ${planned} live regions ready${sampled}`;
+  }
   if (status.state === "not-configured") return "Configure the server API base URL";
   if (status.state === "invalid-viewport") return "The current viewport exceeds backend limits";
   if (status.state === "connecting") {
@@ -1872,9 +1933,39 @@ function backendStatusDetail(status: BackendStatus) {
       ? "Waiting for the first live snapshot"
       : "Waiting for the first development snapshot";
   }
-  if (status.aircraftCount === 0) return "No aircraft currently visible in this region";
+  if (status.aircraftCount === 0) {
+    return "No aircraft reported in the loaded live regions";
+  }
+  const coverage =
+    status.totalVisibleRegionCount &&
+    status.plannedRegionCount &&
+    status.totalVisibleRegionCount > status.plannedRegionCount
+      ? ` · ${status.plannedRegionCount} of ${status.totalVisibleRegionCount} visible regions sampled`
+      : status.plannedRegionCount
+        ? ` · ${status.plannedRegionCount} live ${status.plannedRegionCount === 1 ? "region" : "regions"}`
+        : "";
   const cache = status.cacheStatus ? ` · cache ${status.cacheStatus}` : "";
-  return `${IS_PRODUCTION_BUILD ? "Live backend data" : "Backend development data"}${cache}`;
+  return `${IS_PRODUCTION_BUILD ? "Live backend data" : "Backend development data"}${coverage}${cache}`;
+}
+
+function mergeAircraftByNewestPosition(
+  current: readonly Aircraft[],
+  incoming: readonly Aircraft[],
+) {
+  const merged = new Map<string, Aircraft>();
+  for (const aircraft of [...current, ...incoming]) {
+    const existing = merged.get(aircraft.id);
+    if (
+      !existing ||
+      aircraft.positionTimestampEpochMillis >
+        existing.positionTimestampEpochMillis
+    ) {
+      merged.set(aircraft.id, aircraft);
+    }
+  }
+  return [...merged.values()].sort((left, right) =>
+    left.id.localeCompare(right.id),
+  );
 }
 
 function countryName(code: string | null) {
