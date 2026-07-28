@@ -772,6 +772,27 @@ export function SkyTrackerLiveMap({
         </Link>
 
         <div className="flex items-center gap-2.5">
+          <Link
+            href="/skytracker/guide"
+            aria-label="Open SkyGuide aviation assistant"
+            className="ol-interactive inline-flex min-h-11 items-center gap-2 rounded-full border border-cyan-200/14 px-3 text-xs font-semibold text-cyan-100/72 hover:border-cyan-200/25 hover:bg-cyan-200/[0.06] hover:text-cyan-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+          >
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              className="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M12 3v3M12 18v3M3 12h3M18 12h3" />
+              <circle cx="12" cy="12" r="4" />
+              <path d="m5.6 5.6 2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1" />
+            </svg>
+            <span className="hidden md:inline">SkyGuide</span>
+          </Link>
           <button
             type="button"
             aria-label={searchOpen ? "Close aircraft search" : "Search aircraft"}

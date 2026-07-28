@@ -1,0 +1,134 @@
+export type SkyGuideActionId =
+  | "find-flight"
+  | "find-airport"
+  | "find-aircraft"
+  | "overhead"
+  | "weather"
+  | "spotting";
+
+export type SkyGuideCapabilityId =
+  | "live-skytracker-data"
+  | "airport-intelligence"
+  | "weather"
+  | "aviation-news"
+  | "controlled-web-search"
+  | "memory"
+  | "notifications";
+
+export type SkyGuideCapability = {
+  id: SkyGuideCapabilityId;
+  available: boolean;
+};
+
+export type SkyGuideAction = {
+  id: SkyGuideActionId;
+  title: string;
+  description: string;
+  prompt: string;
+  icon: "flight" | "airport" | "aircraft" | "location" | "weather" | "camera";
+};
+
+export type SkyGuideScopeResult =
+  | { accepted: true; normalizedQuery: string }
+  | { accepted: false; reason: "empty" | "outside-aviation" };
+
+export type SkyGuideAudienceMode = "beginner" | "expert";
+
+const AVIATION_TERMS = [
+  "aerodynamics", "airbus", "aircraft", "airline", "airplane", "airport",
+  "airspace", "altitude", "approach", "arrival", "aviation", "boeing",
+  "callsign", "cessna", "cockpit", "departure", "engine", "flight", "fly",
+  "flying", "helicopter", "icao", "iata", "jet", "landing", "metar",
+  "notam", "pilot", "plane", "route", "runway", "spotting", "squawk",
+  "takeoff", "taxiway", "turbine", "turbulence", "weather", "wing",
+  "vliegtuig", "vlucht", "luchthaven", "luchtvaart", "vliegweer",
+] as const;
+
+export const SKYGUIDE_ACTIONS: readonly SkyGuideAction[] = [
+  { id: "find-flight", title: "Find a flight", description: "Look up a flight or callsign", prompt: "Help me find a flight", icon: "flight" },
+  { id: "find-airport", title: "Find an airport", description: "Explore an airport by name or code", prompt: "Tell me about an airport", icon: "airport" },
+  { id: "find-aircraft", title: "Find an aircraft", description: "Search by registration or aircraft ID", prompt: "Help me find an aircraft", icon: "aircraft" },
+  { id: "overhead", title: "What is above me?", description: "Understand nearby air traffic", prompt: "What aircraft are flying above me?", icon: "location" },
+  { id: "weather", title: "Flying weather", description: "Ask about aviation weather", prompt: "How does today’s weather affect flying?", icon: "weather" },
+  { id: "spotting", title: "Best spotting locations", description: "Learn where and how to spot aircraft", prompt: "Where can I safely spot aircraft?", icon: "camera" },
+] as const;
+
+export const SKYGUIDE_CAPABILITIES: readonly SkyGuideCapability[] = [
+  { id: "live-skytracker-data", available: false },
+  { id: "airport-intelligence", available: false },
+  { id: "weather", available: false },
+  { id: "aviation-news", available: false },
+  { id: "controlled-web-search", available: false },
+  { id: "memory", available: false },
+  { id: "notifications", available: false },
+] as const;
+
+export const SKYGUIDE_PLACEHOLDERS = [
+  "Why is this aircraft flying so low?",
+  "Which flight departs next from Amsterdam?",
+  "What is the flying weather over Frankfurt?",
+  "Where can I spot aircraft today?",
+  "What does squawk 7700 mean?",
+  "How does an aircraft maintain altitude?",
+] as const;
+
+export function normalizeSkyGuideQuery(query: string): string {
+  return query.trim().replace(/\s+/g, " ");
+}
+
+export function classifySkyGuideScope(query: string): SkyGuideScopeResult {
+  const normalizedQuery = normalizeSkyGuideQuery(query);
+  if (!normalizedQuery) return { accepted: false, reason: "empty" };
+
+  const lowered = normalizedQuery.toLocaleLowerCase("en");
+  const accepted = AVIATION_TERMS.some((term) => {
+    const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`(?:^|[^a-z0-9])${escaped}(?:$|[^a-z0-9])`, "i").test(lowered);
+  });
+
+  return accepted
+    ? { accepted: true, normalizedQuery }
+    : { accepted: false, reason: "outside-aviation" };
+}
+
+export function inferSkyGuideAudienceMode(query: string): SkyGuideAudienceMode {
+  const normalized = normalizeSkyGuideQuery(query).toLocaleLowerCase("en");
+  return /\b(icao|iata|metar|notam|qnh|squawk|technical|aerodynamics)\b/.test(
+    normalized,
+  )
+    ? "expert"
+    : "beginner";
+}
+
+export function createSkyGuideFoundationResponse(
+  query: string,
+): {
+  accepted: boolean;
+  audienceMode: SkyGuideAudienceMode;
+  message: string;
+  suggestion?: string;
+} {
+  const audienceMode = inferSkyGuideAudienceMode(query);
+  const scope = classifySkyGuideScope(query);
+  if (!scope.accepted) {
+    return scope.reason === "empty"
+      ? {
+          accepted: false,
+          audienceMode,
+          message: "Ask SkyGuide a question about aviation.",
+        }
+      : {
+          accepted: false,
+          audienceMode,
+          message: "I’m SkyGuide. I can help with aviation, aircraft, flights and airports.",
+          suggestion: "Try asking what a squawk code means.",
+        };
+  }
+
+  return {
+    accepted: true,
+    audienceMode,
+    message: "That is an aviation question I can help with. Live intelligence answers will be connected in a future SkyGuide sprint.",
+    suggestion: "You can keep exploring SkyTracker’s live map in the meantime.",
+  };
+}

@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:aircraft": "node --test --experimental-strip-types features/skytracker/aircraft/tests/*.test.ts features/skytracker/airports/tests/*.test.ts features/skytracker/favorites/tests/*.test.ts"
+    "test:aircraft": "node --test --experimental-strip-types features/skytracker/aircraft/tests/*.test.ts features/skytracker/airports/tests/*.test.ts features/skytracker/favorites/tests/*.test.ts features/skytracker/skyguide/tests/*.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.101.1",

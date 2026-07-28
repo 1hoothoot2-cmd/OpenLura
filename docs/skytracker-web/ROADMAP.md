@@ -22,6 +22,7 @@ Legenda: ✅ geaccepteerd · 🟡 technisch gereed, acceptatie open · ⬜ gepla
 - 🟡 P1.3 — World Experience Polish
 - 🟡 P2 — Flight Intelligence
 - 🟡 P2.1 — Budget & Snapshot Optimization
+- 🟡 P3.1 — SkyGuide Foundation
 - ⬜ L12 — Accounts & Sync
 - ⬜ L13 — Contextual AI
 
@@ -112,3 +113,8 @@ doortellen en gebruikt een begrensde delayed snapshot wanneer het budget
 bereikt is. Alleen het focusgebied wordt iedere zeven minuten opnieuw
 gevalideerd; omliggende tegels blijven beschikbaar en worden pas opnieuw
 geladen wanneer ze focus worden of na maximaal 24 uur.
+
+P3.1 introduceert SkyGuide als zelfstandige Aviation Intelligence Assistant
+met een toegankelijk welkomdashboard, Smart Actions, Discover-onderwerpen,
+dynamische vraagvoorbeelden en lokale luchtvaartscopebewaking. Er is bewust
+nog geen AI-provider, geheugen, weer-, nieuws- of zoekintegratie.
