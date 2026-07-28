@@ -1,12 +1,14 @@
 import type { Aircraft } from "../../aircraft/domain/aircraft.ts";
 
 export const AIRCRAFT_TILE_CACHE_MAXIMUM_ENTRIES = 64;
-export const AIRCRAFT_TILE_CACHE_TTL_MILLIS = 30 * 60_000;
-export const AIRCRAFT_TILE_REFRESH_MILLIS = 6 * 60_000;
+export const AIRCRAFT_TILE_CACHE_TTL_MILLIS = 25 * 60 * 60_000;
+export const AIRCRAFT_TILE_REFRESH_MILLIS = 7 * 60_000;
+export const AIRCRAFT_BACKGROUND_REFRESH_MILLIS = 24 * 60 * 60_000;
 
 type TileEntry = Readonly<{
   aircraft: readonly Aircraft[];
   fetchedAt: number;
+  cacheStatus: string | null;
 }>;
 
 export class AircraftTileCache {
@@ -22,9 +24,14 @@ export class AircraftTileCache {
     this.ttlMillis = ttlMillis;
   }
 
-  put(key: string, aircraft: readonly Aircraft[], fetchedAt: number) {
+  put(
+    key: string,
+    aircraft: readonly Aircraft[],
+    fetchedAt: number,
+    cacheStatus: string | null = null,
+  ) {
     this.entries.delete(key);
-    this.entries.set(key, { aircraft: [...aircraft], fetchedAt });
+    this.entries.set(key, { aircraft: [...aircraft], fetchedAt, cacheStatus });
     while (this.entries.size > this.maximumEntries) {
       const oldest = this.entries.keys().next().value;
       if (oldest === undefined) break;
@@ -40,6 +47,13 @@ export class AircraftTileCache {
   loadedCount(keys: readonly string[], now: number) {
     this.prune(now);
     return keys.filter((key) => this.entries.has(key)).length;
+  }
+
+  hasDelayedData(keys: readonly string[], now: number) {
+    this.prune(now);
+    return keys.some(
+      (key) => this.entries.get(key)?.cacheStatus?.includes("stale") === true,
+    );
   }
 
   merge(keys: readonly string[], now: number) {

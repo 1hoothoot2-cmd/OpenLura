@@ -12,8 +12,16 @@ import {
   MAXIMUM_VISIBLE_TILES,
   planAdaptiveViewport,
 } from "../../backend/domain/adaptiveViewportTiles.ts";
-import { AircraftTileCache } from "../../backend/domain/aircraftTileCache.ts";
-import { fetchLiveAircraft } from "../../backend/infrastructure/liveAircraftClient.ts";
+import {
+  AIRCRAFT_BACKGROUND_REFRESH_MILLIS,
+  AIRCRAFT_TILE_CACHE_TTL_MILLIS,
+  AIRCRAFT_TILE_REFRESH_MILLIS,
+  AircraftTileCache,
+} from "../../backend/domain/aircraftTileCache.ts";
+import {
+  fetchLiveAircraft,
+  isDelayedAircraftCache,
+} from "../../backend/infrastructure/liveAircraftClient.ts";
 import {
   AdaptiveTileScheduler,
   PRIORITY_TILE_LOAD_INTERVAL_MILLIS,
@@ -220,7 +228,7 @@ test("successful proxy responses are shared at the edge but never browser-cached
   assert.deepEqual(aircraftProxyCacheHeaders(true), {
     "Cache-Control": "private, no-store",
     "Vercel-CDN-Cache-Control":
-      "public, s-maxage=300, stale-while-revalidate=30",
+      "public, s-maxage=300, stale-while-revalidate=1800, stale-if-error=1800",
   });
   assert.deepEqual(aircraftProxyCacheHeaders(false), {
     "Cache-Control": "private, no-store",
@@ -600,6 +608,17 @@ test("client request ceiling remains below the backend daily provider budget", (
   assert.equal(MAXIMUM_CLIENT_REQUESTS_PER_DAY, 240);
   assert.ok(MAXIMUM_CLIENT_REQUESTS_PER_DAY < 300);
   assert.ok(REGION_CHANGE_MIN_INTERVAL_MILLIS > MOVE_END_DEBOUNCE_MILLIS);
+  assert.equal(POLL_INTERVAL_MILLIS, 7 * 60_000);
+  assert.equal(AIRCRAFT_TILE_REFRESH_MILLIS, POLL_INTERVAL_MILLIS);
+  assert.equal(AIRCRAFT_BACKGROUND_REFRESH_MILLIS, 24 * 60 * 60_000);
+  assert.ok(AIRCRAFT_TILE_CACHE_TTL_MILLIS > AIRCRAFT_BACKGROUND_REFRESH_MILLIS);
+});
+
+test("budget and provider stale cache statuses present as delayed data", () => {
+  assert.equal(isDelayedAircraftCache("budget_stale_fallback"), true);
+  assert.equal(isDelayedAircraftCache("stale_fallback"), true);
+  assert.equal(isDelayedAircraftCache("hit"), false);
+  assert.equal(isDelayedAircraftCache(null), false);
 });
 
 test("adaptive viewport tiles cover a regional viewport without overlap", () => {
@@ -670,6 +689,38 @@ test("tile cache reuses snapshots, deduplicates aircraft and evicts old entries"
   cache.put("three", [], 300);
   assert.equal(cache.loadedCount(["one", "two", "three"], 500), 2);
   assert.equal(cache.loadedCount(["two", "three"], 1_301), 0);
+});
+
+test("tile cache keeps surrounding regions while focus revalidation stays bounded", () => {
+  const cache = new AircraftTileCache();
+  cache.put("focus", [], 0);
+  cache.put("surrounding", [], 0);
+
+  assert.equal(
+    cache.hasFresh("focus", AIRCRAFT_TILE_REFRESH_MILLIS - 1),
+    true,
+  );
+  assert.equal(
+    cache.hasFresh("focus", AIRCRAFT_TILE_REFRESH_MILLIS),
+    false,
+  );
+  assert.equal(
+    cache.hasFresh(
+      "surrounding",
+      AIRCRAFT_TILE_REFRESH_MILLIS,
+      AIRCRAFT_BACKGROUND_REFRESH_MILLIS,
+    ),
+    true,
+  );
+});
+
+test("tile cache preserves delayed provenance across map replans", () => {
+  const cache = new AircraftTileCache();
+  cache.put("live", [], 0, "hit");
+  cache.put("delayed", [], 0, "budget_stale_fallback");
+
+  assert.equal(cache.hasDelayedData(["live"], 1), false);
+  assert.equal(cache.hasDelayedData(["live", "delayed"], 1), true);
 });
 
 test("adaptive scheduler loads missing tiles sequentially and reuses fresh tiles", async () => {

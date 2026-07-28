@@ -40,10 +40,16 @@ import {
   type AdaptiveViewportPlan,
   type AdaptiveViewportTile,
 } from "../../backend/domain/adaptiveViewportTiles";
-import { AircraftTileCache } from "../../backend/domain/aircraftTileCache";
+import {
+  AIRCRAFT_BACKGROUND_REFRESH_MILLIS,
+  AircraftTileCache,
+} from "../../backend/domain/aircraftTileCache";
 import { reconcileSnapshot } from "../../backend/domain/snapshotReconciliation";
 import { SnapshotAcceptancePolicy } from "../../backend/domain/snapshotAcceptance";
-import { fetchLiveAircraft } from "../../backend/infrastructure/liveAircraftClient";
+import {
+  fetchLiveAircraft,
+  isDelayedAircraftCache,
+} from "../../backend/infrastructure/liveAircraftClient";
 import { searchGlobalAircraft } from "../../backend/infrastructure/globalAircraftSearchClient";
 import {
   MOVE_END_DEBOUNCE_MILLIS,
@@ -1577,12 +1583,13 @@ function MapViewport({
       const now = Date.now();
       const loadedRegionCount = tileCacheRef.current.loadedCount(keys, now);
       const loadedAircraft = tileCacheRef.current.merge(keys, now);
+      const delayed = tileCacheRef.current.hasDelayedData(keys, now);
       const mergedAircraft =
         loadedRegionCount < plan.tiles.length
           ? mergeAircraftByNewestPosition(aircraftRef.current, loadedAircraft)
           : loadedAircraft;
       const nextStatus: BackendStatus = {
-        state,
+        state: delayed ? "reconnecting" : state,
         aircraftCount: mergedAircraft.length,
         updatedAt: now,
         cacheStatus,
@@ -1678,7 +1685,12 @@ function MapViewport({
               aircraftCount: result.snapshot.aircraft.length,
             });
           }
-          tileCacheRef.current.put(tile.key, result.snapshot.aircraft, Date.now());
+          tileCacheRef.current.put(
+            tile.key,
+            result.snapshot.aircraft,
+            Date.now(),
+            result.cacheStatus,
+          );
           const plan = desiredPlan;
           if (plan) {
             const loaded = tileCacheRef.current.loadedCount(
@@ -1687,7 +1699,11 @@ function MapViewport({
             );
             publishPlan(
               plan,
-              loaded === plan.tiles.length ? "connected" : "loading-region",
+              isDelayedAircraftCache(result.cacheStatus)
+                ? "reconnecting"
+                : loaded === plan.tiles.length
+                  ? "connected"
+                  : "loading-region",
               result.cacheStatus,
             );
           }
@@ -1802,7 +1818,14 @@ function MapViewport({
       motionRuntimeRef.current.start();
       schedulerRef.current = new AdaptiveTileScheduler(
         requestTile,
-        (tile, now) => tileCacheRef.current.hasFresh(tile.key, now),
+        (tile, now) =>
+          tileCacheRef.current.hasFresh(
+            tile.key,
+            now,
+            tile.priority === "focus"
+              ? undefined
+              : AIRCRAFT_BACKGROUND_REFRESH_MILLIS,
+          ),
       );
       applyPlan(planCurrentViewport());
       onStatusChange("ready");

@@ -6,6 +6,10 @@ export type LiveAircraftClientResult =
   | Readonly<{ ok: true; snapshot: LiveAircraftSnapshot; requestId: string | null; cacheStatus: string | null; etag: string | null }>
   | Readonly<{ ok: false; category: "viewport" | "unavailable" | "malformed"; retryable: boolean; requestId: string | null }>;
 
+export function isDelayedAircraftCache(cacheStatus: string | null) {
+  return cacheStatus?.includes("stale") === true;
+}
+
 export async function fetchLiveAircraft(
   bounds: ViewportBounds,
   signal: AbortSignal,

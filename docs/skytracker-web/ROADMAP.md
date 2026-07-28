@@ -21,6 +21,7 @@ Legenda: ✅ geaccepteerd · 🟡 technisch gereed, acceptatie open · ⬜ gepla
 - 🟡 P1.2A — Smooth Global Loading & Worldwide Aircraft Search
 - 🟡 P1.3 — World Experience Polish
 - 🟡 P2 — Flight Intelligence
+- 🟡 P2.1 — Budget & Snapshot Optimization
 - ⬜ L12 — Accounts & Sync
 - ⬜ L13 — Contextual AI
 
@@ -105,3 +106,9 @@ heeft voorrang en wordt uitsluitend met een nieuw werkelijk providerpunt
 verlengd; zonder providertrack worden alleen tijdens de sessie ontvangen
 posities getoond. FlightLeg-metadata uit de bestaande requestketen verrijkt het
 detailpaneel zonder extra browserrequest of nieuw backendcontract.
+
+P2.1 reserveert providerbudget atomisch, laat geblokkeerde aanvragen niet
+doortellen en gebruikt een begrensde delayed snapshot wanneer het budget
+bereikt is. Alleen het focusgebied wordt iedere zeven minuten opnieuw
+gevalideerd; omliggende tegels blijven beschikbaar en worden pas opnieuw
+geladen wanneer ze focus worden of na maximaal 24 uur.
