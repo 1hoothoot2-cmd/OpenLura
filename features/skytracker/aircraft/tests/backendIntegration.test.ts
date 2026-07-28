@@ -4,10 +4,21 @@ import { parseLiveAircraftSnapshot } from "../../backend/domain/liveAircraftSnap
 import { reconcileSnapshot } from "../../backend/domain/snapshotReconciliation.ts";
 import { SnapshotAcceptancePolicy } from "../../backend/domain/snapshotAcceptance.ts";
 import { normalizeViewportBounds } from "../../backend/domain/viewportBounds.ts";
+import {
+  createGlobalViewportQuery,
+  GLOBAL_QUERY_SPAN_DEGREES,
+} from "../../backend/domain/globalViewportQuery.ts";
 import { fetchLiveAircraft } from "../../backend/infrastructure/liveAircraftClient.ts";
+import {
+  AIRCRAFT_EDGE_CACHE_SECONDS,
+  aircraftProxyCacheHeaders,
+} from "../../backend/infrastructure/aircraftProxyCache.ts";
 import { resolveSkyTrackerApiConfig } from "../../backend/infrastructure/skyTrackerApiConfig.ts";
 import {
+  MOVE_END_DEBOUNCE_MILLIS,
   POLL_INTERVAL_MILLIS,
+  MAXIMUM_CLIENT_REQUESTS_PER_DAY,
+  REGION_CHANGE_MIN_INTERVAL_MILLIS,
   ViewportPollingScheduler,
 } from "../../backend/infrastructure/viewportPollingScheduler.ts";
 import { aircraftId } from "../domain/aircraft.ts";
@@ -57,6 +68,55 @@ test("viewport bounds are precise, bounded and reject antimeridian and non-finit
   assert.equal(normalizeViewportBounds({ minLat: 50, minLon: 3, maxLat: 55, maxLon: 7 }).valid, false);
   assert.equal(normalizeViewportBounds({ minLat: 50.5, minLon: 3.5, maxLat: 54.5, maxLon: 7.5 }).valid, true);
   assert.equal(normalizeViewportBounds({ minLat: Number.NaN, minLon: 0, maxLat: 1, maxLon: 1 }).valid, false);
+  assert.equal(normalizeViewportBounds({ minLat: 1, minLon: 1, maxLat: 1, maxLon: 2 }).valid, false);
+  assert.equal(normalizeViewportBounds({ minLat: 1, minLon: 2, maxLat: 2, maxLon: 2 }).valid, false);
+});
+
+test("global viewport queries cover world centers with stable bounded windows", () => {
+  const centers = [
+    [52.15, 5.3],
+    [40.71, -74.01],
+    [35.68, 139.76],
+    [-33.87, 151.21],
+    [-23.55, -46.63],
+  ] as const;
+
+  for (const [latitude, longitude] of centers) {
+    const query = createGlobalViewportQuery(latitude, longitude);
+    assert.equal(query.valid, true);
+    if (!query.valid) continue;
+    assert.equal(query.bounds.maxLat - query.bounds.minLat, GLOBAL_QUERY_SPAN_DEGREES);
+    assert.equal(query.bounds.maxLon - query.bounds.minLon, GLOBAL_QUERY_SPAN_DEGREES);
+    assert.equal(
+      (query.bounds.maxLat - query.bounds.minLat) *
+        (query.bounds.maxLon - query.bounds.minLon),
+      16,
+    );
+    assert.ok(latitude >= query.bounds.minLat && latitude <= query.bounds.maxLat);
+    assert.ok(longitude >= query.bounds.minLon && longitude <= query.bounds.maxLon);
+  }
+});
+
+test("global viewport queries handle poles, wrapped longitude and nearby pans deterministically", () => {
+  const north = createGlobalViewportQuery(90, 179.5);
+  const south = createGlobalViewportQuery(-90, -179.5);
+  const wrapped = createGlobalViewportQuery(0, 540);
+  const nearbyA = createGlobalViewportQuery(52.1, 5.1);
+  const nearbyB = createGlobalViewportQuery(52.4, 5.4);
+
+  assert.deepEqual(north, {
+    valid: true,
+    bounds: { minLat: 86, minLon: 176, maxLat: 90, maxLon: 180 },
+    key: "86:176:90:180",
+  });
+  assert.deepEqual(south, {
+    valid: true,
+    bounds: { minLat: -90, minLon: -180, maxLat: -86, maxLon: -176 },
+    key: "-90:-180:-86:-176",
+  });
+  assert.equal(wrapped.valid, true);
+  assert.deepEqual(nearbyA, nearbyB);
+  assert.deepEqual(createGlobalViewportQuery(Number.NaN, 0), { valid: false });
 });
 
 test("snapshot parser maps SI units, nullability and lifecycle", () => {
@@ -120,14 +180,12 @@ test("snapshot parser rejects bad records and duplicates while retaining valid a
 test("client builds the bounded URL and reads safe response headers", async () => {
   let requested = "";
   let receivedSignal: AbortSignal | undefined;
-  let receivedCache: RequestCache | undefined;
   const result = await fetchLiveAircraft(
     { minLat: 50, minLon: 3, maxLat: 54, maxLon: 9 },
     new AbortController().signal,
     async (input, init) => {
       requested = input.toString();
       receivedSignal = init?.signal ?? undefined;
-      receivedCache = init?.cache;
       return new Response(JSON.stringify({
         snapshotId: "snapshot-1",
         generatedAt: 1_700_000_001_000,
@@ -141,12 +199,23 @@ test("client builds the bounded URL and reads safe response headers", async () =
   assert.match(requested, /^\/api\/skytracker\/aircraft\?/);
   assert.match(requested, /minLat=50/);
   assert.ok(receivedSignal);
-  assert.equal(receivedCache, "no-store");
   assert.equal(result.ok, true);
   if (result.ok) {
     assert.equal(result.requestId, "request-1");
     assert.equal(result.cacheStatus, "hit");
   }
+});
+
+test("successful proxy responses are shared at the edge but never browser-cached", () => {
+  assert.deepEqual(aircraftProxyCacheHeaders(true), {
+    "Cache-Control": "private, no-store",
+    "Vercel-CDN-Cache-Control":
+      "public, s-maxage=300, stale-while-revalidate=30",
+  });
+  assert.deepEqual(aircraftProxyCacheHeaders(false), {
+    "Cache-Control": "private, no-store",
+  });
+  assert.equal(AIRCRAFT_EDGE_CACHE_SECONDS, 300);
 });
 
 test("client maps viewport, unavailable and malformed responses", async () => {
@@ -423,4 +492,48 @@ test("a locally skipped viewport does not consume the throttle interval", async 
 
   assert.deepEqual(delays, [0, POLL_INTERVAL_MILLIS, 0]);
   scheduler.dispose();
+});
+
+test("region changes load the latest world region promptly without duplicate requests", async () => {
+  const callbacks: Array<() => void> = [];
+  const delays: number[] = [];
+  let now = 1_000;
+  let calls = 0;
+  const scheduler = new ViewportPollingScheduler(
+    async () => {
+      calls += 1;
+      return true;
+    },
+    ((callback: () => void, delay?: number) => {
+      callbacks.push(callback);
+      delays.push(delay ?? 0);
+      return callbacks.length as unknown as ReturnType<typeof setTimeout>;
+    }),
+    () => undefined,
+    () => now,
+  );
+
+  scheduler.regionChanged("europe");
+  scheduler.regionChanged("europe");
+  assert.deepEqual(delays, [0]);
+  callbacks.shift()?.();
+  await Promise.resolve();
+  assert.equal(calls, 1);
+  callbacks.length = 0;
+
+  now += 5_000;
+  scheduler.regionChanged("america");
+  scheduler.regionChanged("america");
+  assert.equal(delays.at(-1), REGION_CHANGE_MIN_INTERVAL_MILLIS - 5_000);
+  callbacks.shift()?.();
+  await Promise.resolve();
+  assert.equal(calls, 2);
+  assert.equal(delays.at(-1), POLL_INTERVAL_MILLIS);
+  scheduler.dispose();
+});
+
+test("client request ceiling remains below the backend daily provider budget", () => {
+  assert.equal(MAXIMUM_CLIENT_REQUESTS_PER_DAY, 240);
+  assert.ok(MAXIMUM_CLIENT_REQUESTS_PER_DAY < 300);
+  assert.ok(REGION_CHANGE_MIN_INTERVAL_MILLIS > MOVE_END_DEBOUNCE_MILLIS);
 });

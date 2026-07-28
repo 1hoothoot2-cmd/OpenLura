@@ -19,11 +19,11 @@ export function normalizeViewportBounds(bounds: ViewportBounds): ViewportBoundsR
     bounds.maxLat > 90 ||
     bounds.minLon < -180 ||
     bounds.maxLon > 180 ||
-    bounds.minLat > bounds.maxLat
+    bounds.minLat >= bounds.maxLat
   ) {
     return { valid: false, reason: "range" };
   }
-  if (bounds.minLon > bounds.maxLon) {
+  if (bounds.minLon >= bounds.maxLon) {
     return { valid: false, reason: "antimeridian" };
   }
   const latitudeSpan = bounds.maxLat - bounds.minLat;

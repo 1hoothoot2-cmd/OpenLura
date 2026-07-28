@@ -1,6 +1,9 @@
 export const POLL_INTERVAL_MILLIS = 6 * 60_000;
 export const REQUEST_TIMEOUT_MILLIS = 14_000;
 export const MOVE_END_DEBOUNCE_MILLIS = 400;
+export const REGION_CHANGE_MIN_INTERVAL_MILLIS = 30_000;
+export const MAXIMUM_CLIENT_REQUESTS_PER_DAY = 240;
+const REQUEST_BUDGET_WINDOW_MILLIS = 24 * 60 * 60_000;
 const BACKOFF = [
   POLL_INTERVAL_MILLIS,
   2 * POLL_INTERVAL_MILLIS,
@@ -26,6 +29,10 @@ export class ViewportPollingScheduler {
   private running = false;
   private paused = false;
   private restartRequested = false;
+  private regionRestartRequested = false;
+  private activeRegionKey: string | null = null;
+  private requestWindowStartedAt: number | null = null;
+  private requestCount = 0;
 
   constructor(
     run: () => Promise<PollingOutcome>,
@@ -69,6 +76,20 @@ export class ViewportPollingScheduler {
     this.start(true);
   }
 
+  regionChanged(regionKey: string) {
+    if (this.disposed || regionKey === this.activeRegionKey) return;
+    this.activeRegionKey = regionKey;
+    this.failures = 0;
+    this.paused = false;
+    if (this.running) {
+      this.regionRestartRequested = true;
+      return;
+    }
+    if (this.timer !== null) this.cancel(this.timer);
+    this.timer = null;
+    this.queue(this.delayUntilRegionRun());
+  }
+
   dispose() {
     this.disposed = true;
     this.pause();
@@ -78,6 +99,10 @@ export class ViewportPollingScheduler {
     this.timer = this.schedule(async () => {
       this.timer = null;
       if (this.disposed || this.running) return;
+      if (!this.consumeRequestBudget()) {
+        this.queue(this.delayUntilBudgetReset());
+        return;
+      }
       this.running = true;
       const runStartedAt = this.now();
       const outcome = await this.run();
@@ -87,6 +112,11 @@ export class ViewportPollingScheduler {
       if (this.restartRequested) {
         this.restartRequested = false;
         this.queue(this.delayUntilNextRun());
+        return;
+      }
+      if (this.regionRestartRequested) {
+        this.regionRestartRequested = false;
+        this.queue(this.delayUntilRegionRun());
         return;
       }
       this.failures = outcome === true
@@ -106,5 +136,37 @@ export class ViewportPollingScheduler {
     const elapsed = this.now() - this.lastRunStartedAt;
     if (elapsed <= 0) return POLL_INTERVAL_MILLIS;
     return Math.max(0, POLL_INTERVAL_MILLIS - elapsed);
+  }
+
+  private delayUntilRegionRun() {
+    if (this.lastRunStartedAt === null) return 0;
+    return Math.max(
+      0,
+      REGION_CHANGE_MIN_INTERVAL_MILLIS -
+        (this.now() - this.lastRunStartedAt),
+    );
+  }
+
+  private consumeRequestBudget() {
+    const now = this.now();
+    if (
+      this.requestWindowStartedAt === null ||
+      now - this.requestWindowStartedAt >= REQUEST_BUDGET_WINDOW_MILLIS
+    ) {
+      this.requestWindowStartedAt = now;
+      this.requestCount = 0;
+    }
+    if (this.requestCount >= MAXIMUM_CLIENT_REQUESTS_PER_DAY) return false;
+    this.requestCount += 1;
+    return true;
+  }
+
+  private delayUntilBudgetReset() {
+    if (this.requestWindowStartedAt === null) return POLL_INTERVAL_MILLIS;
+    return Math.max(
+      POLL_INTERVAL_MILLIS,
+      REQUEST_BUDGET_WINDOW_MILLIS -
+        (this.now() - this.requestWindowStartedAt),
+    );
   }
 }

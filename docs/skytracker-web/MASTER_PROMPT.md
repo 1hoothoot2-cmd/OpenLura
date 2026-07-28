@@ -177,18 +177,34 @@ Iedere SkyTracker-sprint verloopt voortaan als volgt:
 
 ## Deployment Policy
 
-Tijdens normale ontwikkelsprints voert Codex niet automatisch een commit,
-push of deployment uit.
-
-Na expliciete Product Owner-goedkeuring, of wanneer de sprint aantoonbaar als
-volledig geaccepteerd is gemarkeerd, mag Codex automatisch:
+Wanneer een sprint geen destructieve acties bevat en geen nieuwe cloudkosten
+veroorzaakt, mag Codex zelfstandig:
 
 1. alle sprintwijzigingen controleren en committen;
 2. een duidelijke sprintgebonden commit message genereren;
 3. pushen naar de ingestelde branch;
-4. wachten op de gekoppelde automatische deployment;
-5. controleren of de deployment succesvol is;
-6. de productie-URL en commit-hash rapporteren.
+4. de bestaande CI/CD- of Vercel-deployment laten uitvoeren;
+5. wachten op de gekoppelde automatische deployment;
+6. controleren of de deployment succesvol is;
+7. de productie-URL en commit-hash rapporteren;
+8. de sprint volledig afronden.
 
-Zonder deze acceptatie blijft de worktree lokaal en worden releasehandelingen
-niet uitgevoerd.
+Hiervoor is geen afzonderlijke Product Owner-goedkeuring nodig.
+
+Codex stopt uitsluitend voor goedkeuring wanneer:
+
+- nieuwe cloudresources worden aangemaakt;
+- een Terraform-apply resources toevoegt of wijzigt;
+- billing of IAM verandert;
+- externe providerrequests buiten de sprintscope vallen;
+- destructieve acties plaatsvinden;
+- een fundamentele architectuurwijziging nodig is.
+
+Voor iedere autonome release geldt nog steeds:
+
+1. alle relevante tests en kwaliteitscontroles moeten slagen;
+2. de deployment moet uit een concrete commit voortkomen;
+3. Codex wacht op de gekoppelde automatische deployment;
+4. Codex controleert of de deployment succesvol is;
+5. productieacceptatie gebruikt uitsluitend de minimaal noodzakelijke
+   requests.

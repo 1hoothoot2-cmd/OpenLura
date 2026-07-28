@@ -16,6 +16,7 @@ Legenda: ✅ geaccepteerd · 🟡 technisch gereed, acceptatie open · ⬜ gepla
 - 🟡 L10A — Flight Timeline
 - 🟡 L10B — Replay
 - 🟡 L11 — Historical Track
+- 🟡 P1.1 — Global Live Map
 - ⬜ L12 — Accounts & Sync
 - ⬜ L13 — Contextual AI
 
@@ -65,3 +66,8 @@ laadt daarna uitsluitend de geselecteerde Historical Track. Segmenten worden
 als afzonderlijke GeoJSON-lijnen in één MapLibre-source gerenderd. Desktop,
 mobiel, success en unavailable zijn technisch bewezen; expliciete Product
 Owner-acceptatie blijft het sluitingscriterium.
+
+P1.1 projecteert ieder wereldwijd kaartcentrum op een deterministisch,
+begrensd 4° × 4° queryvenster. Regiowissels worden gededupliceerd,
+debounced en per browsersessie begrensd; de zesminutenrefresh, proxyketen,
+motionarchitectuur en backend Budget Gate blijven behouden.

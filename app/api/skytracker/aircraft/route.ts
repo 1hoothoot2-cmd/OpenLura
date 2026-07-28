@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { normalizeViewportBounds } from "@/features/skytracker/backend/domain/viewportBounds";
 import { resolveSkyTrackerApiConfig } from "@/features/skytracker/backend/infrastructure/skyTrackerApiConfig";
+import { aircraftProxyCacheHeaders } from "@/features/skytracker/backend/infrastructure/aircraftProxyCache";
 
 const UPSTREAM_TIMEOUT_MILLIS = 14_000;
 const FORWARDED_RESPONSE_HEADERS = [
@@ -53,7 +54,11 @@ export async function GET(request: NextRequest) {
       const value = response.headers.get(name);
       if (value) headers.set(name, value);
     }
-    headers.set("Cache-Control", "no-store");
+    for (const [name, value] of Object.entries(
+      aircraftProxyCacheHeaders(response.ok),
+    )) {
+      headers.set(name, value);
+    }
     return new Response(await response.arrayBuffer(), {
       status: response.status,
       statusText: response.statusText,

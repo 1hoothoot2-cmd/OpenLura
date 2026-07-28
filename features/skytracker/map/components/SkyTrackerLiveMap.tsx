@@ -31,7 +31,7 @@ import { aircraftDetailItems } from "../../aircraft/presentation/aircraftDetails
 import { FlightTimeline } from "../../aircraft/presentation/FlightTimeline";
 import { createAircraftFeatureCollection } from "../../aircraft/presentation/aircraftGeoJson";
 import { presentAircraft } from "../../aircraft/presentation/presentedAircraft";
-import { normalizeViewportBounds } from "../../backend/domain/viewportBounds";
+import { createGlobalViewportQuery } from "../../backend/domain/globalViewportQuery";
 import { reconcileSnapshot } from "../../backend/domain/snapshotReconciliation";
 import { SnapshotAcceptancePolicy } from "../../backend/domain/snapshotAcceptance";
 import { fetchLiveAircraft } from "../../backend/infrastructure/liveAircraftClient";
@@ -116,7 +116,13 @@ const MAPLIBRE_WORKER_URL = "/maplibre/maplibre-gl-worker.mjs";
 const IS_PRODUCTION_BUILD = process.env.NODE_ENV === "production";
 
 type BackendStatus = Readonly<{
-  state: "not-configured" | "connecting" | "connected" | "reconnecting" | "invalid-viewport";
+  state:
+    | "not-configured"
+    | "connecting"
+    | "loading-region"
+    | "connected"
+    | "reconnecting"
+    | "invalid-viewport";
   aircraftCount: number;
   updatedAt: number | null;
   cacheStatus: string | null;
@@ -1273,6 +1279,8 @@ function MapViewport({
     let styleReady = false;
     let resizeFrame: number | null = null;
     let disposed = false;
+    let desiredRegionKey: string | null = null;
+    let displayedRegionKey: string | null = null;
 
     setWorkerUrl(MAPLIBRE_WORKER_URL);
     const map = new MapLibreMap({
@@ -1295,14 +1303,9 @@ function MapViewport({
 
     const requestViewport = async () => {
       if (disposed || document.hidden) return "skipped" as const;
-      const mapBounds = map.getBounds();
-      const bounds = normalizeViewportBounds({
-        minLat: mapBounds.getSouth(),
-        minLon: mapBounds.getWest(),
-        maxLat: mapBounds.getNorth(),
-        maxLon: mapBounds.getEast(),
-      });
-      if (!bounds.valid) {
+      const center = map.getCenter();
+      const query = createGlobalViewportQuery(center.lat, center.lng);
+      if (!query.valid) {
         onBackendStatusChange({
           state: "invalid-viewport",
           aircraftCount: aircraftRef.current.length,
@@ -1311,6 +1314,16 @@ function MapViewport({
         });
         return "skipped" as const;
       }
+      const requestedRegionKey = query.key;
+      desiredRegionKey = requestedRegionKey;
+      if (displayedRegionKey !== requestedRegionKey) {
+        onBackendStatusChange({
+          state: "loading-region",
+          aircraftCount: aircraftRef.current.length,
+          updatedAt: null,
+          cacheStatus: null,
+        });
+      }
 
       requestRef.current?.abort();
       const controller = new AbortController();
@@ -1318,11 +1331,20 @@ function MapViewport({
       const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MILLIS);
       try {
         const result = await fetchLiveAircraft(
-          bounds.bounds,
+          query.bounds,
           controller.signal,
         );
-        if (controller.signal.aborted || disposed) return true;
+        if (
+          controller.signal.aborted ||
+          disposed ||
+          desiredRegionKey !== requestedRegionKey
+        ) {
+          return "skipped" as const;
+        }
         if (result.ok) {
+          if (displayedRegionKey !== requestedRegionKey) {
+            snapshotAcceptanceRef.current = new SnapshotAcceptancePolicy();
+          }
           const decision = snapshotAcceptanceRef.current.evaluate(result.snapshot);
           if (!decision.accepted) {
             if (process.env.NODE_ENV === "development") {
@@ -1343,6 +1365,7 @@ function MapViewport({
               aircraftCount: result.snapshot.aircraft.length,
             });
           }
+          displayedRegionKey = requestedRegionKey;
           onSnapshot(result.snapshot.aircraft, {
             state: "connected",
             aircraftCount: result.snapshot.aircraft.length,
@@ -1384,7 +1407,18 @@ function MapViewport({
         window.clearTimeout(moveDebounceRef.current);
       }
       moveDebounceRef.current = window.setTimeout(() => {
-        schedulerRef.current?.reset();
+        const center = map.getCenter();
+        const query = createGlobalViewportQuery(center.lat, center.lng);
+        if (!query.valid || query.key === desiredRegionKey) return;
+        desiredRegionKey = query.key;
+        requestRef.current?.abort();
+        onBackendStatusChange({
+          state: "loading-region",
+          aircraftCount: aircraftRef.current.length,
+          updatedAt: null,
+          cacheStatus: null,
+        });
+        schedulerRef.current?.regionChanged(query.key);
       }, MOVE_END_DEBOUNCE_MILLIS);
     };
 
@@ -1456,7 +1490,14 @@ function MapViewport({
       });
       motionRuntimeRef.current.start();
       schedulerRef.current = new ViewportPollingScheduler(requestViewport);
-      schedulerRef.current.start();
+      const center = map.getCenter();
+      const initialQuery = createGlobalViewportQuery(center.lat, center.lng);
+      if (initialQuery.valid) {
+        desiredRegionKey = initialQuery.key;
+        schedulerRef.current.regionChanged(initialQuery.key);
+      } else {
+        schedulerRef.current.start();
+      }
       onStatusChange("ready");
       onBearingChange(map.getBearing());
     };
@@ -1537,7 +1578,7 @@ function MapViewport({
         ref={containerRef}
         className="h-full w-full bg-[#06101c]"
         role="region"
-        aria-label={`Map of Western Europe with ${
+        aria-label={`Worldwide map with ${
           IS_PRODUCTION_BUILD ? "live backend aircraft" : "local backend development aircraft"
         }. Use arrow keys to pan and plus or minus to zoom when the map has focus.`}
       />
@@ -1810,6 +1851,8 @@ function backendStatusTitle(state: BackendStatus["state"]) {
       return "Backend not configured";
     case "connecting":
       return "Connecting to SkyTracker backend";
+    case "loading-region":
+      return "Loading aircraft for this region";
     case "connected":
       return "SkyTracker backend connected";
     case "reconnecting":
@@ -1821,6 +1864,7 @@ function backendStatusTitle(state: BackendStatus["state"]) {
 
 function backendStatusDetail(status: BackendStatus) {
   if (status.state === "reconnecting") return "Using last valid snapshot";
+  if (status.state === "loading-region") return "Keeping the previous region visible while loading";
   if (status.state === "not-configured") return "Configure the server API base URL";
   if (status.state === "invalid-viewport") return "The current viewport exceeds backend limits";
   if (status.state === "connecting") {
@@ -1828,6 +1872,7 @@ function backendStatusDetail(status: BackendStatus) {
       ? "Waiting for the first live snapshot"
       : "Waiting for the first development snapshot";
   }
+  if (status.aircraftCount === 0) return "No aircraft currently visible in this region";
   const cache = status.cacheStatus ? ` · cache ${status.cacheStatus}` : "";
   return `${IS_PRODUCTION_BUILD ? "Live backend data" : "Backend development data"}${cache}`;
 }
