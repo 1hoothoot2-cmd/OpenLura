@@ -17,6 +17,7 @@ export async function fetchLiveAircraft(
   }
   const response = await fetcher(`${url.pathname}${url.search}`, {
     method: "GET",
+    cache: "no-store",
     signal,
     headers: { Accept: "application/json" },
   });

@@ -33,6 +33,7 @@ import { createAircraftFeatureCollection } from "../../aircraft/presentation/air
 import { presentAircraft } from "../../aircraft/presentation/presentedAircraft";
 import { normalizeViewportBounds } from "../../backend/domain/viewportBounds";
 import { reconcileSnapshot } from "../../backend/domain/snapshotReconciliation";
+import { SnapshotAcceptancePolicy } from "../../backend/domain/snapshotAcceptance";
 import { fetchLiveAircraft } from "../../backend/infrastructure/liveAircraftClient";
 import {
   MOVE_END_DEBOUNCE_MILLIS,
@@ -1200,6 +1201,7 @@ function MapViewport({
   const favoriteAircraftIdsRef = useRef(favoriteAircraftIds);
   const visibleAircraftIdsRef = useRef(visibleAircraftIds);
   const schedulerRef = useRef<ViewportPollingScheduler | null>(null);
+  const snapshotAcceptanceRef = useRef(new SnapshotAcceptancePolicy());
   const requestRef = useRef<AbortController | null>(null);
   const moveDebounceRef = useRef<number | null>(null);
   const followEnabledRef = useRef(followEnabled);
@@ -1321,6 +1323,26 @@ function MapViewport({
         );
         if (controller.signal.aborted || disposed) return true;
         if (result.ok) {
+          const decision = snapshotAcceptanceRef.current.evaluate(result.snapshot);
+          if (!decision.accepted) {
+            if (process.env.NODE_ENV === "development") {
+              console.debug("[SkyTracker polling] snapshot rejected", {
+                reason: decision.reason,
+                requestId: result.requestId,
+                generatedAt: result.snapshot.generatedAtEpochMillis,
+                aircraftCount: result.snapshot.aircraft.length,
+              });
+            }
+            return true;
+          }
+          if (process.env.NODE_ENV === "development") {
+            console.debug("[SkyTracker polling] snapshot accepted", {
+              reason: decision.reason,
+              requestId: result.requestId,
+              generatedAt: result.snapshot.generatedAtEpochMillis,
+              aircraftCount: result.snapshot.aircraft.length,
+            });
+          }
           onSnapshot(result.snapshot.aircraft, {
             state: "connected",
             aircraftCount: result.snapshot.aircraft.length,

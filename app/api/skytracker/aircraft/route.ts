@@ -53,6 +53,7 @@ export async function GET(request: NextRequest) {
       const value = response.headers.get(name);
       if (value) headers.set(name, value);
     }
+    headers.set("Cache-Control", "no-store");
     return new Response(await response.arrayBuffer(), {
       status: response.status,
       statusText: response.statusText,

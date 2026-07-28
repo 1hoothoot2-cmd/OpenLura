@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { parseLiveAircraftSnapshot } from "../../backend/domain/liveAircraftSnapshot.ts";
 import { reconcileSnapshot } from "../../backend/domain/snapshotReconciliation.ts";
+import { SnapshotAcceptancePolicy } from "../../backend/domain/snapshotAcceptance.ts";
 import { normalizeViewportBounds } from "../../backend/domain/viewportBounds.ts";
 import { fetchLiveAircraft } from "../../backend/infrastructure/liveAircraftClient.ts";
 import { resolveSkyTrackerApiConfig } from "../../backend/infrastructure/skyTrackerApiConfig.ts";
@@ -119,12 +120,14 @@ test("snapshot parser rejects bad records and duplicates while retaining valid a
 test("client builds the bounded URL and reads safe response headers", async () => {
   let requested = "";
   let receivedSignal: AbortSignal | undefined;
+  let receivedCache: RequestCache | undefined;
   const result = await fetchLiveAircraft(
     { minLat: 50, minLon: 3, maxLat: 54, maxLon: 9 },
     new AbortController().signal,
     async (input, init) => {
       requested = input.toString();
       receivedSignal = init?.signal ?? undefined;
+      receivedCache = init?.cache;
       return new Response(JSON.stringify({
         snapshotId: "snapshot-1",
         generatedAt: 1_700_000_001_000,
@@ -138,6 +141,7 @@ test("client builds the bounded URL and reads safe response headers", async () =
   assert.match(requested, /^\/api\/skytracker\/aircraft\?/);
   assert.match(requested, /minLat=50/);
   assert.ok(receivedSignal);
+  assert.equal(receivedCache, "no-store");
   assert.equal(result.ok, true);
   if (result.ok) {
     assert.equal(result.requestId, "request-1");
@@ -175,6 +179,93 @@ test("reconciliation preserves or clears ID based selection deterministically", 
   const removed = reconcileSnapshot([], aircraftId("484516"));
   assert.equal(removed.selectionRemoved, true);
   assert.equal(removed.selectedAircraftId, null);
+});
+
+test("snapshot acceptance accepts changed coordinates with the same aircraft ID", () => {
+  const policy = new SnapshotAcceptancePolicy();
+  const first = parseLiveAircraftSnapshot({
+    snapshotId: "snapshot-1",
+    generatedAt: 1_000,
+    aircraft: [VALID_AIRCRAFT],
+  });
+  const moved = parseLiveAircraftSnapshot({
+    snapshotId: "snapshot-2",
+    generatedAt: 2_000,
+    aircraft: [{ ...VALID_AIRCRAFT, latitude: 52.2, longitude: 5.2 }],
+  });
+
+  assert.deepEqual(policy.evaluate(first), { accepted: true, reason: "initial" });
+  assert.deepEqual(policy.evaluate(moved), { accepted: true, reason: "newer" });
+});
+
+test("snapshot acceptance deduplicates identical content and rejects older snapshots", () => {
+  const policy = new SnapshotAcceptancePolicy();
+  const first = parseLiveAircraftSnapshot({
+    snapshotId: "snapshot-1",
+    generatedAt: 2_000,
+    aircraft: [VALID_AIRCRAFT],
+  });
+  const sameContent = parseLiveAircraftSnapshot({
+    snapshotId: "snapshot-2",
+    generatedAt: 3_000,
+    aircraft: [VALID_AIRCRAFT],
+  });
+  const olderChanged = parseLiveAircraftSnapshot({
+    snapshotId: "snapshot-old",
+    generatedAt: 1_000,
+    aircraft: [{ ...VALID_AIRCRAFT, latitude: 52.3 }],
+  });
+
+  assert.equal(policy.evaluate(first).accepted, true);
+  assert.deepEqual(policy.evaluate(sameContent), {
+    accepted: false,
+    reason: "duplicate",
+  });
+  assert.deepEqual(policy.evaluate(olderChanged), {
+    accepted: false,
+    reason: "older",
+  });
+});
+
+test("snapshot acceptance permits changed content at the same generated time", () => {
+  const policy = new SnapshotAcceptancePolicy();
+  const first = parseLiveAircraftSnapshot({
+    snapshotId: "snapshot-1",
+    generatedAt: 2_000,
+    aircraft: [VALID_AIRCRAFT],
+  });
+  const changed = parseLiveAircraftSnapshot({
+    snapshotId: "snapshot-2",
+    generatedAt: 2_000,
+    aircraft: [{ ...VALID_AIRCRAFT, altitude: 9_500 }],
+  });
+
+  policy.evaluate(first);
+  assert.deepEqual(policy.evaluate(changed), {
+    accepted: true,
+    reason: "changed",
+  });
+});
+
+test("snapshot acceptance ignores aircraft ordering when deduplicating", () => {
+  const policy = new SnapshotAcceptancePolicy();
+  const secondAircraft = { ...VALID_AIRCRAFT, id: "406a3d" };
+  const first = parseLiveAircraftSnapshot({
+    snapshotId: "snapshot-1",
+    generatedAt: 2_000,
+    aircraft: [VALID_AIRCRAFT, secondAircraft],
+  });
+  const reordered = parseLiveAircraftSnapshot({
+    snapshotId: "snapshot-2",
+    generatedAt: 3_000,
+    aircraft: [secondAircraft, VALID_AIRCRAFT],
+  });
+
+  policy.evaluate(first);
+  assert.deepEqual(policy.evaluate(reordered), {
+    accepted: false,
+    reason: "duplicate",
+  });
 });
 
 test("polling scheduler starts once, avoids overlap and schedules after completion", async () => {
