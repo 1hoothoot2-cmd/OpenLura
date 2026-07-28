@@ -3,7 +3,10 @@ import type { Aircraft } from "../domain/aircraft.ts";
 const EARTH_RADIUS_METERS = 6_371_000;
 const DEFAULT_PLAN_DURATION_MILLIS = 4_000;
 export const NORMAL_EXTRAPOLATION_MILLIS = 120_000;
-export const MAXIMUM_EXTRAPOLATION_MILLIS = 240_000;
+// The focused global tile refreshes every six minutes. A seven-minute ceiling
+// prevents a hard stop at a tile boundary while preserving the existing
+// progressive slowdown after the normal extrapolation window.
+export const MAXIMUM_EXTRAPOLATION_MILLIS = 420_000;
 export const MINIMUM_RELIABLE_SPEED_METERS_PER_SECOND = 5;
 const MINIMUM_CORRECTION_MILLIS = 1_500;
 const MAXIMUM_CORRECTION_MILLIS = 8_000;

@@ -232,7 +232,7 @@ test("new snapshots reconcile smoothly and cap large correction duration", () =>
   assert.equal(large.correctionDurationMillis, 8_000);
 });
 
-test("freshness fades motion and stops extrapolation after four minutes", () => {
+test("freshness fades motion and bridges the six minute focus refresh", () => {
   assert.equal(effectiveExtrapolationMillis(0), 0);
   assert.equal(
     effectiveExtrapolationMillis(NORMAL_EXTRAPOLATION_MILLIS),
@@ -240,11 +240,11 @@ test("freshness fades motion and stops extrapolation after four minutes", () => 
   );
   assert.equal(
     effectiveExtrapolationMillis(MAXIMUM_EXTRAPOLATION_MILLIS),
-    180_000,
+    270_000,
   );
   assert.equal(
     effectiveExtrapolationMillis(MAXIMUM_EXTRAPOLATION_MILLIS + 60_000),
-    180_000,
+    270_000,
   );
 
   const aircraft = DEVELOPMENT_AIRCRAFT[1];

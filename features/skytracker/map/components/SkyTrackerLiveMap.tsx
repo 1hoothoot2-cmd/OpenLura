@@ -40,6 +40,7 @@ import { AircraftTileCache } from "../../backend/domain/aircraftTileCache";
 import { reconcileSnapshot } from "../../backend/domain/snapshotReconciliation";
 import { SnapshotAcceptancePolicy } from "../../backend/domain/snapshotAcceptance";
 import { fetchLiveAircraft } from "../../backend/infrastructure/liveAircraftClient";
+import { searchGlobalAircraft } from "../../backend/infrastructure/globalAircraftSearchClient";
 import {
   MOVE_END_DEBOUNCE_MILLIS,
   REQUEST_TIMEOUT_MILLIS,
@@ -154,6 +155,10 @@ type HistoricalTrackState =
   | Readonly<{ status: "idle" | "loading" | "unavailable" }>
   | Readonly<{ status: "ready"; track: HistoricalTrack }>;
 
+type GlobalSearchState =
+  | Readonly<{ status: "idle" | "loading" | "unavailable" }>
+  | Readonly<{ status: "ready"; aircraft: readonly Aircraft[] }>;
+
 export function SkyTrackerLiveMap({
   initialAircraftId = null,
 }: SkyTrackerLiveMapProps) {
@@ -175,6 +180,8 @@ export function SkyTrackerLiveMap({
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [filters, setFilters] = useState(DEFAULT_AIRCRAFT_FILTERS);
   const [searchQuery, setSearchQuery] = useState("");
+  const [globalSearchState, setGlobalSearchState] =
+    useState<GlobalSearchState>({ status: "idle" });
   const [activeSearchIndex, setActiveSearchIndex] = useState(0);
   const [mapFocusRequest, setMapFocusRequest] =
     useState<MapFocusRequest | null>(null);
@@ -198,6 +205,7 @@ export function SkyTrackerLiveMap({
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const filtersButtonRef = useRef<HTMLButtonElement | null>(null);
   const searchRequestIdRef = useRef(0);
+  const globalSearchAbortRef = useRef<AbortController | null>(null);
   const favoritesRepositoryRef = useRef<FavoritesRepository | null>(null);
   const currentAircraftRef = useRef<readonly Aircraft[]>([]);
   const latestLiveAircraftRef = useRef<readonly Aircraft[]>([]);
@@ -251,6 +259,13 @@ export function SkyTrackerLiveMap({
   const searchResults = useMemo(
     () => searchAircraft(aircraft, searchQuery),
     [aircraft, searchQuery],
+  );
+  const globalSearchResults = useMemo(
+    () =>
+      globalSearchState.status === "ready"
+        ? searchAircraft(globalSearchState.aircraft, searchQuery)
+        : [],
+    [globalSearchState, searchQuery],
   );
   const airportSearchResults = useMemo(
     () => searchAirports(DEVELOPMENT_AIRPORTS, searchQuery),
@@ -498,8 +513,11 @@ export function SkyTrackerLiveMap({
   const stopFollowing = useCallback(() => setFollowEnabled(false), []);
 
   const closeSearch = useCallback(() => {
+    globalSearchAbortRef.current?.abort();
+    globalSearchAbortRef.current = null;
     setSearchOpen(false);
     setSearchQuery("");
+    setGlobalSearchState({ status: "idle" });
     setActiveSearchIndex(0);
   }, []);
 
@@ -530,6 +548,50 @@ export function SkyTrackerLiveMap({
       closeSearch();
     },
     [closeSearch, selectAircraft],
+  );
+
+  const runGlobalAircraftSearch = useCallback(async () => {
+    const query = searchQuery.trim();
+    if (!/^[a-z0-9-]{2,16}$/i.test(query)) return;
+    globalSearchAbortRef.current?.abort();
+    const controller = new AbortController();
+    globalSearchAbortRef.current = controller;
+    setGlobalSearchState({ status: "loading" });
+    const result = await searchGlobalAircraft(query, controller.signal).catch(
+      () => ({ ok: false, category: "unavailable" } as const),
+    );
+    if (controller.signal.aborted || globalSearchAbortRef.current !== controller) {
+      return;
+    }
+    globalSearchAbortRef.current = null;
+    setGlobalSearchState(
+      result.ok
+        ? { status: "ready", aircraft: result.aircraft }
+        : { status: "unavailable" },
+    );
+  }, [searchQuery]);
+
+  const selectGlobalSearchResult = useCallback(
+    (result: AircraftSearchResult) => {
+      const merged = mergeAircraftByNewestPosition(
+        currentAircraftRef.current,
+        [result.aircraft],
+      );
+      currentAircraftRef.current = merged;
+      setAircraft(merged);
+      setSelectedAirport(null);
+      setFollowEnabled(false);
+      setSelectedAircraftId(result.aircraft.id);
+      updateAircraftQuery(result.aircraft.id);
+      searchRequestIdRef.current += 1;
+      setMapFocusRequest({
+        longitudeDegrees: result.aircraft.longitudeDegrees,
+        latitudeDegrees: result.aircraft.latitudeDegrees,
+        requestId: searchRequestIdRef.current,
+      });
+      closeSearch();
+    },
+    [closeSearch],
   );
 
   const selectAirportSearchResult = useCallback(
@@ -609,6 +671,13 @@ export function SkyTrackerLiveMap({
   useEffect(() => {
     if (searchOpen) searchInputRef.current?.focus();
   }, [searchOpen]);
+
+  useEffect(
+    () => () => {
+      globalSearchAbortRef.current?.abort();
+    },
+    [],
+  );
 
   const retryMap = useCallback(() => {
     setStatus("loading");
@@ -802,6 +871,9 @@ export function SkyTrackerLiveMap({
                   aria-controls="skytracker-search-results"
                   onClick={() => {
                     setSearchTab(tab);
+                    globalSearchAbortRef.current?.abort();
+                    globalSearchAbortRef.current = null;
+                    setGlobalSearchState({ status: "idle" });
                     setActiveSearchIndex(0);
                     window.requestAnimationFrame(() =>
                       searchInputRef.current?.focus(),
@@ -850,6 +922,9 @@ export function SkyTrackerLiveMap({
                 }
                 onChange={(event) => {
                   setSearchQuery(event.target.value);
+                  globalSearchAbortRef.current?.abort();
+                  globalSearchAbortRef.current = null;
+                  setGlobalSearchState({ status: "idle" });
                   setActiveSearchIndex(0);
                 }}
                 onKeyDown={(event) => {
@@ -858,7 +933,17 @@ export function SkyTrackerLiveMap({
                     closeSearch();
                     return;
                   }
-                  if (!searchQuery.trim() || activeSearchResultsLength === 0) return;
+                  if (!searchQuery.trim()) return;
+                  if (
+                    event.key === "Enter" &&
+                    searchTab === "aircraft" &&
+                    activeSearchResultsLength === 0
+                  ) {
+                    event.preventDefault();
+                    void runGlobalAircraftSearch();
+                    return;
+                  }
+                  if (activeSearchResultsLength === 0) return;
                   if (event.key === "ArrowDown") {
                     event.preventDefault();
                     setActiveSearchIndex((current) =>
@@ -908,11 +993,66 @@ export function SkyTrackerLiveMap({
                 className="mt-3 max-h-[min(48vh,22rem)] overflow-y-auto border-t border-white/[0.07] pt-2"
               >
                 {activeSearchResultsLength === 0 ? (
-                  <p role="status" className="px-2 py-4 text-sm text-white/46">
-                    {searchTab === "favorites"
-                      ? "No favorites saved yet"
-                      : `No matching ${searchTab === "aircraft" ? "aircraft" : "airports"} found`}
-                  </p>
+                  searchTab === "aircraft" ? (
+                    <div className="px-2 py-4">
+                      <p role="status" className="text-sm text-white/46">
+                        No matching aircraft in the loaded map regions
+                      </p>
+                      <button
+                        type="button"
+                        disabled={
+                          globalSearchState.status === "loading" ||
+                          !/^[a-z0-9-]{2,16}$/i.test(searchQuery.trim())
+                        }
+                        onClick={() => void runGlobalAircraftSearch()}
+                        className="ol-interactive mt-3 min-h-11 rounded-full border border-cyan-200/18 bg-cyan-200/[0.07] px-4 text-sm font-medium text-cyan-50 hover:bg-cyan-200/[0.12] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 disabled:cursor-not-allowed disabled:opacity-45"
+                      >
+                        {globalSearchState.status === "loading"
+                          ? "Searching worldwide…"
+                          : "Search worldwide"}
+                      </button>
+                      {globalSearchState.status === "unavailable" && (
+                        <p role="status" className="mt-3 text-xs leading-5 text-amber-100/64">
+                          Worldwide search is temporarily unavailable. Loaded map
+                          regions remain searchable.
+                        </p>
+                      )}
+                      {globalSearchState.status === "ready" &&
+                        globalSearchResults.length === 0 && (
+                          <p role="status" className="mt-3 text-xs leading-5 text-white/42">
+                            No current worldwide match. The aircraft may be unknown,
+                            stale or no longer visible.
+                          </p>
+                        )}
+                      {globalSearchResults.map((result) => (
+                        <button
+                          key={`global-${result.aircraft.id}`}
+                          type="button"
+                          onClick={() => selectGlobalSearchResult(result)}
+                          className="ol-interactive mt-2 flex min-h-14 w-full items-center justify-between gap-4 rounded-xl border border-cyan-200/10 bg-cyan-200/[0.055] px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                        >
+                          <span className="min-w-0">
+                            <span className="block truncate text-sm font-medium text-white/88">
+                              {result.aircraft.callsign?.trim() ||
+                                result.aircraft.id.toUpperCase()}
+                            </span>
+                            <span className="mt-0.5 block text-xs text-cyan-100/48">
+                              Worldwide live result
+                            </span>
+                          </span>
+                          <span className="shrink-0 font-mono text-[11px] uppercase tracking-[0.08em] text-cyan-100/46">
+                            {result.aircraft.id}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <p role="status" className="px-2 py-4 text-sm text-white/46">
+                      {searchTab === "favorites"
+                        ? "No favorites saved yet"
+                        : "No matching airports found"}
+                    </p>
+                  )
                 ) : searchTab === "aircraft" ? (
                   searchResults.map((result, index) => (
                     <button
@@ -995,6 +1135,47 @@ export function SkyTrackerLiveMap({
                     />
                   ))
                 )}
+                {searchTab === "aircraft" &&
+                  activeSearchResultsLength > 0 &&
+                  globalSearchState.status === "idle" && (
+                    <button
+                      type="button"
+                      onClick={() => void runGlobalAircraftSearch()}
+                      className="ol-interactive mt-2 min-h-11 w-full rounded-xl border border-white/[0.08] px-3 text-sm text-cyan-100/62 hover:bg-cyan-200/[0.06] hover:text-cyan-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                    >
+                      Search worldwide instead
+                    </button>
+                  )}
+                {searchTab === "aircraft" &&
+                  activeSearchResultsLength > 0 &&
+                  globalSearchState.status === "loading" && (
+                    <p role="status" className="px-3 py-3 text-xs text-cyan-100/54">
+                      Searching worldwide…
+                    </p>
+                  )}
+                {searchTab === "aircraft" &&
+                  activeSearchResultsLength > 0 &&
+                  globalSearchResults.map((result) => (
+                    <button
+                      key={`global-${result.aircraft.id}`}
+                      type="button"
+                      onClick={() => selectGlobalSearchResult(result)}
+                      className="ol-interactive mt-2 flex min-h-14 w-full items-center justify-between gap-4 rounded-xl border border-cyan-200/10 bg-cyan-200/[0.055] px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-medium text-white/88">
+                          {result.aircraft.callsign?.trim() ||
+                            result.aircraft.id.toUpperCase()}
+                        </span>
+                        <span className="mt-0.5 block text-xs text-cyan-100/48">
+                          Worldwide live result
+                        </span>
+                      </span>
+                      <span className="shrink-0 font-mono text-[11px] uppercase tracking-[0.08em] text-cyan-100/46">
+                        {result.aircraft.id}
+                      </span>
+                    </button>
+                  ))}
               </div>
             )}
           </aside>

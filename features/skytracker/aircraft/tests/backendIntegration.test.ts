@@ -14,7 +14,11 @@ import {
 } from "../../backend/domain/adaptiveViewportTiles.ts";
 import { AircraftTileCache } from "../../backend/domain/aircraftTileCache.ts";
 import { fetchLiveAircraft } from "../../backend/infrastructure/liveAircraftClient.ts";
-import { AdaptiveTileScheduler } from "../../backend/infrastructure/adaptiveTileScheduler.ts";
+import {
+  AdaptiveTileScheduler,
+  PRIORITY_TILE_LOAD_INTERVAL_MILLIS,
+} from "../../backend/infrastructure/adaptiveTileScheduler.ts";
+import { searchGlobalAircraft } from "../../backend/infrastructure/globalAircraftSearchClient.ts";
 import {
   AIRCRAFT_EDGE_CACHE_SECONDS,
   aircraftProxyCacheHeaders,
@@ -242,6 +246,60 @@ test("client maps viewport, unavailable and malformed responses", async () => {
   );
   assert.equal(malformed.ok, false);
   if (!malformed.ok) assert.equal(malformed.category, "malformed");
+});
+
+test("global aircraft search uses only the same-origin proxy and parses results", async () => {
+  let requested = "";
+  const result = await searchGlobalAircraft(
+    " SKY123 ",
+    new AbortController().signal,
+    async (input) => {
+      requested = input.toString();
+      return new Response(
+        JSON.stringify({
+          snapshotId: "global-search",
+          generatedAt: 1_700_000_001_000,
+          aircraft: [VALID_AIRCRAFT],
+        }),
+        { status: 200, headers: { "X-Cache-Status": "hit" } },
+      );
+    },
+  );
+
+  assert.equal(requested, "/api/skytracker/aircraft/search?q=SKY123");
+  assert.equal(requested.includes("a.run.app"), false);
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.equal(result.aircraft[0].id, "484516");
+    assert.equal(result.cacheStatus, "hit");
+  }
+});
+
+test("global aircraft search validates locally and normalizes failure states", async () => {
+  let calls = 0;
+  const invalid = await searchGlobalAircraft(
+    "!",
+    new AbortController().signal,
+    async () => {
+      calls += 1;
+      return new Response();
+    },
+  );
+  const unavailable = await searchGlobalAircraft(
+    "SKY123",
+    new AbortController().signal,
+    async () => new Response("{}", { status: 503 }),
+  );
+  const malformed = await searchGlobalAircraft(
+    "SKY123",
+    new AbortController().signal,
+    async () => new Response("{", { status: 200 }),
+  );
+
+  assert.equal(calls, 0);
+  assert.deepEqual(invalid, { ok: false, category: "invalid-query" });
+  assert.deepEqual(unavailable, { ok: false, category: "unavailable" });
+  assert.deepEqual(malformed, { ok: false, category: "malformed" });
 });
 
 test("reconciliation preserves or clears ID based selection deterministically", () => {
@@ -552,9 +610,12 @@ test("adaptive viewport tiles cover a regional viewport without overlap", () => 
     east: 9,
   });
   assert.equal(plan.sampled, false);
-  assert.equal(plan.tiles.length, 6);
+  assert.equal(plan.tiles.length, MAXIMUM_VISIBLE_TILES);
   assert.equal(plan.totalTileCount, 6);
-  assert.equal(new Set(plan.tiles.map((tile) => tile.key)).size, 6);
+  assert.equal(new Set(plan.tiles.map((tile) => tile.key)).size, plan.tiles.length);
+  assert.equal(plan.tiles[0].priority, "focus");
+  assert.equal(plan.tiles.filter((tile) => tile.priority === "visible").length, 5);
+  assert.equal(plan.tiles.filter((tile) => tile.priority === "background").length, 6);
   for (const tile of plan.tiles) {
     assert.equal(
       (tile.bounds.maxLat - tile.bounds.minLat) *
@@ -637,9 +698,9 @@ test("adaptive scheduler loads missing tiles sequentially and reuses fresh tiles
   callbacks.shift()?.();
   await Promise.resolve();
   assert.deepEqual(runs, ["a"]);
-  assert.equal(delays.at(-1), REGION_CHANGE_MIN_INTERVAL_MILLIS);
+  assert.equal(delays.at(-1), PRIORITY_TILE_LOAD_INTERVAL_MILLIS);
 
-  now += REGION_CHANGE_MIN_INTERVAL_MILLIS;
+  now += PRIORITY_TILE_LOAD_INTERVAL_MILLIS;
   callbacks.shift()?.();
   await Promise.resolve();
   assert.deepEqual(runs, ["a", "b"]);
@@ -647,5 +708,61 @@ test("adaptive scheduler loads missing tiles sequentially and reuses fresh tiles
 
   scheduler.setTiles([{ key: "a" }, { key: "b" }]);
   assert.equal(delays.at(-1), POLL_INTERVAL_MILLIS);
+  scheduler.dispose();
+});
+
+test("adaptive scheduler refreshes the focus tile after all desired tiles are fresh", async () => {
+  const callbacks: Array<() => void> = [];
+  const loaded = new Set(["focus", "visible", "background"]);
+  const runs: string[] = [];
+  const scheduler = new AdaptiveTileScheduler(
+    async (tile: { key: string; priority: string }) => {
+      runs.push(tile.key);
+      return true;
+    },
+    (tile) => loaded.has(tile.key),
+    ((callback: () => void) => {
+      callbacks.push(callback);
+      return callbacks.length as unknown as ReturnType<typeof setTimeout>;
+    }),
+    () => undefined,
+    () => 1_000,
+  );
+
+  scheduler.setTiles([
+    { key: "focus", priority: "focus" },
+    { key: "visible", priority: "visible" },
+    { key: "background", priority: "background" },
+  ]);
+  callbacks.shift()?.();
+  await Promise.resolve();
+
+  assert.deepEqual(runs, ["focus"]);
+  scheduler.dispose();
+});
+
+test("adaptive scheduler replaces an obsolete pending region before it runs", async () => {
+  const callbacks: Array<() => void> = [];
+  const runs: string[] = [];
+  const scheduler = new AdaptiveTileScheduler(
+    async (tile: { key: string; priority: string }) => {
+      runs.push(tile.key);
+      return true;
+    },
+    () => false,
+    ((callback: () => void) => {
+      callbacks.push(callback);
+      return callbacks.length as unknown as ReturnType<typeof setTimeout>;
+    }),
+    () => undefined,
+    () => 1_000,
+  );
+
+  scheduler.setTiles([{ key: "europe", priority: "focus" }]);
+  scheduler.setTiles([{ key: "america", priority: "focus" }]);
+  callbacks.at(-1)?.();
+  await Promise.resolve();
+
+  assert.deepEqual(runs, ["america"]);
   scheduler.dispose();
 });

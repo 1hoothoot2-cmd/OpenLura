@@ -15,6 +15,7 @@ export type AdaptiveViewportTile = Readonly<{
   bounds: ViewportBounds;
   centerLatitude: number;
   centerLongitude: number;
+  priority: "focus" | "visible" | "background";
 }>;
 
 export type AdaptiveViewportPlan = Readonly<{
@@ -54,20 +55,32 @@ export function planAdaptiveViewport(
       indicesForRange(west, east, -180, 180),
     ),
   );
-  const allTiles = latitudeIndices.flatMap((latitudeIndex) =>
+  const visibleTiles = latitudeIndices.flatMap((latitudeIndex) =>
     longitudeIndices.map((longitudeIndex) =>
-      createTile(latitudeIndex, longitudeIndex),
+      createTile(latitudeIndex, longitudeIndex, "visible"),
     ),
   );
+  const orderedVisible = sortByViewportCenter(visibleTiles, bounds);
+  const focusedVisible = orderedVisible.map((tile, index) =>
+    index === 0 ? { ...tile, priority: "focus" as const } : tile,
+  );
   const tiles =
-    allTiles.length <= maximumTiles
-      ? sortByViewportCenter(allTiles, bounds)
-      : selectRepresentativeTiles(allTiles, maximumTiles, bounds);
+    visibleTiles.length > maximumTiles
+      ? selectRepresentativeTiles(focusedVisible, maximumTiles, bounds)
+      : [
+          ...focusedVisible,
+          ...backgroundTiles(
+            latitudeIndices,
+            longitudeIndices,
+            new Set(visibleTiles.map((tile) => tile.key)),
+            bounds,
+          ).slice(0, maximumTiles - visibleTiles.length),
+        ];
 
   return {
     tiles,
-    totalTileCount: allTiles.length,
-    sampled: allTiles.length > tiles.length,
+    totalTileCount: visibleTiles.length,
+    sampled: visibleTiles.length > maximumTiles,
     signature: tiles.map((tile) => tile.key).sort().join("|"),
   };
 }
@@ -111,7 +124,11 @@ function visibleLongitudeIntervals(west: number, east: number) {
   ];
 }
 
-function createTile(latitudeIndex: number, longitudeIndex: number) {
+function createTile(
+  latitudeIndex: number,
+  longitudeIndex: number,
+  priority: AdaptiveViewportTile["priority"],
+) {
   const minLat = -90 + latitudeIndex * ADAPTIVE_TILE_SPAN_DEGREES;
   const minLon = -180 + longitudeIndex * ADAPTIVE_TILE_SPAN_DEGREES;
   const bounds = {
@@ -125,7 +142,37 @@ function createTile(latitudeIndex: number, longitudeIndex: number) {
     bounds,
     centerLatitude: minLat + ADAPTIVE_TILE_SPAN_DEGREES / 2,
     centerLongitude: minLon + ADAPTIVE_TILE_SPAN_DEGREES / 2,
+    priority,
   };
+}
+
+function backgroundTiles(
+  latitudeIndices: readonly number[],
+  longitudeIndices: readonly number[],
+  visibleKeys: ReadonlySet<string>,
+  bounds: VisibleWorldBounds,
+) {
+  const candidates: AdaptiveViewportTile[] = [];
+  for (
+    let latitudeIndex = Math.max(0, latitudeIndices[0] - 1);
+    latitudeIndex <= Math.min(44, latitudeIndices.at(-1)! + 1);
+    latitudeIndex += 1
+  ) {
+    for (const longitudeIndex of longitudeIndices) {
+      for (const candidateIndex of [
+        (longitudeIndex + 89) % 90,
+        longitudeIndex,
+        (longitudeIndex + 1) % 90,
+      ]) {
+        const tile = createTile(latitudeIndex, candidateIndex, "background");
+        if (!visibleKeys.has(tile.key)) candidates.push(tile);
+      }
+    }
+  }
+  return sortByViewportCenter(
+    [...new Map(candidates.map((tile) => [tile.key, tile])).values()],
+    bounds,
+  );
 }
 
 function selectRepresentativeTiles(

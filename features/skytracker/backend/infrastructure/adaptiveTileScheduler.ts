@@ -1,18 +1,20 @@
 import {
   MAXIMUM_CLIENT_REQUESTS_PER_DAY,
   POLL_INTERVAL_MILLIS,
-  REGION_CHANGE_MIN_INTERVAL_MILLIS,
   type PollingOutcome,
 } from "./viewportPollingScheduler.ts";
 
 const REQUEST_BUDGET_WINDOW_MILLIS = 24 * 60 * 60_000;
+export const PRIORITY_TILE_LOAD_INTERVAL_MILLIS = 2_000;
 type Schedule = (
   callback: () => void,
   delay: number,
 ) => ReturnType<typeof setTimeout>;
 type Cancel = (handle: ReturnType<typeof setTimeout>) => void;
 
-export class AdaptiveTileScheduler<T extends Readonly<{ key: string }>> {
+export class AdaptiveTileScheduler<
+  T extends Readonly<{ key: string; priority?: string }>,
+> {
   private desired: readonly T[] = [];
   private readonly lastSuccessfulRun = new Map<string, number>();
   private timer: ReturnType<typeof setTimeout> | null = null;
@@ -114,6 +116,8 @@ export class AdaptiveTileScheduler<T extends Readonly<{ key: string }>> {
     const now = this.now();
     const missing = this.desired.find((tile) => !this.isFresh(tile, now));
     if (missing) return missing;
+    const focus = this.desired.find((tile) => tile.priority === "focus");
+    if (focus) return focus;
     return [...this.desired].sort(
       (left, right) =>
         (this.lastSuccessfulRun.get(left.key) ?? 0) -
@@ -128,7 +132,7 @@ export class AdaptiveTileScheduler<T extends Readonly<{ key: string }>> {
     if (this.lastRunStartedAt === null) return 0;
     return Math.max(
       0,
-      REGION_CHANGE_MIN_INTERVAL_MILLIS -
+      PRIORITY_TILE_LOAD_INTERVAL_MILLIS -
         (this.now() - this.lastRunStartedAt),
     );
   }
@@ -157,6 +161,8 @@ export class AdaptiveTileScheduler<T extends Readonly<{ key: string }>> {
   }
 }
 
-function deduplicate<T extends Readonly<{ key: string }>>(tiles: readonly T[]) {
+function deduplicate<T extends Readonly<{ key: string; priority?: string }>>(
+  tiles: readonly T[],
+) {
   return [...new Map(tiles.map((tile) => [tile.key, tile])).values()];
 }

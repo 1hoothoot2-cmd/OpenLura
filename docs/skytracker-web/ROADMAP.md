@@ -18,6 +18,7 @@ Legenda: ✅ geaccepteerd · 🟡 technisch gereed, acceptatie open · ⬜ gepla
 - 🟡 L11 — Historical Track
 - 🟡 P1.1 — Global Live Map
 - 🟡 P1.2 — Adaptive Global Tile Engine
+- 🟡 P1.2A — Smooth Global Loading & Worldwide Aircraft Search
 - ⬜ L12 — Accounts & Sync
 - ⬜ L13 — Contextual AI
 
@@ -79,3 +80,11 @@ een eerlijke, deterministische steekproef van maximaal twaalf gebieden.
 Resultaten worden begrensd hergebruikt en op aircraft-ID samengevoegd, terwijl
 de status loaded/planned coverage zichtbaar maakt en het bestaande
 providerbudget hard begrensd blijft.
+
+P1.2A laadt het focusgebied onmiddellijk en vult zichtbare plus aangrenzende
+gebieden daarna sequentieel en progressief. Verouderde wachtrijen worden bij
+een regiowissel vervangen en de focusregio houdt een vaste refreshprioriteit.
+Wereldwijde Search wordt alleen expliciet gestart, gebruikt de same-origin
+Next.js-proxy en een begrensde, gecachete backendzoekroute. De technische
+implementatie is lokaal gereed; productieacceptatie wacht op de afzonderlijke
+Cloud Run-wijzigingsgate.
