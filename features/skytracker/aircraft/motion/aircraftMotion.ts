@@ -2,6 +2,11 @@ import type { Aircraft } from "../domain/aircraft.ts";
 
 const EARTH_RADIUS_METERS = 6_371_000;
 const DEFAULT_PLAN_DURATION_MILLIS = 4_000;
+export const NORMAL_EXTRAPOLATION_MILLIS = 120_000;
+export const MAXIMUM_EXTRAPOLATION_MILLIS = 240_000;
+export const MINIMUM_RELIABLE_SPEED_METERS_PER_SECOND = 5;
+const MINIMUM_CORRECTION_MILLIS = 1_500;
+const MAXIMUM_CORRECTION_MILLIS = 8_000;
 
 export type MotionPosition = Readonly<{
   latitudeDegrees: number;
@@ -15,6 +20,15 @@ export type MotionPlan = Readonly<{
   speedMetersPerSecond: number;
   startTimeMillis: number;
   durationMillis: number;
+}>;
+
+export type LiveMotionState = Readonly<{
+  aircraft: Aircraft;
+  correctionStartPosition: MotionPosition;
+  correctionStartHeadingDegrees: number | null;
+  snapshotReceivedAtMonotonicMillis: number;
+  snapshotReceivedAtEpochMillis: number;
+  correctionDurationMillis: number;
 }>;
 
 export function createMotionPlan(
@@ -102,7 +116,159 @@ export function applyMotionSample(
   };
 }
 
-function projectPosition(
+export function createLiveMotionState(
+  aircraft: Aircraft,
+  correctionStartPosition: MotionPosition,
+  correctionStartHeadingDegrees: number | null,
+  monotonicTimeMillis: number,
+  epochTimeMillis: number,
+): LiveMotionState {
+  const targetAtReceipt = extrapolateAircraftPosition(
+    aircraft,
+    Math.max(0, epochTimeMillis - aircraft.positionTimestampEpochMillis),
+  );
+  return {
+    aircraft,
+    correctionStartPosition,
+    correctionStartHeadingDegrees,
+    snapshotReceivedAtMonotonicMillis: monotonicTimeMillis,
+    snapshotReceivedAtEpochMillis: epochTimeMillis,
+    correctionDurationMillis: correctionDurationMillis(
+      distanceMeters(correctionStartPosition, targetAtReceipt),
+    ),
+  };
+}
+
+export function sampleLiveMotionState(
+  state: LiveMotionState,
+  monotonicTimeMillis: number,
+  epochTimeMillis =
+    state.snapshotReceivedAtEpochMillis +
+    Math.max(0, monotonicTimeMillis - state.snapshotReceivedAtMonotonicMillis),
+): Aircraft {
+  const elapsedSinceReceipt = Math.max(
+    0,
+    monotonicTimeMillis - state.snapshotReceivedAtMonotonicMillis,
+  );
+  const effectiveEpochMillis = Math.max(
+    state.snapshotReceivedAtEpochMillis,
+    epochTimeMillis,
+  );
+  const sourceAgeMillis = Math.max(
+    0,
+    effectiveEpochMillis - state.aircraft.positionTimestampEpochMillis,
+  );
+  const targetPosition = extrapolateAircraftPosition(
+    state.aircraft,
+    sourceAgeMillis,
+  );
+  const correctionProgress =
+    state.correctionDurationMillis === 0
+      ? 1
+      : clamp(elapsedSinceReceipt / state.correctionDurationMillis, 0, 1);
+  const easedProgress = easeOutCubic(correctionProgress);
+  const position = interpolatePosition(
+    state.correctionStartPosition,
+    targetPosition,
+    easedProgress,
+  );
+  const headingDegrees = interpolateHeadingDegrees(
+    state.correctionStartHeadingDegrees,
+    state.aircraft.headingDegrees,
+    easedProgress,
+  );
+  const movementFactor = freshnessMovementFactor(sourceAgeMillis);
+  const extrapolatedSeconds =
+    effectiveExtrapolationMillis(sourceAgeMillis) / 1_000;
+  const altitudeMeters =
+    state.aircraft.altitudeMeters !== null &&
+    state.aircraft.altitudeMeters !== undefined &&
+    state.aircraft.verticalRateMetersPerSecond != null &&
+    !state.aircraft.onGround
+      ? state.aircraft.altitudeMeters +
+        state.aircraft.verticalRateMetersPerSecond * extrapolatedSeconds
+      : state.aircraft.altitudeMeters;
+
+  return {
+    ...state.aircraft,
+    ...position,
+    headingDegrees,
+    altitudeMeters:
+      altitudeMeters == null || !Number.isFinite(altitudeMeters)
+        ? state.aircraft.altitudeMeters
+        : Math.max(0, altitudeMeters),
+    lifecycle:
+      movementFactor === 0 ? "STALE" : state.aircraft.lifecycle,
+  };
+}
+
+export function extrapolateAircraftPosition(
+  aircraft: Aircraft,
+  sourceAgeMillis: number,
+): MotionPosition {
+  const position = {
+    latitudeDegrees: aircraft.latitudeDegrees,
+    longitudeDegrees: aircraft.longitudeDegrees,
+  };
+  const heading = aircraft.headingDegrees;
+  const speed = aircraft.groundSpeedMetersPerSecond;
+  if (
+    aircraft.onGround ||
+    heading == null ||
+    speed == null ||
+    !Number.isFinite(heading) ||
+    !Number.isFinite(speed) ||
+    speed < MINIMUM_RELIABLE_SPEED_METERS_PER_SECOND ||
+    !Number.isFinite(aircraft.positionTimestampEpochMillis) ||
+    sourceAgeMillis <= 0
+  ) {
+    return position;
+  }
+  const distance = speed * (effectiveExtrapolationMillis(sourceAgeMillis) / 1_000);
+  return projectPosition(position, heading, distance);
+}
+
+export function effectiveExtrapolationMillis(sourceAgeMillis: number): number {
+  const age = clamp(sourceAgeMillis, 0, MAXIMUM_EXTRAPOLATION_MILLIS);
+  if (age <= NORMAL_EXTRAPOLATION_MILLIS) return age;
+  const fadeDuration =
+    MAXIMUM_EXTRAPOLATION_MILLIS - NORMAL_EXTRAPOLATION_MILLIS;
+  const fadedAge = age - NORMAL_EXTRAPOLATION_MILLIS;
+  return (
+    NORMAL_EXTRAPOLATION_MILLIS +
+    fadedAge -
+    (fadedAge * fadedAge) / (2 * fadeDuration)
+  );
+}
+
+export function freshnessMovementFactor(sourceAgeMillis: number): number {
+  if (sourceAgeMillis <= NORMAL_EXTRAPOLATION_MILLIS) return 1;
+  if (sourceAgeMillis >= MAXIMUM_EXTRAPOLATION_MILLIS) return 0;
+  return (
+    1 -
+    (sourceAgeMillis - NORMAL_EXTRAPOLATION_MILLIS) /
+      (MAXIMUM_EXTRAPOLATION_MILLIS - NORMAL_EXTRAPOLATION_MILLIS)
+  );
+}
+
+export function interpolateHeadingDegrees(
+  startDegrees: number | null,
+  targetDegrees: number | null,
+  progress: number,
+): number | null {
+  if (targetDegrees == null || !Number.isFinite(targetDegrees)) {
+    return startDegrees;
+  }
+  if (startDegrees == null || !Number.isFinite(startDegrees)) {
+    return normalizeHeading(targetDegrees);
+  }
+  const start = normalizeHeading(startDegrees);
+  const target = normalizeHeading(targetDegrees);
+  const delta = ((target - start + 540) % 360) - 180;
+  return normalizeHeading(start + delta * clamp(progress, 0, 1));
+}
+
+export function projectPosition(
   position: MotionPosition,
   headingDegrees: number,
   distanceMeters: number,
@@ -160,4 +326,40 @@ function radiansToDegrees(value: number) {
 
 function normalizeLongitude(value: number) {
   return ((value + 540) % 360) - 180;
+}
+
+function normalizeHeading(value: number) {
+  return ((value % 360) + 360) % 360;
+}
+
+function correctionDurationMillis(distance: number) {
+  if (!Number.isFinite(distance) || distance <= 1) return 0;
+  return clamp(
+    MINIMUM_CORRECTION_MILLIS + distance * 2,
+    MINIMUM_CORRECTION_MILLIS,
+    MAXIMUM_CORRECTION_MILLIS,
+  );
+}
+
+function distanceMeters(start: MotionPosition, target: MotionPosition) {
+  const latitude1 = degreesToRadians(start.latitudeDegrees);
+  const latitude2 = degreesToRadians(target.latitudeDegrees);
+  const latitudeDelta = latitude2 - latitude1;
+  const longitudeDelta = degreesToRadians(
+    target.longitudeDegrees - start.longitudeDegrees,
+  );
+  const haversine =
+    Math.sin(latitudeDelta / 2) ** 2 +
+    Math.cos(latitude1) *
+      Math.cos(latitude2) *
+      Math.sin(longitudeDelta / 2) ** 2;
+  return (
+    2 *
+    EARTH_RADIUS_METERS *
+    Math.atan2(Math.sqrt(haversine), Math.sqrt(Math.max(0, 1 - haversine)))
+  );
+}
+
+function easeOutCubic(value: number) {
+  return 1 - (1 - value) ** 3;
 }

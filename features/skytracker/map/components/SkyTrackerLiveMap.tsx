@@ -1228,8 +1228,8 @@ function MapViewport({
   useEffect(() => {
     aircraftRef.current = aircraft;
     motionAircraftRef.current = aircraft;
-    motionRuntimeRef.current?.setAircraftSnapshot(aircraft);
-  }, [aircraft]);
+    motionRuntimeRef.current?.setAircraftSnapshot(aircraft, replayMode);
+  }, [aircraft, replayMode]);
 
   useEffect(() => {
     favoriteAircraftIdsRef.current = favoriteAircraftIds;

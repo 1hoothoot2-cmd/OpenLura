@@ -1,8 +1,9 @@
 import type { Aircraft, AircraftId } from "../../aircraft/domain/aircraft.ts";
 import {
-  applyMotionSample,
-  createMotionPlan,
+  createLiveMotionState,
   interpolateMotionPlan,
+  sampleLiveMotionState,
+  type LiveMotionState,
   type MotionPlan,
 } from "../../aircraft/motion/aircraftMotion.ts";
 import { ReplayClock } from "../../aircraft/motion/replayClock.ts";
@@ -21,17 +22,21 @@ type AircraftMotionRuntimeOptions = Readonly<{
   document: Document;
   reducedMotionQuery: MediaQueryList;
   onFrame?: (aircraft: readonly Aircraft[], frameTimeMillis: number) => void;
+  replayMode?: boolean;
+  epochNow?: () => number;
 }>;
 
 export class AircraftMotionRuntime {
   private aircraft: readonly Aircraft[];
-  private plans: readonly MotionPlan[];
-  private targetDriven = false;
+  private liveStates: readonly LiveMotionState[];
+  private replayPlans: readonly MotionPlan[] = [];
+  private replayMode: boolean;
   private readonly sourceWriter: AircraftMapSourceWriter;
   private readonly window: Window;
   private readonly document: Document;
   private readonly reducedMotionQuery: MediaQueryList;
   private readonly onFrame: AircraftMotionRuntimeOptions["onFrame"];
+  private readonly epochNow: () => number;
   private readonly clock: ReplayClock;
   private selectedAircraftId: AircraftId | null;
   private favoriteAircraftIds: ReadonlySet<string>;
@@ -41,7 +46,20 @@ export class AircraftMotionRuntime {
 
   constructor(options: AircraftMotionRuntimeOptions) {
     this.aircraft = options.aircraft;
-    this.plans = options.aircraft.map((item) => createMotionPlan(item));
+    this.replayMode = options.replayMode ?? false;
+    this.epochNow = options.epochNow ?? Date.now;
+    this.liveStates = options.aircraft.map((item) =>
+      createLiveMotionState(
+        item,
+        {
+          latitudeDegrees: item.latitudeDegrees,
+          longitudeDegrees: item.longitudeDegrees,
+        },
+        item.headingDegrees,
+        0,
+        this.epochNow(),
+      ),
+    );
     this.sourceWriter = options.sourceWriter;
     this.selectedAircraftId = options.selectedAircraftId;
     this.favoriteAircraftIds = options.favoriteAircraftIds ?? new Set();
@@ -75,31 +93,50 @@ export class AircraftMotionRuntime {
     this.renderCurrentFrame(true);
   }
 
-  setAircraftSnapshot(aircraft: readonly Aircraft[]) {
+  setAircraftSnapshot(aircraft: readonly Aircraft[], replayMode = false) {
     if (this.disposed) return;
     const time = this.clock.currentTime();
     const currentById = new Map(
       this.sampleAircraft(time).map((item) => [item.id, item]),
     );
     this.aircraft = aircraft;
-    this.plans = aircraft.map((target) => {
-      const current = currentById.get(target.id) ?? target;
-      return {
-        startPosition: {
-          latitudeDegrees: current.latitudeDegrees,
-          longitudeDegrees: current.longitudeDegrees,
-        },
-        targetPosition: {
-          latitudeDegrees: target.latitudeDegrees,
-          longitudeDegrees: target.longitudeDegrees,
-        },
-        headingDegrees: target.headingDegrees ?? 0,
-        speedMetersPerSecond: target.groundSpeedMetersPerSecond ?? 0,
-        startTimeMillis: time,
-        durationMillis: 4_000,
-      };
-    });
-    this.targetDriven = true;
+    this.replayMode = replayMode;
+    if (replayMode) {
+      this.liveStates = [];
+      this.replayPlans = aircraft.map((target) => {
+        const current = currentById.get(target.id) ?? target;
+        return {
+          startPosition: {
+            latitudeDegrees: current.latitudeDegrees,
+            longitudeDegrees: current.longitudeDegrees,
+          },
+          targetPosition: {
+            latitudeDegrees: target.latitudeDegrees,
+            longitudeDegrees: target.longitudeDegrees,
+          },
+          headingDegrees: target.headingDegrees ?? 0,
+          speedMetersPerSecond: target.groundSpeedMetersPerSecond ?? 0,
+          startTimeMillis: time,
+          durationMillis: 4_000,
+        };
+      });
+    } else {
+      this.replayPlans = [];
+      const epochTime = this.epochNow();
+      this.liveStates = aircraft.map((target) => {
+        const current = currentById.get(target.id) ?? target;
+        return createLiveMotionState(
+          target,
+          {
+            latitudeDegrees: current.latitudeDegrees,
+            longitudeDegrees: current.longitudeDegrees,
+          },
+          current.headingDegrees,
+          time,
+          epochTime,
+        );
+      });
+    }
     this.renderCurrentFrame(true);
   }
 
@@ -180,10 +217,15 @@ export class AircraftMotionRuntime {
 
   private sampleAircraft(currentTimeMillis: number) {
     return this.aircraft.map((item, index) => {
-      if (!this.targetDriven) {
-        return applyMotionSample(item, this.plans[index], currentTimeMillis);
+      if (!this.replayMode) {
+        const state = this.liveStates[index];
+        return state
+          ? sampleLiveMotionState(state, currentTimeMillis, this.epochNow())
+          : item;
       }
-      const position = interpolateMotionPlan(this.plans[index], currentTimeMillis);
+      const plan = this.replayPlans[index];
+      if (!plan) return item;
+      const position = interpolateMotionPlan(plan, currentTimeMillis);
       return {
         ...item,
         latitudeDegrees: position.latitudeDegrees,
