@@ -8,6 +8,7 @@ import {
   Map as MapLibreMap,
   setWorkerUrl,
   type ErrorEvent,
+  type MapStyleImageMissingEvent,
 } from "maplibre-gl";
 import type { Aircraft, AircraftId } from "../../aircraft/domain/aircraft";
 import {
@@ -50,6 +51,7 @@ import {
   registerAircraftMapPresentation,
   type AircraftMapRegistration,
 } from "../presentation/aircraftMapRenderer";
+import { presentWorldExperienceStatus } from "../presentation/worldExperienceStatus";
 import {
   SKYTRACKER_INITIAL_CENTER,
   SKYTRACKER_INITIAL_ZOOM,
@@ -1496,6 +1498,15 @@ function MapViewport({
     });
 
     mapRef.current = map;
+    const handleStyleImageMissing = (event: MapStyleImageMissingEvent) => {
+      if (!/^circle-\d+$/.test(event.id) || map.hasImage(event.id)) return;
+      map.addImage(event.id, {
+        width: 1,
+        height: 1,
+        data: new Uint8Array([0, 0, 0, 0]),
+      });
+    };
+    map.on("styleimagemissing", handleStyleImageMissing);
     map.addControl(new AttributionControl({ compact: true }), "bottom-right");
 
     const publishPlan = (
@@ -1789,6 +1800,7 @@ function MapViewport({
       map.off("rotate", handleRotate);
       map.off("moveend", handleMoveEnd);
       map.off("dragstart", handleDragStart);
+      map.off("styleimagemissing", handleStyleImageMissing);
       document.removeEventListener("visibilitychange", handleVisibility);
       map.remove();
       if (mapRef.current === map) mapRef.current = null;
@@ -1827,18 +1839,17 @@ function MapViewport({
 
       {status === "loading" && (
         <div
-          className="absolute inset-0 z-10 flex items-center justify-center bg-[#030914]/84 backdrop-blur-sm"
+          className="absolute inset-0 z-10 flex items-center justify-center bg-[#030914]/58 backdrop-blur-[2px]"
           role="status"
           aria-live="polite"
         >
-          <div className="flex flex-col items-center text-center">
+          <div className="flex items-center gap-2.5 rounded-full border border-white/10 bg-[#06101b]/82 px-4 py-2.5 shadow-[0_14px_40px_rgba(0,0,0,0.32)] backdrop-blur-xl">
             <span
               aria-hidden="true"
-              className="h-16 w-16 rounded-full border border-cyan-200/12 bg-cyan-200/[0.035] shadow-[0_0_60px_rgba(34,211,238,0.12)] motion-safe:animate-pulse"
+              className="h-2 w-2 rounded-full bg-cyan-300 shadow-[0_0_14px_rgba(103,232,249,0.7)] motion-safe:animate-pulse"
             />
-            <p className="mt-5 text-sm font-medium text-white/72">Loading map</p>
-            <p className="mt-1 text-xs text-white/34">
-              Preparing SkyTracker backend connection
+            <p className="text-xs font-medium tracking-wide text-white/72">
+              Loading live map
             </p>
           </div>
         </div>
@@ -1870,33 +1881,30 @@ function MapViewport({
       {status === "ready" && (
         <aside
           aria-live="polite"
-          className="absolute left-3 top-3 z-10 max-w-[calc(100%-5.5rem)] rounded-[18px] border border-white/10 bg-[#06101b]/72 px-4 py-3 shadow-[0_16px_40px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:left-5 sm:top-5 lg:left-7"
+          aria-label="Live map status"
+          className="absolute left-3 top-3 z-10 max-w-[calc(100%-5.5rem)] rounded-full border border-white/[0.09] bg-[#06101b]/76 px-3 py-2 shadow-[0_12px_32px_rgba(0,0,0,0.24)] backdrop-blur-xl sm:left-5 sm:top-5 lg:left-7"
         >
           <div className="flex items-center gap-2">
             <span
               aria-hidden="true"
-              className="h-1.5 w-1.5 rounded-full bg-cyan-300"
+              className={`h-1.5 w-1.5 shrink-0 rounded-full ${statusToneClass(
+                presentWorldExperienceStatus(
+                  backendStatus.state,
+                  backendStatus.aircraftCount,
+                  replayMode,
+                ).tone,
+              )}`}
             />
-            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/48">
-              {replayMode
-                ? "Local session replay"
-                : backendStatusTitle(backendStatus.state)}
+            <p className="truncate text-[11px] font-semibold tracking-[0.08em] text-white/68">
+              {
+                presentWorldExperienceStatus(
+                  backendStatus.state,
+                  backendStatus.aircraftCount,
+                  replayMode,
+                ).label
+              }
             </p>
           </div>
-          {replayMode ? (
-            <p className="mt-2 text-sm font-medium text-white/82">
-              Live recording continues in the background
-            </p>
-          ) : backendStatus.state !== "not-configured" && (
-            <p className="mt-2 text-sm font-medium text-white/82">
-              {backendStatus.aircraftCount} aircraft from SkyTracker backend
-            </p>
-          )}
-          <p className="mt-1 hidden text-xs leading-5 text-white/36 sm:block">
-            {replayMode
-              ? "Showing an in-memory session snapshot"
-              : backendStatusDetail(backendStatus)}
-          </p>
         </aside>
       )}
 
@@ -2082,55 +2090,17 @@ function updateAircraftQuery(aircraftId: AircraftId | null) {
   window.history.replaceState(window.history.state, "", url);
 }
 
-function backendStatusTitle(state: BackendStatus["state"]) {
-  switch (state) {
-    case "not-configured":
-      return "Backend not configured";
-    case "connecting":
-      return "Connecting to SkyTracker backend";
-    case "loading-region":
-      return "Loading aircraft for this region";
-    case "connected":
-      return "SkyTracker backend connected";
-    case "reconnecting":
-      return "Backend temporarily unavailable";
-    case "invalid-viewport":
-      return "Zoom in to load aircraft";
+function statusToneClass(tone: "live" | "loading" | "delayed" | "inactive") {
+  switch (tone) {
+    case "live":
+      return "bg-emerald-300 shadow-[0_0_12px_rgba(110,231,183,0.7)]";
+    case "loading":
+      return "bg-cyan-300 shadow-[0_0_12px_rgba(103,232,249,0.65)] motion-safe:animate-pulse";
+    case "delayed":
+      return "bg-amber-300 shadow-[0_0_12px_rgba(252,211,77,0.55)]";
+    case "inactive":
+      return "bg-white/40";
   }
-}
-
-function backendStatusDetail(status: BackendStatus) {
-  if (status.state === "reconnecting") return "Using last valid snapshot";
-  if (status.state === "loading-region") {
-    const loaded = status.loadedRegionCount ?? 0;
-    const planned = status.plannedRegionCount ?? 0;
-    const sampled =
-      status.totalVisibleRegionCount &&
-      status.totalVisibleRegionCount > planned
-        ? ` · sampling ${planned} of ${status.totalVisibleRegionCount} visible regions`
-        : "";
-    return `Keeping loaded aircraft visible · ${loaded} of ${planned} live regions ready${sampled}`;
-  }
-  if (status.state === "not-configured") return "Configure the server API base URL";
-  if (status.state === "invalid-viewport") return "The current viewport exceeds backend limits";
-  if (status.state === "connecting") {
-    return IS_PRODUCTION_BUILD
-      ? "Waiting for the first live snapshot"
-      : "Waiting for the first development snapshot";
-  }
-  if (status.aircraftCount === 0) {
-    return "No aircraft reported in the loaded live regions";
-  }
-  const coverage =
-    status.totalVisibleRegionCount &&
-    status.plannedRegionCount &&
-    status.totalVisibleRegionCount > status.plannedRegionCount
-      ? ` · ${status.plannedRegionCount} of ${status.totalVisibleRegionCount} visible regions sampled`
-      : status.plannedRegionCount
-        ? ` · ${status.plannedRegionCount} live ${status.plannedRegionCount === 1 ? "region" : "regions"}`
-        : "";
-  const cache = status.cacheStatus ? ` · cache ${status.cacheStatus}` : "";
-  return `${IS_PRODUCTION_BUILD ? "Live backend data" : "Backend development data"}${coverage}${cache}`;
 }
 
 function mergeAircraftByNewestPosition(

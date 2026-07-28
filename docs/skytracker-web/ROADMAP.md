@@ -19,6 +19,7 @@ Legenda: ✅ geaccepteerd · 🟡 technisch gereed, acceptatie open · ⬜ gepla
 - 🟡 P1.1 — Global Live Map
 - 🟡 P1.2 — Adaptive Global Tile Engine
 - 🟡 P1.2A — Smooth Global Loading & Worldwide Aircraft Search
+- 🟡 P1.3 — World Experience Polish
 - ⬜ L12 — Accounts & Sync
 - ⬜ L13 — Contextual AI
 
@@ -89,3 +90,9 @@ Next.js-proxy en een gedeelde, gecachete backendzoekindex zonder dagelijkse
 gebruikerslimiet. De technische
 implementatie is lokaal gereed; productieacceptatie wacht op de afzonderlijke
 Cloud Run-wijzigingsgate.
+
+P1.3 verwijdert de standaard aircraft-footprint en normale icon-halo, behoudt
+uitsluitend geselecteerde nadruk en vervangt technische backend- en tiletekst
+door een compacte, gebruiksgerichte live-status. De eerste laadervaring en de
+ontbrekende decoratieve OpenFreeMap-circle-sprite zijn gericht afgewerkt zonder
+wijziging aan data-, motion- of tilearchitectuur.

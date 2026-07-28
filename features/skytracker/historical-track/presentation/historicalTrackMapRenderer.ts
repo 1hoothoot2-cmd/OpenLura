@@ -1,5 +1,5 @@
 import type { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
-import { AIRCRAFT_NORMAL_FOOTPRINT_LAYER_ID } from "../../map/infrastructure/aircraftMapIds.ts";
+import { AIRCRAFT_NORMAL_LAYER_ID } from "../../map/infrastructure/aircraftMapIds.ts";
 import type { HistoricalTrackFeatureCollection } from "./historicalTrackGeoJson.ts";
 
 export const HISTORICAL_TRACK_SOURCE_ID = "skytracker-historical-track";
@@ -36,8 +36,8 @@ export function registerHistoricalTrackMapPresentation(
           "line-opacity": 0.58,
         },
       },
-      map.getLayer(AIRCRAFT_NORMAL_FOOTPRINT_LAYER_ID)
-        ? AIRCRAFT_NORMAL_FOOTPRINT_LAYER_ID
+      map.getLayer(AIRCRAFT_NORMAL_LAYER_ID)
+        ? AIRCRAFT_NORMAL_LAYER_ID
         : undefined,
     );
   }

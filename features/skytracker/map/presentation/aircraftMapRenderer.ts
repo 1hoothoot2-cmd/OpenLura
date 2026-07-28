@@ -9,7 +9,6 @@ import {
   AIRCRAFT_HIT_LAYER_IDS,
   AIRCRAFT_ICON_ID,
   AIRCRAFT_LABEL_LAYER_ID,
-  AIRCRAFT_NORMAL_FOOTPRINT_LAYER_ID,
   AIRCRAFT_NORMAL_LAYER_ID,
   AIRCRAFT_SELECTED_GLOW_LAYER_ID,
   AIRCRAFT_SELECTED_LAYER_ID,
@@ -90,7 +89,6 @@ export function applyAircraftVisibilityFilter(
     ["get", "aircraft_id"],
     ["literal", [...aircraftIds]],
   ] as unknown as FilterSpecification;
-  setLayerFilter(map, AIRCRAFT_NORMAL_FOOTPRINT_LAYER_ID, false, visible);
   setLayerFilter(map, AIRCRAFT_NORMAL_LAYER_ID, false, visible);
   setLayerFilter(map, AIRCRAFT_SELECTED_GLOW_LAYER_ID, true, visible);
   setLayerFilter(map, AIRCRAFT_SELECTED_LAYER_ID, true, visible);
@@ -113,26 +111,6 @@ function setLayerFilter(
 }
 
 function addLayers(map: MapLibreMap) {
-  if (!map.getLayer(AIRCRAFT_NORMAL_FOOTPRINT_LAYER_ID)) {
-    map.addLayer({
-      id: AIRCRAFT_NORMAL_FOOTPRINT_LAYER_ID,
-      type: "circle",
-      source: AIRCRAFT_SOURCE_ID,
-      filter: ["==", ["get", "selected"], false],
-      paint: {
-        "circle-radius": 10,
-        "circle-color": "rgba(85,217,242,0.08)",
-        "circle-stroke-color": [
-          "case",
-          ["get", "favorite"],
-          "rgba(251,191,36,0.72)",
-          "rgba(85,217,242,0.2)",
-        ],
-        "circle-stroke-width": ["case", ["get", "favorite"], 1.6, 0.8],
-      },
-    });
-  }
-
   if (!map.getLayer(AIRCRAFT_NORMAL_LAYER_ID)) {
     map.addLayer({
       id: AIRCRAFT_NORMAL_LAYER_ID,
@@ -143,12 +121,12 @@ function addLayers(map: MapLibreMap) {
       paint: {
         "icon-color": [
           "case",
+          ["get", "favorite"],
+          "#e8c875",
           ["get", "on_ground"],
           "#6f91a8",
           "#55d9f2",
         ],
-        "icon-halo-color": "#032738",
-        "icon-halo-width": 1.2,
         "icon-opacity": ["case", ["get", "on_ground"], 0.72, 0.92],
       },
     });
