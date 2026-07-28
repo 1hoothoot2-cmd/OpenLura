@@ -15,7 +15,7 @@ Legenda: ✅ geaccepteerd · 🟡 technisch gereed, acceptatie open · ⬜ gepla
 - 🟡 L9 — Personalization (Favorites)
 - 🟡 L10A — Flight Timeline
 - 🟡 L10B — Replay
-- ⬜ L11 — Historical Track
+- 🟡 L11 — Historical Track
 - ⬜ L12 — Accounts & Sync
 - ⬜ L13 — Contextual AI
 
@@ -59,3 +59,9 @@ motionpipeline als Live, terwijl polling en recording op de achtergrond
 doorgaan. Play, pause, begin, terugkeer naar Live en de responsive
 browsermatrix zijn technisch bewezen; de handmatige Product Owner-controle van
 de tijdslider blijft het sluitingscriterium.
+
+L11 resolveert de interne Flight-ID via het bestaande FlightLeg-contract en
+laadt daarna uitsluitend de geselecteerde Historical Track. Segmenten worden
+als afzonderlijke GeoJSON-lijnen in één MapLibre-source gerenderd. Desktop,
+mobiel, success en unavailable zijn technisch bewezen; expliciete Product
+Owner-acceptatie blijft het sluitingscriterium.

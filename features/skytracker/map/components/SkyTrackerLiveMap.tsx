@@ -99,6 +99,16 @@ import {
   type RecordedSessionFrame,
 } from "../../replay/domain/sessionRecorder";
 import { ReplayControls } from "../../replay/presentation/ReplayControls";
+import type { HistoricalTrack } from "../../historical-track/domain/historicalTrack";
+import { fetchHistoricalTrackForAircraft } from "../../historical-track/infrastructure/historicalTrackClient";
+import {
+  createHistoricalTrackFeatureCollection,
+  type HistoricalTrackFeatureCollection,
+} from "../../historical-track/presentation/historicalTrackGeoJson";
+import {
+  registerHistoricalTrackMapPresentation,
+  type HistoricalTrackMapRegistration,
+} from "../../historical-track/presentation/historicalTrackMapRenderer";
 
 type MapStatus = "loading" | "ready" | "error";
 
@@ -125,6 +135,10 @@ type MapFocusRequest =
     }>;
 
 type SearchTab = "aircraft" | "airports" | "favorites";
+
+type HistoricalTrackState =
+  | Readonly<{ status: "idle" | "loading" | "unavailable" }>
+  | Readonly<{ status: "ready"; track: HistoricalTrack }>;
 
 export function SkyTrackerLiveMap({
   initialAircraftId = null,
@@ -164,6 +178,8 @@ export function SkyTrackerLiveMap({
   const [recordingDurationMillis, setRecordingDurationMillis] = useState(0);
   const [replayState, setReplayState] =
     useState<ReplayState>(LIVE_REPLAY_STATE);
+  const [historicalTrackState, setHistoricalTrackState] =
+    useState<HistoricalTrackState>({ status: "idle" });
   const mapRef = useRef<MapLibreMap | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const filtersButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -259,6 +275,66 @@ export function SkyTrackerLiveMap({
   const selectedFlightPhaseSession = selectedAircraftId
     ? flightPhaseSessions.get(selectedAircraftId) ?? null
     : null;
+  const historicalTrackFeatures = useMemo(
+    () =>
+      createHistoricalTrackFeatureCollection(
+        historicalTrackState.status === "ready" &&
+          historicalTrackState.track.aircraftId === selectedAircraftId
+          ? historicalTrackState.track
+          : null,
+      ),
+    [historicalTrackState, selectedAircraftId],
+  );
+
+  useEffect(() => {
+    let active = true;
+    const publish = (state: HistoricalTrackState) => {
+      queueMicrotask(() => {
+        if (active) setHistoricalTrackState(state);
+      });
+    };
+    if (!selectedAircraftId || !API_CONFIG.configured) {
+      publish(
+        selectedAircraftId ? { status: "unavailable" } : { status: "idle" },
+      );
+      return () => {
+        active = false;
+      };
+    }
+    const selected = currentAircraftRef.current.find(
+      (item) => item.id === selectedAircraftId,
+    );
+    if (!selected) {
+      publish({ status: "unavailable" });
+      return () => {
+        active = false;
+      };
+    }
+
+    const controller = new AbortController();
+    publish({ status: "loading" });
+    void fetchHistoricalTrackForAircraft(
+      selected,
+      controller.signal,
+    )
+      .then((result) => {
+        if (controller.signal.aborted || !active) return;
+        setHistoricalTrackState(
+          result.ok
+            ? { status: "ready", track: result.track }
+            : { status: "unavailable" },
+        );
+      })
+      .catch(() => {
+        if (!controller.signal.aborted && active) {
+          setHistoricalTrackState({ status: "unavailable" });
+        }
+      });
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [selectedAircraftId]);
 
   const selectAircraft = useCallback((aircraftId: AircraftId | null) => {
     const validSelection =
@@ -672,6 +748,7 @@ export function SkyTrackerLiveMap({
           status={status}
           bearing={bearing}
           aircraftFeatures={aircraftFeatures}
+          historicalTrackFeatures={historicalTrackFeatures}
           aircraft={aircraft}
           favoriteAircraftIds={favoriteAircraftIds}
           visibleAircraftIds={visibleAircraftIds}
@@ -972,6 +1049,34 @@ export function SkyTrackerLiveMap({
                 session={selectedFlightPhaseSession}
               />
             )}
+            <section
+              aria-live="polite"
+              aria-label="Historical track status"
+              className="mt-4 border-t border-white/[0.07] pt-4"
+            >
+              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-cyan-100/48">
+                Historical track
+              </p>
+              {historicalTrackState.status === "loading" ? (
+                <p className="mt-1.5 text-sm text-cyan-100/68">
+                  Loading historical track…
+                </p>
+              ) : historicalTrackState.status === "ready" &&
+                historicalTrackState.track.aircraftId === selectedAircraft.id ? (
+                <p className="mt-1.5 text-sm text-white/68">
+                  {historicalTrackState.track.completeness.toLowerCase()} ·{" "}
+                  {historicalTrackState.track.points.length} points ·{" "}
+                  {historicalTrackState.track.segments.length}{" "}
+                  {historicalTrackState.track.segments.length === 1
+                    ? "segment"
+                    : "segments"}
+                </p>
+              ) : (
+                <p className="mt-1.5 text-sm text-white/48">
+                  No historical track available.
+                </p>
+              )}
+            </section>
             {replayState.mode === "replay" && (
               <ReplayControls
                 playing={replayState.playing}
@@ -1041,6 +1146,7 @@ type MapViewportProps = {
   status: MapStatus;
   bearing: number;
   aircraftFeatures: ReturnType<typeof createAircraftFeatureCollection>;
+  historicalTrackFeatures: HistoricalTrackFeatureCollection;
   aircraft: readonly Aircraft[];
   favoriteAircraftIds: ReadonlySet<string>;
   visibleAircraftIds: readonly AircraftId[];
@@ -1064,6 +1170,7 @@ function MapViewport({
   status,
   bearing,
   aircraftFeatures,
+  historicalTrackFeatures,
   aircraft,
   favoriteAircraftIds,
   visibleAircraftIds,
@@ -1082,8 +1189,11 @@ function MapViewport({
 }: MapViewportProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const registrationRef = useRef<AircraftMapRegistration | null>(null);
+  const historicalTrackRegistrationRef =
+    useRef<HistoricalTrackMapRegistration | null>(null);
   const motionRuntimeRef = useRef<AircraftMotionRuntime | null>(null);
   const aircraftFeaturesRef = useRef(aircraftFeatures);
+  const historicalTrackFeaturesRef = useRef(historicalTrackFeatures);
   const selectedAircraftIdRef = useRef(selectedAircraftId);
   const aircraftRef = useRef(aircraft);
   const favoriteAircraftIdsRef = useRef(favoriteAircraftIds);
@@ -1101,6 +1211,11 @@ function MapViewport({
     selectedAircraftIdRef.current = selectedAircraftId;
     motionRuntimeRef.current?.setSelectedAircraftId(selectedAircraftId);
   }, [aircraftFeatures, selectedAircraftId]);
+
+  useEffect(() => {
+    historicalTrackFeaturesRef.current = historicalTrackFeatures;
+    historicalTrackRegistrationRef.current?.write(historicalTrackFeatures);
+  }, [historicalTrackFeatures]);
 
   useEffect(() => {
     followEnabledRef.current = followEnabled;
@@ -1274,6 +1389,11 @@ function MapViewport({
         aircraftFeaturesRef.current,
         onSelectAircraft,
       );
+      historicalTrackRegistrationRef.current =
+        registerHistoricalTrackMapPresentation(
+          map,
+          historicalTrackFeaturesRef.current,
+        );
       registrationRef.current.setVisibleAircraftIds(
         visibleAircraftIdsRef.current,
       );
@@ -1363,6 +1483,8 @@ function MapViewport({
       }
       registrationRef.current?.remove();
       registrationRef.current = null;
+      historicalTrackRegistrationRef.current?.remove();
+      historicalTrackRegistrationRef.current = null;
       map.off("style.load", handleLoad);
       map.off("error", handleError);
       map.off("rotate", handleRotate);
