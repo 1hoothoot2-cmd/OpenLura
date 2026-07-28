@@ -26,15 +26,21 @@ const AIRCRAFT: Aircraft = {
 test("aircraft detail presentation uses backend SI values and readable context", () => {
   assert.deepEqual(Object.fromEntries(aircraftDetailItems(AIRCRAFT).map((item) => [item.label, item.value])), {
     Callsign: "SKY551",
+    ICAO24: "ABC123",
     Registration: "PH-VSY",
+    Airline: "Unknown",
+    "Aircraft type": "Unknown",
     Category: "Passenger",
+    "Flight number": "Unknown",
+    Departure: "Not available",
+    Arrival: "Not available",
     Altitude: "10400 m",
     "Ground speed": "225.0 m/s",
     "Vertical rate": "-1.5 m/s",
     Heading: "182 °",
     Latitude: "52.12346° N",
     Longitude: "3.12346° W",
-    Lifecycle: "Fresh",
+    Lifecycle: "Live",
   });
 });
 
@@ -56,6 +62,24 @@ test("aircraft detail presentation has safe unknown fallbacks and stale lifecycl
   assert.equal(values.Registration, "Unknown");
   assert.equal(values.Altitude, "Unknown");
   assert.equal(values.Lifecycle, "Stale");
+});
+
+test("aircraft detail presentation uses existing provider-neutral flight leg metadata", () => {
+  const values = Object.fromEntries(
+    aircraftDetailItems(AIRCRAFT, {
+      flightId: "flight-1",
+      flightNumber: "SKY551",
+      callsign: "SKY551",
+      origin: { icaoCode: "EHAM", iataCode: "AMS", name: "Schiphol" },
+      destination: { icaoCode: "EGLL", iataCode: "LHR", name: "Heathrow" },
+      status: "ACTIVE",
+    }).map((item) => [item.label, item.value]),
+  );
+  assert.equal(values["Flight number"], "SKY551");
+  assert.equal(values.Departure, "AMS");
+  assert.equal(values.Arrival, "LHR");
+  assert.equal(values.Airline, "Unknown");
+  assert.equal(values["Aircraft type"], "Unknown");
 });
 
 test("follow camera policy is bounded by time, distance and finite positions", () => {

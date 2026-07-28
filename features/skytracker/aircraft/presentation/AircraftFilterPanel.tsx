@@ -36,8 +36,10 @@ const FILTER_GROUPS: readonly Readonly<{
     label: "Lifecycle",
     group: "lifecycles",
     options: [
-      { label: "Fresh", value: "FRESH" },
+      { label: "Live", value: "LIVE" },
+      { label: "Predicted", value: "PREDICTED" },
       { label: "Stale", value: "STALE" },
+      { label: "Lost", value: "LOST" },
     ],
   },
   {

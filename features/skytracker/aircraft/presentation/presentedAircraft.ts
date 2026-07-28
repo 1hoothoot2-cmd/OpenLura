@@ -2,6 +2,7 @@ import type {
   Aircraft,
   AircraftCategory,
   AircraftId,
+  AircraftLifecycle,
 } from "../domain/aircraft.ts";
 
 export type PresentedAircraft = Readonly<{
@@ -15,6 +16,7 @@ export type PresentedAircraft = Readonly<{
   favorite: boolean;
   onGround: boolean;
   category: AircraftCategory;
+  lifecycle: Exclude<AircraftLifecycle, "FRESH">;
 }>;
 
 export function presentAircraft(
@@ -37,6 +39,7 @@ export function presentAircraft(
     favorite: favoriteAircraftIds.has(item.id),
     onGround: item.onGround,
     category: item.category,
+    lifecycle: item.lifecycle === "FRESH" ? "LIVE" : (item.lifecycle ?? "LIVE"),
   }));
 }
 

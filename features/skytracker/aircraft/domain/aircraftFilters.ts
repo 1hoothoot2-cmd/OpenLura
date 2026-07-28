@@ -4,7 +4,7 @@ import type {
 } from "./aircraft.ts";
 
 export type AircraftTypeFilter = "passenger" | "cargo" | "unknown";
-export type AircraftLifecycleFilter = "FRESH" | "STALE";
+export type AircraftLifecycleFilter = "LIVE" | "PREDICTED" | "STALE" | "LOST";
 export type AircraftAltitudeFilter = "on-ground" | "low" | "medium" | "high";
 export type AircraftSpeedFilter = "stationary" | "slow" | "cruise";
 
@@ -49,7 +49,7 @@ export function matchesAircraftFilters(
     matchesGroup(filters.types, aircraft.category, matchesType) &&
     matchesGroup(
       filters.lifecycles,
-      aircraft.lifecycle ?? "FRESH",
+      aircraft.lifecycle === "FRESH" ? "LIVE" : (aircraft.lifecycle ?? "LIVE"),
       (filter, lifecycle) => filter === lifecycle,
     ) &&
     matchesGroup(filters.altitudes, aircraft, matchesAltitude) &&

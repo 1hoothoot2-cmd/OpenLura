@@ -16,6 +16,11 @@ import {
   HISTORICAL_TRACK_SOURCE_ID,
   registerHistoricalTrackMapPresentation,
 } from "../../historical-track/presentation/historicalTrackMapRenderer.ts";
+import {
+  createObservedSessionTrack,
+  extendTrackToLatestObservation,
+} from "../../historical-track/domain/observedFlightHistory.ts";
+import type { RecordedSessionFrame } from "../../replay/domain/sessionRecorder.ts";
 
 const AIRCRAFT: Aircraft = {
   id: aircraftId("406a3d"),
@@ -49,6 +54,23 @@ const TRACK_RESPONSE = {
   completeness: "COMPLETE",
   retrievedAtEpochSeconds: 1_700_000_120,
   expiresAtEpochSeconds: 1_700_100_120,
+};
+const FLIGHT_RESPONSE = {
+  flightId: "development-flight-1",
+  aircraftId: "406a3d",
+  flightNumber: "SKY553",
+  callsign: "SKY553",
+  origin: {
+    icaoCode: "EHAM",
+    iataCode: "AMS",
+    name: "Amsterdam Airport Schiphol",
+  },
+  destination: {
+    icaoCode: "EGLL",
+    iataCode: "LHR",
+    name: "London Heathrow",
+  },
+  status: "ACTIVE",
 };
 
 test("historical track parser validates the provider-neutral backend contract", () => {
@@ -96,10 +118,14 @@ test("browser client uses one same-origin request without direct backend access"
     new AbortController().signal,
     async (input) => {
       requests.push(input.toString());
-      return Response.json(TRACK_RESPONSE);
+      return Response.json({
+        flight: FLIGHT_RESPONSE,
+        track: TRACK_RESPONSE,
+      });
     },
   );
   assert.equal(result.ok, true);
+  assert.equal(result.ok && result.flight.origin?.iataCode, "AMS");
   assert.equal(requests.length, 1);
   assert.match(requests[0], /^\/api\/skytracker\/historical-track\?/);
   assert.match(requests[0], /aircraftId=406a3d/);
@@ -115,16 +141,14 @@ test("server adapter resolves an existing flight leg then loads one historical t
       const url = input.toString();
       requests.push(url);
       if (url.includes("/v1/flightlegs/")) {
-        return Response.json({
-          flightId: "development-flight-1",
-          aircraftId: "406a3d",
-          status: "ACTIVE",
-        });
+        return Response.json(FLIGHT_RESPONSE);
       }
       return Response.json(TRACK_RESPONSE);
     },
   );
   assert.equal(result.ok, true);
+  assert.equal(result.ok && result.track?.points.length, 3);
+  assert.equal(result.ok && result.flight.destination?.iataCode, "LHR");
   assert.equal(requests.length, 2);
   assert.match(requests[0], /flightlegs\/406a3d/);
   assert.match(requests[0], /callsign=SKY553/);
@@ -151,10 +175,64 @@ test("server adapter stops after unavailable correlation and rejects mismatched 
     new AbortController().signal,
     async (input) =>
       input.toString().includes("/v1/flightlegs/")
-        ? Response.json({ flightId: "development-flight-1" })
+        ? Response.json(FLIGHT_RESPONSE)
         : Response.json({ ...TRACK_RESPONSE, aircraftId: "484516" }),
   );
   assert.deepEqual(mismatched, { ok: false, category: "malformed" });
+});
+
+test("flight information survives when a historical provider track is unavailable", async () => {
+  const result = await fetchHistoricalTrackFromBackend(
+    "http://localhost:8080",
+    AIRCRAFT,
+    new AbortController().signal,
+    async (input) =>
+      input.toString().includes("/v1/flightlegs/")
+        ? Response.json(FLIGHT_RESPONSE)
+        : new Response("{}", { status: 404 }),
+  );
+  assert.equal(result.ok, true);
+  assert.equal(result.ok && result.track, null);
+  assert.equal(result.ok && result.flight.flightNumber, "SKY553");
+});
+
+test("observed session history uses only recorded positions and extends with a real observation", () => {
+  const frames: RecordedSessionFrame[] = [
+    {
+      timestampEpochMillis: 1_700_000_000_000,
+      aircraft: [{
+        aircraftId: AIRCRAFT.id,
+        latitudeDegrees: 52.3,
+        longitudeDegrees: 4.76,
+        altitudeMeters: 1_000,
+        headingDegrees: 90,
+        groundSpeedMetersPerSecond: 120,
+        lifecycle: "LIVE",
+      }],
+    },
+    {
+      timestampEpochMillis: 1_700_000_060_000,
+      aircraft: [{
+        aircraftId: AIRCRAFT.id,
+        latitudeDegrees: 52.3,
+        longitudeDegrees: 4.78,
+        altitudeMeters: 1_100,
+        headingDegrees: 90,
+        groundSpeedMetersPerSecond: 121,
+        lifecycle: "LIVE",
+      }],
+    },
+  ];
+  const session = createObservedSessionTrack(frames, AIRCRAFT.id);
+  assert.ok(session);
+  assert.equal(session.provider, "session");
+  assert.deepEqual(
+    session.points.map((point) => [point.longitudeDegrees, point.latitudeDegrees]),
+    [[4.76, 52.3], [4.78, 52.3]],
+  );
+  const extended = extendTrackToLatestObservation(session, AIRCRAFT);
+  assert.equal(extended.points.length, 3);
+  assert.equal(extended.segments[0]?.endIndex, 2);
 });
 
 test("map registration creates one source and layer and clears with one write", () => {

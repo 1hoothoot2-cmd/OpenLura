@@ -7,7 +7,12 @@ export type AircraftCategory =
   | "helicopter"
   | "unknown";
 
-export type AircraftLifecycle = "FRESH" | "STALE";
+export type AircraftLifecycle =
+  | "FRESH"
+  | "LIVE"
+  | "PREDICTED"
+  | "STALE"
+  | "LOST";
 
 export type Aircraft = Readonly<{
   id: AircraftId;

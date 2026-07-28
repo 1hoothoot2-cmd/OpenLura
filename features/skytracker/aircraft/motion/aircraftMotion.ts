@@ -1,4 +1,5 @@
 import type { Aircraft } from "../domain/aircraft.ts";
+import { applyAircraftLifecycle } from "../domain/aircraftLifecycle.ts";
 
 const EARTH_RADIUS_METERS = 6_371_000;
 const DEFAULT_PLAN_DURATION_MILLIS = 4_000;
@@ -192,7 +193,7 @@ export function sampleLiveMotionState(
         state.aircraft.verticalRateMetersPerSecond * extrapolatedSeconds
       : state.aircraft.altitudeMeters;
 
-  return {
+  return applyAircraftLifecycle({
     ...state.aircraft,
     ...position,
     headingDegrees,
@@ -200,9 +201,8 @@ export function sampleLiveMotionState(
       altitudeMeters == null || !Number.isFinite(altitudeMeters)
         ? state.aircraft.altitudeMeters
         : Math.max(0, altitudeMeters),
-    lifecycle:
-      movementFactor === 0 ? "STALE" : state.aircraft.lifecycle,
-  };
+    lifecycle: movementFactor === 0 ? "STALE" : state.aircraft.lifecycle,
+  }, effectiveEpochMillis);
 }
 
 export function extrapolateAircraftPosition(

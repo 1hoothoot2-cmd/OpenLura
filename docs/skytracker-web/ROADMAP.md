@@ -20,6 +20,7 @@ Legenda: ✅ geaccepteerd · 🟡 technisch gereed, acceptatie open · ⬜ gepla
 - 🟡 P1.2 — Adaptive Global Tile Engine
 - 🟡 P1.2A — Smooth Global Loading & Worldwide Aircraft Search
 - 🟡 P1.3 — World Experience Polish
+- 🟡 P2 — Flight Intelligence
 - ⬜ L12 — Accounts & Sync
 - ⬜ L13 — Contextual AI
 
@@ -96,3 +97,11 @@ uitsluitend geselecteerde nadruk en vervangt technische backend- en tiletekst
 door een compacte, gebruiksgerichte live-status. De eerste laadervaring en de
 ontbrekende decoratieve OpenFreeMap-circle-sprite zijn gericht afgewerkt zonder
 wijziging aan data-, motion- of tilearchitectuur.
+
+P2 classificeert de zichtbare positie automatisch als Live, Predicted, Stale
+of Lost op basis van de provider-timestamp en de bestaande extrapolatiegrenzen.
+Flight History hergebruikt één Historical Track-source: een echte backendtrack
+heeft voorrang en wordt uitsluitend met een nieuw werkelijk providerpunt
+verlengd; zonder providertrack worden alleen tijdens de sessie ontvangen
+posities getoond. FlightLeg-metadata uit de bestaande requestketen verrijkt het
+detailpaneel zonder extra browserrequest of nieuw backendcontract.

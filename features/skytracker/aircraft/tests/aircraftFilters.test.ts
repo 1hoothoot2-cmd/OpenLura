@@ -54,7 +54,7 @@ test("choices combine with OR inside groups and AND across groups", () => {
     ids({
       ...DEFAULT_AIRCRAFT_FILTERS,
       types: ["passenger", "cargo"],
-      lifecycles: ["FRESH"],
+      lifecycles: ["LIVE"],
       speeds: ["stationary", "slow"],
     }),
     ["passenger-low", "ground"],
@@ -80,7 +80,7 @@ test("selection remains domain-owned when its aircraft is hidden", () => {
 });
 
 test("new and disappeared snapshot aircraft are processed without retained state", () => {
-  const filters = { ...DEFAULT_AIRCRAFT_FILTERS, lifecycles: ["FRESH"] } as const;
+  const filters = { ...DEFAULT_AIRCRAFT_FILTERS, lifecycles: ["LIVE"] } as const;
   assert.deepEqual(filterAircraft(AIRCRAFT, filters).map((item) => item.id), [
     "passenger-low",
     "unknown-high",
@@ -98,7 +98,7 @@ test("filtering is pure and contains no backend or motion side effect", () => {
   const before = structuredClone(AIRCRAFT);
   filterAircraft(AIRCRAFT, {
     types: ["unknown"],
-    lifecycles: ["FRESH"],
+    lifecycles: ["LIVE"],
     altitudes: ["high"],
     speeds: ["cruise"],
   });

@@ -44,12 +44,17 @@ export async function GET(request: NextRequest) {
     );
   }
   return NextResponse.json({
-    ...result.track,
-    points: result.track.points.map((point) => ({
-      latitude: point.latitudeDegrees,
-      longitude: point.longitudeDegrees,
-      observedAtEpochSeconds: point.observedAtEpochSeconds,
-    })),
+    flight: result.flight,
+    track: result.track
+      ? {
+          ...result.track,
+          points: result.track.points.map((point) => ({
+            latitude: point.latitudeDegrees,
+            longitude: point.longitudeDegrees,
+            observedAtEpochSeconds: point.observedAtEpochSeconds,
+          })),
+        }
+      : null,
   }, {
     headers: { "Cache-Control": "no-store" },
   });

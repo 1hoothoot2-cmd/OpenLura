@@ -11,6 +11,10 @@ import {
 } from "maplibre-gl";
 import type { Aircraft, AircraftId } from "../../aircraft/domain/aircraft";
 import {
+  aircraftLifecycleLabel,
+  applyAircraftLifecycles,
+} from "../../aircraft/domain/aircraftLifecycle";
+import {
   updateFlightPhaseSessions,
   type FlightPhaseSessions,
 } from "../../aircraft/domain/flightPhaseSession";
@@ -107,6 +111,11 @@ import {
 } from "../../replay/domain/sessionRecorder";
 import { ReplayControls } from "../../replay/presentation/ReplayControls";
 import type { HistoricalTrack } from "../../historical-track/domain/historicalTrack";
+import type { FlightLegInformation } from "../../historical-track/domain/flightLegInformation";
+import {
+  createObservedSessionTrack,
+  extendTrackToLatestObservation,
+} from "../../historical-track/domain/observedFlightHistory";
 import { fetchHistoricalTrackForAircraft } from "../../historical-track/infrastructure/historicalTrackClient";
 import {
   createHistoricalTrackFeatureCollection,
@@ -154,7 +163,11 @@ type SearchTab = "aircraft" | "airports" | "favorites";
 
 type HistoricalTrackState =
   | Readonly<{ status: "idle" | "loading" | "unavailable" }>
-  | Readonly<{ status: "ready"; track: HistoricalTrack }>;
+  | Readonly<{
+      status: "ready";
+      track: HistoricalTrack | null;
+      flight: FlightLegInformation;
+    }>;
 
 type GlobalSearchState =
   | Readonly<{ status: "idle" | "loading" | "unavailable" }>
@@ -198,6 +211,9 @@ export function SkyTrackerLiveMap({
     () => new ReplayClock(() => performance.now()),
   );
   const [recordingDurationMillis, setRecordingDurationMillis] = useState(0);
+  const [lifecycleEpochMillis, setLifecycleEpochMillis] = useState(() =>
+    Date.now(),
+  );
   const [replayState, setReplayState] =
     useState<ReplayState>(LIVE_REPLAY_STATE);
   const [historicalTrackState, setHistoricalTrackState] =
@@ -217,16 +233,20 @@ export function SkyTrackerLiveMap({
   const selectedAircraftIdRef = useRef<AircraftId | null>(null);
 
   useEffect(() => {
-    currentAircraftRef.current = aircraft;
-  }, [aircraft]);
-
-  useEffect(() => {
     selectedAircraftIdRef.current = selectedAircraftId;
   }, [selectedAircraftId]);
 
   useEffect(() => {
     replayModeRef.current = replayState.mode;
   }, [replayState.mode]);
+
+  useEffect(() => {
+    const timer = window.setInterval(
+      () => setLifecycleEpochMillis(Date.now()),
+      15_000,
+    );
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const repository = createBrowserFavoritesRepository();
@@ -244,29 +264,45 @@ export function SkyTrackerLiveMap({
     () => new Set(favorites.aircraft.map((item) => item.aircraftId)),
     [favorites.aircraft],
   );
+  const displayAircraft = useMemo(
+    () =>
+      replayState.mode === "replay"
+        ? aircraft
+        : applyAircraftLifecycles(aircraft, lifecycleEpochMillis),
+    [aircraft, lifecycleEpochMillis, replayState.mode],
+  );
+  useEffect(() => {
+    currentAircraftRef.current = displayAircraft;
+  }, [displayAircraft]);
   const presentedAircraft = useMemo(
     () =>
       presentAircraft(
-        aircraft,
+        displayAircraft,
         selectedAircraftId,
         favoriteAircraftIds,
       ),
-    [aircraft, favoriteAircraftIds, selectedAircraftId],
+    [displayAircraft, favoriteAircraftIds, selectedAircraftId],
   );
   const aircraftFeatures = useMemo(
     () => createAircraftFeatureCollection(presentedAircraft),
     [presentedAircraft],
   );
   const searchResults = useMemo(
-    () => searchAircraft(aircraft, searchQuery),
-    [aircraft, searchQuery],
+    () => searchAircraft(displayAircraft, searchQuery),
+    [displayAircraft, searchQuery],
   );
   const globalSearchResults = useMemo(
     () =>
       globalSearchState.status === "ready"
-        ? searchAircraft(globalSearchState.aircraft, searchQuery)
+        ? searchAircraft(
+            applyAircraftLifecycles(
+              globalSearchState.aircraft,
+              lifecycleEpochMillis,
+            ),
+            searchQuery,
+          )
         : [],
-    [globalSearchState, searchQuery],
+    [globalSearchState, lifecycleEpochMillis, searchQuery],
   );
   const airportSearchResults = useMemo(
     () => searchAirports(DEVELOPMENT_AIRPORTS, searchQuery),
@@ -277,8 +313,8 @@ export function SkyTrackerLiveMap({
     [favorites, searchQuery],
   );
   const visibleAircraft = useMemo(
-    () => filterAircraft(aircraft, filters),
-    [aircraft, filters],
+    () => filterAircraft(displayAircraft, filters),
+    [displayAircraft, filters],
   );
   const visibleAircraftIds = useMemo(
     () => visibleAircraft.map((item) => item.id),
@@ -299,21 +335,34 @@ export function SkyTrackerLiveMap({
     activeSearchIndex,
     Math.max(0, activeSearchResultsLength - 1),
   );
-  const selectedAircraft = aircraft.find((item) => item.id === selectedAircraftId) ?? null;
+  const selectedAircraft =
+    displayAircraft.find((item) => item.id === selectedAircraftId) ?? null;
   const selectedPresentedAircraft =
     presentedAircraft.find((item) => item.selected) ?? null;
   const selectedFlightPhaseSession = selectedAircraftId
     ? flightPhaseSessions.get(selectedAircraftId) ?? null
     : null;
-  const historicalTrackFeatures = useMemo(
+  const recordingFrameCount = recorder.frameCount;
+  const observedSessionTrack = useMemo(
     () =>
-      createHistoricalTrackFeatureCollection(
-        historicalTrackState.status === "ready" &&
-          historicalTrackState.track.aircraftId === selectedAircraftId
-          ? historicalTrackState.track
-          : null,
-      ),
-    [historicalTrackState, selectedAircraftId],
+      recordingFrameCount < 2
+        ? null
+        : createObservedSessionTrack(recorder.snapshot(), selectedAircraftId),
+    [recorder, recordingFrameCount, selectedAircraftId],
+  );
+  const activeHistoricalTrack = useMemo(() => {
+    const backendTrack =
+      historicalTrackState.status === "ready"
+        ? historicalTrackState.track
+        : null;
+    const track = backendTrack ?? observedSessionTrack;
+    return track && selectedAircraft
+      ? extendTrackToLatestObservation(track, selectedAircraft)
+      : track;
+  }, [historicalTrackState, observedSessionTrack, selectedAircraft]);
+  const historicalTrackFeatures = useMemo(
+    () => createHistoricalTrackFeatureCollection(activeHistoricalTrack),
+    [activeHistoricalTrack],
   );
 
   useEffect(() => {
@@ -349,7 +398,11 @@ export function SkyTrackerLiveMap({
         if (controller.signal.aborted || !active) return;
         setHistoricalTrackState(
           result.ok
-            ? { status: "ready", track: result.track }
+            ? {
+                status: "ready",
+                track: result.track,
+                flight: result.flight,
+              }
             : { status: "unavailable" },
         );
       })
@@ -835,7 +888,7 @@ export function SkyTrackerLiveMap({
           bearing={bearing}
           aircraftFeatures={aircraftFeatures}
           historicalTrackFeatures={historicalTrackFeatures}
-          aircraft={aircraft}
+          aircraft={displayAircraft}
           favoriteAircraftIds={favoriteAircraftIds}
           visibleAircraftIds={visibleAircraftIds}
           selectedAircraftId={selectedAircraftId}
@@ -1038,9 +1091,8 @@ export function SkyTrackerLiveMap({
                                 result.aircraft.id.toUpperCase()}
                             </span>
                             <span className="mt-0.5 block text-xs text-cyan-100/48">
-                              {result.aircraft.lifecycle === "FRESH"
-                                ? "Worldwide live result"
-                                : "Worldwide cached result"}
+                              Worldwide ·{" "}
+                              {aircraftLifecycleLabel(result.aircraft.lifecycle)}
                             </span>
                           </span>
                           <span className="shrink-0 font-mono text-[11px] uppercase tracking-[0.08em] text-cyan-100/46">
@@ -1079,7 +1131,9 @@ export function SkyTrackerLiveMap({
                             result.aircraft.id.toUpperCase()}
                         </span>
                         <span className="mt-0.5 block truncate text-xs text-white/42">
-                          {result.aircraft.registration?.trim() || "Registration unknown"}
+                          {result.aircraft.registration?.trim() ||
+                            "Registration unknown"}{" "}
+                          · {aircraftLifecycleLabel(result.aircraft.lifecycle)}
                         </span>
                       </span>
                       <span className="shrink-0 font-mono text-[11px] uppercase tracking-[0.08em] text-cyan-100/46">
@@ -1171,9 +1225,8 @@ export function SkyTrackerLiveMap({
                             result.aircraft.id.toUpperCase()}
                         </span>
                         <span className="mt-0.5 block text-xs text-cyan-100/48">
-                          {result.aircraft.lifecycle === "FRESH"
-                            ? "Worldwide live result"
-                            : "Worldwide cached result"}
+                          Worldwide ·{" "}
+                          {aircraftLifecycleLabel(result.aircraft.lifecycle)}
                         </span>
                       </span>
                       <span className="shrink-0 font-mono text-[11px] uppercase tracking-[0.08em] text-cyan-100/46">
@@ -1190,7 +1243,7 @@ export function SkyTrackerLiveMap({
           <AircraftFilterPanel
             filters={filters}
             visibleCount={visibleAircraft.length}
-            totalCount={aircraft.length}
+            totalCount={displayAircraft.length}
             onToggle={toggleFilter}
             onReset={() => setFilters(DEFAULT_AIRCRAFT_FILTERS)}
             onClose={closeFilters}
@@ -1236,7 +1289,12 @@ export function SkyTrackerLiveMap({
               />
             </div>
             <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-white/[0.07] pt-4">
-              {aircraftDetailItems(selectedAircraft).map((item) => (
+              {aircraftDetailItems(
+                selectedAircraft,
+                historicalTrackState.status === "ready"
+                  ? historicalTrackState.flight
+                  : null,
+              ).map((item) => (
                 <div key={item.label} className="min-w-0">
                   <dt className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/36">
                     {item.label}
@@ -1253,29 +1311,32 @@ export function SkyTrackerLiveMap({
             )}
             <section
               aria-live="polite"
-              aria-label="Historical track status"
+              aria-label="Flight history status"
               className="mt-4 border-t border-white/[0.07] pt-4"
             >
               <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-cyan-100/48">
-                Historical track
+                Flight history
               </p>
               {historicalTrackState.status === "loading" ? (
                 <p className="mt-1.5 text-sm text-cyan-100/68">
-                  Loading historical track…
+                  Loading flight history…
                 </p>
-              ) : historicalTrackState.status === "ready" &&
-                historicalTrackState.track.aircraftId === selectedAircraft.id ? (
+              ) : activeHistoricalTrack ? (
                 <p className="mt-1.5 text-sm text-white/68">
-                  {historicalTrackState.track.completeness.toLowerCase()} ·{" "}
-                  {historicalTrackState.track.points.length} points ·{" "}
-                  {historicalTrackState.track.segments.length}{" "}
-                  {historicalTrackState.track.segments.length === 1
+                  {activeHistoricalTrack.provider === "session"
+                    ? "Observed this session"
+                    : activeHistoricalTrack.completeness === "COMPLETE"
+                      ? "Complete flight path"
+                      : "Observed flight path"}{" "}
+                  · {activeHistoricalTrack.points.length} points ·{" "}
+                  {activeHistoricalTrack.segments.length}{" "}
+                  {activeHistoricalTrack.segments.length === 1
                     ? "segment"
                     : "segments"}
                 </p>
               ) : (
                 <p className="mt-1.5 text-sm text-white/48">
-                  No historical track available.
+                  No reliable flight history available yet.
                 </p>
               )}
             </section>

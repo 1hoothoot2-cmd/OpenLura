@@ -127,7 +127,19 @@ function addLayers(map: MapLibreMap) {
           "#6f91a8",
           "#55d9f2",
         ],
-        "icon-opacity": ["case", ["get", "on_ground"], 0.72, 0.92],
+        "icon-opacity": [
+          "match",
+          ["get", "lifecycle"],
+          "LIVE",
+          ["case", ["get", "on_ground"], 0.72, 0.94],
+          "PREDICTED",
+          0.76,
+          "STALE",
+          0.5,
+          "LOST",
+          0.28,
+          0.86,
+        ],
       },
     });
   }
