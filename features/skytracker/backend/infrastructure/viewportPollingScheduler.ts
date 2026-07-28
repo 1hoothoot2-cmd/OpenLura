@@ -12,9 +12,10 @@ type Schedule = (
   delay: number,
 ) => ReturnType<typeof setTimeout>;
 type Cancel = (handle: ReturnType<typeof setTimeout>) => void;
+export type PollingOutcome = boolean | "skipped";
 
 export class ViewportPollingScheduler {
-  private readonly run: () => Promise<boolean>;
+  private readonly run: () => Promise<PollingOutcome>;
   private readonly schedule: Schedule;
   private readonly cancel: Cancel;
   private readonly now: () => number;
@@ -27,7 +28,7 @@ export class ViewportPollingScheduler {
   private restartRequested = false;
 
   constructor(
-    run: () => Promise<boolean>,
+    run: () => Promise<PollingOutcome>,
     schedule: Schedule = (callback, delay) =>
       globalThis.setTimeout(callback, delay),
     cancel: Cancel = (handle) => globalThis.clearTimeout(handle),
@@ -78,8 +79,9 @@ export class ViewportPollingScheduler {
       this.timer = null;
       if (this.disposed || this.running) return;
       this.running = true;
-      this.lastRunStartedAt = this.now();
-      const success = await this.run();
+      const runStartedAt = this.now();
+      const outcome = await this.run();
+      if (outcome !== "skipped") this.lastRunStartedAt = runStartedAt;
       this.running = false;
       if (this.disposed || this.paused) return;
       if (this.restartRequested) {
@@ -87,8 +89,12 @@ export class ViewportPollingScheduler {
         this.queue(this.delayUntilNextRun());
         return;
       }
-      this.failures = success ? 0 : Math.min(this.failures + 1, BACKOFF.length);
-      const next = success
+      this.failures = outcome === true
+        ? 0
+        : outcome === false
+          ? Math.min(this.failures + 1, BACKOFF.length)
+          : this.failures;
+      const next = outcome !== false
         ? POLL_INTERVAL_MILLIS
         : BACKOFF[Math.min(this.failures - 1, BACKOFF.length - 1)];
       this.queue(next);

@@ -194,6 +194,7 @@ test("polling scheduler starts once, avoids overlap and schedules after completi
       return callbacks.length as unknown as ReturnType<typeof setTimeout>;
     }),
     () => undefined,
+    () => 1_000,
   );
   scheduler.start();
   scheduler.start();
@@ -270,6 +271,7 @@ test("polling scheduler immediately replaces an aborted obsolete viewport run", 
       return callbacks.length as unknown as ReturnType<typeof setTimeout>;
     }),
     () => undefined,
+    () => 1_000,
   );
   scheduler.start();
   callbacks.shift()?.();
@@ -305,5 +307,27 @@ test("polling scheduler does not let resets or visibility resumes bypass the pro
 
   assert.equal(delays[0], 0);
   assert.equal(delays.at(-1), POLL_INTERVAL_MILLIS - 30_000);
+  scheduler.dispose();
+});
+
+test("a locally skipped viewport does not consume the throttle interval", async () => {
+  const callbacks: Array<() => void> = [];
+  const delays: number[] = [];
+  const scheduler = new ViewportPollingScheduler(
+    async () => "skipped",
+    ((callback: () => void, delay?: number) => {
+      callbacks.push(callback);
+      delays.push(delay ?? 0);
+      return callbacks.length as unknown as ReturnType<typeof setTimeout>;
+    }),
+    () => undefined,
+  );
+
+  scheduler.start();
+  callbacks.shift()?.();
+  await Promise.resolve();
+  scheduler.reset();
+
+  assert.deepEqual(delays, [0, POLL_INTERVAL_MILLIS, 0]);
   scheduler.dispose();
 });

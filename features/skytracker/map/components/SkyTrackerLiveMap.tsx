@@ -1287,7 +1287,7 @@ function MapViewport({
     map.addControl(new AttributionControl({ compact: true }), "bottom-right");
 
     const requestViewport = async () => {
-      if (disposed || document.hidden) return false;
+      if (disposed || document.hidden) return "skipped" as const;
       const mapBounds = map.getBounds();
       const bounds = normalizeViewportBounds({
         minLat: mapBounds.getSouth(),
@@ -1302,7 +1302,7 @@ function MapViewport({
           updatedAt: null,
           cacheStatus: null,
         });
-        return true;
+        return "skipped" as const;
       }
 
       requestRef.current?.abort();
