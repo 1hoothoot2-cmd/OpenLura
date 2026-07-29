@@ -26,6 +26,7 @@ Legenda: ✅ geaccepteerd · 🟡 technisch gereed, acceptatie open · ⬜ gepla
 - 🟡 P3.2 — SkyGuide AI Foundation
 - ✅ P3.3 — SkyGuide Intelligence Tools
 - 🟡 P3.4 — SkyGuide Product Polish & Personalization Foundation
+- 🟡 P4.1 — Personal Platform Foundation
 - ⬜ L12 — Accounts & Sync
 - ⬜ L13 — Contextual AI
 
@@ -147,3 +148,8 @@ sessiegebonden Continue-status, stabiele typing en autoscroll, contextuele
 Smart Actions, bronmetadata, expliciete locatieconsent en meertalige/RTL-veilige
 presentatie. Personalisatie bestaat alleen als domaininterface; opslag,
 accounts, Supabase en permanente memory blijven uitgesteld.
+
+P4.1 introduceert een afzonderlijke Personal Platform-laag met immutable
+profiel-, voorkeuren-, favorieten-, account-, featureflag- en notificatiemodellen
+plus opslagneutrale repositorypoorten. Er bestaan bewust nog geen concrete
+adapters, accounts, cloudopslag, memory, notificatietaken of betalingen.
