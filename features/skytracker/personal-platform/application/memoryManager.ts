@@ -113,9 +113,15 @@ export class MemoryManager {
   async clear(userId: string): Promise<void> {
     const items = await this.memoryRepository.listForUser(userId);
     await Promise.all(items.map((item) => this.memoryRepository.remove(userId, item.id)));
-    await this.preferencesRepository.saveAiPreferences(
-      userId,
-      DEFAULT_SKYGUIDE_AI_PREFERENCES,
-    );
+    await Promise.all([
+      this.preferencesRepository.saveUserPreferences(
+        userId,
+        DEFAULT_USER_PREFERENCES,
+      ),
+      this.preferencesRepository.saveAiPreferences(
+        userId,
+        DEFAULT_SKYGUIDE_AI_PREFERENCES,
+      ),
+    ]);
   }
 }

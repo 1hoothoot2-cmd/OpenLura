@@ -12,6 +12,7 @@ import {
 function fixture() {
   let items: MemoryItem[] = [];
   let ai = DEFAULT_SKYGUIDE_AI_PREFERENCES;
+  let preferences = DEFAULT_USER_PREFERENCES;
   const memoryRepository = {
     listForUser: async () => items,
     save: async (item: MemoryItem) => { items = [...deduplicateMemory([...items, item])]; },
@@ -20,8 +21,11 @@ function fixture() {
     },
   };
   const preferencesRepository = {
-    getUserPreferences: async () => DEFAULT_USER_PREFERENCES,
-    saveUserPreferences: async () => {},
+    getUserPreferences: async () => preferences,
+    saveUserPreferences: async (
+      _userId: string,
+      value: typeof preferences,
+    ) => { preferences = value; },
     getAiPreferences: async () => ai,
     saveAiPreferences: async (_userId: string, value: typeof ai) => { ai = value; },
   };
@@ -29,6 +33,7 @@ function fixture() {
     manager: new MemoryManager(memoryRepository, preferencesRepository),
     items: () => items,
     ai: () => ai,
+    preferences: () => preferences,
   };
 }
 
@@ -71,9 +76,15 @@ test("memory manager changes AI profile only after an explicit command", async (
 test("clear memory resets AI preferences without touching favorites repositories", async () => {
   const state = fixture();
   await state.manager.add("user-1", "favorite-route", "EHAM-EGLL");
+  await state.manager.updateUserPreferences("user-1", "nl", {
+    distance: "nautical-miles",
+    altitude: "feet",
+    speed: "knots",
+  });
   await state.manager.updateAiPreferences("user-1", "professional", "technical");
   await state.manager.clear("user-1");
   assert.deepEqual(state.items(), []);
+  assert.deepEqual(state.preferences(), DEFAULT_USER_PREFERENCES);
   assert.deepEqual(state.ai(), DEFAULT_SKYGUIDE_AI_PREFERENCES);
 });
 
