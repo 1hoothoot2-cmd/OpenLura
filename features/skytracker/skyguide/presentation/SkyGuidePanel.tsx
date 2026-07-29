@@ -13,6 +13,10 @@ import {
   askSkyGuide,
   type SkyGuideClientResult,
 } from "../infrastructure/skyGuideClient";
+import {
+  MonitoringPanel,
+  type MonitoringPanelProps,
+} from "../../monitoring/presentation/MonitoringPanel";
 
 const DISCOVER_ITEMS = [
   "What makes the world’s largest aircraft unique?",
@@ -23,6 +27,9 @@ const DISCOVER_ITEMS = [
 
 type SkyGuidePanelProps = {
   context: SkyGuideContext;
+  monitoring?: MonitoringPanelProps & {
+    handleCommand: (query: string) => string | null;
+  };
 };
 
 type ConversationItem = {
@@ -54,7 +61,7 @@ function ActionIcon({ icon }: { icon: SkyGuideAction["icon"] }) {
   );
 }
 
-export function SkyGuidePanel({ context }: SkyGuidePanelProps) {
+export function SkyGuidePanel({ context, monitoring }: SkyGuidePanelProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -66,6 +73,7 @@ export function SkyGuidePanel({ context }: SkyGuidePanelProps) {
   const [locationLoading, setLocationLoading] = useState(false);
   const [memorySuggestionDismissed, setMemorySuggestionDismissed] = useState(false);
   const [memoryMessage, setMemoryMessage] = useState("");
+  const [monitoringMessage, setMonitoringMessage] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const conversationEndRef = useRef<HTMLDivElement>(null);
   const answerId = useId();
@@ -140,6 +148,12 @@ export function SkyGuidePanel({ context }: SkyGuidePanelProps) {
     if (isLoading) return;
     const submittedQuery = query.trim();
     if (!submittedQuery) return;
+    const monitorResult = monitoring?.handleCommand(submittedQuery);
+    if (monitorResult) {
+      setMonitoringMessage(monitorResult);
+      setQuery("");
+      return;
+    }
     setIsLoading(true);
     const nextResult = await askSkyGuide(submittedQuery, context);
     setConversation((items) => [
@@ -262,6 +276,14 @@ export function SkyGuidePanel({ context }: SkyGuidePanelProps) {
           </span>
         </div>}
       </div>
+      {monitoringMessage && (
+        <p
+          role="status"
+          className="mt-2 rounded-xl border border-cyan-200/12 bg-cyan-200/[0.035] px-3 py-2 text-xs leading-5 text-cyan-50/72"
+        >
+          {monitoringMessage}
+        </p>
+      )}
 
       {conversation.length > 0 && (
         <div id={answerId} aria-live="polite"
@@ -302,6 +324,15 @@ export function SkyGuidePanel({ context }: SkyGuidePanelProps) {
         </section>
       )}
       {memoryMessage && <p role="status" className="mt-2 text-xs text-cyan-100/62">{memoryMessage}</p>}
+
+      {monitoring && (
+        <MonitoringPanel
+          monitors={monitoring.monitors}
+          onPause={monitoring.onPause}
+          onResume={monitoring.onResume}
+          onStop={monitoring.onStop}
+        />
+      )}
 
       {locationRequest && (
         <LocationConsent

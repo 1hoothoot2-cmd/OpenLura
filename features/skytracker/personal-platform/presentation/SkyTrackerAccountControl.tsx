@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { SkyTrackerFavorites } from "../../favorites/domain/favorites";
 import { SkyGuideMemoryPanel } from "./SkyGuideMemoryPanel";
 
-type AccountState =
+export type AccountState =
   | Readonly<{ status: "loading" | "guest" }>
   | Readonly<{ status: "account"; displayName: string | null }>
   | Readonly<{ status: "unavailable" }>;
@@ -12,9 +12,11 @@ type AccountState =
 export function SkyTrackerAccountControl({
   localFavorites,
   onFavoritesMerged,
+  onAccountStateChange,
 }: {
   localFavorites: SkyTrackerFavorites;
   onFavoritesMerged: (favorites: SkyTrackerFavorites) => void;
+  onAccountStateChange?: (state: AccountState) => void;
 }) {
   const [account, setAccount] = useState<AccountState>({ status: "loading" });
   const [open, setOpen] = useState(false);
@@ -53,6 +55,10 @@ export function SkyTrackerAccountControl({
   useEffect(() => {
     void loadAccount();
   }, [loadAccount]);
+
+  useEffect(() => {
+    onAccountStateChange?.(account);
+  }, [account, onAccountStateChange]);
 
   async function authenticate() {
     setSubmitting(true);

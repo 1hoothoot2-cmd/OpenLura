@@ -133,7 +133,25 @@ import {
 } from "../../historical-track/presentation/historicalTrackMapRenderer";
 import type { SkyGuideMapContext } from "../../skyguide/domain/skyGuide";
 import { SkyGuidePanel } from "../../skyguide/presentation/SkyGuidePanel";
-import { SkyTrackerAccountControl } from "../../personal-platform/presentation/SkyTrackerAccountControl";
+import {
+  SkyTrackerAccountControl,
+  type AccountState,
+} from "../../personal-platform/presentation/SkyTrackerAccountControl";
+import {
+  addMonitor,
+  createAirportMonitor,
+  createFlightMonitor,
+  createPatternMonitor,
+  createRegionMonitor,
+  recognizeLiveMonitoringCommand,
+  transitionLiveMonitor,
+  updateLiveMonitors,
+  type Monitor,
+} from "../../monitoring";
+import {
+  createSessionMonitoringRepository,
+  type SessionMonitoringRepository,
+} from "../../monitoring/infrastructure/sessionMonitoringRepository";
 
 type MapStatus = "loading" | "ready" | "error";
 
@@ -218,6 +236,9 @@ export function SkyTrackerLiveMap({
   const [favorites, setFavorites] =
     useState<SkyTrackerFavorites>(EMPTY_FAVORITES);
   const [favoriteAnnouncement, setFavoriteAnnouncement] = useState("");
+  const [monitors, setMonitors] = useState<readonly Monitor[]>([]);
+  const [accountState, setAccountState] =
+    useState<AccountState>({ status: "loading" });
   const [flightPhaseSessions, setFlightPhaseSessions] =
     useState<FlightPhaseSessions>(() => new Map());
   const [recorder] = useState(() => new SessionRecorder());
@@ -238,6 +259,10 @@ export function SkyTrackerLiveMap({
   const searchRequestIdRef = useRef(0);
   const globalSearchAbortRef = useRef<AbortController | null>(null);
   const favoritesRepositoryRef = useRef<FavoritesRepository | null>(null);
+  const monitoringRepositoryRef =
+    useRef<SessionMonitoringRepository | null>(null);
+  const restoredAccountMonitoringRef = useRef(false);
+  const previousAccountStatusRef = useRef<AccountState["status"]>("loading");
   const currentAircraftRef = useRef<readonly Aircraft[]>([]);
   const latestLiveAircraftRef = useRef<readonly Aircraft[]>([]);
   const livePhaseSessionsRef = useRef<FlightPhaseSessions>(new Map());
@@ -260,6 +285,35 @@ export function SkyTrackerLiveMap({
       15_000,
     );
     return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    monitoringRepositoryRef.current = createSessionMonitoringRepository();
+  }, []);
+
+  useEffect(() => {
+    const repository = monitoringRepositoryRef.current;
+    if (!repository || accountState.status !== "account") return;
+    if (!restoredAccountMonitoringRef.current) {
+      restoredAccountMonitoringRef.current = true;
+      const restored = repository.load();
+      if (restored.length > 0) setMonitors(restored);
+      return;
+    }
+    repository.save(monitors);
+  }, [accountState.status, monitors]);
+
+  const updateAccountState = useCallback((next: AccountState) => {
+    const previousStatus = previousAccountStatusRef.current;
+    previousAccountStatusRef.current = next.status;
+    setAccountState(next);
+    if (previousStatus === "account" && next.status !== "account") {
+      monitoringRepositoryRef.current?.clear();
+      setMonitors([]);
+    }
+    if (next.status !== "account") {
+      restoredAccountMonitoringRef.current = false;
+    }
   }, []);
 
   const mergeAccountFavorites = useCallback(
@@ -298,6 +352,7 @@ export function SkyTrackerLiveMap({
   useEffect(() => {
     currentAircraftRef.current = displayAircraft;
   }, [displayAircraft]);
+
   const presentedAircraft = useMemo(
     () =>
       presentAircraft(
@@ -428,6 +483,146 @@ export function SkyTrackerLiveMap({
     ],
   );
 
+  const pauseMonitor = useCallback((monitorId: string) => {
+    setMonitors((current) =>
+      current.map((monitor) =>
+        monitor.id === monitorId
+          ? transitionLiveMonitor(monitor, "pause")
+          : monitor,
+      ),
+    );
+  }, []);
+
+  const resumeMonitor = useCallback((monitorId: string) => {
+    setMonitors((current) =>
+      current.map((monitor) =>
+        monitor.id === monitorId
+          ? transitionLiveMonitor(monitor, "resume")
+          : monitor,
+      ),
+    );
+  }, []);
+
+  const stopMonitor = useCallback((monitorId: string) => {
+    setMonitors((current) =>
+      current.map((monitor) =>
+        monitor.id === monitorId
+          ? transitionLiveMonitor(monitor, "stop")
+          : monitor,
+      ),
+    );
+  }, []);
+
+  const watchSelectedAircraft = useCallback(() => {
+    if (!selectedAircraft) return;
+    setMonitors((current) =>
+      addMonitor(current, createFlightMonitor(selectedAircraft, Date.now())),
+    );
+    setMobilePanelTab("skyguide");
+  }, [selectedAircraft]);
+
+  const handleMonitoringCommand = useCallback(
+    (query: string): string | null => {
+      const command = recognizeLiveMonitoringCommand(query);
+      if (!command) return null;
+
+      if (command.action === "show") {
+        const activeCount = monitors.filter(
+          (monitor) => monitor.state.status !== "disabled",
+        ).length;
+        return activeCount === 0
+          ? "I'm not watching anything yet."
+          : `I'm watching ${activeCount} ${activeCount === 1 ? "item" : "items"}.`;
+      }
+      if (command.action === "pause") {
+        setMonitors((current) =>
+          current.map((monitor) =>
+            ["active", "triggered"].includes(monitor.state.status)
+              ? transitionLiveMonitor(monitor, "pause")
+              : monitor,
+          ),
+        );
+        return "I've paused your active monitoring.";
+      }
+      if (command.action === "resume") {
+        setMonitors((current) =>
+          current.map((monitor) =>
+            monitor.state.status === "paused"
+              ? transitionLiveMonitor(monitor, "resume")
+              : monitor,
+          ),
+        );
+        return "I'm watching again.";
+      }
+      if (command.action === "stop") {
+        setMonitors((current) =>
+          current.map((monitor) =>
+            monitor.state.status !== "disabled"
+              ? transitionLiveMonitor(monitor, "stop")
+              : monitor,
+          ),
+        );
+        return "I've stopped watching.";
+      }
+
+      let monitor: Monitor | null = null;
+      if ("field" in command && command.field && command.value) {
+        monitor = createPatternMonitor(
+          command.kind,
+          command.field,
+          command.value,
+          Date.now(),
+        );
+      } else if (selectedAircraft) {
+        monitor = createFlightMonitor(selectedAircraft, Date.now());
+      } else if (selectedAirport) {
+        monitor = createAirportMonitor(selectedAirport, Date.now());
+      } else if ("kind" in command && command.kind === "airport") {
+        const normalizedQuery = query.toLocaleLowerCase();
+        const airport = DEVELOPMENT_AIRPORTS.find((entry) =>
+          [
+            entry.airport.name,
+            entry.airport.icaoCode,
+            entry.airport.iataCode,
+            entry.city,
+          ].some(
+            (value) =>
+              value && normalizedQuery.includes(value.toLocaleLowerCase()),
+          ),
+        );
+        if (airport) {
+          monitor = createAirportMonitor(
+            developmentAirportDetails(airport),
+            Date.now(),
+          );
+        }
+      } else if (skyGuideMapContext) {
+        monitor = createRegionMonitor(skyGuideMapContext, Date.now());
+      }
+      if (!monitor) return "Select a flight, airport, or map area for me to watch.";
+      setMonitors((current) => addMonitor(current, monitor));
+      return `I'm watching ${monitor.target.label}.`;
+    },
+    [monitors, selectedAircraft, selectedAirport, skyGuideMapContext],
+  );
+
+  const monitoringPresentation = useMemo(
+    () => ({
+      monitors,
+      onPause: pauseMonitor,
+      onResume: resumeMonitor,
+      onStop: stopMonitor,
+      handleCommand: handleMonitoringCommand,
+    }),
+    [
+      handleMonitoringCommand,
+      monitors,
+      pauseMonitor,
+      resumeMonitor,
+      stopMonitor,
+    ],
+  );
+
   useEffect(() => {
     let active = true;
     const publish = (state: HistoricalTrackState) => {
@@ -504,6 +699,11 @@ export function SkyTrackerLiveMap({
       nextAircraft,
     );
     livePhaseSessionsRef.current = nextLiveSessions;
+    setMonitors((current) =>
+      current.length === 0
+        ? current
+        : updateLiveMonitors(current, nextAircraft, Date.now()),
+    );
     setBackendStatus(nextStatus);
     if (replayModeRef.current === "replay") return;
 
@@ -934,6 +1134,7 @@ export function SkyTrackerLiveMap({
           <SkyTrackerAccountControl
             localFavorites={favorites}
             onFavoritesMerged={mergeAccountFavorites}
+            onAccountStateChange={updateAccountState}
           />
           <Link
             href="/skytracker"
@@ -1464,12 +1665,33 @@ export function SkyTrackerLiveMap({
               </button>
               <button
                 type="button"
-                disabled
-                aria-label="Monitor aircraft (coming soon)"
-                title="Intelligent Monitoring is coming soon"
-                className="min-h-11 cursor-not-allowed rounded-full border border-white/8 bg-white/[0.025] px-4 text-sm font-medium text-white/38"
+                aria-pressed={monitors.some(
+                  (monitor) =>
+                    monitor.targetContext?.kind === "aircraft" &&
+                    monitor.targetContext.aircraftId === selectedAircraft.id &&
+                    monitor.state.status !== "disabled",
+                )}
+                aria-label={
+                  monitors.some(
+                    (monitor) =>
+                      monitor.targetContext?.kind === "aircraft" &&
+                      monitor.targetContext.aircraftId === selectedAircraft.id &&
+                      monitor.state.status !== "disabled",
+                  )
+                    ? "Open monitoring for this aircraft"
+                    : "Watch this aircraft"
+                }
+                onClick={watchSelectedAircraft}
+                className="ol-interactive min-h-11 rounded-full border border-cyan-200/14 bg-cyan-200/[0.045] px-4 text-sm font-medium text-cyan-50/72 hover:bg-cyan-200/[0.09] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
               >
-                Monitor
+                {monitors.some(
+                  (monitor) =>
+                    monitor.targetContext?.kind === "aircraft" &&
+                    monitor.targetContext.aircraftId === selectedAircraft.id &&
+                    monitor.state.status !== "disabled",
+                )
+                  ? "👁 Watching"
+                  : "👁 Watch"}
               </button>
               <button
                 type="button"
@@ -1481,7 +1703,7 @@ export function SkyTrackerLiveMap({
             </div>
             </div>
             <div className={mobilePanelTab === "skyguide" ? "sm:hidden" : "hidden"}>
-              <SkyGuidePanel context={skyGuideContext} />
+              <SkyGuidePanel context={skyGuideContext} monitoring={monitoringPresentation} />
             </div>
           </aside>
         )}
@@ -1500,7 +1722,7 @@ export function SkyTrackerLiveMap({
                 Select an aircraft to view its details.
               </p>
             ) : (
-              <SkyGuidePanel context={skyGuideContext} />
+              <SkyGuidePanel context={skyGuideContext} monitoring={monitoringPresentation} />
             )}
           </aside>
         )}
@@ -1508,7 +1730,7 @@ export function SkyTrackerLiveMap({
           aria-label="SkyGuide aviation assistant"
           className="absolute bottom-5 right-5 z-20 hidden max-h-[min(70vh,38rem)] w-[21rem] overflow-y-auto rounded-[22px] border border-cyan-200/14 bg-[#07101b]/90 p-4 shadow-[0_18px_55px_rgba(0,0,0,0.4)] backdrop-blur-xl sm:block lg:right-7"
         >
-          <SkyGuidePanel context={skyGuideContext} />
+          <SkyGuidePanel context={skyGuideContext} monitoring={monitoringPresentation} />
         </aside>
         <p className="sr-only" aria-live="polite">
           {favoriteAnnouncement}

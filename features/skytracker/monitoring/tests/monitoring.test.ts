@@ -5,12 +5,22 @@ import {
   DeterministicMonitoringEngine,
   MONITOR_KINDS,
   MONITOR_STATUSES,
+  addMonitor,
+  createAirportMonitor,
+  createFlightMonitor,
+  createPatternMonitor,
+  createRegionMonitor,
   createMonitor,
+  monitorPresentationStatus,
+  recognizeLiveMonitoringCommand,
   recognizeMonitoringIntent,
+  transitionLiveMonitor,
+  updateLiveMonitors,
   type Monitor,
   type MonitorObservation,
   type MonitorTriggerMode,
 } from "../index.ts";
+import { aircraftId, type Aircraft } from "../../aircraft/domain/aircraft.ts";
 
 const NOW = 1_800_000_000_000;
 
@@ -196,12 +206,125 @@ test("monitoring foundation has no runtime, persistence or delivery effects", as
   );
 });
 
-test("aircraft details expose only a disabled Monitor preparation", async () => {
+test("aircraft details expose the active Watch control", async () => {
   const source = await readFile(
     new URL("../../map/components/SkyTrackerLiveMap.tsx", import.meta.url),
     "utf8",
   );
-  assert.match(source, /aria-label="Monitor aircraft \(coming soon\)"/);
-  assert.match(source, /disabled[\s\S]{0,250}Monitor/);
-  assert.doesNotMatch(source, /onClick=\{[^}]*monitor/i);
+  assert.match(source, /"Watch this aircraft"/);
+  assert.match(source, /"👁 Watching"/);
+  assert.match(source, /onClick=\{watchSelectedAircraft\}/);
+});
+
+const LIVE_AIRCRAFT: Aircraft = {
+  id: aircraftId("abc123"),
+  latitudeDegrees: 52.3,
+  longitudeDegrees: 4.8,
+  headingDegrees: 180,
+  callsign: "SKY123",
+  registration: "PH-SKY",
+  altitudeMeters: 4_000,
+  groundSpeedMetersPerSecond: 180,
+  verticalRateMetersPerSecond: -2,
+  onGround: false,
+  category: "cargo",
+  lifecycle: "LIVE",
+  positionTimestampEpochMillis: NOW,
+};
+
+test("live flight monitor starts, updates and completes when aircraft disappears", () => {
+  const started = createFlightMonitor(LIVE_AIRCRAFT, NOW);
+  const watching = updateLiveMonitors([started], [LIVE_AIRCRAFT], NOW + 1_000)[0]!;
+  const completed = updateLiveMonitors([watching], [], NOW + 2_000)[0]!;
+  assert.equal(monitorPresentationStatus(watching.state.status), "watching");
+  assert.equal(watching.state.lastEvaluatedAtEpochMillis, NOW + 1_000);
+  assert.equal(monitorPresentationStatus(completed.state.status), "completed");
+});
+
+test("live monitor pauses, resumes and stops predictably", () => {
+  const started = createFlightMonitor(LIVE_AIRCRAFT, NOW);
+  const paused = transitionLiveMonitor(started, "pause");
+  const resumed = transitionLiveMonitor(paused, "resume");
+  const stopped = transitionLiveMonitor(resumed, "stop");
+  assert.equal(monitorPresentationStatus(paused.state.status), "paused");
+  assert.equal(monitorPresentationStatus(resumed.state.status), "watching");
+  assert.equal(monitorPresentationStatus(stopped.state.status), "stopped");
+});
+
+test("multiple monitors coexist and duplicate active targets are rejected", () => {
+  const flight = createFlightMonitor(LIVE_AIRCRAFT, NOW);
+  const region = createRegionMonitor({
+    centerLatitudeDegrees: 52,
+    centerLongitudeDegrees: 5,
+    southLatitudeDegrees: 50,
+    westLongitudeDegrees: 3,
+    northLatitudeDegrees: 54,
+    eastLongitudeDegrees: 7,
+  }, NOW + 1);
+  const once = addMonitor(addMonitor([], flight), region);
+  const deduplicated = addMonitor(once, createFlightMonitor(LIVE_AIRCRAFT, NOW + 2));
+  assert.equal(once.length, 2);
+  assert.equal(deduplicated.length, 2);
+});
+
+test("airport, region, aircraft-pattern and spotter monitors use one framework", () => {
+  const airport = createAirportMonitor({
+    airport: {
+      icaoCode: "EHAM",
+      iataCode: "AMS",
+      name: "Amsterdam Airport Schiphol",
+      latitudeDegrees: 52.31,
+      longitudeDegrees: 4.76,
+      countryCode: "NL",
+    },
+    city: "Amsterdam",
+    elevationMeters: -3,
+    timezone: "Europe/Amsterdam",
+    runways: [],
+  }, NOW);
+  const type = createPatternMonitor("aircraft", "aircraftType", "A380", NOW);
+  const airline = createPatternMonitor("aircraft", "airline", "Emirates", NOW);
+  const spotter = createPatternMonitor("spotter", "category", "cargo", NOW);
+  const updated = updateLiveMonitors([airport, type, airline, spotter], [LIVE_AIRCRAFT], NOW + 1);
+  assert.equal(updated.length, 4);
+  assert.equal(updated[0]?.state.status, "triggered");
+  assert.equal(updated[3]?.state.status, "triggered");
+});
+
+test("SkyGuide live commands cover watch, show, pause, resume and stop", () => {
+  assert.deepEqual(recognizeLiveMonitoringCommand("Watch this."), {
+    action: "watch", kind: "flight", field: null, value: null,
+  });
+  assert.equal(recognizeLiveMonitoringCommand("Show active monitors.")?.action, "show");
+  assert.equal(recognizeLiveMonitoringCommand("Pause monitoring.")?.action, "pause");
+  assert.equal(recognizeLiveMonitoringCommand("Resume monitoring.")?.action, "resume");
+  assert.equal(recognizeLiveMonitoringCommand("Stop watching.")?.action, "stop");
+  assert.deepEqual(recognizeLiveMonitoringCommand("Watch every A380."), {
+    action: "watch", kind: "aircraft", field: "aircraftType", value: "A380",
+  });
+  assert.deepEqual(recognizeLiveMonitoringCommand("Monitor cargo aircraft."), {
+    action: "watch", kind: "spotter", field: "category", value: "cargo",
+  });
+});
+
+test("session restoration is account-gated and no provider route is introduced", async () => {
+  const mapSource = await readFile(
+    new URL("../../map/components/SkyTrackerLiveMap.tsx", import.meta.url),
+    "utf8",
+  );
+  const repositorySource = await readFile(
+    new URL("../infrastructure/sessionMonitoringRepository.ts", import.meta.url),
+    "utf8",
+  );
+  const panelSource = await readFile(
+    new URL("../presentation/MonitoringPanel.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(mapSource, /accountState\.status !== "account"/);
+  assert.match(repositorySource, /window\.sessionStorage/);
+  assert.doesNotMatch(repositorySource, /localStorage|fetch|supabase/i);
+  assert.match(panelSource, /Active Monitors/);
+  assert.match(panelSource, />\s*Pause\s*</);
+  assert.match(panelSource, />\s*Resume\s*</);
+  assert.match(panelSource, />\s*Stop\s*</);
 });

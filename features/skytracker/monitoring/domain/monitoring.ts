@@ -66,12 +66,25 @@ export interface MonitorTarget {
   label: string;
 }
 
+export type MonitorTargetContext =
+  | Readonly<{ kind: "aircraft"; aircraftId: string }>
+  | Readonly<{ kind: "airport"; icaoCode: string | null; latitude: number; longitude: number }>
+  | Readonly<{
+      kind: "region";
+      south: number;
+      west: number;
+      north: number;
+      east: number;
+    }>
+  | Readonly<{ kind: "pattern"; field: string; value: string }>;
+
 export interface Monitor {
   id: string;
   ownerId: string | null;
   kind: MonitorKind;
   title: string;
   target: MonitorTarget;
+  targetContext?: MonitorTargetContext;
   rule: MonitorRule;
   trigger: MonitorTrigger;
   state: MonitorState;
@@ -112,6 +125,7 @@ export interface CreateMonitorInput {
   kind: MonitorKind;
   title: string;
   target: MonitorTarget;
+  targetContext?: MonitorTargetContext;
   rule: MonitorRule;
   trigger: MonitorTrigger;
   createdAtEpochMillis: number;
@@ -150,6 +164,7 @@ export function createMonitor(input: CreateMonitorInput): Monitor {
     ownerId: input.ownerId ?? null,
     title,
     target: { stableId, label },
+    targetContext: input.targetContext,
     rule: {
       match: input.rule.match,
       conditions: input.rule.conditions.map((condition) => ({

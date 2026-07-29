@@ -7,6 +7,15 @@ export interface MonitoringIntent {
   executionAvailable: false;
 }
 
+export type LiveMonitoringCommand =
+  | Readonly<{ action: "show" | "pause" | "resume" | "stop" }>
+  | Readonly<{
+      action: "watch";
+      kind: MonitorKind;
+      field: string | null;
+      value: string | null;
+    }>;
+
 const MONITORING_LANGUAGE =
   /\b(?:keep an eye on|notify me|watch|monitor|alert me|let me know)\b/i;
 
@@ -29,6 +38,40 @@ export function recognizeMonitoringIntent(query: string): MonitoringIntent {
     confidence: "high",
     executionAvailable: false,
   };
+}
+
+export function recognizeLiveMonitoringCommand(
+  query: string,
+): LiveMonitoringCommand | null {
+  const normalized = query.trim();
+  if (/\b(?:show|list)\b.{0,20}\b(?:active )?(?:monitors|watching)\b/i.test(normalized)) {
+    return { action: "show" };
+  }
+  if (/\bpause\b.{0,20}\b(?:monitoring|watching|monitors?)\b/i.test(normalized)) {
+    return { action: "pause" };
+  }
+  if (/\bresume\b.{0,20}\b(?:monitoring|watching|monitors?)\b/i.test(normalized)) {
+    return { action: "resume" };
+  }
+  if (/\b(?:stop watching|remove monitor|stop monitoring)\b/i.test(normalized)) {
+    return { action: "stop" };
+  }
+  if (!MONITORING_LANGUAGE.test(normalized)) return null;
+
+  const kind = inferKind(normalized);
+  const aircraftType = normalized.match(/\b(A3\d{2}|B7\d{2}|C-?17|Antonov)\b/i)?.[1];
+  if (aircraftType) {
+    return { action: "watch", kind: "aircraft", field: "aircraftType", value: aircraftType };
+  }
+  const category = normalized.match(/\b(military|cargo|helicopter)\b/i)?.[1];
+  if (category) {
+    return { action: "watch", kind: "spotter", field: "category", value: category };
+  }
+  const airline = normalized.match(/\b(Emirates|KLM|Lufthansa|Air France|British Airways)\b/i)?.[1];
+  if (airline) {
+    return { action: "watch", kind: "aircraft", field: "airline", value: airline };
+  }
+  return { action: "watch", kind, field: null, value: null };
 }
 
 function inferKind(query: string): MonitorKind {

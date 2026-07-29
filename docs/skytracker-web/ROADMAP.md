@@ -178,3 +178,11 @@ herkent monitoringsintenties, maar voert ze nog niet uit. De enige zichtbare
 voorbereiding is een uitgeschakelde Monitor-actie bij een geselecteerd
 aircraft; workers, scheduling, persistentie en notificatiekanalen blijven
 expliciet uitgesteld.
+
+P5.2 activeert sessiegebonden Live Monitoring voor flights, aircraft,
+airports, regio's en spottercriteria. Watch, Pause, Resume en Stop delen
+dezelfde P5.1-engine en verschijnen compact binnen SkyGuide. Evaluatie gebeurt
+uitsluitend op bestaande backend-snapshots, nooit op motionframes. Gasten
+blijven memory-only; accounts kunnen binnen dezelfde ingelogde browsertab
+herstellen. Permanente monitoring, workers en notificatiekanalen blijven
+uitgesteld.
