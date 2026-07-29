@@ -18,6 +18,7 @@ import {
 } from "../application/skyGuideAssistant.ts";
 import { InMemorySkyGuideRateLimiter } from "../infrastructure/inMemorySkyGuideRateLimiter.ts";
 import { askSkyGuide } from "../infrastructure/skyGuideClient.ts";
+import { routeSkyGuideTools } from "../application/skyGuideToolRouter.ts";
 
 const liveMapSource = readFileSync(
   new URL("../../map/components/SkyTrackerLiveMap.tsx", import.meta.url),
@@ -172,7 +173,7 @@ test("smart actions and placeholders are deterministic and unique", () => {
   assert.equal(new Set(SKYGUIDE_PLACEHOLDERS).size, SKYGUIDE_PLACEHOLDERS.length);
 });
 
-test("live context is available while future external capabilities remain disabled", () => {
+test("P3.3 intelligence capabilities are available while memory remains deferred", () => {
   assert.ok(SKYGUIDE_CAPABILITIES.length >= 7);
   assert.equal(
     SKYGUIDE_CAPABILITIES.find(
@@ -180,16 +181,39 @@ test("live context is available while future external capabilities remain disabl
     )?.available,
     true,
   );
-  assert.ok(
-    SKYGUIDE_CAPABILITIES.filter(
-      (capability) => capability.id !== "live-skytracker-data",
-    ).every((capability) => !capability.available),
-  );
+  for (const id of ["airport-intelligence", "weather", "aviation-news", "controlled-web-search"]) {
+    assert.equal(SKYGUIDE_CAPABILITIES.find((capability) => capability.id === id)?.available, true);
+  }
+  assert.equal(SKYGUIDE_CAPABILITIES.find((capability) => capability.id === "memory")?.available, false);
 });
 
 test("provider suggestions stay within SkyGuide's currently available capabilities", () => {
   assert.match(providerSource, /questions the user\s+can ask SkyGuide next/);
-  assert.match(providerSource, /Never suggest consulting live ATC/);
+  assert.match(providerSource, /Never invent arrivals, departures, weather, news/);
+});
+
+test("tool router keeps selected-aircraft questions local", () => {
+  assert.deepEqual(routeSkyGuideTools("Why is it descending?", SELECTED_CONTEXT), {
+    tools: ["skytracker-live"],
+    useWebSearch: false,
+  });
+});
+
+test("tool router enables controlled web search for current weather and news", () => {
+  const weather = routeSkyGuideTools("What is the current METAR at EHAM?", EMPTY_CONTEXT);
+  assert.equal(weather.useWebSearch, true);
+  assert.ok(weather.tools.includes("airport-data"));
+  assert.ok(weather.tools.includes("aviation-weather"));
+  assert.ok(weather.tools.includes("web-search"));
+
+  const news = routeSkyGuideTools("Latest aviation news", EMPTY_CONTEXT);
+  assert.deepEqual(news.tools, ["aviation-news", "web-search"]);
+});
+
+test("spotter questions never imply that map center is user location", () => {
+  const plan = routeSkyGuideTools("What aircraft are above me?", EMPTY_CONTEXT);
+  assert.ok(plan.tools.includes("spotter-intelligence"));
+  assert.equal(plan.useWebSearch, true);
 });
 
 const EMPTY_CONTEXT = {

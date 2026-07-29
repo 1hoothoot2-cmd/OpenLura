@@ -24,6 +24,12 @@ type SkyGuidePanelProps = {
   context: SkyGuideContext;
 };
 
+type ConversationItem = {
+  id: number;
+  question: string;
+  result: SkyGuideClientResult;
+};
+
 function ActionIcon({ icon }: { icon: SkyGuideAction["icon"] }) {
   const paths = {
     flight: <path d="m3 16 8-5V4l2-1 1 7 7-2v2l-7 4v5l3 2v1l-5-1-5 1v-1l3-2v-5l-7 3Z" />,
@@ -43,9 +49,11 @@ function ActionIcon({ icon }: { icon: SkyGuideAction["icon"] }) {
 }
 
 export function SkyGuidePanel({ context }: SkyGuidePanelProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [actionsOpen, setActionsOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
-  const [result, setResult] = useState<SkyGuideClientResult | null>(null);
+  const [conversation, setConversation] = useState<ConversationItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const answerId = useId();
@@ -60,16 +68,22 @@ export function SkyGuidePanel({ context }: SkyGuidePanelProps) {
 
   const prepareQuestion = (question: string) => {
     setQuery(question);
-    setResult(null);
+    setActionsOpen(false);
     window.requestAnimationFrame(() => inputRef.current?.focus());
   };
 
   const submitQuestion = async (event: FormEvent) => {
     event.preventDefault();
     if (isLoading) return;
+    const submittedQuery = query.trim();
+    if (!submittedQuery) return;
     setIsLoading(true);
-    setResult(null);
-    setResult(await askSkyGuide(query, context));
+    const nextResult = await askSkyGuide(submittedQuery, context);
+    setConversation((items) => [
+      ...items,
+      { id: Date.now(), question: submittedQuery, result: nextResult },
+    ].slice(-12));
+    setQuery("");
     setIsLoading(false);
   };
 
@@ -79,9 +93,36 @@ export function SkyGuidePanel({ context }: SkyGuidePanelProps) {
       ? `Map near ${context.map.centerLatitudeDegrees.toFixed(1)}°, ${context.map.centerLongitudeDegrees.toFixed(1)}°`
       : "Live map context";
 
+  if (!isOpen) {
+    return (
+      <button
+        type="button"
+        aria-expanded="false"
+        onClick={() => setIsOpen(true)}
+        className="ol-interactive flex min-h-12 w-full items-center justify-between rounded-2xl border border-cyan-100/15 bg-[#07141d]/92 px-4 py-3 text-left shadow-[0_16px_48px_rgba(0,0,0,.35)] backdrop-blur-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+      >
+        <span>
+          <span className="block text-sm font-semibold text-white/90">SkyGuide</span>
+          <span className="block text-[10px] text-cyan-100/50">
+            {conversation.length > 0 ? "Continue with SkyGuide" : "Use SkyGuide Free"}
+          </span>
+        </span>
+        <span aria-hidden="true" className="text-cyan-200/65">+</span>
+      </button>
+    );
+  }
+
+  const latestStatus = [...conversation].reverse().find(
+    (item) => item.result.kind === "answered",
+  );
+  const status = latestStatus?.result.kind === "answered"
+    ? latestStatus.result.answer.status ?? "cached"
+    : "offline";
+
   return (
     <div className="text-white">
-      <div>
+      <div className="flex items-start justify-between gap-3">
+        <div>
         <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-cyan-100/48">
           Aviation Intelligence Assistant
         </p>
@@ -89,6 +130,20 @@ export function SkyGuidePanel({ context }: SkyGuidePanelProps) {
           SkyGuide
         </h2>
         <p className="mt-1 text-xs text-white/38">{contextLabel}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {conversation.length > 0 && (
+            <span className="flex items-center gap-1 text-[10px] capitalize text-white/45">
+              <span className={`h-1.5 w-1.5 rounded-full ${status === "offline" ? "bg-amber-300" : status === "web" ? "bg-blue-300" : "bg-cyan-300"}`} />
+              {status}
+            </span>
+          )}
+          <button type="button" onClick={() => setIsOpen(false)}
+            aria-label="Collapse SkyGuide"
+            className="ol-interactive min-h-9 min-w-9 rounded-lg text-white/45 hover:bg-white/[0.05] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
+            &minus;
+          </button>
+        </div>
       </div>
 
       <form onSubmit={submitQuestion} role="search"
@@ -112,32 +167,27 @@ export function SkyGuidePanel({ context }: SkyGuidePanelProps) {
         </p>
       )}
 
-      {result && (
-        <div id={answerId} role="status" aria-live="polite"
-          className={`mt-2.5 max-h-72 overflow-y-auto rounded-xl border px-3 py-2.5 text-xs leading-5 ${
-            result.kind === "answered"
-              ? "border-cyan-200/12 bg-cyan-200/[0.045] text-white/62"
-              : "border-amber-200/12 bg-amber-200/[0.045] text-amber-50/68"
-          }`}>
-          {result.kind === "answered" ? (
-            <SkyGuideAnswerContent answer={result.answer} onSuggestion={prepareQuestion} />
-          ) : (
-            <p>{result.message}</p>
-          )}
-          {result.remaining !== null && (
-            <p className="mt-2 text-[10px] text-white/32">
-              {result.remaining} free {result.remaining === 1 ? "question" : "questions"} remaining this hour
-            </p>
-          )}
+      {conversation.length > 0 && (
+        <div id={answerId} aria-live="polite"
+          className="mt-2.5 max-h-72 space-y-3 overflow-y-auto rounded-xl border border-cyan-200/12 bg-cyan-200/[0.035] px-3 py-2.5 text-xs leading-5">
+          {conversation.map((item) => (
+            <article key={item.id}>
+              <p className="text-[10px] font-medium text-cyan-100/45">{item.question}</p>
+              {item.result.kind === "answered"
+                ? <SkyGuideAnswerContent answer={item.result.answer} onSuggestion={prepareQuestion} />
+                : <p className="text-amber-50/68">{item.result.message}</p>}
+            </article>
+          ))}
         </div>
       )}
 
-      <section className="mt-4" aria-labelledby={`skyguide-actions-${answerId}`}>
-        <h3 id={`skyguide-actions-${answerId}`}
-          className="text-[9px] font-semibold uppercase tracking-[0.16em] text-white/34">
-          Smart actions
-        </h3>
-        <div className="mt-2 grid grid-cols-2 gap-2">
+      <section className="mt-4">
+        <button type="button" aria-expanded={actionsOpen}
+          onClick={() => setActionsOpen((open) => !open)}
+          className="ol-interactive flex min-h-9 w-full items-center justify-between rounded-lg px-1 text-[9px] font-semibold uppercase tracking-[0.16em] text-white/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
+          Smart actions <span aria-hidden="true">{actionsOpen ? "-" : "+"}</span>
+        </button>
+        {actionsOpen && <div className="mt-2 grid grid-cols-2 gap-2">
           {SKYGUIDE_ACTIONS.map((action) => (
             <button key={action.id} type="button" onClick={() => prepareQuestion(action.prompt)}
               className="ol-interactive flex min-h-14 items-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.025] px-2.5 py-2 text-left hover:border-cyan-200/16 hover:bg-cyan-200/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
@@ -145,7 +195,7 @@ export function SkyGuidePanel({ context }: SkyGuidePanelProps) {
               <span className="text-[11px] font-medium leading-4 text-white/67">{action.title}</span>
             </button>
           ))}
-        </div>
+        </div>}
       </section>
 
       <section className="mt-4 border-t border-white/[0.07] pt-3"
@@ -177,9 +227,35 @@ function SkyGuideAnswerContent({
   return (
     <>
       <p className="text-white/72">{answer.answer}</p>
-      <AnswerSection title="Facts" items={answer.facts} />
-      <AnswerSection title="Likely explanation" items={answer.likelyExplanation} />
-      <AnswerSection title="Unknown" items={answer.unknown} />
+      {(answer.facts.length > 0 || answer.likelyExplanation.length > 0 || answer.unknown.length > 0) && (
+        <details className="mt-2">
+          <summary className="ol-interactive cursor-pointer text-cyan-100/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
+            More explanation
+          </summary>
+          <AnswerSection title="Facts" items={answer.facts} />
+          <AnswerSection title="Likely explanation" items={answer.likelyExplanation} />
+          <AnswerSection title="Unknown" items={answer.unknown} />
+        </details>
+      )}
+      {(answer.sources?.length ?? 0) > 0 && (
+        <details className="mt-2">
+          <summary className="ol-interactive cursor-pointer text-white/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
+            Sources
+          </summary>
+          <ul className="mt-1 space-y-1">
+            {answer.sources?.map((source) => (
+              <li key={source.id}>
+                {source.url ? (
+                  <a href={source.url} target="_blank" rel="noreferrer"
+                    className="text-cyan-100/60 underline decoration-cyan-100/20 underline-offset-2">
+                    {source.label}
+                  </a>
+                ) : source.label}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
       {answer.suggestions.length > 0 && (
         <div className="mt-3 border-t border-white/[0.07] pt-2">
           <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-white/35">

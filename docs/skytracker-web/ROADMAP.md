@@ -24,6 +24,7 @@ Legenda: ✅ geaccepteerd · 🟡 technisch gereed, acceptatie open · ⬜ gepla
 - 🟡 P2.1 — Budget & Snapshot Optimization
 - 🟡 P3.1 — SkyGuide Foundation
 - 🟡 P3.2 — SkyGuide AI Foundation
+- 🟡 P3.3 — SkyGuide Intelligence Tools
 - ⬜ L12 — Accounts & Sync
 - ⬜ L13 — Contextual AI
 
@@ -128,3 +129,11 @@ detectie, begrensde context en antwoorden, maximaal drie vervolgsuggesties en
 een uitbreidbare Free/account/Pro-limiter worden vóór de provider afgedwongen.
 De browser ontvangt nooit providercredentials en de Live Map blijft bij
 provideruitval volledig bruikbaar.
+
+P3.3 voegt een pure server-side toolrouter toe voor SkyTracker Live-context,
+airport intelligence, luchtvaartweer, luchtvaartnieuws, gecontroleerde web
+search en spottervragen. Alleen actuele vragen die externe feiten vereisen
+kunnen gecontroleerde web search activeren; de browser blijft uitsluitend de
+same-origin SkyGuide-route gebruiken. Het geïntegreerde paneel start compact,
+houdt sessiegeschiedenis uitsluitend in geheugen bij en verbergt technische
+uitleg en werkelijk gebruikte bronnen achter toegankelijke disclosures.

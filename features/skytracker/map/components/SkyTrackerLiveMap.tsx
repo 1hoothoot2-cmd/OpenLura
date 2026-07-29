@@ -1476,7 +1476,7 @@ export function SkyTrackerLiveMap({
         )}
         <aside
           aria-label="SkyGuide aviation assistant"
-          className="absolute bottom-5 right-5 z-20 hidden max-h-[min(70vh,38rem)] w-[25rem] overflow-y-auto rounded-[22px] border border-cyan-200/14 bg-[#07101b]/90 p-5 shadow-[0_18px_55px_rgba(0,0,0,0.4)] backdrop-blur-xl sm:block lg:right-7"
+          className="absolute bottom-5 right-5 z-20 hidden max-h-[min(70vh,38rem)] w-[21rem] overflow-y-auto rounded-[22px] border border-cyan-200/14 bg-[#07101b]/90 p-4 shadow-[0_18px_55px_rgba(0,0,0,0.4)] backdrop-blur-xl sm:block lg:right-7"
         >
           <SkyGuidePanel context={skyGuideContext} />
         </aside>

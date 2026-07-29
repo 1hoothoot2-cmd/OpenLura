@@ -6,8 +6,11 @@ import {
   SKYGUIDE_MAX_QUERY_CHARACTERS,
   SKYGUIDE_MAX_SUGGESTIONS,
   type SkyGuideAudienceMode,
+  type SkyGuideAiStatus,
   type SkyGuideContext,
+  type SkyGuideSource,
 } from "../domain/skyGuide.ts";
+import { routeSkyGuideTools, type SkyGuideToolPlan } from "./skyGuideToolRouter.ts";
 
 export type SkyGuideAnswer = Readonly<{
   answer: string;
@@ -16,12 +19,15 @@ export type SkyGuideAnswer = Readonly<{
   unknown: readonly string[];
   suggestions: readonly string[];
   audienceMode: SkyGuideAudienceMode;
+  status?: SkyGuideAiStatus;
+  sources?: readonly SkyGuideSource[];
 }>;
 
 export type SkyGuideProviderInput = Readonly<{
   query: string;
   audienceMode: SkyGuideAudienceMode;
   context: SkyGuideContext;
+  toolPlan: SkyGuideToolPlan;
 }>;
 
 export interface SkyGuideAiProvider {
@@ -78,6 +84,7 @@ export async function answerSkyGuideQuestion(
     query: validation.query,
     context: input.context,
     audienceMode: validation.audienceMode,
+    toolPlan: routeSkyGuideTools(validation.query, input.context),
   });
 
   return {
@@ -93,6 +100,15 @@ export async function answerSkyGuideQuestion(
       suggestions: answer.suggestions
         .slice(0, SKYGUIDE_MAX_SUGGESTIONS)
         .map((item) => item.slice(0, 120)),
+      status: answer.status ?? "cached",
+      sources: (answer.sources ?? []).slice(0, 5).map((source) => ({
+        id: source.id.slice(0, 160),
+        label: source.label.slice(0, 160),
+        ...(source.url ? { url: source.url.slice(0, 1_000) } : {}),
+        ...(source.publishedAt
+          ? { publishedAt: source.publishedAt.slice(0, 60) }
+          : {}),
+      })),
     },
   };
 }

@@ -33,6 +33,14 @@ export type SkyGuideScopeResult =
   | { accepted: false; reason: "empty" | "outside-aviation" };
 
 export type SkyGuideAudienceMode = "beginner" | "expert";
+export type SkyGuideAiStatus = "live" | "cached" | "web" | "offline";
+
+export type SkyGuideSource = Readonly<{
+  id: string;
+  label: string;
+  url?: string;
+  publishedAt?: string;
+}>;
 
 export type SkyGuideMapContext = Readonly<{
   centerLatitudeDegrees: number;
@@ -98,10 +106,10 @@ export const SKYGUIDE_ACTIONS: readonly SkyGuideAction[] = [
 
 export const SKYGUIDE_CAPABILITIES: readonly SkyGuideCapability[] = [
   { id: "live-skytracker-data", available: true },
-  { id: "airport-intelligence", available: false },
-  { id: "weather", available: false },
-  { id: "aviation-news", available: false },
-  { id: "controlled-web-search", available: false },
+  { id: "airport-intelligence", available: true },
+  { id: "weather", available: true },
+  { id: "aviation-news", available: true },
+  { id: "controlled-web-search", available: true },
   { id: "memory", available: false },
   { id: "notifications", available: false },
 ] as const;
