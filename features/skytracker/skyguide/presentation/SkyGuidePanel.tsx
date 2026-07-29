@@ -17,6 +17,10 @@ import {
   MonitoringPanel,
   type MonitoringPanelProps,
 } from "../../monitoring/presentation/MonitoringPanel";
+import {
+  AlertCenter,
+  type AlertCenterProps,
+} from "../../monitoring/presentation/AlertCenter";
 
 const DISCOVER_ITEMS = [
   "What makes the world’s largest aircraft unique?",
@@ -29,6 +33,7 @@ type SkyGuidePanelProps = {
   context: SkyGuideContext;
   monitoring?: MonitoringPanelProps & {
     handleCommand: (query: string) => string | null;
+    alerts: AlertCenterProps;
   };
 };
 
@@ -326,12 +331,19 @@ export function SkyGuidePanel({ context, monitoring }: SkyGuidePanelProps) {
       {memoryMessage && <p role="status" className="mt-2 text-xs text-cyan-100/62">{memoryMessage}</p>}
 
       {monitoring && (
-        <MonitoringPanel
-          monitors={monitoring.monitors}
-          onPause={monitoring.onPause}
-          onResume={monitoring.onResume}
-          onStop={monitoring.onStop}
-        />
+        <>
+          <AlertCenter
+            alerts={monitoring.alerts.alerts}
+            onDismiss={monitoring.alerts.onDismiss}
+            onClear={monitoring.alerts.onClear}
+          />
+          <MonitoringPanel
+            monitors={monitoring.monitors}
+            onPause={monitoring.onPause}
+            onResume={monitoring.onResume}
+            onStop={monitoring.onStop}
+          />
+        </>
       )}
 
       {locationRequest && (

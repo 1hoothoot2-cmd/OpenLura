@@ -186,3 +186,9 @@ uitsluitend op bestaande backend-snapshots, nooit op motionframes. Gasten
 blijven memory-only; accounts kunnen binnen dezelfde ingelogde browsertab
 herstellen. Permanente monitoring, workers en notificatiekanalen blijven
 uitgesteld.
+
+P5.3 vergelijkt uitsluitend opeenvolgende providerneutrale snapshots en maakt
+daaruit begrensde sessiealerts voor flight-, aircraft-, regio-, airport- en
+spottermonitors. Het geïntegreerde SkyGuide Alert Center bewaart maximaal
+twintig alerts en ondersteunt lokale uitleg, dismiss en clear. Motionframes,
+polling, backendroutes, providers en notificatiekanalen blijven ongewijzigd.

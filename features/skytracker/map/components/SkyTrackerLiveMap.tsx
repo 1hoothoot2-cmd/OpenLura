@@ -143,15 +143,22 @@ import {
   createFlightMonitor,
   createPatternMonitor,
   createRegionMonitor,
+  dismissAlert,
+  evaluateLiveAlerts,
+  appendSessionAlerts,
   recognizeLiveMonitoringCommand,
   transitionLiveMonitor,
-  updateLiveMonitors,
+  type MonitoringAlert,
   type Monitor,
 } from "../../monitoring";
 import {
   createSessionMonitoringRepository,
   type SessionMonitoringRepository,
 } from "../../monitoring/infrastructure/sessionMonitoringRepository";
+import {
+  createSessionAlertRepository,
+  type SessionAlertRepository,
+} from "../../monitoring/infrastructure/sessionAlertRepository";
 
 type MapStatus = "loading" | "ready" | "error";
 
@@ -237,6 +244,7 @@ export function SkyTrackerLiveMap({
     useState<SkyTrackerFavorites>(EMPTY_FAVORITES);
   const [favoriteAnnouncement, setFavoriteAnnouncement] = useState("");
   const [monitors, setMonitors] = useState<readonly Monitor[]>([]);
+  const [alerts, setAlerts] = useState<readonly MonitoringAlert[]>([]);
   const [accountState, setAccountState] =
     useState<AccountState>({ status: "loading" });
   const [flightPhaseSessions, setFlightPhaseSessions] =
@@ -261,8 +269,11 @@ export function SkyTrackerLiveMap({
   const favoritesRepositoryRef = useRef<FavoritesRepository | null>(null);
   const monitoringRepositoryRef =
     useRef<SessionMonitoringRepository | null>(null);
+  const alertRepositoryRef = useRef<SessionAlertRepository | null>(null);
   const restoredAccountMonitoringRef = useRef(false);
+  const restoredAccountAlertsRef = useRef(false);
   const previousAccountStatusRef = useRef<AccountState["status"]>("loading");
+  const monitorsRef = useRef<readonly Monitor[]>([]);
   const currentAircraftRef = useRef<readonly Aircraft[]>([]);
   const latestLiveAircraftRef = useRef<readonly Aircraft[]>([]);
   const livePhaseSessionsRef = useRef<FlightPhaseSessions>(new Map());
@@ -280,6 +291,10 @@ export function SkyTrackerLiveMap({
   }, [replayState.mode]);
 
   useEffect(() => {
+    monitorsRef.current = monitors;
+  }, [monitors]);
+
+  useEffect(() => {
     const timer = window.setInterval(
       () => setLifecycleEpochMillis(Date.now()),
       15_000,
@@ -289,6 +304,7 @@ export function SkyTrackerLiveMap({
 
   useEffect(() => {
     monitoringRepositoryRef.current = createSessionMonitoringRepository();
+    alertRepositoryRef.current = createSessionAlertRepository();
   }, []);
 
   useEffect(() => {
@@ -303,16 +319,31 @@ export function SkyTrackerLiveMap({
     repository.save(monitors);
   }, [accountState.status, monitors]);
 
+  useEffect(() => {
+    const repository = alertRepositoryRef.current;
+    if (!repository || accountState.status !== "account") return;
+    if (!restoredAccountAlertsRef.current) {
+      restoredAccountAlertsRef.current = true;
+      const restored = repository.load();
+      if (restored.length > 0) setAlerts(restored);
+      return;
+    }
+    repository.save(alerts);
+  }, [accountState.status, alerts]);
+
   const updateAccountState = useCallback((next: AccountState) => {
     const previousStatus = previousAccountStatusRef.current;
     previousAccountStatusRef.current = next.status;
     setAccountState(next);
     if (previousStatus === "account" && next.status !== "account") {
       monitoringRepositoryRef.current?.clear();
+      alertRepositoryRef.current?.clear();
       setMonitors([]);
+      setAlerts([]);
     }
     if (next.status !== "account") {
       restoredAccountMonitoringRef.current = false;
+      restoredAccountAlertsRef.current = false;
     }
   }, []);
 
@@ -513,6 +544,16 @@ export function SkyTrackerLiveMap({
     );
   }, []);
 
+  const dismissMonitoringAlert = useCallback((alertId: string) => {
+    setAlerts((current) =>
+      current.map((alert) => dismissAlert(alert, alertId)),
+    );
+  }, []);
+
+  const clearMonitoringAlerts = useCallback(() => {
+    setAlerts([]);
+  }, []);
+
   const watchSelectedAircraft = useCallback(() => {
     if (!selectedAircraft) return;
     setMonitors((current) =>
@@ -526,6 +567,28 @@ export function SkyTrackerLiveMap({
       const command = recognizeLiveMonitoringCommand(query);
       if (!command) return null;
 
+      if (command.action === "show-alerts") {
+        const visible = alerts.filter((alert) => alert.status !== "dismissed");
+        if (visible.length === 0) return "Nothing new has happened yet.";
+        const latest = visible[0]!;
+        return `${latest.title}. ${latest.description}`;
+      }
+      if (command.action === "explain-alert") {
+        const latest = alerts.find((alert) => alert.status !== "dismissed");
+        return latest
+          ? `${latest.title} was triggered because ${latest.description.toLocaleLowerCase()}`
+          : "There is no active alert to explain.";
+      }
+      if (command.action === "dismiss-alert") {
+        const latest = alerts.find((alert) => alert.status !== "dismissed");
+        if (!latest) return "There is no active alert to dismiss.";
+        dismissMonitoringAlert(latest.id);
+        return "I've dismissed the latest alert.";
+      }
+      if (command.action === "clear-alerts") {
+        clearMonitoringAlerts();
+        return "I've cleared the session alerts.";
+      }
       if (command.action === "show") {
         const activeCount = monitors.filter(
           (monitor) => monitor.state.status !== "disabled",
@@ -603,7 +666,15 @@ export function SkyTrackerLiveMap({
       setMonitors((current) => addMonitor(current, monitor));
       return `I'm watching ${monitor.target.label}.`;
     },
-    [monitors, selectedAircraft, selectedAirport, skyGuideMapContext],
+    [
+      alerts,
+      clearMonitoringAlerts,
+      dismissMonitoringAlert,
+      monitors,
+      selectedAircraft,
+      selectedAirport,
+      skyGuideMapContext,
+    ],
   );
 
   const monitoringPresentation = useMemo(
@@ -613,9 +684,17 @@ export function SkyTrackerLiveMap({
       onResume: resumeMonitor,
       onStop: stopMonitor,
       handleCommand: handleMonitoringCommand,
+      alerts: {
+        alerts,
+        onDismiss: dismissMonitoringAlert,
+        onClear: clearMonitoringAlerts,
+      },
     }),
     [
       handleMonitoringCommand,
+      alerts,
+      clearMonitoringAlerts,
+      dismissMonitoringAlert,
       monitors,
       pauseMonitor,
       resumeMonitor,
@@ -691,19 +770,31 @@ export function SkyTrackerLiveMap({
   }, []);
 
   const acceptSnapshot = useCallback((nextAircraft: readonly Aircraft[], nextStatus: BackendStatus) => {
-    recorder.record(nextStatus.updatedAt ?? Date.now(), nextAircraft);
+    const now = Date.now();
+    const previousAircraft = latestLiveAircraftRef.current;
+    recorder.record(nextStatus.updatedAt ?? now, nextAircraft);
     setRecordingDurationMillis(recorder.durationMillis);
+    if (monitorsRef.current.length > 0) {
+      const evaluation = evaluateLiveAlerts(
+        monitorsRef.current,
+        previousAircraft,
+        nextAircraft,
+        now,
+      );
+      monitorsRef.current = evaluation.monitors;
+      setMonitors(evaluation.monitors);
+      if (evaluation.alerts.length > 0) {
+        setAlerts((current) =>
+          appendSessionAlerts(current, evaluation.alerts),
+        );
+      }
+    }
     latestLiveAircraftRef.current = nextAircraft;
     const nextLiveSessions = updateFlightPhaseSessions(
       livePhaseSessionsRef.current,
       nextAircraft,
     );
     livePhaseSessionsRef.current = nextLiveSessions;
-    setMonitors((current) =>
-      current.length === 0
-        ? current
-        : updateLiveMonitors(current, nextAircraft, Date.now()),
-    );
     setBackendStatus(nextStatus);
     if (replayModeRef.current === "replay") return;
 

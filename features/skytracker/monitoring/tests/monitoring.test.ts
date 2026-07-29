@@ -3,14 +3,18 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
   DeterministicMonitoringEngine,
+  ALERT_TRIGGER_KINDS,
   MONITOR_KINDS,
   MONITOR_STATUSES,
   addMonitor,
+  appendSessionAlerts,
   createAirportMonitor,
   createFlightMonitor,
   createPatternMonitor,
   createRegionMonitor,
   createMonitor,
+  dismissAlert,
+  evaluateLiveAlerts,
   monitorPresentationStatus,
   recognizeLiveMonitoringCommand,
   recognizeMonitoringIntent,
@@ -305,6 +309,115 @@ test("SkyGuide live commands cover watch, show, pause, resume and stop", () => {
   assert.deepEqual(recognizeLiveMonitoringCommand("Monitor cargo aircraft."), {
     action: "watch", kind: "spotter", field: "category", value: "cargo",
   });
+  assert.equal(recognizeLiveMonitoringCommand("What happened?")?.action, "show-alerts");
+  assert.equal(recognizeLiveMonitoringCommand("Show alerts.")?.action, "show-alerts");
+  assert.equal(recognizeLiveMonitoringCommand("Why did this trigger?")?.action, "explain-alert");
+  assert.equal(recognizeLiveMonitoringCommand("Dismiss alert.")?.action, "dismiss-alert");
+  assert.equal(recognizeLiveMonitoringCommand("Clear alerts.")?.action, "clear-alerts");
+});
+
+test("flight triggers use only changes between reliable snapshots", () => {
+  const flight = createFlightMonitor(LIVE_AIRCRAFT, NOW - 1_000);
+  const changed: Aircraft = {
+    ...LIVE_AIRCRAFT,
+    altitudeMeters: 2_500,
+    groundSpeedMetersPerSecond: 100,
+    onGround: true,
+    lifecycle: "STALE",
+    positionTimestampEpochMillis: NOW + 1_000,
+  };
+  const result = evaluateLiveAlerts([flight], [LIVE_AIRCRAFT], [changed], NOW);
+  assert.deepEqual(
+    new Set(result.alerts.map((alert) => alert.trigger)),
+    new Set([
+      "lifecycle-changed",
+      "landing-detected",
+      "altitude-changed",
+      "speed-changed",
+    ]),
+  );
+});
+
+test("flight disappearance and reappearance produce bounded informative alerts", () => {
+  const flight = createFlightMonitor(LIVE_AIRCRAFT, NOW - 1_000);
+  const watching = updateLiveMonitors([flight], [LIVE_AIRCRAFT], NOW - 500)[0]!;
+  const disappeared = evaluateLiveAlerts([watching], [LIVE_AIRCRAFT], [], NOW);
+  const reappeared = evaluateLiveAlerts(
+    disappeared.monitors,
+    [],
+    [LIVE_AIRCRAFT],
+    NOW + 1_000,
+  );
+  assert.equal(disappeared.alerts[0]?.trigger, "aircraft-disappeared");
+  assert.equal(reappeared.alerts[0]?.trigger, "aircraft-reappeared");
+});
+
+test("departure, pattern and spotter triggers are edge based", () => {
+  const onGround = { ...LIVE_AIRCRAFT, onGround: true };
+  const flight = createFlightMonitor(onGround, NOW - 1_000);
+  const cargo = createPatternMonitor("spotter", "category", "cargo", NOW - 1_000);
+  const result = evaluateLiveAlerts([flight, cargo], [onGround], [LIVE_AIRCRAFT], NOW);
+  assert.equal(result.alerts.some((alert) => alert.trigger === "departure-detected"), true);
+  assert.equal(result.alerts.some((alert) => alert.trigger === "aircraft-appeared"), false);
+  const appearing = evaluateLiveAlerts([cargo], [], [LIVE_AIRCRAFT], NOW + 1);
+  assert.equal(appearing.alerts[0]?.trigger, "aircraft-appeared");
+});
+
+test("region entry and exit are derived from stable aircraft IDs", () => {
+  const region = createRegionMonitor({
+    centerLatitudeDegrees: 52,
+    centerLongitudeDegrees: 5,
+    southLatitudeDegrees: 50,
+    westLongitudeDegrees: 3,
+    northLatitudeDegrees: 54,
+    eastLongitudeDegrees: 7,
+  }, NOW - 1_000);
+  const outside = { ...LIVE_AIRCRAFT, latitudeDegrees: 48 };
+  const entered = evaluateLiveAlerts([region], [outside], [LIVE_AIRCRAFT], NOW);
+  const left = evaluateLiveAlerts([region], [LIVE_AIRCRAFT], [outside], NOW + 1);
+  assert.equal(entered.alerts[0]?.trigger, "region-entered");
+  assert.equal(left.alerts[0]?.trigger, "region-left");
+});
+
+test("airport activity changes only when the reliable nearby count changes", () => {
+  const airport = createAirportMonitor({
+    airport: {
+      icaoCode: "EHAM",
+      iataCode: "AMS",
+      name: "Amsterdam Airport Schiphol",
+      latitudeDegrees: 52.31,
+      longitudeDegrees: 4.76,
+      countryCode: "NL",
+    },
+    city: "Amsterdam",
+    elevationMeters: -3,
+    timezone: "Europe/Amsterdam",
+    runways: [],
+  }, NOW - 1_000);
+  const increased = evaluateLiveAlerts([airport], [], [LIVE_AIRCRAFT], NOW);
+  const unchanged = evaluateLiveAlerts([airport], [LIVE_AIRCRAFT], [LIVE_AIRCRAFT], NOW + 1);
+  const decreased = evaluateLiveAlerts([airport], [LIVE_AIRCRAFT], [], NOW + 2);
+  assert.equal(increased.alerts[0]?.trigger, "airport-activity-increased");
+  assert.equal(unchanged.alerts.length, 0);
+  assert.equal(decreased.alerts[0]?.trigger, "airport-activity-decreased");
+});
+
+test("alert center keeps twenty newest unique session alerts and supports dismiss", () => {
+  const monitor = createFlightMonitor(LIVE_AIRCRAFT, NOW - 1_000);
+  const alerts = Array.from({ length: 23 }, (_, index) => ({
+    id: `alert-${index}`,
+    monitorId: monitor.id,
+    trigger: ALERT_TRIGGER_KINDS[index % ALERT_TRIGGER_KINDS.length]!,
+    timestampEpochMillis: NOW + index,
+    severity: "info" as const,
+    title: `Alert ${index}`,
+    description: "Observed from a live snapshot.",
+    status: "new" as const,
+  }));
+  const bounded = appendSessionAlerts([], alerts);
+  assert.equal(bounded.length, 20);
+  assert.equal(bounded[0]?.id, "alert-22");
+  assert.equal(dismissAlert(bounded[0]!, "alert-22").status, "dismissed");
 });
 
 test("session restoration is account-gated and no provider route is introduced", async () => {
@@ -320,6 +433,14 @@ test("session restoration is account-gated and no provider route is introduced",
     new URL("../presentation/MonitoringPanel.tsx", import.meta.url),
     "utf8",
   );
+  const alertPanelSource = await readFile(
+    new URL("../presentation/AlertCenter.tsx", import.meta.url),
+    "utf8",
+  );
+  const alertRepositorySource = await readFile(
+    new URL("../infrastructure/sessionAlertRepository.ts", import.meta.url),
+    "utf8",
+  );
   assert.match(mapSource, /accountState\.status !== "account"/);
   assert.match(repositorySource, /window\.sessionStorage/);
   assert.doesNotMatch(repositorySource, /localStorage|fetch|supabase/i);
@@ -327,4 +448,8 @@ test("session restoration is account-gated and no provider route is introduced",
   assert.match(panelSource, />\s*Pause\s*</);
   assert.match(panelSource, />\s*Resume\s*</);
   assert.match(panelSource, />\s*Stop\s*</);
+  assert.match(alertPanelSource, />\s*Dismiss\s*</);
+  assert.match(alertPanelSource, />\s*Clear\s*</);
+  assert.match(alertRepositorySource, /window\.sessionStorage/);
+  assert.doesNotMatch(alertRepositorySource, /localStorage|fetch|supabase/i);
 });

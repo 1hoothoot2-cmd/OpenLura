@@ -214,8 +214,9 @@ function inRegion(
 function aircraftField(aircraft: Aircraft, field: string): string {
   if (field === "icao24") return aircraft.id;
   if (field === "registration") return aircraft.registration ?? "";
-  if (field === "airline") return aircraft.callsign ?? "";
-  if (field === "aircraftType") return "";
+  if (field === "airline" || field === "aircraftType" || field === "specialLivery") {
+    return "";
+  }
   if (field === "category") return aircraft.category;
   return aircraft.callsign ?? "";
 }

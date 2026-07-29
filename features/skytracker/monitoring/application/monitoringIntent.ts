@@ -8,7 +8,17 @@ export interface MonitoringIntent {
 }
 
 export type LiveMonitoringCommand =
-  | Readonly<{ action: "show" | "pause" | "resume" | "stop" }>
+  | Readonly<{
+      action:
+        | "show"
+        | "pause"
+        | "resume"
+        | "stop"
+        | "show-alerts"
+        | "explain-alert"
+        | "dismiss-alert"
+        | "clear-alerts";
+    }>
   | Readonly<{
       action: "watch";
       kind: MonitorKind;
@@ -44,6 +54,18 @@ export function recognizeLiveMonitoringCommand(
   query: string,
 ): LiveMonitoringCommand | null {
   const normalized = query.trim();
+  if (/\b(?:what happened|show alerts?|list alerts?)\b/i.test(normalized)) {
+    return { action: "show-alerts" };
+  }
+  if (/\bwhy did (?:this|that|it) trigger\b/i.test(normalized)) {
+    return { action: "explain-alert" };
+  }
+  if (/\bdismiss (?:the )?(?:latest )?alert\b/i.test(normalized)) {
+    return { action: "dismiss-alert" };
+  }
+  if (/\bclear (?:all )?alerts\b/i.test(normalized)) {
+    return { action: "clear-alerts" };
+  }
   if (/\b(?:show|list)\b.{0,20}\b(?:active )?(?:monitors|watching)\b/i.test(normalized)) {
     return { action: "show" };
   }
