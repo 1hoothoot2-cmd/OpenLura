@@ -163,11 +163,11 @@ function NotificationPreferencesPanel(props: NotificationCenterProps) {
               checked={preferences.browserEnabled}
               onChange={(checked) => update({ browserEnabled: checked })}
             />
-          ) : (
+          ) : props.browserPermission === "default" ? (
             <button type="button" onClick={props.onEnableBrowser} className={`${smallButtonClass} mt-1.5`}>
               Enable browser notifications
             </button>
-          )}
+          ) : null}
           {props.browserPermission === "denied" && (
             <p className="mt-1 text-[10px] text-amber-100/60">
               Permission was denied. You can change it in your browser settings.

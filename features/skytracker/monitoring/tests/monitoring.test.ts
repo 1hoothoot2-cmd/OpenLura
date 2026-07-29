@@ -667,6 +667,9 @@ test("session restoration is account-gated and no provider route is introduced",
   assert.match(browserAdapterSource, /Notification\.permission !== "granted"/);
   assert.match(mapSource, /const enableBrowserNotifications = useCallback/);
   assert.match(notificationPanelSource, /onClick=\{props\.onEnableBrowser\}/);
+  assert.match(notificationPanelSource, /browserPermission === "default"/);
+  assert.match(notificationPanelSource, /Permission was denied/);
+  assert.match(notificationPanelSource, /not supported here/);
   assert.match(notificationRepositorySource, /window\.sessionStorage/);
   assert.doesNotMatch(notificationRepositorySource, /localStorage|fetch|supabase/i);
   assert.match(notificationPanelSource, /Notifications work while SkyTracker is open/);
