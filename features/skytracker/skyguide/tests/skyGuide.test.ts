@@ -23,6 +23,10 @@ const liveMapSource = readFileSync(
   new URL("../../map/components/SkyTrackerLiveMap.tsx", import.meta.url),
   "utf8",
 );
+const providerSource = readFileSync(
+  new URL("../infrastructure/openAiSkyGuideProvider.ts", import.meta.url),
+  "utf8",
+);
 
 test("normalizes whitespace without changing meaningful text", () => {
   assert.equal(normalizeSkyGuideQuery("  What   is squawk 7700?  "), "What is squawk 7700?");
@@ -181,6 +185,11 @@ test("live context is available while future external capabilities remain disabl
       (capability) => capability.id !== "live-skytracker-data",
     ).every((capability) => !capability.available),
   );
+});
+
+test("provider suggestions stay within SkyGuide's currently available capabilities", () => {
+  assert.match(providerSource, /questions the user\s+can ask SkyGuide next/);
+  assert.match(providerSource, /Never suggest consulting live ATC/);
 });
 
 const EMPTY_CONTEXT = {
