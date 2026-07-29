@@ -25,6 +25,7 @@ Legenda: ✅ geaccepteerd · 🟡 technisch gereed, acceptatie open · ⬜ gepla
 - 🟡 P3.1 — SkyGuide Foundation
 - 🟡 P3.2 — SkyGuide AI Foundation
 - ✅ P3.3 — SkyGuide Intelligence Tools
+- 🟡 P3.4 — SkyGuide Product Polish & Personalization Foundation
 - ⬜ L12 — Accounts & Sync
 - ⬜ L13 — Contextual AI
 
@@ -140,3 +141,9 @@ uitleg en werkelijk gebruikte bronnen achter toegankelijke disclosures.
 De meertalige scopecorrectie laat een korte server-side semantische
 classificatie taal, aviation-intentie en toolplan bepalen, zodat geen
 taalgebonden lokale trefwoorden geldige vragen blokkeren.
+
+P3.4 verfijnt uitsluitend de geïntegreerde SkyGuide-productervaring:
+sessiegebonden Continue-status, stabiele typing en autoscroll, contextuele
+Smart Actions, bronmetadata, expliciete locatieconsent en meertalige/RTL-veilige
+presentatie. Personalisatie bestaat alleen als domaininterface; opslag,
+accounts, Supabase en permanente memory blijven uitgesteld.

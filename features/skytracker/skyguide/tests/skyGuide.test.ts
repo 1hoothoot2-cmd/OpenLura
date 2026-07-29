@@ -8,6 +8,7 @@ import {
   normalizeSkyGuideQuery,
   SKYGUIDE_ACTIONS,
   SKYGUIDE_CAPABILITIES,
+  SKYGUIDE_CONTEXT_ACTIONS,
   SKYGUIDE_PLACEHOLDERS,
 } from "../domain/skyGuide.ts";
 import {
@@ -35,6 +36,10 @@ const routeSource = readFileSync(
 );
 const panelSource = readFileSync(
   new URL("../presentation/SkyGuidePanel.tsx", import.meta.url),
+  "utf8",
+);
+const personalizationSource = readFileSync(
+  new URL("../domain/skyGuidePersonalization.ts", import.meta.url),
   "utf8",
 );
 
@@ -202,6 +207,64 @@ test("smart actions and placeholders are deterministic and unique", () => {
   assert.equal(new Set(SKYGUIDE_PLACEHOLDERS).size, SKYGUIDE_PLACEHOLDERS.length);
 });
 
+test("selected aircraft exposes contextual actions without changing generic actions", () => {
+  assert.equal(SKYGUIDE_CONTEXT_ACTIONS.length, 4);
+  assert.equal(
+    new Set(SKYGUIDE_CONTEXT_ACTIONS.map((action) => action.id)).size,
+    SKYGUIDE_CONTEXT_ACTIONS.length,
+  );
+  assert.match(panelSource, /context\.selectedAircraft\s*\?\s*SKYGUIDE_CONTEXT_ACTIONS/);
+});
+
+test("P3.4 chat polish preserves space, auto-scrolls and explains limiter failures", () => {
+  assert.match(panelSource, /conversationEndRef\.current\?\.scrollIntoView/);
+  assert.match(panelSource, /SkyGuide is thinking/);
+  assert.match(panelSource, /min-h-5/);
+  assert.match(panelSource, /Hourly free limit reached/);
+  assert.match(panelSource, /prefers-reduced-motion: reduce/);
+});
+
+test("location permission is requested only after an explicit action", () => {
+  assert.match(panelSource, /action\.id === "overhead" \|\| action\.id === "spotting"/);
+  assert.match(panelSource, /navigator\.geolocation\.getCurrentPosition/);
+  assert.match(panelSource, /Use my location/);
+  assert.match(panelSource, /Enter manually/);
+  assert.match(panelSource, /const requestCurrentLocation = \(\) =>/);
+  assert.doesNotMatch(panelSource, /useEffect\(\(\) => navigator\.geolocation/);
+});
+
+test("sources expose actual type and timestamp metadata behind disclosure", () => {
+  assert.match(panelSource, /sourceTypeLabel\(source\.dataType\)/);
+  assert.match(panelSource, /source\.publishedAt \?\? source\.retrievedAt/);
+  assert.match(providerSource, /const webDataType/);
+  assert.match(providerSource, /tools\.includes\("aviation-weather"\)/);
+  assert.match(providerSource, /tools\.includes\("airport-data"\)/);
+  assert.match(providerSource, /tools\.includes\("aviation-news"\)/);
+  assert.doesNotMatch(providerSource, /label: "Web Search"/);
+});
+
+test("personalization foundation defines interfaces without persistence", () => {
+  for (const field of [
+    "favoriteAircraftIds",
+    "favoriteAirlineCodes",
+    "favoriteAirportCodes",
+    "favoriteSpotLocations",
+    "preferredLanguage",
+    "units",
+    "notificationsEnabled",
+  ]) {
+    assert.match(personalizationSource, new RegExp(field));
+  }
+  assert.doesNotMatch(personalizationSource, /localStorage|sessionStorage|supabase|fetch\(/i);
+});
+
+test("multilingual presentation supports automatic text direction and wrapping", () => {
+  assert.match(panelSource, /dir="auto"/);
+  assert.match(panelSource, /break-words/);
+  assert.match(liveMapSource, /w-\[21rem\]/);
+  assert.match(liveMapSource, /left-3 right-3/);
+});
+
 test("P3.3 intelligence capabilities are available while memory remains deferred", () => {
   assert.ok(SKYGUIDE_CAPABILITIES.length >= 7);
   assert.equal(
@@ -230,7 +293,9 @@ test("semantic scope classification precedes tool routing and logs only a reason
 });
 
 test("initial SkyGuide state is ready and offline follows only a failed request", () => {
-  assert.match(panelSource, /conversation\.length > 0\s*\?\s*"offline"\s*:\s*"ready"/);
+  assert.match(panelSource, /latestResult\?\.kind === "answered"/);
+  assert.match(panelSource, /latestResult\s*\?\s*"offline"\s*:\s*"ready"/);
+  assert.match(panelSource, /item\.result\.kind === "answered"/);
 });
 
 test("tool router keeps selected-aircraft questions local", () => {

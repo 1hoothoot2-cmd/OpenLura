@@ -8,7 +8,7 @@ import type {
   SkyGuideSemanticScopeDecision,
   SkyGuideSemanticScopeClassifier,
 } from "../application/skyGuideAssistant";
-import type { SkyGuideContext } from "../domain/skyGuide";
+import type { SkyGuideContext, SkyGuideSource } from "../domain/skyGuide";
 import type { SkyGuideToolId } from "../application/skyGuideToolRouter";
 
 const SYSTEM_INSTRUCTIONS = `You are SkyGuide, OpenLura's Aviation Intelligence Assistant.
@@ -199,23 +199,20 @@ export class OpenAiSkyGuideProvider
       response.output_text.replace(/[\u0000-\u001F]/g, " "),
     ) as SkyGuideAnswer;
     const webSources = extractWebSources(response.output);
+    const retrievedAt = new Date().toISOString();
+    const webDataType: SkyGuideSource["dataType"] =
+      input.toolPlan.tools.includes("aviation-weather")
+      ? "weather"
+      : input.toolPlan.tools.includes("aviation-news")
+        ? "news"
+        : input.toolPlan.tools.includes("airport-data")
+          ? "airport"
+          : "web";
     const localSources = [
       ...(input.toolPlan.tools.includes("skytracker-live")
-        ? [{ id: "skytracker-live", label: "SkyTracker Live" }]
+        ? [{ id: "skytracker-live", label: "SkyTracker Live", dataType: "live" as const }]
         : []),
-      ...(webSources.length > 0 && input.toolPlan.tools.includes("airport-data")
-        ? [{ id: "airport-data", label: "Airport Data" }]
-        : []),
-      ...(webSources.length > 0 && input.toolPlan.tools.includes("aviation-weather")
-        ? [{ id: "aviation-weather", label: "Aviation Weather" }]
-        : []),
-      ...(webSources.length > 0 && input.toolPlan.tools.includes("aviation-news")
-        ? [{ id: "aviation-news", label: "Aviation News" }]
-        : []),
-      ...(webSources.length > 0
-        ? [{ id: "web-search", label: "Web Search" }]
-        : []),
-    ];
+    ].map((source) => ({ ...source, retrievedAt }));
     return {
       ...parsed,
       status: webSources.length > 0
@@ -223,7 +220,14 @@ export class OpenAiSkyGuideProvider
         : input.toolPlan.tools.includes("skytracker-live")
           ? "live"
           : "cached",
-      sources: [...localSources, ...webSources].slice(0, 5),
+      sources: [
+        ...localSources,
+        ...webSources.map((source) => ({
+          ...source,
+          dataType: webDataType,
+          retrievedAt,
+        })),
+      ].slice(0, 5),
     };
   }
 }
@@ -254,6 +258,7 @@ function extractWebSources(output: unknown) {
         id: url,
         label: typeof item.title === "string" ? item.title : new URL(url).hostname,
         url,
+        dataType: "web" as const,
       }];
     });
   return [...new Map(sources.map((source) => [source.id, source])).values()];

@@ -4,7 +4,11 @@ export type SkyGuideActionId =
   | "find-aircraft"
   | "overhead"
   | "weather"
-  | "spotting";
+  | "spotting"
+  | "explain-selected-flight"
+  | "selected-route-weather"
+  | "selected-aircraft"
+  | "selected-airports";
 
 export type SkyGuideCapabilityId =
   | "live-skytracker-data"
@@ -40,6 +44,15 @@ export type SkyGuideSource = Readonly<{
   label: string;
   url?: string;
   publishedAt?: string;
+  retrievedAt?: string;
+  dataType:
+    | "live"
+    | "cached"
+    | "web"
+    | "weather"
+    | "airport"
+    | "news"
+    | "unknown";
 }>;
 
 export type SkyGuideMapContext = Readonly<{
@@ -102,6 +115,13 @@ export const SKYGUIDE_ACTIONS: readonly SkyGuideAction[] = [
   { id: "overhead", title: "What is above me?", description: "Understand nearby air traffic", prompt: "What aircraft are flying above me?", icon: "location" },
   { id: "weather", title: "Flying weather", description: "Ask about aviation weather", prompt: "How does today’s weather affect flying?", icon: "weather" },
   { id: "spotting", title: "Best spotting locations", description: "Learn where and how to spot aircraft", prompt: "Where can I safely spot aircraft?", icon: "camera" },
+] as const;
+
+export const SKYGUIDE_CONTEXT_ACTIONS: readonly SkyGuideAction[] = [
+  { id: "explain-selected-flight", title: "Explain this flight", description: "Understand the selected flight", prompt: "Explain this selected flight", icon: "flight" },
+  { id: "selected-route-weather", title: "Weather on route", description: "Explore relevant aviation weather", prompt: "How is the aviation weather on this flight's route?", icon: "weather" },
+  { id: "selected-aircraft", title: "About this aircraft", description: "Learn about this aircraft", prompt: "Tell me about this selected aircraft", icon: "aircraft" },
+  { id: "selected-airports", title: "Airport information", description: "Explore the flight's airports", prompt: "Tell me about the airports for this selected flight", icon: "airport" },
 ] as const;
 
 export const SKYGUIDE_CAPABILITIES: readonly SkyGuideCapability[] = [

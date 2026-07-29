@@ -122,9 +122,13 @@ export async function answerSkyGuideQuestion(
       sources: (answer.sources ?? []).slice(0, 5).map((source) => ({
         id: source.id.slice(0, 160),
         label: source.label.slice(0, 160),
+        dataType: source.dataType,
         ...(source.url ? { url: source.url.slice(0, 1_000) } : {}),
         ...(source.publishedAt
           ? { publishedAt: source.publishedAt.slice(0, 60) }
+          : {}),
+        ...(source.retrievedAt
+          ? { retrievedAt: source.retrievedAt.slice(0, 60) }
           : {}),
       })),
     },

@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useId, useRef, useState } from "react";
 import {
   SKYGUIDE_ACTIONS,
+  SKYGUIDE_CONTEXT_ACTIONS,
   SKYGUIDE_PLACEHOLDERS,
   type SkyGuideAction,
   type SkyGuideContext,
@@ -30,6 +31,11 @@ type ConversationItem = {
   result: SkyGuideClientResult;
 };
 
+type LocationRequest = {
+  action: SkyGuideAction;
+  manual: boolean;
+};
+
 function ActionIcon({ icon }: { icon: SkyGuideAction["icon"] }) {
   const paths = {
     flight: <path d="m3 16 8-5V4l2-1 1 7 7-2v2l-7 4v5l3 2v1l-5-1-5 1v-1l3-2v-5l-7 3Z" />,
@@ -55,7 +61,11 @@ export function SkyGuidePanel({ context }: SkyGuidePanelProps) {
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [conversation, setConversation] = useState<ConversationItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [locationRequest, setLocationRequest] = useState<LocationRequest | null>(null);
+  const [manualLocation, setManualLocation] = useState("");
+  const [locationLoading, setLocationLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const conversationEndRef = useRef<HTMLDivElement>(null);
   const answerId = useId();
 
   useEffect(() => {
@@ -66,10 +76,61 @@ export function SkyGuidePanel({ context }: SkyGuidePanelProps) {
     return () => window.clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    conversationEndRef.current?.scrollIntoView({
+      block: "nearest",
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "auto"
+        : "smooth",
+    });
+  }, [conversation, isLoading]);
+
   const prepareQuestion = (question: string) => {
     setQuery(question);
     setActionsOpen(false);
+    setLocationRequest(null);
     window.requestAnimationFrame(() => inputRef.current?.focus());
+  };
+
+  const prepareAction = (action: SkyGuideAction) => {
+    if (action.id === "overhead" || action.id === "spotting") {
+      setLocationRequest({ action, manual: false });
+      setActionsOpen(false);
+      return;
+    }
+    prepareQuestion(action.prompt);
+  };
+
+  const requestCurrentLocation = () => {
+    const action = locationRequest?.action;
+    if (!action) return;
+    if (!navigator.geolocation) {
+      setLocationRequest({ action, manual: true });
+      return;
+    }
+    setLocationLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        setLocationLoading(false);
+        prepareQuestion(
+          `${action.prompt} Approximate location: ${coords.latitude.toFixed(2)}, ${coords.longitude.toFixed(2)}.`,
+        );
+      },
+      () => {
+        setLocationLoading(false);
+        setLocationRequest({ action, manual: true });
+      },
+      { enableHighAccuracy: false, maximumAge: 300_000, timeout: 8_000 },
+    );
+  };
+
+  const useManualLocation = (event: FormEvent) => {
+    event.preventDefault();
+    const location = manualLocation.trim();
+    const action = locationRequest?.action;
+    if (!action || !location) return;
+    setManualLocation("");
+    prepareQuestion(`${action.prompt} Location provided by the user: ${location}.`);
   };
 
   const submitQuestion = async (event: FormEvent) => {
@@ -92,6 +153,9 @@ export function SkyGuidePanel({ context }: SkyGuidePanelProps) {
     : context.map
       ? `Map near ${context.map.centerLatitudeDegrees.toFixed(1)}°, ${context.map.centerLongitudeDegrees.toFixed(1)}°`
       : "Live map context";
+  const hasSuccessfulInteraction = conversation.some(
+    (item) => item.result.kind === "answered",
+  );
 
   if (!isOpen) {
     return (
@@ -102,9 +166,11 @@ export function SkyGuidePanel({ context }: SkyGuidePanelProps) {
         className="ol-interactive flex min-h-12 w-full items-center justify-between rounded-2xl border border-cyan-100/15 bg-[#07141d]/92 px-4 py-3 text-left shadow-[0_16px_48px_rgba(0,0,0,.35)] backdrop-blur-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
       >
         <span>
-          <span className="block text-sm font-semibold text-white/90">SkyGuide</span>
+          <span className="flex items-center gap-2 text-sm font-semibold text-white/90">
+            <span aria-hidden="true">🤖</span> SkyGuide
+          </span>
           <span className="block text-[10px] text-cyan-100/50">
-            {conversation.length > 0 ? "Continue with SkyGuide" : "Use SkyGuide Free"}
+            {hasSuccessfulInteraction ? "Continue with SkyGuide" : "Use SkyGuide Free"}
           </span>
         </span>
         <span aria-hidden="true" className="text-cyan-200/65">+</span>
@@ -112,14 +178,16 @@ export function SkyGuidePanel({ context }: SkyGuidePanelProps) {
     );
   }
 
-  const latestStatus = [...conversation].reverse().find(
-    (item) => item.result.kind === "answered",
-  );
-  const status = latestStatus?.result.kind === "answered"
-    ? latestStatus.result.answer.status ?? "cached"
-    : conversation.length > 0
+  const latestResult = conversation.at(-1)?.result;
+  const status = latestResult?.kind === "answered"
+    ? latestResult.answer.status ?? "cached"
+    : latestResult
       ? "offline"
       : "ready";
+  const statusPresentation = skyGuideStatusPresentation(status);
+  const availableActions = context.selectedAircraft
+    ? SKYGUIDE_CONTEXT_ACTIONS
+    : SKYGUIDE_ACTIONS;
 
   return (
     <div className="text-white">
@@ -134,9 +202,9 @@ export function SkyGuidePanel({ context }: SkyGuidePanelProps) {
         <p className="mt-1 text-xs text-white/38">{contextLabel}</p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="flex items-center gap-1 text-[10px] capitalize text-white/45">
-            <span className={`h-1.5 w-1.5 rounded-full ${status === "offline" ? "bg-amber-300" : status === "web" ? "bg-blue-300" : "bg-cyan-300"}`} />
-            {status}
+          <span className="flex items-center gap-1.5 text-[10px] text-white/48">
+            <span className={`h-1.5 w-1.5 rounded-full ${statusPresentation.dotClass}`} />
+            {statusPresentation.label}
           </span>
           <button type="button" onClick={() => setIsOpen(false)}
             aria-label="Collapse SkyGuide"
@@ -152,33 +220,56 @@ export function SkyGuidePanel({ context }: SkyGuidePanelProps) {
           Ask SkyGuide about aviation
         </label>
         <input ref={inputRef} id={`skyguide-question-${answerId}`} value={query}
+          dir="auto"
           onChange={(event) => setQuery(event.target.value)}
           placeholder={SKYGUIDE_PLACEHOLDERS[placeholderIndex]}
           className="min-h-10 min-w-0 flex-1 bg-transparent px-2 text-sm text-white/88 outline-none placeholder:text-white/28" />
         <button type="submit" disabled={isLoading}
           className="ol-interactive min-h-10 shrink-0 rounded-xl bg-cyan-300 px-3 text-xs font-semibold text-[#03111a] hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
-          {isLoading ? "Thinking…" : "Ask"}
+          {isLoading ? "Asking…" : "Ask"}
         </button>
       </form>
 
-      {isLoading && (
-        <p role="status" aria-live="polite" className="mt-2.5 text-xs text-cyan-100/55">
-          SkyGuide is considering the available aviation context…
-        </p>
-      )}
+      <div className="mt-2 min-h-5" aria-live="polite">
+        {isLoading && <div role="status" className="flex items-center gap-2 text-xs text-cyan-100/58">
+          <span>SkyGuide is thinking</span>
+          <span aria-hidden="true" className="flex gap-1">
+            {[0, 1, 2].map((index) => (
+              <span key={index}
+                className="h-1 w-1 rounded-full bg-cyan-200 motion-safe:animate-pulse"
+                style={{ animationDelay: `${index * 140}ms` }} />
+            ))}
+          </span>
+        </div>}
+      </div>
 
       {conversation.length > 0 && (
         <div id={answerId} aria-live="polite"
           className="mt-2.5 max-h-72 space-y-3 overflow-y-auto rounded-xl border border-cyan-200/12 bg-cyan-200/[0.035] px-3 py-2.5 text-xs leading-5">
           {conversation.map((item) => (
-            <article key={item.id}>
+            <article key={item.id} dir="auto" className="break-words">
               <p className="text-[10px] font-medium text-cyan-100/45">{item.question}</p>
               {item.result.kind === "answered"
                 ? <SkyGuideAnswerContent answer={item.result.answer} onSuggestion={prepareQuestion} />
-                : <p className="text-amber-50/68">{item.result.message}</p>}
+                : <SkyGuideErrorMessage result={item.result} />}
             </article>
           ))}
+          <div ref={conversationEndRef} aria-hidden="true" />
         </div>
+      )}
+
+      {locationRequest && (
+        <LocationConsent
+          request={locationRequest}
+          manualLocation={manualLocation}
+          loading={locationLoading}
+          onUseLocation={requestCurrentLocation}
+          onManual={() => setLocationRequest({ ...locationRequest, manual: true })}
+          onManualLocation={setManualLocation}
+          onManualSubmit={useManualLocation}
+          onSkip={() => prepareQuestion(locationRequest.action.prompt)}
+          onCancel={() => setLocationRequest(null)}
+        />
       )}
 
       <section className="mt-4">
@@ -188,8 +279,8 @@ export function SkyGuidePanel({ context }: SkyGuidePanelProps) {
           Smart actions <span aria-hidden="true">{actionsOpen ? "-" : "+"}</span>
         </button>
         {actionsOpen && <div className="mt-2 grid grid-cols-2 gap-2">
-          {SKYGUIDE_ACTIONS.map((action) => (
-            <button key={action.id} type="button" onClick={() => prepareQuestion(action.prompt)}
+          {availableActions.map((action) => (
+            <button key={action.id} type="button" onClick={() => prepareAction(action)}
               className="ol-interactive flex min-h-14 items-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.025] px-2.5 py-2 text-left hover:border-cyan-200/16 hover:bg-cyan-200/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
               <span className="text-cyan-100/58"><ActionIcon icon={action.icon} /></span>
               <span className="text-[11px] font-medium leading-4 text-white/67">{action.title}</span>
@@ -207,7 +298,8 @@ export function SkyGuidePanel({ context }: SkyGuidePanelProps) {
         <div className="mt-1.5 space-y-1">
           {DISCOVER_ITEMS.map((item) => (
             <button key={item} type="button" onClick={() => prepareQuestion(item)}
-              className="ol-interactive block min-h-10 w-full rounded-lg px-2 py-1.5 text-left text-xs leading-4 text-white/52 hover:bg-white/[0.04] hover:text-white/78 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
+              dir="auto"
+              className="ol-interactive block min-h-10 w-full break-words rounded-lg px-2 py-1.5 text-left text-xs leading-4 text-white/52 hover:bg-white/[0.04] hover:text-white/78 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
               {item}
             </button>
           ))}
@@ -226,7 +318,7 @@ function SkyGuideAnswerContent({
 }) {
   return (
     <>
-      <p className="text-white/72">{answer.answer}</p>
+      <p dir="auto" className="break-words text-white/72">{answer.answer}</p>
       {(answer.facts.length > 0 || answer.likelyExplanation.length > 0 || answer.unknown.length > 0) && (
         <details className="mt-2">
           <summary className="ol-interactive cursor-pointer text-cyan-100/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
@@ -242,15 +334,22 @@ function SkyGuideAnswerContent({
           <summary className="ol-interactive cursor-pointer text-white/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
             Sources
           </summary>
-          <ul className="mt-1 space-y-1">
+          <ul className="mt-1.5 space-y-2">
             {answer.sources?.map((source) => (
-              <li key={source.id}>
+              <li key={source.id}
+                className="rounded-lg border border-white/[0.06] px-2 py-1.5">
+                <p dir="auto" className="break-words">
                 {source.url ? (
                   <a href={source.url} target="_blank" rel="noreferrer"
                     className="text-cyan-100/60 underline decoration-cyan-100/20 underline-offset-2">
                     {source.label}
                   </a>
                 ) : source.label}
+                </p>
+                <p className="mt-0.5 text-[9px] uppercase tracking-[0.1em] text-white/32">
+                  {sourceTypeLabel(source.dataType)} ·{" "}
+                  {formatSourceTime(source.publishedAt ?? source.retrievedAt)}
+                </p>
               </li>
             ))}
           </ul>
@@ -297,4 +396,118 @@ function AnswerSection({
       </ul>
     </section>
   );
+}
+
+function SkyGuideErrorMessage({
+  result,
+}: {
+  result: Exclude<SkyGuideClientResult, { kind: "answered" }>;
+}) {
+  const rateLimited = result.kind === "rate-limited";
+  return (
+    <div role={rateLimited ? "alert" : "status"}
+      className="mt-1.5 rounded-lg border border-amber-200/12 bg-amber-200/[0.05] px-2.5 py-2 text-amber-50/72">
+      <p className="font-medium">
+        {rateLimited ? "Hourly free limit reached" : "SkyGuide could not answer"}
+      </p>
+      <p className="mt-0.5">{result.message}</p>
+    </div>
+  );
+}
+
+function LocationConsent({
+  request,
+  manualLocation,
+  loading,
+  onUseLocation,
+  onManual,
+  onManualLocation,
+  onManualSubmit,
+  onSkip,
+  onCancel,
+}: {
+  request: LocationRequest;
+  manualLocation: string;
+  loading: boolean;
+  onUseLocation: () => void;
+  onManual: () => void;
+  onManualLocation: (value: string) => void;
+  onManualSubmit: (event: FormEvent) => void;
+  onSkip: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <section aria-label="Location choice"
+      className="mt-3 rounded-xl border border-cyan-200/12 bg-cyan-200/[0.035] p-3">
+      <p className="text-xs leading-5 text-white/68">
+        Location helps answer this question. It is requested only after you choose to share it.
+      </p>
+      {request.manual ? (
+        <form onSubmit={onManualSubmit} className="mt-2 flex gap-1.5">
+          <label htmlFor="skyguide-manual-location" className="sr-only">
+            City, airport or location
+          </label>
+          <input id="skyguide-manual-location" dir="auto" value={manualLocation}
+            onChange={(event) => onManualLocation(event.target.value)}
+            placeholder="City, airport or location"
+            className="min-h-10 min-w-0 flex-1 rounded-lg border border-white/10 bg-black/20 px-2.5 text-xs text-white outline-none focus:border-cyan-200/30" />
+          <button type="submit"
+            className="ol-interactive rounded-lg bg-cyan-300 px-3 text-xs font-semibold text-[#03111a]">
+            Use
+          </button>
+        </form>
+      ) : (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          <button type="button" disabled={loading} onClick={onUseLocation}
+            className="ol-interactive min-h-9 rounded-lg bg-cyan-300 px-3 text-xs font-semibold text-[#03111a]">
+            {loading ? "Requesting…" : "Use my location"}
+          </button>
+          <button type="button" onClick={onManual}
+            className="ol-interactive min-h-9 rounded-lg border border-white/10 px-3 text-xs text-white/68">
+            Enter manually
+          </button>
+        </div>
+      )}
+      <div className="mt-2 flex gap-3 text-[10px] text-white/42">
+        <button type="button" onClick={onSkip}
+          className="ol-interactive underline underline-offset-2">
+          Continue without location
+        </button>
+        <button type="button" onClick={onCancel}
+          className="ol-interactive underline underline-offset-2">
+          Cancel
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function skyGuideStatusPresentation(status: string) {
+  switch (status) {
+    case "live":
+      return { label: "Live", dotClass: "bg-emerald-300" };
+    case "cached":
+      return { label: "Cached", dotClass: "bg-amber-300" };
+    case "web":
+      return { label: "Web", dotClass: "bg-blue-300" };
+    case "offline":
+      return { label: "Temporarily unavailable", dotClass: "bg-red-300" };
+    default:
+      return { label: "Ready", dotClass: "bg-white/55" };
+  }
+}
+
+function sourceTypeLabel(type: string) {
+  return type.charAt(0).toUpperCase() + type.slice(1);
+}
+
+function formatSourceTime(value: string | undefined) {
+  if (!value) return "Timestamp unavailable";
+  const date = new Date(value);
+  return Number.isNaN(date.valueOf())
+    ? "Timestamp unavailable"
+    : new Intl.DateTimeFormat(undefined, {
+        dateStyle: "medium",
+        timeStyle: "short",
+      }).format(date);
 }
