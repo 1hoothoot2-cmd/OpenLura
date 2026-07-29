@@ -170,3 +170,11 @@ SkyGuide-context hergebruikt. De goedgekeurde productiemigratie is uitgevoerd
 en read-only gevalideerd. De productieacceptatie bewees expliciete CRUD,
 persistente voorkeuren, een volledige `Clear Memory`-reset zonder
 favorietenwijziging en regressievrije desktop- en mobiele presentatie.
+
+P5.1 introduceert een opslag- en providerneutrale Intelligent Monitoring-
+fundering met zes monitorsoorten, drie triggermodi, expliciete statussen,
+deterministische regels en niet-afgeleverde Notification Intents. SkyGuide
+herkent monitoringsintenties, maar voert ze nog niet uit. De enige zichtbare
+voorbereiding is een uitgeschakelde Monitor-actie bij een geselecteerd
+aircraft; workers, scheduling, persistentie en notificatiekanalen blijven
+expliciet uitgesteld.

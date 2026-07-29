@@ -17,6 +17,7 @@ export type SkyGuideCapabilityId =
   | "aviation-news"
   | "controlled-web-search"
   | "memory"
+  | "monitoring"
   | "notifications";
 
 export type SkyGuideCapability = {
@@ -141,6 +142,7 @@ export const SKYGUIDE_CAPABILITIES: readonly SkyGuideCapability[] = [
   { id: "aviation-news", available: true },
   { id: "controlled-web-search", available: true },
   { id: "memory", available: true },
+  { id: "monitoring", available: false },
   { id: "notifications", available: false },
 ] as const;
 

@@ -1464,6 +1464,15 @@ export function SkyTrackerLiveMap({
               </button>
               <button
                 type="button"
+                disabled
+                aria-label="Monitor aircraft (coming soon)"
+                title="Intelligent Monitoring is coming soon"
+                className="min-h-11 cursor-not-allowed rounded-full border border-white/8 bg-white/[0.025] px-4 text-sm font-medium text-white/38"
+              >
+                Monitor
+              </button>
+              <button
+                type="button"
                 onClick={() => selectAircraft(null)}
                 className="ol-interactive min-h-11 rounded-full border border-white/10 px-4 text-sm text-white/68 hover:border-white/18 hover:bg-white/[0.05] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
               >

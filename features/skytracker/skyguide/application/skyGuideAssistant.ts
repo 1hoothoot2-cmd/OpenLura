@@ -10,6 +10,10 @@ import {
   type SkyGuideSource,
 } from "../domain/skyGuide.ts";
 import { routeSkyGuideTools, type SkyGuideToolPlan } from "./skyGuideToolRouter.ts";
+import {
+  recognizeMonitoringIntent,
+  type MonitoringIntent,
+} from "../../monitoring/application/monitoringIntent.ts";
 
 export type SkyGuideAnswer = Readonly<{
   answer: string;
@@ -27,6 +31,7 @@ export type SkyGuideProviderInput = Readonly<{
   audienceMode: SkyGuideAudienceMode;
   context: SkyGuideContext;
   toolPlan: SkyGuideToolPlan;
+  monitoringIntent: MonitoringIntent;
   responseLanguage?: string;
 }>;
 
@@ -102,6 +107,7 @@ export async function answerSkyGuideQuestion(
     context: input.context,
     audienceMode: validation.audienceMode,
     toolPlan: input.toolPlan ?? routeSkyGuideTools(validation.query, input.context),
+    monitoringIntent: recognizeMonitoringIntent(validation.query),
     responseLanguage: input.responseLanguage,
   });
 
