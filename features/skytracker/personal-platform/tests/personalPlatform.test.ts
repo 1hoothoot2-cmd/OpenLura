@@ -17,6 +17,18 @@ import {
   DEFAULT_SKYGUIDE_AI_PREFERENCES,
   DEFAULT_USER_PREFERENCES,
 } from "../domain/preferences.ts";
+import {
+  mergeBrowserFavorites,
+  toPersonalFavorites,
+} from "../domain/accountSync.ts";
+import {
+  SupabaseFavoritesRepository,
+  SupabaseProfileRepository,
+  ensureAccountProfile,
+} from "../infrastructure/supabaseRepositories.ts";
+import {
+  FAVORITES_STORAGE_VERSION,
+} from "../../favorites/domain/favorites.ts";
 
 test("profile model starts with explicit guest defaults and independent lists", () => {
   const first = createGuestProfile(" guest-1 ");
@@ -84,13 +96,9 @@ test("repository boundary contains no concrete storage or cloud dependency", () 
     fileURLToPath(new URL("../application/repositories.ts", import.meta.url)),
     "utf8",
   );
-  const platformIndex = readFileSync(
-    fileURLToPath(new URL("../index.ts", import.meta.url)),
-    "utf8",
-  );
 
   assert.doesNotMatch(
-    `${repositorySource}\n${platformIndex}`,
+    repositorySource,
     /supabase|localStorage|sessionStorage|indexedDB|fetch\(|new\s+\w+Repository/i,
   );
   for (const name of [
@@ -103,6 +111,129 @@ test("repository boundary contains no concrete storage or cloud dependency", () 
   ]) {
     assert.match(repositorySource, new RegExp(`interface ${name}`));
   }
+});
+
+test("guest favorites migrate without overwriting richer local snapshots", () => {
+  const local = {
+    version: FAVORITES_STORAGE_VERSION,
+    aircraft: [{
+      aircraftId: "48455a",
+      callsign: "KLM31K",
+      registration: "PH-ABC",
+    }],
+    airports: [{
+      icaoCode: "EHAM",
+      iataCode: "AMS",
+      name: "Amsterdam Airport Schiphol",
+      city: "Amsterdam",
+      countryCode: "NL",
+      latitudeDegrees: 52.31,
+      longitudeDegrees: 4.76,
+    }],
+  } as const;
+  const migrated = toPersonalFavorites(local, 1_700_000_000_000);
+  const merged = mergeBrowserFavorites(local, migrated);
+
+  assert.equal(merged.aircraft.length, 1);
+  assert.equal(merged.aircraft[0]?.registration, "PH-ABC");
+  assert.equal(merged.airports[0]?.latitudeDegrees, 52.31);
+});
+
+test("Supabase repositories use the user token and never a service role", async () => {
+  const requests: Array<{ url: string; init?: RequestInit }> = [];
+  const fetcher = async (url: string | URL | Request, init?: RequestInit) => {
+    requests.push({ url: String(url), init });
+    const body = String(url).includes("skytracker_profiles")
+      ? []
+      : [];
+    return new Response(JSON.stringify(body), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  };
+  const config = {
+    baseUrl: "https://example.supabase.co",
+    anonKey: "public-anon",
+    accessToken: "user-jwt",
+    fetcher: fetcher as typeof fetch,
+  };
+  await new SupabaseProfileRepository(config).findByUserId("user-1");
+  await new SupabaseFavoritesRepository(config).getForUser("user-1");
+
+  assert.equal(requests.length, 2);
+  for (const request of requests) {
+    const headers = new Headers(request.init?.headers);
+    assert.equal(headers.get("apikey"), "public-anon");
+    assert.equal(headers.get("Authorization"), "Bearer user-jwt");
+    assert.doesNotMatch(JSON.stringify(request), /service.role/i);
+  }
+});
+
+test("profile creation is idempotent behind the repository port", async () => {
+  const saved: string[] = [];
+  const repository = {
+    findByUserId: async () => null,
+    save: async (profile: { userId: string }) => {
+      saved.push(profile.userId);
+    },
+  };
+  const profile = await ensureAccountProfile(repository, "user-1");
+  assert.equal(profile.accountTier, "account");
+  assert.deepEqual(saved, ["user-1"]);
+});
+
+test("RLS migration limits profiles and favorites to auth.uid", () => {
+  const migration = readFileSync(
+    fileURLToPath(
+      new URL(
+        "../../../../supabase/migrations/20260729_skytracker_personal_platform.sql",
+        import.meta.url,
+      ),
+    ),
+    "utf8",
+  );
+  assert.match(migration, /enable row level security/g);
+  assert.match(migration, /revoke all .* from anon/g);
+  assert.equal((migration.match(/auth\.uid\(\)/g) ?? []).length, 10);
+  assert.doesNotMatch(migration, /memory|subscription|notification/i);
+});
+
+test("account UI uses same-origin routes without direct Supabase access", () => {
+  const component = readFileSync(
+    fileURLToPath(
+      new URL("../presentation/SkyTrackerAccountControl.tsx", import.meta.url),
+    ),
+    "utf8",
+  );
+  assert.match(component, /fetch\("\/api\/auth"/);
+  assert.match(component, /fetch\("\/api\/skytracker\/account"/);
+  assert.doesNotMatch(component, /supabase|service.role|NEXT_PUBLIC/i);
+  assert.match(component, /Guest Mode/);
+  assert.match(component, /Account active/);
+});
+
+test("authentication and account routes keep sessions server-side", () => {
+  const authRoute = readFileSync(
+    fileURLToPath(
+      new URL("../../../../app/api/auth/route.ts", import.meta.url),
+    ),
+    "utf8",
+  );
+  const accountRoute = readFileSync(
+    fileURLToPath(
+      new URL("../../../../app/api/skytracker/account/route.ts", import.meta.url),
+    ),
+    "utf8",
+  );
+
+  assert.match(authRoute, /httpOnly:\s*true/);
+  assert.match(authRoute, /sameSite:\s*"lax"/);
+  assert.match(authRoute, /secure:\s*isProduction/);
+  assert.match(authRoute, /action\s*===\s*"signup"/);
+  assert.match(authRoute, /export async function GET/);
+  assert.match(authRoute, /export async function DELETE/);
+  assert.match(accountRoute, /requireOpenLuraIdentity/);
+  assert.doesNotMatch(accountRoute, /SUPABASE_SERVICE_ROLE_KEY|NEXT_PUBLIC/);
 });
 
 function favorite(

@@ -4,6 +4,7 @@ import {
   DEFAULT_USER_PREFERENCES,
   type PreferredUnits,
   type SkyGuideAiPreferences,
+  type ThemePreference,
   type UserPreferences,
 } from "./preferences.ts";
 
@@ -23,6 +24,7 @@ export type UserProfile = Readonly<{
   language: string;
   timezone: string;
   preferredUnits: PreferredUnits;
+  theme: ThemePreference;
   favoriteAirlines: readonly string[];
   favoriteAirports: readonly string[];
   favoriteAircraft: readonly string[];
@@ -45,6 +47,7 @@ export function createGuestProfile(
     language: preferences.language,
     timezone: preferences.timezone,
     preferredUnits: preferences.units,
+    theme: preferences.theme,
     favoriteAirlines: [],
     favoriteAirports: [],
     favoriteAircraft: [],

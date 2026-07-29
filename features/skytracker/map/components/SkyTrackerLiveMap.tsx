@@ -133,6 +133,7 @@ import {
 } from "../../historical-track/presentation/historicalTrackMapRenderer";
 import type { SkyGuideMapContext } from "../../skyguide/domain/skyGuide";
 import { SkyGuidePanel } from "../../skyguide/presentation/SkyGuidePanel";
+import { SkyTrackerAccountControl } from "../../personal-platform/presentation/SkyTrackerAccountControl";
 
 type MapStatus = "loading" | "ready" | "error";
 
@@ -260,6 +261,16 @@ export function SkyTrackerLiveMap({
     );
     return () => window.clearInterval(timer);
   }, []);
+
+  const mergeAccountFavorites = useCallback(
+    (merged: SkyTrackerFavorites) => {
+      const repository = favoritesRepositoryRef.current;
+      const saved = repository ? repository.save(merged) : merged;
+      setFavorites(saved);
+      setFavoriteAnnouncement("Account favorites synchronized");
+    },
+    [],
+  );
 
   useEffect(() => {
     const repository = createBrowserFavoritesRepository();
@@ -914,6 +925,10 @@ export function SkyTrackerLiveMap({
                 ? "Live backend data"
                 : "Backend development data"}
           </span>
+          <SkyTrackerAccountControl
+            localFavorites={favorites}
+            onFavoritesMerged={mergeAccountFavorites}
+          />
           <Link
             href="/skytracker"
             className="ol-interactive hidden min-h-11 items-center rounded-full border border-white/10 px-4 text-sm text-white/58 hover:border-white/18 hover:bg-white/[0.04] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 sm:inline-flex"

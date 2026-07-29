@@ -26,7 +26,8 @@ Legenda: ✅ geaccepteerd · 🟡 technisch gereed, acceptatie open · ⬜ gepla
 - 🟡 P3.2 — SkyGuide AI Foundation
 - ✅ P3.3 — SkyGuide Intelligence Tools
 - 🟡 P3.4 — SkyGuide Product Polish & Personalization Foundation
-- 🟡 P4.1 — Personal Platform Foundation
+- ✅ P4.1 — Personal Platform Foundation
+- 🟡 P4.2 — Accounts & Supabase Foundation (database apply gate)
 - ⬜ L12 — Accounts & Sync
 - ⬜ L13 — Contextual AI
 
@@ -153,3 +154,9 @@ P4.1 introduceert een afzonderlijke Personal Platform-laag met immutable
 profiel-, voorkeuren-, favorieten-, account-, featureflag- en notificatiemodellen
 plus opslagneutrale repositorypoorten. Er bestaan bewust nog geen concrete
 adapters, accounts, cloudopslag, memory, notificatietaken of betalingen.
+
+P4.2 plaatst server-side Supabase-adapters achter de P4.1-poorten en voegt
+compacte registratie-, login-, logout-, sessieherstel-, profiel- en
+favorietensynchronisatie toe. De minimale profielen- en favorietenmigratie met
+RLS wacht op expliciete Product Owner-goedkeuring; tot die apply blijft P4.2
+open en wordt niet naar productie uitgerold.
