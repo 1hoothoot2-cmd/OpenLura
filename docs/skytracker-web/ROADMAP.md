@@ -24,7 +24,7 @@ Legenda: ✅ geaccepteerd · 🟡 technisch gereed, acceptatie open · ⬜ gepla
 - 🟡 P2.1 — Budget & Snapshot Optimization
 - 🟡 P3.1 — SkyGuide Foundation
 - 🟡 P3.2 — SkyGuide AI Foundation
-- 🟡 P3.3 — SkyGuide Intelligence Tools
+- ✅ P3.3 — SkyGuide Intelligence Tools
 - ⬜ L12 — Accounts & Sync
 - ⬜ L13 — Contextual AI
 
