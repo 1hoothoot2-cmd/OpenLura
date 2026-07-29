@@ -143,11 +143,17 @@ import {
   createFlightMonitor,
   createPatternMonitor,
   createRegionMonitor,
+  DEFAULT_NOTIFICATION_PREFERENCES,
   dismissAlert,
+  dismissNotification,
   evaluateLiveAlerts,
   appendSessionAlerts,
+  markNotificationRead,
   recognizeLiveMonitoringCommand,
+  SessionNotificationDeliveryService,
   transitionLiveMonitor,
+  type NotificationPreferences,
+  type SessionNotification,
   type MonitoringAlert,
   type Monitor,
 } from "../../monitoring";
@@ -159,6 +165,15 @@ import {
   createSessionAlertRepository,
   type SessionAlertRepository,
 } from "../../monitoring/infrastructure/sessionAlertRepository";
+import {
+  createBrowserNotificationAdapter,
+  type BrowserNotificationAdapter,
+  type BrowserNotificationPermission,
+} from "../../monitoring/infrastructure/browserNotificationAdapter";
+import {
+  createSessionNotificationRepository,
+  type SessionNotificationRepository,
+} from "../../monitoring/infrastructure/sessionNotificationRepository";
 
 type MapStatus = "loading" | "ready" | "error";
 
@@ -245,6 +260,14 @@ export function SkyTrackerLiveMap({
   const [favoriteAnnouncement, setFavoriteAnnouncement] = useState("");
   const [monitors, setMonitors] = useState<readonly Monitor[]>([]);
   const [alerts, setAlerts] = useState<readonly MonitoringAlert[]>([]);
+  const [notifications, setNotifications] =
+    useState<readonly SessionNotification[]>([]);
+  const [notificationPreferences, setNotificationPreferences] =
+    useState<NotificationPreferences>(DEFAULT_NOTIFICATION_PREFERENCES);
+  const [browserNotificationPermission, setBrowserNotificationPermission] =
+    useState<BrowserNotificationPermission>("unsupported");
+  const [notificationContextMessage, setNotificationContextMessage] =
+    useState("");
   const [accountState, setAccountState] =
     useState<AccountState>({ status: "loading" });
   const [flightPhaseSessions, setFlightPhaseSessions] =
@@ -270,10 +293,21 @@ export function SkyTrackerLiveMap({
   const monitoringRepositoryRef =
     useRef<SessionMonitoringRepository | null>(null);
   const alertRepositoryRef = useRef<SessionAlertRepository | null>(null);
+  const notificationRepositoryRef =
+    useRef<SessionNotificationRepository | null>(null);
+  const browserNotificationAdapterRef =
+    useRef<BrowserNotificationAdapter | null>(null);
+  const notificationDeliveryServiceRef =
+    useRef(new SessionNotificationDeliveryService());
   const restoredAccountMonitoringRef = useRef(false);
   const restoredAccountAlertsRef = useRef(false);
+  const restoredAccountNotificationsRef = useRef(false);
   const previousAccountStatusRef = useRef<AccountState["status"]>("loading");
   const monitorsRef = useRef<readonly Monitor[]>([]);
+  const notificationsRef = useRef<readonly SessionNotification[]>([]);
+  const notificationPreferencesRef = useRef<NotificationPreferences>(
+    DEFAULT_NOTIFICATION_PREFERENCES,
+  );
   const currentAircraftRef = useRef<readonly Aircraft[]>([]);
   const latestLiveAircraftRef = useRef<readonly Aircraft[]>([]);
   const livePhaseSessionsRef = useRef<FlightPhaseSessions>(new Map());
@@ -295,6 +329,14 @@ export function SkyTrackerLiveMap({
   }, [monitors]);
 
   useEffect(() => {
+    notificationsRef.current = notifications;
+  }, [notifications]);
+
+  useEffect(() => {
+    notificationPreferencesRef.current = notificationPreferences;
+  }, [notificationPreferences]);
+
+  useEffect(() => {
     const timer = window.setInterval(
       () => setLifecycleEpochMillis(Date.now()),
       15_000,
@@ -305,6 +347,11 @@ export function SkyTrackerLiveMap({
   useEffect(() => {
     monitoringRepositoryRef.current = createSessionMonitoringRepository();
     alertRepositoryRef.current = createSessionAlertRepository();
+    notificationRepositoryRef.current = createSessionNotificationRepository();
+    browserNotificationAdapterRef.current = createBrowserNotificationAdapter();
+    setBrowserNotificationPermission(
+      browserNotificationAdapterRef.current.permission(),
+    );
   }, []);
 
   useEffect(() => {
@@ -331,6 +378,22 @@ export function SkyTrackerLiveMap({
     repository.save(alerts);
   }, [accountState.status, alerts]);
 
+  useEffect(() => {
+    const repository = notificationRepositoryRef.current;
+    if (!repository || accountState.status !== "account") return;
+    if (!restoredAccountNotificationsRef.current) {
+      restoredAccountNotificationsRef.current = true;
+      const restored = repository.load();
+      setNotifications(restored.notifications);
+      setNotificationPreferences(restored.preferences);
+      return;
+    }
+    repository.save({
+      notifications,
+      preferences: notificationPreferences,
+    });
+  }, [accountState.status, notificationPreferences, notifications]);
+
   const updateAccountState = useCallback((next: AccountState) => {
     const previousStatus = previousAccountStatusRef.current;
     previousAccountStatusRef.current = next.status;
@@ -338,12 +401,16 @@ export function SkyTrackerLiveMap({
     if (previousStatus === "account" && next.status !== "account") {
       monitoringRepositoryRef.current?.clear();
       alertRepositoryRef.current?.clear();
+      notificationRepositoryRef.current?.clear();
       setMonitors([]);
       setAlerts([]);
+      setNotifications([]);
+      setNotificationPreferences(DEFAULT_NOTIFICATION_PREFERENCES);
     }
     if (next.status !== "account") {
       restoredAccountMonitoringRef.current = false;
       restoredAccountAlertsRef.current = false;
+      restoredAccountNotificationsRef.current = false;
     }
   }, []);
 
@@ -554,6 +621,81 @@ export function SkyTrackerLiveMap({
     setAlerts([]);
   }, []);
 
+  const enableBrowserNotifications = useCallback(async () => {
+    const adapter = browserNotificationAdapterRef.current;
+    if (!adapter) return;
+    const permission = await adapter.requestPermission();
+    setBrowserNotificationPermission(permission);
+    setNotificationPreferences((current) => ({
+      ...current,
+      browserEnabled: permission === "granted",
+    }));
+  }, []);
+
+  const updateNotificationPreferences = useCallback(
+    (preferences: NotificationPreferences) => {
+      setNotificationPreferences(preferences);
+    },
+    [],
+  );
+
+  const readNotification = useCallback((notificationId: string) => {
+    setNotifications((current) =>
+      current.map((notification) =>
+        notification.id === notificationId
+          ? markNotificationRead(notification)
+          : notification,
+      ),
+    );
+  }, []);
+
+  const dismissSessionNotification = useCallback((notificationId: string) => {
+    setNotifications((current) =>
+      current.map((notification) =>
+        notification.id === notificationId
+          ? dismissNotification(notification)
+          : notification,
+      ),
+    );
+  }, []);
+
+  const markAllNotificationsRead = useCallback(() => {
+    setNotifications((current) =>
+      current.map((notification) => markNotificationRead(notification)),
+    );
+  }, []);
+
+  const clearSessionNotifications = useCallback(() => {
+    setNotifications([]);
+  }, []);
+
+  const openSessionNotification = useCallback(
+    (notification: SessionNotification) => {
+      readNotification(notification.id);
+      setNotificationContextMessage("");
+      const notificationTarget = notification.target;
+      if (notificationTarget?.kind === "aircraft") {
+        const target = currentAircraftRef.current.find(
+          (aircraft) => aircraft.id === notificationTarget.aircraftId,
+        );
+        if (target) {
+          setFollowEnabled(false);
+          setSelectedAirport(null);
+          setSelectedAircraftId(target.id);
+          updateAircraftQuery(target.id);
+          setMobilePanelTab("details");
+          return;
+        }
+        setNotificationContextMessage(
+          "This aircraft is no longer available in the live snapshot.",
+        );
+        return;
+      }
+      setMobilePanelTab("skyguide");
+    },
+    [readNotification],
+  );
+
   const watchSelectedAircraft = useCallback(() => {
     if (!selectedAircraft) return;
     setMonitors((current) =>
@@ -567,6 +709,65 @@ export function SkyTrackerLiveMap({
       const command = recognizeLiveMonitoringCommand(query);
       if (!command) return null;
 
+      if (command.action === "notifications-on") {
+        setNotificationPreferences((current) => ({
+          ...current,
+          inAppEnabled: true,
+        }));
+        return "I'll notify you about detected changes while SkyTracker is open. Browser notifications can be enabled separately in Notification preferences.";
+      }
+      if (command.action === "notifications-off") {
+        setNotificationPreferences((current) => ({
+          ...current,
+          inAppEnabled: false,
+          browserEnabled: false,
+        }));
+        return "Session notifications are off. Your monitors remain available.";
+      }
+      if (command.action === "show-notifications") {
+        const active = notifications.filter(
+          (notification) =>
+            notification.status !== "dismissed" &&
+            notification.status !== "suppressed",
+        );
+        return active.length === 0
+          ? "There are no active session notifications."
+          : `${active.length} session ${active.length === 1 ? "notification is" : "notifications are"} active.`;
+      }
+      if (command.action === "read-notifications") {
+        markAllNotificationsRead();
+        return "I've marked the session notifications as read.";
+      }
+      if (command.action === "clear-notifications") {
+        clearSessionNotifications();
+        return "I've cleared the session notifications.";
+      }
+      if (command.action === "explain-notification") {
+        const latest = notifications.find(
+          (notification) =>
+            notification.status !== "dismissed" &&
+            notification.status !== "suppressed",
+        );
+        return latest
+          ? `You were notified because ${latest.reason}. ${latest.description}`
+          : "There is no active notification to explain.";
+      }
+      if (command.action === "pause-alerts") {
+        setNotificationPreferences((current) => ({
+          ...current,
+          normalAlertsEnabled: false,
+          importantAlertsEnabled: false,
+        }));
+        return "I've paused session notifications. Monitoring remains active.";
+      }
+      if (command.action === "resume-alerts") {
+        setNotificationPreferences((current) => ({
+          ...current,
+          normalAlertsEnabled: true,
+          importantAlertsEnabled: true,
+        }));
+        return "Session notifications are active again while SkyTracker is open.";
+      }
       if (command.action === "show-alerts") {
         const visible = alerts.filter((alert) => alert.status !== "dismissed");
         if (visible.length === 0) return "Nothing new has happened yet.";
@@ -669,8 +870,11 @@ export function SkyTrackerLiveMap({
     [
       alerts,
       clearMonitoringAlerts,
+      clearSessionNotifications,
       dismissMonitoringAlert,
+      markAllNotificationsRead,
       monitors,
+      notifications,
       selectedAircraft,
       selectedAirport,
       skyGuideMapContext,
@@ -684,21 +888,37 @@ export function SkyTrackerLiveMap({
       onResume: resumeMonitor,
       onStop: stopMonitor,
       handleCommand: handleMonitoringCommand,
-      alerts: {
-        alerts,
-        onDismiss: dismissMonitoringAlert,
-        onClear: clearMonitoringAlerts,
+      notifications: {
+        notifications,
+        preferences: notificationPreferences,
+        browserPermission: browserNotificationPermission,
+        contextMessage: notificationContextMessage,
+        onEnableBrowser: () => void enableBrowserNotifications(),
+        onUpdatePreferences: updateNotificationPreferences,
+        onRead: readNotification,
+        onDismiss: dismissSessionNotification,
+        onMarkAllRead: markAllNotificationsRead,
+        onClear: clearSessionNotifications,
+        onOpen: openSessionNotification,
       },
     }),
     [
       handleMonitoringCommand,
-      alerts,
-      clearMonitoringAlerts,
-      dismissMonitoringAlert,
+      browserNotificationPermission,
+      clearSessionNotifications,
+      dismissSessionNotification,
+      enableBrowserNotifications,
       monitors,
+      notificationContextMessage,
+      notificationPreferences,
+      notifications,
+      openSessionNotification,
       pauseMonitor,
+      readNotification,
       resumeMonitor,
       stopMonitor,
+      updateNotificationPreferences,
+      markAllNotificationsRead,
     ],
   );
 
@@ -787,6 +1007,39 @@ export function SkyTrackerLiveMap({
         setAlerts((current) =>
           appendSessionAlerts(current, evaluation.alerts),
         );
+        const delivered = notificationDeliveryServiceRef.current.enqueue(
+          evaluation.alerts,
+          evaluation.monitors,
+          notificationsRef.current,
+          notificationPreferencesRef.current,
+          now,
+        );
+        const previousIds = new Set(
+          notificationsRef.current.map((notification) => notification.id),
+        );
+        const browserCandidates = delivered.filter(
+          (notification) =>
+            !previousIds.has(notification.id) &&
+            notification.status === "delivered" &&
+            notificationPreferencesRef.current.browserEnabled,
+        );
+        notificationsRef.current = delivered;
+        setNotifications(delivered);
+
+        const adapter = browserNotificationAdapterRef.current;
+        if (adapter && browserCandidates.length > 0) {
+          for (const notification of browserCandidates) {
+            void adapter.deliver(notification).then((status) => {
+              setNotifications((current) =>
+                current.map((item) =>
+                  item.id === notification.id
+                    ? { ...item, browserDeliveryStatus: status }
+                    : item,
+                ),
+              );
+            });
+          }
+        }
       }
     }
     latestLiveAircraftRef.current = nextAircraft;

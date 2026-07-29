@@ -17,7 +17,15 @@ export type LiveMonitoringCommand =
         | "show-alerts"
         | "explain-alert"
         | "dismiss-alert"
-        | "clear-alerts";
+        | "clear-alerts"
+        | "notifications-on"
+        | "notifications-off"
+        | "show-notifications"
+        | "read-notifications"
+        | "explain-notification"
+        | "clear-notifications"
+        | "pause-alerts"
+        | "resume-alerts";
     }>
   | Readonly<{
       action: "watch";
@@ -54,6 +62,30 @@ export function recognizeLiveMonitoringCommand(
   query: string,
 ): LiveMonitoringCommand | null {
   const normalized = query.trim();
+  if (/\b(?:notify me|turn notifications on)\b/i.test(normalized)) {
+    return { action: "notifications-on" };
+  }
+  if (/\bturn notifications off\b/i.test(normalized)) {
+    return { action: "notifications-off" };
+  }
+  if (/\bwhat notifications are active\b/i.test(normalized)) {
+    return { action: "show-notifications" };
+  }
+  if (/\bmark notifications as read\b/i.test(normalized)) {
+    return { action: "read-notifications" };
+  }
+  if (/\bclear notifications\b/i.test(normalized)) {
+    return { action: "clear-notifications" };
+  }
+  if (/\bwhy was i notified\b/i.test(normalized)) {
+    return { action: "explain-notification" };
+  }
+  if (/\bpause (?:these )?alerts\b/i.test(normalized)) {
+    return { action: "pause-alerts" };
+  }
+  if (/\bresume (?:these )?alerts\b/i.test(normalized)) {
+    return { action: "resume-alerts" };
+  }
   if (/\b(?:what happened|show alerts?|list alerts?)\b/i.test(normalized)) {
     return { action: "show-alerts" };
   }

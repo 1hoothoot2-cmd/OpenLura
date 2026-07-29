@@ -192,3 +192,10 @@ daaruit begrensde sessiealerts voor flight-, aircraft-, regio-, airport- en
 spottermonitors. Het geïntegreerde SkyGuide Alert Center bewaart maximaal
 twintig alerts en ondersteunt lokale uitleg, dismiss en clear. Motionframes,
 polling, backendroutes, providers en notificatiekanalen blijven ongewijzigd.
+
+P5.4 bezorgt P5.3-alerts als begrensde in-appmeldingen en, uitsluitend na
+expliciete toestemming, browsernotificaties. Deduplicatie, cooldown,
+sessieratelimits, severity, quiet hours en monitortypevoorkeuren voorkomen
+spam. Guests blijven memory-only; accounts kunnen binnen dezelfde tab
+herstellen. Achtergrondworkers, push, e-mail, sms en permanente historie
+blijven uitgesteld.

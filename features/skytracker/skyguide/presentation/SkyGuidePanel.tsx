@@ -18,9 +18,9 @@ import {
   type MonitoringPanelProps,
 } from "../../monitoring/presentation/MonitoringPanel";
 import {
-  AlertCenter,
-  type AlertCenterProps,
-} from "../../monitoring/presentation/AlertCenter";
+  NotificationCenter,
+  type NotificationCenterProps,
+} from "../../monitoring/presentation/NotificationCenter";
 
 const DISCOVER_ITEMS = [
   "What makes the world’s largest aircraft unique?",
@@ -33,7 +33,7 @@ type SkyGuidePanelProps = {
   context: SkyGuideContext;
   monitoring?: MonitoringPanelProps & {
     handleCommand: (query: string) => string | null;
-    alerts: AlertCenterProps;
+    notifications: NotificationCenterProps;
   };
 };
 
@@ -195,25 +195,52 @@ export function SkyGuidePanel({ context, monitoring }: SkyGuidePanelProps) {
   const hasSuccessfulInteraction = conversation.some(
     (item) => item.result.kind === "answered",
   );
+  const unreadNotifications =
+    monitoring?.notifications.notifications.filter(
+      (notification) => notification.status === "delivered",
+    ) ?? [];
 
   if (!isOpen) {
     return (
-      <button
-        type="button"
-        aria-expanded="false"
-        onClick={() => setIsOpen(true)}
-        className="ol-interactive flex min-h-12 w-full items-center justify-between rounded-2xl border border-cyan-100/15 bg-[#07141d]/92 px-4 py-3 text-left shadow-[0_16px_48px_rgba(0,0,0,.35)] backdrop-blur-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
-      >
-        <span>
-          <span className="flex items-center gap-2 text-sm font-semibold text-white/90">
-            <span aria-hidden="true">🤖</span> SkyGuide
+      <div>
+        {unreadNotifications[0] && (
+          <div
+            role="status"
+            className="mb-2 rounded-xl border border-amber-100/14 bg-[#101817]/94 px-3 py-2 text-[11px] text-white/68 shadow-lg"
+          >
+            <span className="font-medium text-amber-50/80">
+              {unreadNotifications[0].title}
+            </span>
+            <span className="mt-0.5 block text-white/44">
+              {unreadNotifications[0].description}
+            </span>
+          </div>
+        )}
+        <button
+          type="button"
+          aria-expanded="false"
+          onClick={() => setIsOpen(true)}
+          className="ol-interactive flex min-h-12 w-full items-center justify-between rounded-2xl border border-cyan-100/15 bg-[#07141d]/92 px-4 py-3 text-left shadow-[0_16px_48px_rgba(0,0,0,.35)] backdrop-blur-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+        >
+          <span>
+            <span className="flex items-center gap-2 text-sm font-semibold text-white/90">
+              <span aria-hidden="true">🤖</span> SkyGuide
+              {unreadNotifications.length > 0 && (
+                <span
+                  aria-label={`${unreadNotifications.length} unread notifications`}
+                  className="rounded-full bg-amber-200/12 px-1.5 py-0.5 text-[9px] text-amber-100/75"
+                >
+                  {unreadNotifications.length}
+                </span>
+              )}
+            </span>
+            <span className="block text-[10px] text-cyan-100/50">
+              {hasSuccessfulInteraction ? "Continue with SkyGuide" : "Use SkyGuide Free"}
+            </span>
           </span>
-          <span className="block text-[10px] text-cyan-100/50">
-            {hasSuccessfulInteraction ? "Continue with SkyGuide" : "Use SkyGuide Free"}
-          </span>
-        </span>
-        <span aria-hidden="true" className="text-cyan-200/65">+</span>
-      </button>
+          <span aria-hidden="true" className="text-cyan-200/65">+</span>
+        </button>
+      </div>
     );
   }
 
@@ -332,11 +359,7 @@ export function SkyGuidePanel({ context, monitoring }: SkyGuidePanelProps) {
 
       {monitoring && (
         <>
-          <AlertCenter
-            alerts={monitoring.alerts.alerts}
-            onDismiss={monitoring.alerts.onDismiss}
-            onClear={monitoring.alerts.onClear}
-          />
+          <NotificationCenter {...monitoring.notifications} />
           <MonitoringPanel
             monitors={monitoring.monitors}
             onPause={monitoring.onPause}

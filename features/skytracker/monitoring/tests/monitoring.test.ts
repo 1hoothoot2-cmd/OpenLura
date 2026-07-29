@@ -4,7 +4,9 @@ import test from "node:test";
 import {
   DeterministicMonitoringEngine,
   ALERT_TRIGGER_KINDS,
+  DEFAULT_NOTIFICATION_PREFERENCES,
   MONITOR_KINDS,
+  NOTIFICATION_DELIVERY_STATUSES,
   MONITOR_STATUSES,
   addMonitor,
   appendSessionAlerts,
@@ -14,17 +16,23 @@ import {
   createRegionMonitor,
   createMonitor,
   dismissAlert,
+  dismissNotification,
   evaluateLiveAlerts,
   monitorPresentationStatus,
+  markNotificationRead,
   recognizeLiveMonitoringCommand,
   recognizeMonitoringIntent,
+  SessionNotificationDeliveryService,
   transitionLiveMonitor,
   updateLiveMonitors,
   type Monitor,
   type MonitorObservation,
   type MonitorTriggerMode,
+  type MonitoringAlert,
+  type SessionNotification,
 } from "../index.ts";
 import { aircraftId, type Aircraft } from "../../aircraft/domain/aircraft.ts";
+import { createBrowserNotificationAdapter } from "../infrastructure/browserNotificationAdapter.ts";
 
 const NOW = 1_800_000_000_000;
 
@@ -314,6 +322,13 @@ test("SkyGuide live commands cover watch, show, pause, resume and stop", () => {
   assert.equal(recognizeLiveMonitoringCommand("Why did this trigger?")?.action, "explain-alert");
   assert.equal(recognizeLiveMonitoringCommand("Dismiss alert.")?.action, "dismiss-alert");
   assert.equal(recognizeLiveMonitoringCommand("Clear alerts.")?.action, "clear-alerts");
+  assert.equal(recognizeLiveMonitoringCommand("Notify me.")?.action, "notifications-on");
+  assert.equal(recognizeLiveMonitoringCommand("Turn notifications off.")?.action, "notifications-off");
+  assert.equal(recognizeLiveMonitoringCommand("What notifications are active?")?.action, "show-notifications");
+  assert.equal(recognizeLiveMonitoringCommand("Mark notifications as read.")?.action, "read-notifications");
+  assert.equal(recognizeLiveMonitoringCommand("Why was I notified?")?.action, "explain-notification");
+  assert.equal(recognizeLiveMonitoringCommand("Pause these alerts.")?.action, "pause-alerts");
+  assert.equal(recognizeLiveMonitoringCommand("Resume these alerts.")?.action, "resume-alerts");
 });
 
 test("flight triggers use only changes between reliable snapshots", () => {
@@ -420,6 +435,190 @@ test("alert center keeps twenty newest unique session alerts and supports dismis
   assert.equal(dismissAlert(bounded[0]!, "alert-22").status, "dismissed");
 });
 
+function monitoringAlert(
+  overrides: Partial<MonitoringAlert> = {},
+): MonitoringAlert {
+  return {
+    id: "alert-delivery-1",
+    monitorId: "monitor-delivery",
+    trigger: "landing-detected",
+    timestampEpochMillis: NOW,
+    severity: "notice",
+    title: "Landing detected",
+    description: "SKY123 is now reported on the ground.",
+    status: "new",
+    ...overrides,
+  };
+}
+
+function deliveryMonitor(): Monitor {
+  return createMonitor({
+    id: "monitor-delivery",
+    kind: "flight",
+    title: "Watching SKY123",
+    target: { stableId: LIVE_AIRCRAFT.id, label: "SKY123" },
+    targetContext: { kind: "aircraft", aircraftId: LIVE_AIRCRAFT.id },
+    rule: {
+      match: "all",
+      conditions: [
+        { id: "present", field: "present", operator: "equals", expectedValue: true },
+      ],
+    },
+    trigger: { mode: "continuous", scheduledAtEpochMillis: null },
+    createdAtEpochMillis: NOW - 10_000,
+  });
+}
+
+test("alert becomes a bounded in-app notification with target context", () => {
+  const delivered = new SessionNotificationDeliveryService().enqueue(
+    [monitoringAlert()],
+    [deliveryMonitor()],
+    [],
+    DEFAULT_NOTIFICATION_PREFERENCES,
+    NOW,
+  );
+  assert.equal(delivered.length, 1);
+  assert.equal(delivered[0]?.status, "delivered");
+  assert.equal(delivered[0]?.browserDeliveryStatus, "not-requested");
+  assert.deepEqual(delivered[0]?.target, {
+    kind: "aircraft",
+    aircraftId: LIVE_AIRCRAFT.id,
+  });
+});
+
+test("delivery policy deduplicates, cools down and suppresses disabled severity", () => {
+  const service = new SessionNotificationDeliveryService();
+  const monitor = deliveryMonitor();
+  const first = service.enqueue(
+    [monitoringAlert()],
+    [monitor],
+    [],
+    DEFAULT_NOTIFICATION_PREFERENCES,
+    NOW,
+  );
+  const duplicate = service.enqueue(
+    [monitoringAlert()],
+    [monitor],
+    first,
+    DEFAULT_NOTIFICATION_PREFERENCES,
+    NOW + 1_000,
+  );
+  assert.equal(
+    duplicate.find((item) => item.alertId === "alert-delivery-1")?.status,
+    "delivered",
+  );
+  const cooldown = service.enqueue(
+    [monitoringAlert({
+      id: "alert-delivery-2",
+      title: "Flight status changed",
+      timestampEpochMillis: NOW + 2_000,
+    })],
+    [monitor],
+    first,
+    DEFAULT_NOTIFICATION_PREFERENCES,
+    NOW + 2_000,
+  );
+  assert.equal(cooldown[0]?.suppressionReason, "monitor-cooldown");
+  const disabled = service.enqueue(
+    [monitoringAlert({ id: "alert-delivery-3" })],
+    [monitor],
+    [],
+    { ...DEFAULT_NOTIFICATION_PREFERENCES, importantAlertsEnabled: false },
+    NOW,
+  );
+  assert.equal(disabled[0]?.suppressionReason, "important-alerts-disabled");
+});
+
+test("continuous alerts are session-rate-limited without disturbing monitors", () => {
+  const service = new SessionNotificationDeliveryService();
+  const monitor = deliveryMonitor();
+  const existing: SessionNotification[] = Array.from(
+    { length: 12 },
+    (_, index) => ({
+      id: `notification-existing-${index}`,
+      alertId: `alert-existing-${index}`,
+      monitorId: `another-monitor-${index}`,
+      monitorKind: "flight",
+      createdAtEpochMillis: NOW - index,
+      severity: "info",
+      title: `Existing ${index}`,
+      description: "Existing notification.",
+      reason: "aircraft appeared",
+      target: null,
+      status: "delivered",
+      browserDeliveryStatus: "not-requested",
+      suppressionReason: null,
+    }),
+  );
+  const result = service.enqueue(
+    [monitoringAlert({ id: "rate-limited" })],
+    [monitor],
+    existing,
+    DEFAULT_NOTIFICATION_PREFERENCES,
+    NOW,
+  );
+  assert.equal(result[0]?.suppressionReason, "session-rate-limit");
+  assert.equal(monitor.state.status, "active");
+});
+
+test("notification read, dismiss and delivery statuses are explicit", () => {
+  assert.deepEqual(NOTIFICATION_DELIVERY_STATUSES, [
+    "queued",
+    "delivered",
+    "read",
+    "dismissed",
+    "failed",
+    "suppressed",
+  ]);
+  const notification = new SessionNotificationDeliveryService().enqueue(
+    [monitoringAlert()],
+    [deliveryMonitor()],
+    [],
+    DEFAULT_NOTIFICATION_PREFERENCES,
+    NOW,
+  )[0]!;
+  assert.equal(markNotificationRead(notification).status, "read");
+  assert.equal(dismissNotification(notification).status, "dismissed");
+});
+
+test("browser permission is requested only explicitly and denial is respected", async () => {
+  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  let requestCount = 0;
+  class DeniedNotification {
+    static permission = "default";
+    static async requestPermission() {
+      requestCount += 1;
+      DeniedNotification.permission = "denied";
+      return "denied";
+    }
+  }
+  Object.defineProperty(globalThis, "window", {
+    configurable: true,
+    value: { Notification: DeniedNotification },
+  });
+  try {
+    const adapter = createBrowserNotificationAdapter();
+    assert.equal(requestCount, 0);
+    assert.equal(adapter.permission(), "default");
+    assert.equal(await adapter.requestPermission(), "denied");
+    assert.equal(requestCount, 1);
+    const notification = new SessionNotificationDeliveryService().enqueue(
+      [monitoringAlert()],
+      [deliveryMonitor()],
+      [],
+      DEFAULT_NOTIFICATION_PREFERENCES,
+      NOW,
+    )[0]!;
+    assert.equal(await adapter.deliver(notification), "suppressed");
+  } finally {
+    if (originalWindow) {
+      Object.defineProperty(globalThis, "window", originalWindow);
+    } else {
+      Reflect.deleteProperty(globalThis, "window");
+    }
+  }
+});
+
 test("session restoration is account-gated and no provider route is introduced", async () => {
   const mapSource = await readFile(
     new URL("../../map/components/SkyTrackerLiveMap.tsx", import.meta.url),
@@ -441,6 +640,18 @@ test("session restoration is account-gated and no provider route is introduced",
     new URL("../infrastructure/sessionAlertRepository.ts", import.meta.url),
     "utf8",
   );
+  const browserAdapterSource = await readFile(
+    new URL("../infrastructure/browserNotificationAdapter.ts", import.meta.url),
+    "utf8",
+  );
+  const notificationRepositorySource = await readFile(
+    new URL("../infrastructure/sessionNotificationRepository.ts", import.meta.url),
+    "utf8",
+  );
+  const notificationPanelSource = await readFile(
+    new URL("../presentation/NotificationCenter.tsx", import.meta.url),
+    "utf8",
+  );
   assert.match(mapSource, /accountState\.status !== "account"/);
   assert.match(repositorySource, /window\.sessionStorage/);
   assert.doesNotMatch(repositorySource, /localStorage|fetch|supabase/i);
@@ -452,4 +663,12 @@ test("session restoration is account-gated and no provider route is introduced",
   assert.match(alertPanelSource, />\s*Clear\s*</);
   assert.match(alertRepositorySource, /window\.sessionStorage/);
   assert.doesNotMatch(alertRepositorySource, /localStorage|fetch|supabase/i);
+  assert.match(browserAdapterSource, /requestPermission\(\)/);
+  assert.match(browserAdapterSource, /Notification\.permission !== "granted"/);
+  assert.match(mapSource, /const enableBrowserNotifications = useCallback/);
+  assert.match(notificationPanelSource, /onClick=\{props\.onEnableBrowser\}/);
+  assert.match(notificationRepositorySource, /window\.sessionStorage/);
+  assert.doesNotMatch(notificationRepositorySource, /localStorage|fetch|supabase/i);
+  assert.match(notificationPanelSource, /Notifications work while SkyTracker is open/);
+  assert.match(notificationPanelSource, /Mark all as read/);
 });
