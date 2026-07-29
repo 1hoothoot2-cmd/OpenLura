@@ -2,6 +2,7 @@ import type { Aircraft, AircraftId } from "../../aircraft/domain/aircraft.ts";
 import {
   createLiveMotionState,
   interpolateMotionPlan,
+  isPlausiblePositionUpdate,
   sampleLiveMotionState,
   type LiveMotionState,
   type MotionPlan,
@@ -28,8 +29,8 @@ type AircraftMotionRuntimeOptions = Readonly<{
 
 export class AircraftMotionRuntime {
   private aircraft: readonly Aircraft[];
-  private liveStates: readonly LiveMotionState[];
-  private replayPlans: readonly MotionPlan[] = [];
+  private liveStates: ReadonlyMap<AircraftId, LiveMotionState>;
+  private replayPlans = new Map<AircraftId, MotionPlan>();
   private replayMode: boolean;
   private readonly sourceWriter: AircraftMapSourceWriter;
   private readonly window: Window;
@@ -48,17 +49,20 @@ export class AircraftMotionRuntime {
     this.aircraft = options.aircraft;
     this.replayMode = options.replayMode ?? false;
     this.epochNow = options.epochNow ?? Date.now;
-    this.liveStates = options.aircraft.map((item) =>
-      createLiveMotionState(
-        item,
-        {
-          latitudeDegrees: item.latitudeDegrees,
-          longitudeDegrees: item.longitudeDegrees,
-        },
-        item.headingDegrees,
-        0,
-        this.epochNow(),
-      ),
+    this.liveStates = new Map(
+      options.aircraft.map((item) => [
+        item.id,
+        createLiveMotionState(
+          item,
+          {
+            latitudeDegrees: item.latitudeDegrees,
+            longitudeDegrees: item.longitudeDegrees,
+          },
+          item.headingDegrees,
+          0,
+          this.epochNow(),
+        ),
+      ]),
     );
     this.sourceWriter = options.sourceWriter;
     this.selectedAircraftId = options.selectedAircraftId;
@@ -102,10 +106,10 @@ export class AircraftMotionRuntime {
     this.aircraft = aircraft;
     this.replayMode = replayMode;
     if (replayMode) {
-      this.liveStates = [];
-      this.replayPlans = aircraft.map((target) => {
+      this.liveStates = new Map();
+      this.replayPlans = new Map(aircraft.map((target) => {
         const current = currentById.get(target.id) ?? target;
-        return {
+        return [target.id, {
           startPosition: {
             latitudeDegrees: current.latitudeDegrees,
             longitudeDegrees: current.longitudeDegrees,
@@ -118,15 +122,21 @@ export class AircraftMotionRuntime {
           speedMetersPerSecond: target.groundSpeedMetersPerSecond ?? 0,
           startTimeMillis: time,
           durationMillis: 4_000,
-        };
-      });
+        }];
+      }));
     } else {
-      this.replayPlans = [];
+      this.replayPlans = new Map();
       const epochTime = this.epochNow();
-      this.liveStates = aircraft.map((target) => {
+      const previousStates = this.liveStates;
+      this.liveStates = new Map(aircraft.map((target) => {
         const current = currentById.get(target.id) ?? target;
-        return createLiveMotionState(
-          target,
+        const previous = previousStates.get(target.id)?.aircraft;
+        const acceptedTarget =
+          previous && !isPlausiblePositionUpdate(previous, target)
+            ? previous
+            : target;
+        return [target.id, createLiveMotionState(
+          acceptedTarget,
           {
             latitudeDegrees: current.latitudeDegrees,
             longitudeDegrees: current.longitudeDegrees,
@@ -134,8 +144,8 @@ export class AircraftMotionRuntime {
           current.headingDegrees,
           time,
           epochTime,
-        );
-      });
+        )];
+      }));
     }
     this.renderCurrentFrame(true);
   }
@@ -216,14 +226,14 @@ export class AircraftMotionRuntime {
   }
 
   private sampleAircraft(currentTimeMillis: number) {
-    return this.aircraft.map((item, index) => {
+    return this.aircraft.map((item) => {
       if (!this.replayMode) {
-        const state = this.liveStates[index];
+        const state = this.liveStates.get(item.id);
         return state
           ? sampleLiveMotionState(state, currentTimeMillis, this.epochNow())
           : item;
       }
-      const plan = this.replayPlans[index];
+      const plan = this.replayPlans.get(item.id);
       if (!plan) return item;
       const position = interpolateMotionPlan(plan, currentTimeMillis);
       return {

@@ -11,6 +11,8 @@ export const MAXIMUM_EXTRAPOLATION_MILLIS = 420_000;
 export const MINIMUM_RELIABLE_SPEED_METERS_PER_SECOND = 5;
 const MINIMUM_CORRECTION_MILLIS = 1_500;
 const MAXIMUM_CORRECTION_MILLIS = 8_000;
+export const MAXIMUM_PLAUSIBLE_SPEED_METERS_PER_SECOND = 450;
+export const POSITION_UPDATE_TOLERANCE_METERS = 5_000;
 
 export type MotionPosition = Readonly<{
   latitudeDegrees: number;
@@ -271,6 +273,33 @@ export function interpolateHeadingDegrees(
   return normalizeHeading(start + delta * clamp(progress, 0, 1));
 }
 
+export function isPlausiblePositionUpdate(
+  previous: Aircraft,
+  candidate: Aircraft,
+): boolean {
+  if (
+    previous.id !== candidate.id ||
+    !validPosition(previous) ||
+    !validPosition(candidate) ||
+    candidate.positionTimestampEpochMillis <
+      previous.positionTimestampEpochMillis
+  ) {
+    return false;
+  }
+  const elapsedSeconds = Math.max(
+    0,
+    (candidate.positionTimestampEpochMillis -
+      previous.positionTimestampEpochMillis) /
+      1_000,
+  );
+  const maximumDistanceMeters =
+    POSITION_UPDATE_TOLERANCE_METERS +
+    MAXIMUM_PLAUSIBLE_SPEED_METERS_PER_SECOND * elapsedSeconds;
+  return (
+    distanceMeters(previous, candidate) <= maximumDistanceMeters
+  );
+}
+
 export function projectPosition(
   position: MotionPosition,
   headingDegrees: number,
@@ -305,13 +334,17 @@ function interpolatePosition(
   target: MotionPosition,
   progress: number,
 ): MotionPosition {
+  if (progress <= 0) return start;
+  if (progress >= 1) return target;
+  const longitudeDelta =
+    ((target.longitudeDegrees - start.longitudeDegrees + 540) % 360) - 180;
   return {
     latitudeDegrees:
       start.latitudeDegrees +
       (target.latitudeDegrees - start.latitudeDegrees) * progress,
-    longitudeDegrees:
-      start.longitudeDegrees +
-      (target.longitudeDegrees - start.longitudeDegrees) * progress,
+    longitudeDegrees: normalizeLongitude(
+      start.longitudeDegrees + longitudeDelta * progress,
+    ),
   };
 }
 
@@ -360,6 +393,17 @@ function distanceMeters(start: MotionPosition, target: MotionPosition) {
     2 *
     EARTH_RADIUS_METERS *
     Math.atan2(Math.sqrt(haversine), Math.sqrt(Math.max(0, 1 - haversine)))
+  );
+}
+
+function validPosition(position: MotionPosition) {
+  return (
+    Number.isFinite(position.latitudeDegrees) &&
+    position.latitudeDegrees >= -90 &&
+    position.latitudeDegrees <= 90 &&
+    Number.isFinite(position.longitudeDegrees) &&
+    position.longitudeDegrees >= -180 &&
+    position.longitudeDegrees <= 180
   );
 }
 

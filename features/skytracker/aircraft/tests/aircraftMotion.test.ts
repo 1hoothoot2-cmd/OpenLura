@@ -9,6 +9,7 @@ import {
   extrapolateAircraftPosition,
   interpolateHeadingDegrees,
   interpolateMotionPlan,
+  isPlausiblePositionUpdate,
   MAXIMUM_EXTRAPOLATION_MILLIS,
   NORMAL_EXTRAPOLATION_MILLIS,
   sampleLiveMotionState,
@@ -201,7 +202,7 @@ test("heading interpolation uses the shortest normalized turn", () => {
   assert.equal(interpolateHeadingDegrees(90, null, 0.5), 90);
 });
 
-test("new snapshots reconcile smoothly and cap large correction duration", () => {
+test("new snapshots reconcile smoothly and identify implausible jumps", () => {
   const aircraft = DEVELOPMENT_AIRCRAFT[0];
   const nearby = createLiveMotionState(
     aircraft,
@@ -213,14 +214,6 @@ test("new snapshots reconcile smoothly and cap large correction duration", () =>
     0,
     aircraft.positionTimestampEpochMillis,
   );
-  const large = createLiveMotionState(
-    aircraft,
-    { latitudeDegrees: 0, longitudeDegrees: 0 },
-    aircraft.headingDegrees,
-    0,
-    aircraft.positionTimestampEpochMillis,
-  );
-
   const start = sampleLiveMotionState(nearby, 0);
   const halfway = sampleLiveMotionState(
     nearby,
@@ -229,7 +222,60 @@ test("new snapshots reconcile smoothly and cap large correction duration", () =>
   assert.equal(start.latitudeDegrees, aircraft.latitudeDegrees - 0.01);
   assert.ok(halfway.latitudeDegrees > start.latitudeDegrees);
   assert.ok(nearby.correctionDurationMillis <= 8_000);
-  assert.equal(large.correctionDurationMillis, 8_000);
+  assert.equal(
+    isPlausiblePositionUpdate(aircraft, {
+      ...aircraft,
+      latitudeDegrees: 0,
+      longitudeDegrees: 0,
+      positionTimestampEpochMillis:
+        aircraft.positionTimestampEpochMillis + 1_000,
+    }),
+    false,
+  );
+  assert.equal(
+    isPlausiblePositionUpdate(aircraft, {
+      ...aircraft,
+      longitudeDegrees: aircraft.longitudeDegrees + 0.01,
+      positionTimestampEpochMillis:
+        aircraft.positionTimestampEpochMillis + 10_000,
+    }),
+    true,
+  );
+});
+
+test("position plausibility rejects stale, invalid and wrong-identity updates", () => {
+  const aircraft = DEVELOPMENT_AIRCRAFT[0];
+  assert.equal(
+    isPlausiblePositionUpdate(aircraft, {
+      ...aircraft,
+      positionTimestampEpochMillis:
+        aircraft.positionTimestampEpochMillis - 1,
+    }),
+    false,
+  );
+  assert.equal(
+    isPlausiblePositionUpdate(aircraft, {
+      ...aircraft,
+      latitudeDegrees: Number.NaN,
+    }),
+    false,
+  );
+  assert.equal(
+    isPlausiblePositionUpdate(aircraft, DEVELOPMENT_AIRCRAFT[1]),
+    false,
+  );
+});
+
+test("longitude interpolation crosses the antimeridian by the short route", () => {
+  const halfway = interpolateMotionPlan(
+    {
+      ...LINEAR_PLAN,
+      startPosition: { latitudeDegrees: 0, longitudeDegrees: 179 },
+      targetPosition: { latitudeDegrees: 0, longitudeDegrees: -179 },
+    },
+    3_000,
+  );
+  assert.ok(Math.abs(Math.abs(halfway.longitudeDegrees) - 180) < 0.001);
 });
 
 test("freshness fades motion and bridges the six minute focus refresh", () => {
@@ -329,6 +375,67 @@ test("replay mode does not use live extrapolation", () => {
   const replayed = harness.frames.at(-1)?.[0];
   assert.equal(replayed?.latitudeDegrees, aircraft.latitudeDegrees);
   assert.equal(replayed?.longitudeDegrees, aircraft.longitudeDegrees);
+  harness.runtime.dispose();
+});
+
+test("motion runtime binds state to aircraft ID when snapshot order changes", () => {
+  const first = DEVELOPMENT_AIRCRAFT[0];
+  const second = DEVELOPMENT_AIRCRAFT[1];
+  const harness = createRuntimeHarness([first, second]);
+  harness.runtime.start();
+  harness.now = 1_000;
+  harness.runtime.setAircraftSnapshot([
+    {
+      ...second,
+      longitudeDegrees: second.longitudeDegrees + 0.01,
+      positionTimestampEpochMillis:
+        second.positionTimestampEpochMillis + 1_000,
+    },
+    {
+      ...first,
+      longitudeDegrees: first.longitudeDegrees + 0.01,
+      positionTimestampEpochMillis:
+        first.positionTimestampEpochMillis + 1_000,
+    },
+  ]);
+
+  const frameById = new Map(
+    harness.frames.at(-1)?.map((item) => [item.id, item]),
+  );
+  assert.ok(
+    Math.abs(
+      (frameById.get(first.id)?.latitudeDegrees ?? 0) -
+        first.latitudeDegrees,
+    ) < 0.1,
+  );
+  assert.ok(
+    Math.abs(
+      (frameById.get(second.id)?.latitudeDegrees ?? 0) -
+        second.latitudeDegrees,
+    ) < 0.1,
+  );
+  harness.runtime.dispose();
+});
+
+test("motion runtime preserves the last position for an implausible tile update", () => {
+  const aircraft = DEVELOPMENT_AIRCRAFT[0];
+  const harness = createRuntimeHarness([aircraft]);
+  harness.runtime.start();
+  harness.now = 1_000;
+  harness.runtime.setAircraftSnapshot([
+    {
+      ...aircraft,
+      latitudeDegrees: 0,
+      longitudeDegrees: 0,
+      positionTimestampEpochMillis:
+        aircraft.positionTimestampEpochMillis + 1_000,
+    },
+  ]);
+
+  const result = harness.frames.at(-1)?.[0];
+  assert.ok(result);
+  assert.ok(Math.abs(result.latitudeDegrees - aircraft.latitudeDegrees) < 0.1);
+  assert.ok(Math.abs(result.longitudeDegrees - aircraft.longitudeDegrees) < 0.1);
   harness.runtime.dispose();
 });
 
