@@ -265,7 +265,7 @@ test("multilingual presentation supports automatic text direction and wrapping",
   assert.match(liveMapSource, /left-3 right-3/);
 });
 
-test("P3.3 intelligence capabilities are available while memory remains deferred", () => {
+test("P4.3 activates explicit memory while notifications remain deferred", () => {
   assert.ok(SKYGUIDE_CAPABILITIES.length >= 7);
   assert.equal(
     SKYGUIDE_CAPABILITIES.find(
@@ -276,7 +276,7 @@ test("P3.3 intelligence capabilities are available while memory remains deferred
   for (const id of ["airport-intelligence", "weather", "aviation-news", "controlled-web-search"]) {
     assert.equal(SKYGUIDE_CAPABILITIES.find((capability) => capability.id === id)?.available, true);
   }
-  assert.equal(SKYGUIDE_CAPABILITIES.find((capability) => capability.id === "memory")?.available, false);
+  assert.equal(SKYGUIDE_CAPABILITIES.find((capability) => capability.id === "memory")?.available, true);
 });
 
 test("provider suggestions stay within SkyGuide's currently available capabilities", () => {

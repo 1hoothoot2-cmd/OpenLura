@@ -6,23 +6,16 @@ import type {
   SkyGuideAiPreferences,
   UserPreferences,
 } from "../domain/preferences.ts";
+import type { MemoryItem } from "../domain/memory.ts";
 
 export interface ProfileRepository {
   findByUserId(userId: string): Promise<UserProfile | null>;
   save(profile: UserProfile): Promise<void>;
 }
 
-export interface MemoryRecord {
-  readonly id: string;
-  readonly userId: string;
-  readonly kind: "ai-memory" | "saved-preference" | "conversation-memory";
-  readonly contentReference: string;
-  readonly updatedAtEpochMillis: number;
-}
-
 export interface MemoryRepository {
-  listForUser(userId: string): Promise<readonly MemoryRecord[]>;
-  save(record: MemoryRecord): Promise<void>;
+  listForUser(userId: string): Promise<readonly MemoryItem[]>;
+  save(record: MemoryItem): Promise<void>;
   remove(userId: string, memoryId: string): Promise<void>;
 }
 

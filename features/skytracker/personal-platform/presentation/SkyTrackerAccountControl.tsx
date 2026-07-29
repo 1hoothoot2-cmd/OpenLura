@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { SkyTrackerFavorites } from "../../favorites/domain/favorites";
+import { SkyGuideMemoryPanel } from "./SkyGuideMemoryPanel";
 
 type AccountState =
   | Readonly<{ status: "loading" | "guest" }>
@@ -22,6 +23,7 @@ export function SkyTrackerAccountControl({
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [memoryOpen, setMemoryOpen] = useState(false);
 
   const loadAccount = useCallback(async () => {
     try {
@@ -133,11 +135,20 @@ export function SkyTrackerAccountControl({
           className="absolute right-0 top-12 z-50 w-[min(21rem,calc(100vw-1.5rem))] rounded-[20px] border border-cyan-200/14 bg-[#07101b]/98 p-4 shadow-[0_20px_60px_rgba(0,0,0,0.48)] backdrop-blur-xl"
         >
           {account.status === "account" ? (
-            <>
+            memoryOpen ? (
+              <SkyGuideMemoryPanel onClose={() => setMemoryOpen(false)} />
+            ) : <>
               <p className="text-sm font-semibold text-white/88">Account active</p>
               <p className="mt-1 text-xs leading-5 text-white/48">
-                Favorites are synchronized. SkyGuide memory remains disabled.
+                Favorites are synchronized. SkyGuide stores only memory you approve.
               </p>
+              <button
+                type="button"
+                onClick={() => setMemoryOpen(true)}
+                className="mt-4 min-h-11 w-full rounded-xl border border-cyan-200/16 bg-cyan-200/[0.05] text-sm text-cyan-50/78 hover:bg-cyan-200/[0.09]"
+              >
+                Manage SkyGuide Memory
+              </button>
               <button
                 type="button"
                 onClick={logout}

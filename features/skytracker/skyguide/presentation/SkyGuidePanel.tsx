@@ -64,6 +64,8 @@ export function SkyGuidePanel({ context }: SkyGuidePanelProps) {
   const [locationRequest, setLocationRequest] = useState<LocationRequest | null>(null);
   const [manualLocation, setManualLocation] = useState("");
   const [locationLoading, setLocationLoading] = useState(false);
+  const [memorySuggestionDismissed, setMemorySuggestionDismissed] = useState(false);
+  const [memoryMessage, setMemoryMessage] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const conversationEndRef = useRef<HTMLDivElement>(null);
   const answerId = useId();
@@ -146,6 +148,24 @@ export function SkyGuidePanel({ context }: SkyGuidePanelProps) {
     ].slice(-12));
     setQuery("");
     setIsLoading(false);
+  };
+
+  const acceptExpertiseSuggestion = async (expertiseLevel: "beginner" | "professional") => {
+    const response = await fetch("/api/skytracker/memory", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({
+        expertiseLevel,
+        conversationStyle: expertiseLevel === "professional" ? "technical" : "concise",
+      }),
+    }).catch(() => null);
+    setMemoryMessage(
+      response?.ok
+        ? "SkyGuide will use this preference in future answers."
+        : "Sign in to save this preference.",
+    );
+    setMemorySuggestionDismissed(true);
   };
 
   const contextLabel = context.selectedAircraft
@@ -257,6 +277,31 @@ export function SkyGuidePanel({ context }: SkyGuidePanelProps) {
           <div ref={conversationEndRef} aria-hidden="true" />
         </div>
       )}
+
+      {latestResult?.kind === "answered" && !memorySuggestionDismissed && (
+        <section aria-label="SkyGuide Memory suggestion"
+          className="mt-3 rounded-xl border border-cyan-200/12 bg-cyan-200/[0.035] p-3">
+          <p className="text-xs leading-5 text-white/68">
+            {latestResult.answer.audienceMode === "expert"
+              ? "Would you like SkyGuide to remember that you prefer expert aviation answers?"
+              : "Would you like SkyGuide to remember that you prefer compact beginner-friendly answers?"}
+          </p>
+          <div className="mt-2 flex gap-2">
+            <button type="button"
+              onClick={() => void acceptExpertiseSuggestion(
+                latestResult.answer.audienceMode === "expert" ? "professional" : "beginner",
+              )}
+              className="min-h-9 rounded-lg bg-cyan-300 px-3 text-xs font-semibold text-[#03111a]">
+              Save preference
+            </button>
+            <button type="button" onClick={() => setMemorySuggestionDismissed(true)}
+              className="min-h-9 rounded-lg border border-white/10 px-3 text-xs text-white/62">
+              Not now
+            </button>
+          </div>
+        </section>
+      )}
+      {memoryMessage && <p role="status" className="mt-2 text-xs text-cyan-100/62">{memoryMessage}</p>}
 
       {locationRequest && (
         <LocationConsent

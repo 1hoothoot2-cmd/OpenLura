@@ -7,6 +7,13 @@ import {
 import type { SkyGuideContext } from "@/features/skytracker/skyguide/domain/skyGuide";
 import { InMemorySkyGuideRateLimiter } from "@/features/skytracker/skyguide/infrastructure/inMemorySkyGuideRateLimiter";
 import { OpenAiSkyGuideProvider } from "@/features/skytracker/skyguide/infrastructure/openAiSkyGuideProvider";
+import { requireOpenLuraIdentity } from "@/lib/auth/requestIdentity";
+import { MemoryManager } from "@/features/skytracker/personal-platform/application/memoryManager";
+import {
+  SupabaseMemoryRepository,
+  SupabasePreferencesRepository,
+  createSupabaseRepositoryConfig,
+} from "@/features/skytracker/personal-platform/infrastructure/supabaseRepositories";
 
 export const runtime = "nodejs";
 
@@ -30,7 +37,32 @@ export async function POST(request: Request) {
     return json({ error: "invalid-request" }, 400);
   }
 
-  const context = sanitizeSkyGuideContext(body.context);
+  let context = sanitizeSkyGuideContext(body.context);
+  const identity = await requireOpenLuraIdentity(request);
+  if (identity.ok) {
+    try {
+      const config = createSupabaseRepositoryConfig(identity.identity.accessToken);
+      const memory = await new MemoryManager(
+        new SupabaseMemoryRepository(config),
+        new SupabasePreferencesRepository(config),
+      ).get(identity.identity.userId);
+      context = sanitizeSkyGuideContext({
+        ...context,
+        memory: {
+          items: memory.items.map(({ category, value, label }) => ({
+            category,
+            value,
+            label,
+          })),
+          preferredLanguage: memory.preferredLanguage,
+          expertiseLevel: memory.expertiseLevel,
+          conversationStyle: memory.conversationStyle,
+        },
+      });
+    } catch {
+      // Memory is optional context; SkyGuide remains available without it.
+    }
+  }
   const preflight = validateSkyGuideQuestion({ query: body.query, context });
   if (preflight.kind !== "accepted") {
     return json(
@@ -156,6 +188,10 @@ function isSkyGuideContext(value: unknown): value is SkyGuideContext {
     return false;
   }
   if (context.map !== null && !isMapContext(context.map)) return false;
+  if (
+    context.favorites !== undefined &&
+    (!context.favorites || typeof context.favorites !== "object")
+  ) return false;
   return true;
 }
 

@@ -166,6 +166,24 @@ export function sanitizeSkyGuideContext(context: SkyGuideContext): SkyGuideConte
         }
       : null,
     flightHistory: context.flightHistory,
+    favorites: context.favorites
+      ? {
+          aircraftIds: context.favorites.aircraftIds.slice(0, 50).map((id) => id.slice(0, 32)),
+          airportCodes: context.favorites.airportCodes.slice(0, 50).map((code) => code.slice(0, 12)),
+        }
+      : undefined,
+    memory: context.memory
+      ? {
+          items: context.memory.items.slice(0, 50).map((item) => ({
+            category: item.category.slice(0, 40),
+            value: item.value.slice(0, 120),
+            label: item.label?.slice(0, 160) ?? null,
+          })),
+          preferredLanguage: context.memory.preferredLanguage.slice(0, 35),
+          expertiseLevel: context.memory.expertiseLevel.slice(0, 20),
+          conversationStyle: context.memory.conversationStyle.slice(0, 20),
+        }
+      : null,
   };
 }
 

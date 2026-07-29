@@ -28,6 +28,7 @@ Legenda: ✅ geaccepteerd · 🟡 technisch gereed, acceptatie open · ⬜ gepla
 - 🟡 P3.4 — SkyGuide Product Polish & Personalization Foundation
 - ✅ P4.1 — Personal Platform Foundation
 - 🟡 P4.2 — Accounts & Supabase Foundation (database apply gate)
+- 🟡 P4.3 — SkyGuide Memory & Personalization (productieacceptatie)
 - ⬜ L12 — Accounts & Sync
 - ⬜ L13 — Contextual AI
 
@@ -160,3 +161,11 @@ compacte registratie-, login-, logout-, sessieherstel-, profiel- en
 favorietensynchronisatie toe. De minimale profielen- en favorietenmigratie met
 RLS wacht op expliciete Product Owner-goedkeuring; tot die apply blijft P4.2
 open en wordt niet naar productie uitgerold.
+
+P4.3 activeert transparante, expliciet bevestigde SkyGuide Memory via de
+bestaande P4-repositorypoorten. Eén RLS-beveiligde memorytabel bewaart alleen
+luchtvaartinteresses; AI-profiel en gesprekstijl blijven expliciete
+profielvelden. Favorieten blijven hun bestaande bron en worden alleen als
+SkyGuide-context hergebruikt. De goedgekeurde productiemigratie is uitgevoerd
+en read-only gevalideerd; productieacceptatie volgt na de bestaande
+Vercel-deployment.

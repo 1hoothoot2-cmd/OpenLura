@@ -1,5 +1,7 @@
 import type {
   FavoritesRepository,
+  MemoryRepository,
+  PreferencesRepository,
   ProfileRepository,
 } from "../application/repositories.ts";
 import {
@@ -9,6 +11,11 @@ import {
   type PersonalFavorites,
 } from "../domain/favorites.ts";
 import { createGuestProfile, type UserProfile } from "../domain/profile.ts";
+import type { MemoryCategory, MemoryItem } from "../domain/memory.ts";
+import type {
+  SkyGuideAiPreferences,
+  UserPreferences,
+} from "../domain/preferences.ts";
 
 type SupabaseRepositoryConfig = Readonly<{
   baseUrl: string;
@@ -27,6 +34,10 @@ type ProfileRow = Readonly<{
   speed_unit: "meters-per-second" | "knots";
   theme: "system" | "dark";
   account_tier: "guest" | "free" | "account" | "pro" | "enterprise";
+  ai_expertise_level: SkyGuideAiPreferences["expertiseLevel"];
+  ai_conversation_style: SkyGuideAiPreferences["conversationStyle"];
+  ai_interests: readonly string[];
+  ai_favorite_topics: readonly string[];
 }>;
 
 type FavoriteRow = Readonly<{
@@ -35,6 +46,15 @@ type FavoriteRow = Readonly<{
   stable_id: string;
   label: string | null;
   added_at_epoch_millis: number;
+}>;
+
+type MemoryRow = Readonly<{
+  user_id: string;
+  category: MemoryCategory;
+  value: string;
+  label: string | null;
+  created_at_epoch_millis: number;
+  updated_at_epoch_millis: number;
 }>;
 
 export class SupabaseProfileRepository implements ProfileRepository {
@@ -114,6 +134,89 @@ export class SupabaseFavoritesRepository implements FavoritesRepository {
         body: JSON.stringify(records),
       },
     );
+  }
+}
+
+export class SupabaseMemoryRepository implements MemoryRepository {
+  private readonly client: SupabaseRestClient;
+
+  constructor(config: SupabaseRepositoryConfig) {
+    this.client = new SupabaseRestClient(config);
+  }
+
+  async listForUser(userId: string): Promise<readonly MemoryItem[]> {
+    const rows = await this.client.request<readonly MemoryRow[]>(
+      `/rest/v1/skytracker_memory?user_id=eq.${encodeURIComponent(userId)}&order=category,value&limit=100`,
+    );
+    return rows.map(memoryFromRow);
+  }
+
+  async save(record: MemoryItem): Promise<void> {
+    await this.client.request(
+      "/rest/v1/skytracker_memory?on_conflict=user_id,category,value",
+      {
+        method: "POST",
+        headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+        body: JSON.stringify(memoryToRow(record)),
+      },
+    );
+  }
+
+  async remove(userId: string, memoryId: string): Promise<void> {
+    const separator = memoryId.indexOf(":");
+    if (separator < 1) throw new Error("Invalid memory id");
+    const category = memoryId.slice(0, separator);
+    const value = memoryId.slice(separator + 1);
+    await this.client.request(
+      `/rest/v1/skytracker_memory?user_id=eq.${encodeURIComponent(userId)}&category=eq.${encodeURIComponent(category)}&value=eq.${encodeURIComponent(value)}`,
+      { method: "DELETE" },
+    );
+  }
+}
+
+export class SupabasePreferencesRepository implements PreferencesRepository {
+  private readonly profiles: SupabaseProfileRepository;
+
+  constructor(config: SupabaseRepositoryConfig) {
+    this.profiles = new SupabaseProfileRepository(config);
+  }
+
+  async getUserPreferences(userId: string): Promise<UserPreferences | null> {
+    const profile = await this.profiles.findByUserId(userId);
+    return profile ? {
+      language: profile.language,
+      timezone: profile.timezone,
+      units: profile.preferredUnits,
+      theme: profile.theme,
+    } : null;
+  }
+
+  async saveUserPreferences(
+    userId: string,
+    preferences: UserPreferences,
+  ): Promise<void> {
+    const profile = await this.profiles.findByUserId(userId);
+    if (!profile) throw new Error("Profile not found");
+    await this.profiles.save({
+      ...profile,
+      language: preferences.language,
+      timezone: preferences.timezone,
+      preferredUnits: preferences.units,
+      theme: preferences.theme,
+    });
+  }
+
+  async getAiPreferences(userId: string): Promise<SkyGuideAiPreferences | null> {
+    return (await this.profiles.findByUserId(userId))?.aiPreferences ?? null;
+  }
+
+  async saveAiPreferences(
+    userId: string,
+    preferences: SkyGuideAiPreferences,
+  ): Promise<void> {
+    const profile = await this.profiles.findByUserId(userId);
+    if (!profile) throw new Error("Profile not found");
+    await this.profiles.save({ ...profile, aiPreferences: preferences });
   }
 }
 
@@ -198,10 +301,10 @@ function profileFromRow(row: ProfileRow): UserProfile {
       preferredAircraftCategories: [],
     },
     aiPreferences: {
-      interests: [],
-      expertiseLevel: "beginner",
-      favoriteTopics: [],
-      conversationStyle: "concise",
+      interests: row.ai_interests ?? [],
+      expertiseLevel: row.ai_expertise_level ?? "beginner",
+      favoriteTopics: row.ai_favorite_topics ?? [],
+      conversationStyle: row.ai_conversation_style ?? "concise",
     },
     notificationPreferences: {
       enabled: false,
@@ -222,6 +325,33 @@ function profileToRow(profile: UserProfile): ProfileRow {
     speed_unit: profile.preferredUnits.speed,
     theme: profile.theme,
     account_tier: profile.accountTier,
+    ai_expertise_level: profile.aiPreferences.expertiseLevel,
+    ai_conversation_style: profile.aiPreferences.conversationStyle,
+    ai_interests: profile.aiPreferences.interests,
+    ai_favorite_topics: profile.aiPreferences.favoriteTopics,
+  };
+}
+
+function memoryFromRow(row: MemoryRow): MemoryItem {
+  return {
+    id: `${row.category}:${row.value}`,
+    userId: row.user_id,
+    category: row.category,
+    value: row.value,
+    label: row.label,
+    createdAtEpochMillis: row.created_at_epoch_millis,
+    updatedAtEpochMillis: row.updated_at_epoch_millis,
+  };
+}
+
+function memoryToRow(item: MemoryItem): MemoryRow {
+  return {
+    user_id: item.userId,
+    category: item.category,
+    value: item.value,
+    label: item.label,
+    created_at_epoch_millis: item.createdAtEpochMillis,
+    updated_at_epoch_millis: item.updatedAtEpochMillis,
   };
 }
 

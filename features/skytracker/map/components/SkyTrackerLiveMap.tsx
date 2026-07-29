@@ -413,12 +413,18 @@ export function SkyTrackerLiveMap({
               ? ("session-only" as const)
               : ("available" as const)
             : ("unavailable" as const),
+      favorites: {
+        aircraftIds: favorites.aircraft.map((item) => item.aircraftId),
+        airportCodes: favorites.airports.map((item) => item.icaoCode),
+      },
     }),
     [
       activeHistoricalTrack,
       historicalTrackState.status,
       selectedAircraft,
       skyGuideMapContext,
+      favorites.aircraft,
+      favorites.airports,
     ],
   );
 

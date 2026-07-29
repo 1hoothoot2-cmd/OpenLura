@@ -82,6 +82,16 @@ export type SkyGuideContext = Readonly<{
     | "available"
     | "session-only"
     | "unavailable";
+  favorites?: Readonly<{
+    aircraftIds: readonly string[];
+    airportCodes: readonly string[];
+  }>;
+  memory?: Readonly<{
+    items: readonly Readonly<{ category: string; value: string; label: string | null }>[];
+    preferredLanguage: string;
+    expertiseLevel: string;
+    conversationStyle: string;
+  }> | null;
 }>;
 
 const AVIATION_TERMS = [
@@ -130,7 +140,7 @@ export const SKYGUIDE_CAPABILITIES: readonly SkyGuideCapability[] = [
   { id: "weather", available: true },
   { id: "aviation-news", available: true },
   { id: "controlled-web-search", available: true },
-  { id: "memory", available: false },
+  { id: "memory", available: true },
   { id: "notifications", available: false },
 ] as const;
 
