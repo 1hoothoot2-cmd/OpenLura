@@ -114,7 +114,9 @@ bereikt is. Alleen het focusgebied wordt iedere zeven minuten opnieuw
 gevalideerd; omliggende tegels blijven beschikbaar en worden pas opnieuw
 geladen wanneer ze focus worden of na maximaal 24 uur.
 
-P3.1 introduceert SkyGuide als zelfstandige Aviation Intelligence Assistant
-met een toegankelijk welkomdashboard, Smart Actions, Discover-onderwerpen,
-dynamische vraagvoorbeelden en lokale luchtvaartscopebewaking. Er is bewust
-nog geen AI-provider, geheugen, weer-, nieuws- of zoekintegratie.
+P3.1 introduceert SkyGuide als geïntegreerde Aviation Intelligence Assistant
+in de Live Map. Desktop toont Details links en SkyGuide rechts; mobiel gebruikt
+één bottom sheet met Details- en SkyGuide-tabs. Geselecteerd aircraft,
+viewport, lifecycle en Flight History worden automatisch als context
+doorgegeven. Er is bewust nog geen AI-provider, geheugen, weer-, nieuws- of
+zoekintegratie en geen publieke zelfstandige SkyGuide-route.

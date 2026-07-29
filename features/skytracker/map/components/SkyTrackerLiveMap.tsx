@@ -131,6 +131,8 @@ import {
   registerHistoricalTrackMapPresentation,
   type HistoricalTrackMapRegistration,
 } from "../../historical-track/presentation/historicalTrackMapRenderer";
+import type { SkyGuideMapContext } from "../../skyguide/domain/skyGuide";
+import { SkyGuidePanel } from "../../skyguide/presentation/SkyGuidePanel";
 
 type MapStatus = "loading" | "ready" | "error";
 
@@ -166,6 +168,7 @@ type MapFocusRequest =
     }>;
 
 type SearchTab = "aircraft" | "airports" | "favorites";
+type MobilePanelTab = "details" | "skyguide";
 
 type HistoricalTrackState =
   | Readonly<{ status: "idle" | "loading" | "unavailable" }>
@@ -198,6 +201,10 @@ export function SkyTrackerLiveMap({
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchTab, setSearchTab] = useState<SearchTab>("aircraft");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [mobilePanelTab, setMobilePanelTab] =
+    useState<MobilePanelTab>("skyguide");
+  const [skyGuideMapContext, setSkyGuideMapContext] =
+    useState<SkyGuideMapContext | null>(null);
   const [filters, setFilters] = useState(DEFAULT_AIRCRAFT_FILTERS);
   const [searchQuery, setSearchQuery] = useState("");
   const [globalSearchState, setGlobalSearchState] =
@@ -370,6 +377,33 @@ export function SkyTrackerLiveMap({
     () => createHistoricalTrackFeatureCollection(activeHistoricalTrack),
     [activeHistoricalTrack],
   );
+  const skyGuideContext = useMemo(
+    () => ({
+      selectedAircraft: selectedAircraft
+        ? {
+            id: selectedAircraft.id,
+            callsign: selectedAircraft.callsign,
+            registration: selectedAircraft.registration,
+            lifecycle: aircraftLifecycleLabel(selectedAircraft.lifecycle),
+          }
+        : null,
+      map: skyGuideMapContext,
+      flightHistory:
+        historicalTrackState.status === "loading"
+          ? ("loading" as const)
+          : activeHistoricalTrack
+            ? activeHistoricalTrack.provider === "session"
+              ? ("session-only" as const)
+              : ("available" as const)
+            : ("unavailable" as const),
+    }),
+    [
+      activeHistoricalTrack,
+      historicalTrackState.status,
+      selectedAircraft,
+      skyGuideMapContext,
+    ],
+  );
 
   useEffect(() => {
     let active = true;
@@ -430,7 +464,10 @@ export function SkyTrackerLiveMap({
         ? aircraftId
         : null;
     if (validSelection !== selectedAircraftIdRef.current) setFollowEnabled(false);
-    if (validSelection) setSelectedAirport(null);
+    if (validSelection) {
+      setSelectedAirport(null);
+      setMobilePanelTab("details");
+    }
     setSelectedAircraftId(validSelection);
     updateAircraftQuery(validSelection);
   }, []);
@@ -772,27 +809,6 @@ export function SkyTrackerLiveMap({
         </Link>
 
         <div className="flex items-center gap-2.5">
-          <Link
-            href="/skytracker/guide"
-            aria-label="Open SkyGuide aviation assistant"
-            className="ol-interactive inline-flex min-h-11 items-center gap-2 rounded-full border border-cyan-200/14 px-3 text-xs font-semibold text-cyan-100/72 hover:border-cyan-200/25 hover:bg-cyan-200/[0.06] hover:text-cyan-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
-          >
-            <svg
-              aria-hidden="true"
-              viewBox="0 0 24 24"
-              className="h-4 w-4"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M12 3v3M12 18v3M3 12h3M18 12h3" />
-              <circle cx="12" cy="12" r="4" />
-              <path d="m5.6 5.6 2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1" />
-            </svg>
-            <span className="hidden md:inline">SkyGuide</span>
-          </Link>
           <button
             type="button"
             aria-label={searchOpen ? "Close aircraft search" : "Search aircraft"}
@@ -929,6 +945,7 @@ export function SkyTrackerLiveMap({
           onBearingChange={setBearing}
           onSelectAircraft={selectAircraft}
           onFollowStopped={stopFollowing}
+          onViewportContextChange={setSkyGuideMapContext}
           onRetry={retryMap}
         />
 
@@ -1296,6 +1313,12 @@ export function SkyTrackerLiveMap({
             aria-label={`${selectedPresentedAircraft.displayCallsign} aircraft details`}
             className="absolute bottom-3 left-3 z-20 max-h-[min(70vh,38rem)] w-[min(25rem,calc(100%-1.5rem))] overflow-y-auto rounded-[22px] border border-amber-200/18 bg-[#0a111c]/90 p-4 shadow-[0_18px_55px_rgba(0,0,0,0.4)] backdrop-blur-xl sm:bottom-5 sm:left-5 sm:w-[24rem] sm:p-5 lg:left-7"
           >
+            <MobilePanelTabs
+              activeTab={mobilePanelTab}
+              detailsAvailable
+              onSelect={setMobilePanelTab}
+            />
+            <div className={mobilePanelTab === "details" ? "" : "hidden sm:block"}>
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-200/62">
@@ -1420,13 +1443,78 @@ export function SkyTrackerLiveMap({
                 Clear selection
               </button>
             </div>
+            </div>
+            <div className={mobilePanelTab === "skyguide" ? "sm:hidden" : "hidden"}>
+              <SkyGuidePanel context={skyGuideContext} />
+            </div>
           </aside>
         )}
+        {!selectedAirport && !selectedAircraft && (
+          <aside
+            aria-label="SkyTracker mobile information"
+            className="absolute bottom-3 left-3 right-3 z-20 max-h-[min(62vh,34rem)] overflow-y-auto rounded-[22px] border border-cyan-200/14 bg-[#07101b]/92 p-4 shadow-[0_18px_55px_rgba(0,0,0,0.4)] backdrop-blur-xl sm:hidden"
+          >
+            <MobilePanelTabs
+              activeTab={mobilePanelTab}
+              detailsAvailable={false}
+              onSelect={setMobilePanelTab}
+            />
+            {mobilePanelTab === "details" ? (
+              <p role="status" className="py-8 text-center text-sm text-white/46">
+                Select an aircraft to view its details.
+              </p>
+            ) : (
+              <SkyGuidePanel context={skyGuideContext} />
+            )}
+          </aside>
+        )}
+        <aside
+          aria-label="SkyGuide aviation assistant"
+          className="absolute bottom-5 right-5 z-20 hidden max-h-[min(70vh,38rem)] w-[25rem] overflow-y-auto rounded-[22px] border border-cyan-200/14 bg-[#07101b]/90 p-5 shadow-[0_18px_55px_rgba(0,0,0,0.4)] backdrop-blur-xl sm:block lg:right-7"
+        >
+          <SkyGuidePanel context={skyGuideContext} />
+        </aside>
         <p className="sr-only" aria-live="polite">
           {favoriteAnnouncement}
         </p>
       </section>
     </main>
+  );
+}
+
+function MobilePanelTabs({
+  activeTab,
+  detailsAvailable,
+  onSelect,
+}: {
+  activeTab: MobilePanelTab;
+  detailsAvailable: boolean;
+  onSelect: (tab: MobilePanelTab) => void;
+}) {
+  return (
+    <div
+      role="tablist"
+      aria-label="SkyTracker information"
+      className="mb-4 grid grid-cols-2 rounded-xl border border-white/[0.08] bg-black/20 p-1 sm:hidden"
+    >
+      {(["details", "skyguide"] as const).map((tab) => (
+        <button
+          key={tab}
+          type="button"
+          role="tab"
+          aria-selected={activeTab === tab}
+          aria-disabled={tab === "details" && !detailsAvailable}
+          onClick={() => onSelect(tab)}
+          className={`ol-interactive min-h-10 rounded-lg px-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
+            activeTab === tab
+              ? "bg-cyan-200/[0.1] text-cyan-50"
+              : "text-white/46 hover:bg-white/[0.04] hover:text-white/76"
+          }`}
+        >
+          {tab === "details" ? "Details" : "SkyGuide"}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -1451,6 +1539,7 @@ type MapViewportProps = {
   onBearingChange: (bearing: number) => void;
   onSelectAircraft: (aircraftId: AircraftId | null) => void;
   onFollowStopped: () => void;
+  onViewportContextChange: (context: SkyGuideMapContext) => void;
   onRetry: () => void;
 };
 
@@ -1475,6 +1564,7 @@ function MapViewport({
   onBearingChange,
   onSelectAircraft,
   onFollowStopped,
+  onViewportContextChange,
   onRetry,
 }: MapViewportProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -1639,6 +1729,19 @@ function MapViewport({
       });
     };
 
+    const publishViewportContext = () => {
+      const bounds = map.getBounds();
+      const center = map.getCenter();
+      onViewportContextChange({
+        centerLatitudeDegrees: center.lat,
+        centerLongitudeDegrees: center.lng,
+        southLatitudeDegrees: bounds.getSouth(),
+        westLongitudeDegrees: bounds.getWest(),
+        northLatitudeDegrees: bounds.getNorth(),
+        eastLongitudeDegrees: bounds.getEast(),
+      });
+    };
+
     const applyPlan = (plan: AdaptiveViewportPlan) => {
       if (plan.tiles.length === 0) {
         onBackendStatusChange({
@@ -1755,6 +1858,7 @@ function MapViewport({
     };
 
     const handleMoveEnd = () => {
+      publishViewportContext();
       if (followMoveRef.current) {
         followMoveRef.current = false;
         return;
@@ -1849,6 +1953,7 @@ function MapViewport({
           ),
       );
       applyPlan(planCurrentViewport());
+      publishViewportContext();
       onStatusChange("ready");
       onBearingChange(map.getBearing());
     };
@@ -1916,6 +2021,7 @@ function MapViewport({
     onFollowStopped,
     onSelectAircraft,
     onStatusChange,
+    onViewportContextChange,
     style,
   ]);
 

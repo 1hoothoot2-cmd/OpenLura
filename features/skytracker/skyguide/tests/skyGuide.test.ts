@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 import {
   classifySkyGuideScope,
@@ -9,6 +10,11 @@ import {
   SKYGUIDE_CAPABILITIES,
   SKYGUIDE_PLACEHOLDERS,
 } from "../domain/skyGuide.ts";
+
+const liveMapSource = readFileSync(
+  new URL("../../map/components/SkyTrackerLiveMap.tsx", import.meta.url),
+  "utf8",
+);
 
 test("normalizes whitespace without changing meaningful text", () => {
   assert.equal(normalizeSkyGuideQuery("  What   is squawk 7700?  "), "What is squawk 7700?");
@@ -40,6 +46,17 @@ test("uses token boundaries instead of accepting aviation substrings", () => {
 test("audience policy keeps simple questions concise and recognizes technical language", () => {
   assert.equal(inferSkyGuideAudienceMode("Why does an aircraft fly?"), "beginner");
   assert.equal(inferSkyGuideAudienceMode("Explain this METAR and QNH"), "expert");
+});
+
+test("integrates SkyGuide into the live map without a public standalone route", () => {
+  assert.match(liveMapSource, /<SkyGuidePanel context=\{skyGuideContext\}/);
+  assert.match(liveMapSource, /<MobilePanelTabs/);
+  assert.match(liveMapSource, /bottom-5 right-5/);
+  assert.doesNotMatch(liveMapSource, /href="\/skytracker\/guide"/);
+  assert.equal(
+    existsSync(new URL("../../../../app/skytracker/guide/page.tsx", import.meta.url)),
+    false,
+  );
 });
 
 test("foundation response is honest for accepted questions", () => {

@@ -34,6 +34,30 @@ export type SkyGuideScopeResult =
 
 export type SkyGuideAudienceMode = "beginner" | "expert";
 
+export type SkyGuideMapContext = Readonly<{
+  centerLatitudeDegrees: number;
+  centerLongitudeDegrees: number;
+  southLatitudeDegrees: number;
+  westLongitudeDegrees: number;
+  northLatitudeDegrees: number;
+  eastLongitudeDegrees: number;
+}>;
+
+export type SkyGuideContext = Readonly<{
+  selectedAircraft: Readonly<{
+    id: string;
+    callsign: string | null;
+    registration: string | null;
+    lifecycle: string;
+  }> | null;
+  map: SkyGuideMapContext | null;
+  flightHistory:
+    | "loading"
+    | "available"
+    | "session-only"
+    | "unavailable";
+}>;
+
 const AVIATION_TERMS = [
   "aerodynamics", "airbus", "aircraft", "airline", "airplane", "airport",
   "airspace", "altitude", "approach", "arrival", "aviation", "boeing",
