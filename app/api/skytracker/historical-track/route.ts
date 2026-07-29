@@ -2,15 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { aircraftId, type Aircraft } from "@/features/skytracker/aircraft/domain/aircraft";
 import { fetchHistoricalTrackFromBackend } from "@/features/skytracker/historical-track/infrastructure/historicalTrackClient";
 import { resolveSkyTrackerApiConfig } from "@/features/skytracker/backend/infrastructure/skyTrackerApiConfig";
+import { createLocalHistoricalTrackFixture } from "@/features/skytracker/local-test/localHistoricalTrackFixture";
+import { isLocalTestEnvironment } from "@/features/skytracker/local-test/localTestEnvironment";
 
 const AIRCRAFT_ID_PATTERN = /^[0-9a-f]{6}$/i;
 
 export async function GET(request: NextRequest) {
-  const config = resolveSkyTrackerApiConfig();
-  if (!config.configured) {
-    return NextResponse.json({ status: "unavailable" }, { status: 503 });
-  }
-
   const rawAircraftId = request.nextUrl.searchParams.get("aircraftId")?.trim();
   const rawObservedAt = request.nextUrl.searchParams.get(
     "observedAtEpochSeconds",
@@ -23,6 +20,23 @@ export async function GET(request: NextRequest) {
     observedAtEpochSeconds <= 0
   ) {
     return NextResponse.json({ status: "invalid_request" }, { status: 400 });
+  }
+
+  if (isLocalTestEnvironment()) {
+    const fixture = createLocalHistoricalTrackFixture(
+      rawAircraftId,
+      observedAtEpochSeconds,
+    );
+    return fixture
+      ? NextResponse.json(fixture, {
+          headers: { "Cache-Control": "no-store" },
+        })
+      : NextResponse.json({ status: "unavailable" }, { status: 404 });
+  }
+
+  const config = resolveSkyTrackerApiConfig();
+  if (!config.configured) {
+    return NextResponse.json({ status: "unavailable" }, { status: 503 });
   }
 
   const result = await fetchHistoricalTrackFromBackend(

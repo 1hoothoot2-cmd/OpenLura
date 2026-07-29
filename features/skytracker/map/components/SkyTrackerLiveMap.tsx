@@ -179,6 +179,8 @@ type MapStatus = "loading" | "ready" | "error";
 
 const MAPLIBRE_WORKER_URL = "/maplibre/maplibre-gl-worker.mjs";
 const IS_PRODUCTION_BUILD = process.env.NODE_ENV === "production";
+const IS_LOCAL_TEST_BUILD =
+  process.env.NEXT_PUBLIC_SKYTRACKER_ENVIRONMENT === "local-test";
 
 type BackendStatus = Readonly<{
   state:
@@ -1352,6 +1354,17 @@ export function SkyTrackerLiveMap({
   return (
     <main className="relative isolate flex h-dvh min-h-[520px] w-full flex-col overflow-hidden bg-[#030711] text-white">
       <h1 className="sr-only">SkyTracker aircraft map preview</h1>
+      {process.env.NEXT_PUBLIC_SKYTRACKER_ENVIRONMENT === "local-test" && (
+        <div
+          role="status"
+          aria-label="Local test environment using test data"
+          className="pointer-events-none absolute inset-x-0 top-0 z-[100] flex justify-center"
+        >
+          <span className="rounded-b-xl border border-t-0 border-amber-200/35 bg-amber-950/90 px-4 py-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-amber-100 shadow-lg backdrop-blur">
+            Local / Test Data
+          </span>
+        </div>
+      )}
 
       <header className="relative z-30 flex h-16 shrink-0 items-center justify-between border-b border-white/[0.07] bg-[#040711]/88 px-3 backdrop-blur-xl sm:px-5 lg:px-7">
         <Link
@@ -1471,7 +1484,9 @@ export function SkyTrackerLiveMap({
             />
             {replayState.mode === "replay"
               ? "Local session replay"
-              : IS_PRODUCTION_BUILD
+              : IS_LOCAL_TEST_BUILD
+                ? "Fixture test data"
+                : IS_PRODUCTION_BUILD
                 ? "Live backend data"
                 : "Backend development data"}
           </span>
@@ -1491,7 +1506,11 @@ export function SkyTrackerLiveMap({
 
       <section
         aria-label={`Interactive SkyTracker map using ${
-          IS_PRODUCTION_BUILD ? "live backend data" : "local backend development data"
+          IS_LOCAL_TEST_BUILD
+            ? "local fixture test data"
+            : IS_PRODUCTION_BUILD
+              ? "live backend data"
+              : "local backend development data"
         }. Select an aircraft on the map, or use the clear selection button after selecting one.`}
         className="relative min-h-0 flex-1"
       >
@@ -2639,7 +2658,11 @@ function MapViewport({
         className="h-full w-full bg-[#06101c]"
         role="region"
         aria-label={`Worldwide map with ${
-          IS_PRODUCTION_BUILD ? "live backend aircraft" : "local backend development aircraft"
+          IS_LOCAL_TEST_BUILD
+            ? "local fixture aircraft"
+            : IS_PRODUCTION_BUILD
+              ? "live backend aircraft"
+              : "local backend development aircraft"
         }. Use arrow keys to pan and plus or minus to zoom when the map has focus.`}
       />
 

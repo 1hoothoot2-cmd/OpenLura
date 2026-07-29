@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { normalizeViewportBounds } from "@/features/skytracker/backend/domain/viewportBounds";
 import { resolveSkyTrackerApiConfig } from "@/features/skytracker/backend/infrastructure/skyTrackerApiConfig";
 import { aircraftProxyCacheHeaders } from "@/features/skytracker/backend/infrastructure/aircraftProxyCache";
+import {
+  getLocalTestScenario,
+  isLocalTestEnvironment,
+} from "@/features/skytracker/local-test/localTestEnvironment";
 
 const UPSTREAM_TIMEOUT_MILLIS = 14_000;
 const FORWARDED_RESPONSE_HEADERS = [
@@ -16,7 +20,23 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET(request: NextRequest) {
-  const config = resolveSkyTrackerApiConfig();
+  const localTest = isLocalTestEnvironment();
+  const localScenario = localTest ? getLocalTestScenario() : "normal";
+  if (localScenario === "timeout") {
+    return problem(504, "Backend timeout", "Simulated local backend timeout.");
+  }
+  if (localScenario === "provider-unavailable") {
+    return problem(503, "Provider unavailable", "Simulated local provider failure.");
+  }
+  if (localScenario === "budget-exceeded") {
+    const response = problem(503, "Budget exceeded", "Simulated local Budget Gate block.");
+    response.headers.set("X-Cache-Status", "budget-blocked");
+    return response;
+  }
+  const config = resolveSkyTrackerApiConfig(
+    process.env.SKYTRACKER_API_BASE_URL,
+    localTest ? "development" : process.env.NODE_ENV,
+  );
   if (!config.configured) {
     return problem(503, "Backend unavailable", "SkyTracker backend configuration is unavailable.");
   }
@@ -58,6 +78,16 @@ export async function GET(request: NextRequest) {
       aircraftProxyCacheHeaders(response.ok),
     )) {
       headers.set(name, value);
+    }
+    if (localScenario === "stale-cache") {
+      headers.set("X-Cache-Status", "budget_stale_fallback");
+    }
+    if (localScenario === "empty" && response.ok) {
+      const value = (await response.json()) as Record<string, unknown>;
+      return Response.json(
+        { ...value, aircraft: [] },
+        { status: response.status, headers },
+      );
     }
     return new Response(await response.arrayBuffer(), {
       status: response.status,

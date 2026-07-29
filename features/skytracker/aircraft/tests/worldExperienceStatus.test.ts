@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { presentWorldExperienceStatus } from "../../map/presentation/worldExperienceStatus.ts";
 
@@ -45,4 +46,15 @@ test("delayed, inactive and replay states remain explicit", () => {
     label: "Replay • recording live",
     tone: "inactive",
   });
+});
+test("the local test label is explicit and production-gated", async () => {
+  const source = await readFile(
+    new URL("../../map/components/SkyTrackerLiveMap.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(source, /NEXT_PUBLIC_SKYTRACKER_ENVIRONMENT === "local-test"/);
+  assert.match(source, /Local \/ Test Data/);
+  assert.match(source, /Fixture test data/);
+  assert.match(source, /local fixture aircraft/);
+  assert.doesNotMatch(source, /Staging environment/);
 });

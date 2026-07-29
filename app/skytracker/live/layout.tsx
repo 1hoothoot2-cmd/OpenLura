@@ -8,10 +8,6 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "/skytracker/live",
   },
-  robots: {
-    index: false,
-    follow: false,
-  },
 };
 
 export default function SkyTrackerLiveLayout({

@@ -27,7 +27,7 @@ export function SkyTrackerAccountControl({
   const [submitting, setSubmitting] = useState(false);
   const [memoryOpen, setMemoryOpen] = useState(false);
 
-  const loadAccount = useCallback(async () => {
+  const fetchAccount = useCallback(async (): Promise<AccountState> => {
     try {
       const response = await fetch("/api/skytracker/account", {
         credentials: "same-origin",
@@ -38,23 +38,30 @@ export function SkyTrackerAccountControl({
         profile?: { displayName?: string | null };
       };
       if (response.ok && result.mode === "account") {
-        setAccount({
+        return {
           status: "account",
           displayName: result.profile?.displayName ?? null,
-        });
-      } else if (response.ok && result.mode === "guest") {
-        setAccount({ status: "guest" });
-      } else {
-        setAccount({ status: "unavailable" });
+        };
       }
+      return response.ok && result.mode === "guest"
+        ? { status: "guest" }
+        : { status: "unavailable" };
     } catch {
-      setAccount({ status: "unavailable" });
+      return { status: "unavailable" };
     }
   }, []);
 
   useEffect(() => {
-    void loadAccount();
-  }, [loadAccount]);
+    let active = true;
+    void fetchAccount().then((nextAccount) => {
+      if (active) {
+        setAccount(nextAccount);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [fetchAccount]);
 
   useEffect(() => {
     onAccountStateChange?.(account);
@@ -99,7 +106,7 @@ export function SkyTrackerAccountControl({
       if (syncResponse.ok && syncResult.favorites) {
         onFavoritesMerged(syncResult.favorites);
       }
-      await loadAccount();
+      setAccount(await fetchAccount());
       setOpen(false);
     } catch {
       setMessage("Account service is temporarily unavailable.");

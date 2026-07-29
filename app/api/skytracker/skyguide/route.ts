@@ -14,6 +14,8 @@ import {
   SupabasePreferencesRepository,
   createSupabaseRepositoryConfig,
 } from "@/features/skytracker/personal-platform/infrastructure/supabaseRepositories";
+import { isLocalTestEnvironment } from "@/features/skytracker/local-test/localTestEnvironment";
+import { LocalSkyGuideProvider } from "@/features/skytracker/local-test/localSkyGuideProvider";
 
 export const runtime = "nodejs";
 
@@ -102,7 +104,12 @@ export async function POST(request: Request) {
   }
 
   const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
+  const provider = isLocalTestEnvironment()
+    ? new LocalSkyGuideProvider()
+    : apiKey
+      ? new OpenAiSkyGuideProvider(apiKey, process.env.SKYGUIDE_AI_MODEL)
+      : null;
+  if (!provider) {
     return json(
       { error: "temporarily-unavailable", message: "SkyGuide is currently temporarily unavailable." },
       503,
@@ -111,10 +118,6 @@ export async function POST(request: Request) {
   }
 
   try {
-    const provider = new OpenAiSkyGuideProvider(
-      apiKey,
-      process.env.SKYGUIDE_AI_MODEL,
-    );
     const scope = await provider.classifyScope(preflight.query, context);
     if (!scope.accepted) {
       console.info("SkyGuide scope rejected", JSON.stringify({
