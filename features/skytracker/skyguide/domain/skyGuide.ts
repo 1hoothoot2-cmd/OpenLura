@@ -49,6 +49,11 @@ export type SkyGuideContext = Readonly<{
     callsign: string | null;
     registration: string | null;
     lifecycle: string;
+    latitudeDegrees: number;
+    longitudeDegrees: number;
+    altitudeMeters: number | null;
+    groundSpeedMetersPerSecond: number | null;
+    headingDegrees: number | null;
   }> | null;
   map: SkyGuideMapContext | null;
   flightHistory:
@@ -65,8 +70,22 @@ const AVIATION_TERMS = [
   "flying", "helicopter", "icao", "iata", "jet", "landing", "metar",
   "notam", "pilot", "plane", "route", "runway", "spotting", "squawk",
   "takeoff", "taxiway", "turbine", "turbulence", "weather", "wing",
+  "aircraft history", "flight history", "historical track", "ground speed",
+  "vertical speed", "heading", "climb", "cruise", "descent", "descending",
+  "ascending", "tracking", "registration", "operator", "airworthiness",
+  "regulation", "air traffic", "spotter", "avionics",
   "vliegtuig", "vlucht", "luchthaven", "luchtvaart", "vliegweer",
 ] as const;
+
+const PROMPT_INJECTION_PATTERNS = [
+  /\b(ignore|forget|override)\b.{0,40}\b(instruction|prompt|rule)/i,
+  /\b(system|developer)\s+(message|prompt|instruction)/i,
+  /\b(jailbreak|prompt injection)\b/i,
+  /\b(reveal|show|print|return)\b.{0,40}\b(secret|api key|token|credential|prompt)/i,
+] as const;
+
+export const SKYGUIDE_MAX_QUERY_CHARACTERS = 500;
+export const SKYGUIDE_MAX_SUGGESTIONS = 3;
 
 export const SKYGUIDE_ACTIONS: readonly SkyGuideAction[] = [
   { id: "find-flight", title: "Find a flight", description: "Look up a flight or callsign", prompt: "Help me find a flight", icon: "flight" },
@@ -78,7 +97,7 @@ export const SKYGUIDE_ACTIONS: readonly SkyGuideAction[] = [
 ] as const;
 
 export const SKYGUIDE_CAPABILITIES: readonly SkyGuideCapability[] = [
-  { id: "live-skytracker-data", available: false },
+  { id: "live-skytracker-data", available: true },
   { id: "airport-intelligence", available: false },
   { id: "weather", available: false },
   { id: "aviation-news", available: false },
@@ -100,19 +119,36 @@ export function normalizeSkyGuideQuery(query: string): string {
   return query.trim().replace(/\s+/g, " ");
 }
 
-export function classifySkyGuideScope(query: string): SkyGuideScopeResult {
+export function classifySkyGuideScope(
+  query: string,
+  hasSelectedAircraft = false,
+): SkyGuideScopeResult {
   const normalizedQuery = normalizeSkyGuideQuery(query);
   if (!normalizedQuery) return { accepted: false, reason: "empty" };
+  if (normalizedQuery.length > SKYGUIDE_MAX_QUERY_CHARACTERS) {
+    return { accepted: false, reason: "outside-aviation" };
+  }
 
   const lowered = normalizedQuery.toLocaleLowerCase("en");
-  const accepted = AVIATION_TERMS.some((term) => {
+  const containsAviationTerm = AVIATION_TERMS.some((term) => {
     const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     return new RegExp(`(?:^|[^a-z0-9])${escaped}(?:$|[^a-z0-9])`, "i").test(lowered);
   });
+  const contextualAircraftQuestion =
+    hasSelectedAircraft &&
+    /\b(this|it|selected|why|how|what|where|when|tell|explain)\b/i.test(
+      normalizedQuery,
+    );
+  const accepted = containsAviationTerm || contextualAircraftQuestion;
 
   return accepted
     ? { accepted: true, normalizedQuery }
     : { accepted: false, reason: "outside-aviation" };
+}
+
+export function containsSkyGuidePromptInjection(query: string): boolean {
+  const normalized = normalizeSkyGuideQuery(query);
+  return PROMPT_INJECTION_PATTERNS.some((pattern) => pattern.test(normalized));
 }
 
 export function inferSkyGuideAudienceMode(query: string): SkyGuideAudienceMode {
@@ -122,37 +158,4 @@ export function inferSkyGuideAudienceMode(query: string): SkyGuideAudienceMode {
   )
     ? "expert"
     : "beginner";
-}
-
-export function createSkyGuideFoundationResponse(
-  query: string,
-): {
-  accepted: boolean;
-  audienceMode: SkyGuideAudienceMode;
-  message: string;
-  suggestion?: string;
-} {
-  const audienceMode = inferSkyGuideAudienceMode(query);
-  const scope = classifySkyGuideScope(query);
-  if (!scope.accepted) {
-    return scope.reason === "empty"
-      ? {
-          accepted: false,
-          audienceMode,
-          message: "Ask SkyGuide a question about aviation.",
-        }
-      : {
-          accepted: false,
-          audienceMode,
-          message: "I’m SkyGuide. I can help with aviation, aircraft, flights and airports.",
-          suggestion: "Try asking what a squawk code means.",
-        };
-  }
-
-  return {
-    accepted: true,
-    audienceMode,
-    message: "That is an aviation question I can help with. Live intelligence answers will be connected in a future SkyGuide sprint.",
-    suggestion: "You can keep exploring SkyTracker’s live map in the meantime.",
-  };
 }

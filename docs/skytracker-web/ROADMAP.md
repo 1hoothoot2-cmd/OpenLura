@@ -23,6 +23,7 @@ Legenda: ✅ geaccepteerd · 🟡 technisch gereed, acceptatie open · ⬜ gepla
 - 🟡 P2 — Flight Intelligence
 - 🟡 P2.1 — Budget & Snapshot Optimization
 - 🟡 P3.1 — SkyGuide Foundation
+- 🟡 P3.2 — SkyGuide AI Foundation
 - ⬜ L12 — Accounts & Sync
 - ⬜ L13 — Contextual AI
 
@@ -120,3 +121,10 @@ in de Live Map. Desktop toont Details links en SkyGuide rechts; mobiel gebruikt
 viewport, lifecycle en Flight History worden automatisch als context
 doorgegeven. Er is bewust nog geen AI-provider, geheugen, weer-, nieuws- of
 zoekintegratie en geen publieke zelfstandige SkyGuide-route.
+
+P3.2 verbindt het bestaande SkyGuide-paneel via een same-origin Next.js-route
+met een verwisselbare server-side AI-provider. Aviation-scope, prompt-injection-
+detectie, begrensde context en antwoorden, maximaal drie vervolgsuggesties en
+een uitbreidbare Free/account/Pro-limiter worden vóór de provider afgedwongen.
+De browser ontvangt nooit providercredentials en de Live Map blijft bij
+provideruitval volledig bruikbaar.

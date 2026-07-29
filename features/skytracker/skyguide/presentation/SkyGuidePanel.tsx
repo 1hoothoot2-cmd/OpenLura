@@ -2,12 +2,16 @@
 
 import { FormEvent, useEffect, useId, useRef, useState } from "react";
 import {
-  createSkyGuideFoundationResponse,
   SKYGUIDE_ACTIONS,
   SKYGUIDE_PLACEHOLDERS,
   type SkyGuideAction,
   type SkyGuideContext,
 } from "../domain/skyGuide";
+import type { SkyGuideAnswer } from "../application/skyGuideAssistant";
+import {
+  askSkyGuide,
+  type SkyGuideClientResult,
+} from "../infrastructure/skyGuideClient";
 
 const DISCOVER_ITEMS = [
   "What makes the world’s largest aircraft unique?",
@@ -41,9 +45,8 @@ function ActionIcon({ icon }: { icon: SkyGuideAction["icon"] }) {
 export function SkyGuidePanel({ context }: SkyGuidePanelProps) {
   const [query, setQuery] = useState("");
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
-  const [answer, setAnswer] = useState<ReturnType<
-    typeof createSkyGuideFoundationResponse
-  > | null>(null);
+  const [result, setResult] = useState<SkyGuideClientResult | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const answerId = useId();
 
@@ -57,13 +60,17 @@ export function SkyGuidePanel({ context }: SkyGuidePanelProps) {
 
   const prepareQuestion = (question: string) => {
     setQuery(question);
-    setAnswer(null);
+    setResult(null);
     window.requestAnimationFrame(() => inputRef.current?.focus());
   };
 
-  const submitQuestion = (event: FormEvent) => {
+  const submitQuestion = async (event: FormEvent) => {
     event.preventDefault();
-    setAnswer(createSkyGuideFoundationResponse(query));
+    if (isLoading) return;
+    setIsLoading(true);
+    setResult(null);
+    setResult(await askSkyGuide(query, context));
+    setIsLoading(false);
   };
 
   const contextLabel = context.selectedAircraft
@@ -93,21 +100,35 @@ export function SkyGuidePanel({ context }: SkyGuidePanelProps) {
           onChange={(event) => setQuery(event.target.value)}
           placeholder={SKYGUIDE_PLACEHOLDERS[placeholderIndex]}
           className="min-h-10 min-w-0 flex-1 bg-transparent px-2 text-sm text-white/88 outline-none placeholder:text-white/28" />
-        <button type="submit"
+        <button type="submit" disabled={isLoading}
           className="ol-interactive min-h-10 shrink-0 rounded-xl bg-cyan-300 px-3 text-xs font-semibold text-[#03111a] hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
-          Ask
+          {isLoading ? "Thinking…" : "Ask"}
         </button>
       </form>
 
-      {answer && (
+      {isLoading && (
+        <p role="status" aria-live="polite" className="mt-2.5 text-xs text-cyan-100/55">
+          SkyGuide is considering the available aviation context…
+        </p>
+      )}
+
+      {result && (
         <div id={answerId} role="status" aria-live="polite"
-          className={`mt-2.5 rounded-xl border px-3 py-2.5 text-xs leading-5 ${
-            answer.accepted
+          className={`mt-2.5 max-h-72 overflow-y-auto rounded-xl border px-3 py-2.5 text-xs leading-5 ${
+            result.kind === "answered"
               ? "border-cyan-200/12 bg-cyan-200/[0.045] text-white/62"
               : "border-amber-200/12 bg-amber-200/[0.045] text-amber-50/68"
           }`}>
-          <p>{answer.message}</p>
-          {answer.suggestion && <p className="mt-1 text-cyan-100/48">{answer.suggestion}</p>}
+          {result.kind === "answered" ? (
+            <SkyGuideAnswerContent answer={result.answer} onSuggestion={prepareQuestion} />
+          ) : (
+            <p>{result.message}</p>
+          )}
+          {result.remaining !== null && (
+            <p className="mt-2 text-[10px] text-white/32">
+              {result.remaining} free {result.remaining === 1 ? "question" : "questions"} remaining this hour
+            </p>
+          )}
         </div>
       )}
 
@@ -143,5 +164,61 @@ export function SkyGuidePanel({ context }: SkyGuidePanelProps) {
         </div>
       </section>
     </div>
+  );
+}
+
+function SkyGuideAnswerContent({
+  answer,
+  onSuggestion,
+}: {
+  answer: SkyGuideAnswer;
+  onSuggestion: (suggestion: string) => void;
+}) {
+  return (
+    <>
+      <p className="text-white/72">{answer.answer}</p>
+      <AnswerSection title="Facts" items={answer.facts} />
+      <AnswerSection title="Likely explanation" items={answer.likelyExplanation} />
+      <AnswerSection title="Unknown" items={answer.unknown} />
+      {answer.suggestions.length > 0 && (
+        <div className="mt-3 border-t border-white/[0.07] pt-2">
+          <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-white/35">
+            Continue exploring
+          </p>
+          <div className="mt-1 space-y-1">
+            {answer.suggestions.map((suggestion) => (
+              <button
+                key={suggestion}
+                type="button"
+                onClick={() => onSuggestion(suggestion)}
+                className="ol-interactive block min-h-9 w-full rounded-lg px-2 text-left text-xs text-cyan-100/58 hover:bg-white/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+              >
+                {suggestion}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function AnswerSection({
+  title,
+  items,
+}: {
+  title: string;
+  items: readonly string[];
+}) {
+  if (items.length === 0) return null;
+  return (
+    <section className="mt-2" aria-label={title}>
+      <h3 className="text-[9px] font-semibold uppercase tracking-[0.14em] text-white/35">
+        {title}
+      </h3>
+      <ul className="mt-0.5 space-y-0.5">
+        {items.map((item) => <li key={item}>• {item}</li>)}
+      </ul>
+    </section>
   );
 }

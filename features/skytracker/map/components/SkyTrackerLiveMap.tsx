@@ -385,6 +385,12 @@ export function SkyTrackerLiveMap({
             callsign: selectedAircraft.callsign,
             registration: selectedAircraft.registration,
             lifecycle: aircraftLifecycleLabel(selectedAircraft.lifecycle),
+            latitudeDegrees: selectedAircraft.latitudeDegrees,
+            longitudeDegrees: selectedAircraft.longitudeDegrees,
+            altitudeMeters: selectedAircraft.altitudeMeters,
+            groundSpeedMetersPerSecond:
+              selectedAircraft.groundSpeedMetersPerSecond,
+            headingDegrees: selectedAircraft.headingDegrees,
           }
         : null,
       map: skyGuideMapContext,
