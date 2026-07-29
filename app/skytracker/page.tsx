@@ -7,7 +7,7 @@ import { skyTrackerProduct } from "@/products";
 export const metadata: Metadata = {
   title: "SkyTracker",
   description:
-    "Discover SkyTracker, an Android aircraft tracking experience in active development by OpenLura.",
+    "Explore live aircraft worldwide with SkyTracker by OpenLura.",
   alternates: {
     canonical: "/skytracker",
   },
@@ -17,7 +17,7 @@ export const metadata: Metadata = {
     siteName: "OpenLura",
     title: "SkyTracker | OpenLura",
     description:
-      "A focused Android aircraft tracking experience with smooth movement, aircraft identity, and flight context.",
+      "A focused live aircraft tracking experience with smooth movement, aircraft identity, and flight context.",
     images: [
       {
         url: "/skytracker/opengraph-image",
@@ -31,7 +31,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "SkyTracker | OpenLura",
     description:
-      "A focused Android aircraft tracking experience with smooth movement, aircraft identity, and flight context.",
+      "A focused live aircraft tracking experience with smooth movement, aircraft identity, and flight context.",
     images: ["/skytracker/opengraph-image"],
   },
 };
@@ -111,23 +111,23 @@ const focusPoints = [
 const milestones = [
   {
     eyebrow: "Current",
-    title: "Android app in development",
+    title: "Live web experience",
     description:
-      "Core aircraft presentation and interaction continue to be refined as one coherent Android experience.",
+      "Explore live aircraft, smooth motion, search, filters and flight context on the worldwide map.",
     state: "active",
   },
   {
     eyebrow: "Completed",
-    title: "Internal device testing",
+    title: "Production validation",
     description:
-      "The current product foundation has been tested across real Android-device scenarios through Sprint 8.",
+      "The current product foundation is continuously tested across desktop and mobile browser scenarios.",
     state: "complete",
   },
   {
     eyebrow: "Next phase",
-    title: "Play Store preparation",
+    title: "Ongoing refinement",
     description:
-      "Release readiness is the next planned phase. No public availability date has been announced.",
+      "Live-data freshness and provider-budget behavior remain active areas of product refinement.",
     state: "next",
   },
 ];
@@ -218,7 +218,7 @@ function AircraftMarker({
 function ProductPreview() {
   return (
     <div
-      aria-label="Development preview of the SkyTracker Android interface"
+      aria-label="Preview of the SkyTracker live map interface"
       className="relative mx-auto w-full max-w-[620px] lg:translate-x-4"
     >
       <div
@@ -256,10 +256,10 @@ function ProductPreview() {
           <div className="absolute left-4 right-4 top-4 z-10 flex items-center justify-between gap-3">
             <span className="inline-flex items-center gap-2 rounded-full border border-cyan-100/20 bg-[#04101a]/82 px-3 py-1.5 text-[9px] font-semibold uppercase tracking-[0.17em] text-cyan-50/76 backdrop-blur">
               <span className="h-1.5 w-1.5 rounded-full bg-cyan-300" />
-              Development preview
+              Live map preview
             </span>
             <span className="rounded-full border border-white/10 bg-[#04101a]/82 px-3 py-1.5 text-[9px] font-medium text-white/50 backdrop-blur">
-              Android
+              Web
             </span>
           </div>
 
@@ -405,7 +405,7 @@ export default function SkyTrackerPage() {
                 aria-hidden="true"
                 className="h-1.5 w-1.5 rounded-full bg-amber-300 shadow-[0_0_10px_rgba(252,211,77,0.55)]"
               />
-              Android app in development
+              Live worldwide map
             </div>
             <p className="mt-8 text-[11px] font-semibold uppercase tracking-[0.24em] text-cyan-100/58">
               Aircraft tracking, thoughtfully presented
@@ -422,7 +422,7 @@ export default function SkyTrackerPage() {
             </p>
             <p className="mt-5 max-w-lg text-base leading-7 text-white/43">
               Follow smooth aircraft movement, inspect useful details, and
-              understand recent flight context in one focused Android
+              understand recent flight context in one focused web
               interface.
             </p>
             <div className="mt-9 flex flex-col gap-3 sm:flex-row">
@@ -445,9 +445,9 @@ export default function SkyTrackerPage() {
 
             <dl className="mt-10 grid max-w-lg grid-cols-3 gap-3 border-t border-white/[0.07] pt-6">
               {[
-                ["Platform", "Android"],
-                ["Stage", "Internal"],
-                ["Access", "Not public"],
+                ["Platform", "Web"],
+                ["Stage", "Live"],
+                ["Access", "Public"],
               ].map(([term, detail]) => (
                 <div key={term}>
                   <dt className="text-[9px] uppercase tracking-[0.15em] text-white/28">
@@ -572,9 +572,9 @@ export default function SkyTrackerPage() {
               Built carefully, tested honestly
             </h2>
             <p className="mt-5 max-w-md text-base leading-7 text-white/43">
-              SkyTracker remains in active development. The Android experience
-              is not yet available as a public download, while the web map is
-              currently a technical preview without aircraft data.
+              SkyTracker is available as a live worldwide web map. Product
+              refinement continues around data freshness, clarity and
+              provider-budget-aware loading.
             </p>
             <a
               href="#openlura"
@@ -674,12 +674,6 @@ export default function SkyTrackerPage() {
                     className="ol-interactive inline-flex min-h-12 items-center justify-center rounded-full bg-white px-6 text-sm font-semibold text-[#07101b] motion-safe:hover:-translate-y-0.5 hover:bg-cyan-50 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a1529]"
                   >
                     Back to OpenLura
-                  </Link>
-                  <Link
-                    href="/privacy"
-                    className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/12 px-6 text-sm font-medium text-white/58 transition-colors hover:border-white/22 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200 motion-reduce:transition-none"
-                  >
-                    Privacy and data
                   </Link>
                 </div>
               </div>

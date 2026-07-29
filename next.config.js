@@ -1,3 +1,4 @@
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const path = require("path");
 
 /** @type {import('next').NextConfig} */
@@ -10,11 +11,6 @@ const nextConfig = {
       {
         source: "/home",
         destination: "/",
-        permanent: true,
-      },
-      {
-        source: "/persoonlijke-omgeving",
-        destination: "/personal-workspace",
         permanent: true,
       },
     ];

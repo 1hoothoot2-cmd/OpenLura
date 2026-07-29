@@ -1,61 +1,45 @@
-export default function Home() {
-  return (
-    <main className="flex flex-col h-screen bg-black text-white">
-      
-      {/* Chat messages */}
-      <div className="flex-1 p-4 overflow-y-auto space-y-4">
-        
-        <div className="bg-gray-800 p-3 rounded-xl w-fit max-w-xs">
-          👋 Welcome to Lura AI
-        </div>
+# OpenLura SkyTracker
 
-        <div className="bg-gray-700 p-3 rounded-xl w-fit max-w-xs ml-auto">
-          Hello!
-        </div>
+OpenLura currently exposes one focused product surface:
 
-      </div>
+- `/` — OpenLura home;
+- `/skytracker` — SkyTracker product information;
+- `/skytracker/live` — the live aircraft map with Search, Filters, Favorites,
+  Details, Motion, Replay, Historical Track, accounts, Memory and SkyGuide.
 
-      {/* Input */}
-      <div className="p-4 border-t border-gray-800 flex gap-2">
-        <input 
-          className="flex-1 p-3 rounded-xl bg-gray-900 outline-none"
-          placeholder="Type your message..."
-        />
-        <button className="bg-white text-black px-4 rounded-xl">
-          Send
-        </button>
-      </div>
+## Local test environment
 
-    </main>
-  );
-}export default function Home() {
-  return (
-    <main className="flex flex-col h-screen bg-black text-white">
-      
-      {/* Chat messages */}
-      <div className="flex-1 p-4 overflow-y-auto space-y-4">
-        
-        <div className="bg-gray-800 p-3 rounded-xl w-fit max-w-xs">
-          👋 Welcome to Lura AI
-        </div>
+Start the isolated fixture environment:
 
-        <div className="bg-gray-700 p-3 rounded-xl w-fit max-w-xs ml-auto">
-          Hello!
-        </div>
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\skytracker-local-test-start.ps1
+```
 
-      </div>
+Run its acceptance audit:
 
-      {/* Input */}
-      <div className="p-4 border-t border-gray-800 flex gap-2">
-        <input 
-          className="flex-1 p-3 rounded-xl bg-gray-900 outline-none"
-          placeholder="Type your message..."
-        />
-        <button className="bg-white text-black px-4 rounded-xl">
-          Send
-        </button>
-      </div>
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\skytracker-local-test-audit.ps1
+```
 
-    </main>
-  );
-}
+Stop only its managed processes:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\skytracker-local-test-stop.ps1
+```
+
+See [the Local Test Environment documentation](docs/skytracker-web/LOCAL_TEST_ENVIRONMENT.md)
+for isolation guarantees, ports, fixtures and known limitations.
+
+## Quality checks
+
+```powershell
+npm run test:aircraft
+npx tsc --noEmit --incremental false
+npm run lint
+npm run build
+git diff --check
+```
+
+The browser never contacts an aircraft provider directly. Production aircraft
+traffic uses the same-origin Next.js routes and the provider-neutral
+SkyTracker backend.

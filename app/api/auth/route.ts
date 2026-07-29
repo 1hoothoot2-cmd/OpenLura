@@ -293,10 +293,12 @@ async function fetchSupabaseSignup(input: {
     const data: unknown = await res.json();
 
     if (!res.ok) {
-      const errorMsg =
+      const errorData =
         data && typeof data === "object" && !Array.isArray(data)
-          ? String((data as any).msg || (data as any).message || "Signup failed")
-          : "Signup failed";
+          ? (data as Record<string, unknown>)
+          : null;
+      const errorMsg =
+        String(errorData?.msg || errorData?.message || "Signup failed");
       return { ok: false, error: errorMsg };
     }
 
@@ -471,7 +473,7 @@ export async function POST(req: Request) {
 
       if (!result || !result.ok) {
         return NextResponse.json(
-          { success: false, error: (result as any)?.error || "Signup failed" },
+          { success: false, error: result?.error || "Signup failed" },
           { status: 400, headers: buildHeaders(rateLimit) }
         );
       }
@@ -794,7 +796,7 @@ export async function GET(req: Request) {
   }
 }
 
-export async function DELETE(_req: Request) {
+export async function DELETE() {
   try {
     const response = NextResponse.json(
       {

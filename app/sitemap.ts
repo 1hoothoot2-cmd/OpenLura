@@ -13,9 +13,9 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.9,
     },
     {
-      url: "https://openlura.ai/privacy",
-      changeFrequency: "yearly",
-      priority: 0.3,
+      url: "https://openlura.ai/skytracker/live",
+      changeFrequency: "daily",
+      priority: 0.8,
     },
   ];
 }

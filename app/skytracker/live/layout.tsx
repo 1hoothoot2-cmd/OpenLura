@@ -4,7 +4,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 export const metadata: Metadata = {
   title: "Live Map | SkyTracker",
   description:
-    "Explore the interactive SkyTracker web map foundation while live aircraft features remain in development.",
+    "Explore live aircraft worldwide with SkyTracker's interactive aviation map.",
   alternates: {
     canonical: "/skytracker/live",
   },
