@@ -1,5 +1,4 @@
 import {
-  classifySkyGuideScope,
   containsSkyGuidePromptInjection,
   inferSkyGuideAudienceMode,
   normalizeSkyGuideQuery,
@@ -28,10 +27,25 @@ export type SkyGuideProviderInput = Readonly<{
   audienceMode: SkyGuideAudienceMode;
   context: SkyGuideContext;
   toolPlan: SkyGuideToolPlan;
+  responseLanguage?: string;
+}>;
+
+export type SkyGuideSemanticScopeDecision = Readonly<{
+  accepted: boolean;
+  language: string;
+  refusal: string;
+  toolPlan: SkyGuideToolPlan;
 }>;
 
 export interface SkyGuideAiProvider {
   answer(input: SkyGuideProviderInput): Promise<SkyGuideAnswer>;
+}
+
+export interface SkyGuideSemanticScopeClassifier {
+  classifyScope(
+    query: string,
+    context: SkyGuideContext,
+  ): Promise<SkyGuideSemanticScopeDecision>;
 }
 
 export type SkyGuideAccessTier = "free" | "account" | "pro";
@@ -64,8 +78,6 @@ export function validateSkyGuideQuestion(
   if (containsSkyGuidePromptInjection(query)) {
     return { kind: "prompt-injection" };
   }
-  const scope = classifySkyGuideScope(query, input.context.selectedAircraft !== null);
-  if (!scope.accepted) return { kind: scope.reason };
   return {
     kind: "accepted",
     query,
@@ -74,7 +86,12 @@ export function validateSkyGuideQuestion(
 }
 
 export async function answerSkyGuideQuestion(
-  input: Readonly<{ query: string; context: SkyGuideContext }>,
+  input: Readonly<{
+    query: string;
+    context: SkyGuideContext;
+    toolPlan?: SkyGuideToolPlan;
+    responseLanguage?: string;
+  }>,
   provider: SkyGuideAiProvider,
 ): Promise<SkyGuideAssistantResult> {
   const validation = validateSkyGuideQuestion(input);
@@ -84,7 +101,8 @@ export async function answerSkyGuideQuestion(
     query: validation.query,
     context: input.context,
     audienceMode: validation.audienceMode,
-    toolPlan: routeSkyGuideTools(validation.query, input.context),
+    toolPlan: input.toolPlan ?? routeSkyGuideTools(validation.query, input.context),
+    responseLanguage: input.responseLanguage,
   });
 
   return {

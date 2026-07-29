@@ -83,7 +83,38 @@ export async function POST(request: Request) {
       apiKey,
       process.env.SKYGUIDE_AI_MODEL,
     );
-    const result = await answerSkyGuideQuestion({ query: body.query, context }, provider);
+    const scope = await provider.classifyScope(preflight.query, context);
+    if (!scope.accepted) {
+      console.info("SkyGuide scope rejected", JSON.stringify({
+        reason: "semantic-outside-aviation",
+        language: scope.language,
+      }));
+      return json(
+        {
+          error: "outside-aviation",
+          message:
+            scope.refusal ||
+            "I’m SkyGuide. I can help with aviation, aircraft, flights and airports.",
+        },
+        400,
+        rateHeaders,
+      );
+    }
+    console.info("SkyGuide scope accepted", JSON.stringify({
+      reason: "semantic-aviation",
+      language: scope.language,
+      tools: scope.toolPlan.tools,
+      useWebSearch: scope.toolPlan.useWebSearch,
+    }));
+    const result = await answerSkyGuideQuestion(
+      {
+        query: preflight.query,
+        context,
+        toolPlan: scope.toolPlan,
+        responseLanguage: scope.language,
+      },
+      provider,
+    );
     if (result.kind !== "answered") {
       return json({ error: result.kind }, 400, rateHeaders);
     }
@@ -93,7 +124,7 @@ export async function POST(request: Request) {
       error && typeof error === "object"
         ? (error as Record<string, unknown>)
         : {};
-    console.error("SkyGuide provider request failed", {
+    console.error("SkyGuide provider request failed", JSON.stringify({
       errorType: error instanceof Error ? error.name : "unknown",
       status: typeof providerError.status === "number" ? providerError.status : null,
       code: typeof providerError.code === "string" ? providerError.code : null,
@@ -101,7 +132,7 @@ export async function POST(request: Request) {
         error instanceof Error
           ? error.message.replace(/\s+/g, " ").slice(0, 240)
           : null,
-    });
+    }));
     return json(
       { error: "temporarily-unavailable", message: "SkyGuide is currently temporarily unavailable." },
       503,

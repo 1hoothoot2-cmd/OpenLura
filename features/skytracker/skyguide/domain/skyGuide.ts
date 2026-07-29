@@ -33,7 +33,7 @@ export type SkyGuideScopeResult =
   | { accepted: false; reason: "empty" | "outside-aviation" };
 
 export type SkyGuideAudienceMode = "beginner" | "expert";
-export type SkyGuideAiStatus = "live" | "cached" | "web" | "offline";
+export type SkyGuideAiStatus = "ready" | "live" | "cached" | "web" | "offline";
 
 export type SkyGuideSource = Readonly<{
   id: string;

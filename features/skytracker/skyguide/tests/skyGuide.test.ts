@@ -13,6 +13,7 @@ import {
 import {
   answerSkyGuideQuestion,
   sanitizeSkyGuideContext,
+  validateSkyGuideQuestion,
   type SkyGuideAiProvider,
   type SkyGuideAnswer,
 } from "../application/skyGuideAssistant.ts";
@@ -26,6 +27,14 @@ const liveMapSource = readFileSync(
 );
 const providerSource = readFileSync(
   new URL("../infrastructure/openAiSkyGuideProvider.ts", import.meta.url),
+  "utf8",
+);
+const routeSource = readFileSync(
+  new URL("../../../../app/api/skytracker/skyguide/route.ts", import.meta.url),
+  "utf8",
+);
+const panelSource = readFileSync(
+  new URL("../presentation/SkyGuidePanel.tsx", import.meta.url),
   "utf8",
 );
 
@@ -50,6 +59,26 @@ test("rejects unrelated and empty questions", () => {
     accepted: false,
     reason: "outside-aviation",
   });
+});
+
+test("uncertain multilingual input is deferred to semantic server classification", () => {
+  for (const query of [
+    "Komt er vandaag een A380 op Schiphol?",
+    "Kommt heute ein A380 in Frankfurt an?",
+    "¿Qué vuelos salen hoy de Madrid?",
+    "Quel temps fait-il pour l’aviation à Paris-CDG ?",
+    "ما الرحلات التي تصل إلى دبي اليوم؟",
+    "今日、成田空港に到着する便は？",
+    "Welke aircraft landen vandaag op EHAM?",
+    "BA287",
+    "Geef me een pastarecept",
+  ]) {
+    assert.equal(
+      validateSkyGuideQuestion({ query, context: EMPTY_CONTEXT }).kind,
+      "accepted",
+      query,
+    );
+  }
 });
 
 test("uses token boundaries instead of accepting aviation substrings", () => {
@@ -190,6 +219,18 @@ test("P3.3 intelligence capabilities are available while memory remains deferred
 test("provider suggestions stay within SkyGuide's currently available capabilities", () => {
   assert.match(providerSource, /questions the user\s+can ask SkyGuide next/);
   assert.match(providerSource, /Never invent arrivals, departures, weather, news/);
+});
+
+test("semantic scope classification precedes tool routing and logs only a reason code", () => {
+  assert.match(providerSource, /Classify the user's request by meaning, independently of language/);
+  assert.match(providerSource, /Always answer in the same language as the user's question/);
+  assert.match(routeSource, /provider\.classifyScope\(preflight\.query, context\)/);
+  assert.match(routeSource, /reason: "semantic-outside-aviation"/);
+  assert.doesNotMatch(routeSource, /console\.(?:info|log)\([^)]*preflight\.query/);
+});
+
+test("initial SkyGuide state is ready and offline follows only a failed request", () => {
+  assert.match(panelSource, /conversation\.length > 0\s*\?\s*"offline"\s*:\s*"ready"/);
 });
 
 test("tool router keeps selected-aircraft questions local", () => {

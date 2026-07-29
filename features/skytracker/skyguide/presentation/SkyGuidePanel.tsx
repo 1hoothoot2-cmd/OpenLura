@@ -117,7 +117,9 @@ export function SkyGuidePanel({ context }: SkyGuidePanelProps) {
   );
   const status = latestStatus?.result.kind === "answered"
     ? latestStatus.result.answer.status ?? "cached"
-    : "offline";
+    : conversation.length > 0
+      ? "offline"
+      : "ready";
 
   return (
     <div className="text-white">
@@ -132,12 +134,10 @@ export function SkyGuidePanel({ context }: SkyGuidePanelProps) {
         <p className="mt-1 text-xs text-white/38">{contextLabel}</p>
         </div>
         <div className="flex items-center gap-2">
-          {conversation.length > 0 && (
-            <span className="flex items-center gap-1 text-[10px] capitalize text-white/45">
-              <span className={`h-1.5 w-1.5 rounded-full ${status === "offline" ? "bg-amber-300" : status === "web" ? "bg-blue-300" : "bg-cyan-300"}`} />
-              {status}
-            </span>
-          )}
+          <span className="flex items-center gap-1 text-[10px] capitalize text-white/45">
+            <span className={`h-1.5 w-1.5 rounded-full ${status === "offline" ? "bg-amber-300" : status === "web" ? "bg-blue-300" : "bg-cyan-300"}`} />
+            {status}
+          </span>
           <button type="button" onClick={() => setIsOpen(false)}
             aria-label="Collapse SkyGuide"
             className="ol-interactive min-h-9 min-w-9 rounded-lg text-white/45 hover:bg-white/[0.05] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">

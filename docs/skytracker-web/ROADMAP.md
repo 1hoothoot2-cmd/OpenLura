@@ -137,3 +137,6 @@ kunnen gecontroleerde web search activeren; de browser blijft uitsluitend de
 same-origin SkyGuide-route gebruiken. Het geïntegreerde paneel start compact,
 houdt sessiegeschiedenis uitsluitend in geheugen bij en verbergt technische
 uitleg en werkelijk gebruikte bronnen achter toegankelijke disclosures.
+De meertalige scopecorrectie laat een korte server-side semantische
+classificatie taal, aviation-intentie en toolplan bepalen, zodat geen
+taalgebonden lokale trefwoorden geldige vragen blokkeren.
