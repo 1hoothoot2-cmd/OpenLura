@@ -132,15 +132,28 @@ export function SkyTrackerAccountControl({
         : "Guest";
 
   return (
-    <div className="relative">
+    <div className="relative shrink-0">
       <button
         type="button"
         aria-label={`SkyTracker account: ${label}`}
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
-        className="ol-interactive min-h-11 rounded-full border border-white/10 px-3 text-xs font-semibold text-white/62 hover:border-cyan-200/20 hover:bg-cyan-200/[0.06] hover:text-cyan-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+        className="ol-interactive flex h-11 w-11 items-center justify-center rounded-full border border-white/10 text-xs font-semibold text-white/62 hover:border-cyan-200/20 hover:bg-cyan-200/[0.06] hover:text-cyan-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 sm:h-auto sm:w-auto sm:min-h-11 sm:px-3"
       >
-        {label}
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          className="h-5 w-5 sm:hidden"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <circle cx="12" cy="8" r="3.25" />
+          <path d="M5.5 19c.7-3.2 3-5 6.5-5s5.8 1.8 6.5 5" />
+        </svg>
+        <span className="hidden sm:inline">{label}</span>
       </button>
       {open && (
         <section

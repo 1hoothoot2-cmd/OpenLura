@@ -58,3 +58,25 @@ test("the local test label is explicit and production-gated", async () => {
   assert.match(source, /local fixture aircraft/);
   assert.doesNotMatch(source, /Staging environment/);
 });
+
+test("the mobile live-map header keeps Replay and Account compact and accessible", async () => {
+  const mapSource = await readFile(
+    new URL("../../map/components/SkyTrackerLiveMap.tsx", import.meta.url),
+    "utf8",
+  );
+  const accountSource = await readFile(
+    new URL(
+      "../../personal-platform/presentation/SkyTrackerAccountControl.tsx",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+
+  assert.match(mapSource, /hidden text-sm font-semibold[^"]*sm:inline/);
+  assert.match(mapSource, /flex items-center gap-1 sm:gap-2\.5/);
+  assert.match(mapSource, /h-11 w-11 shrink-0[^"]*sm:w-auto/);
+  assert.match(mapSource, /aria-label=\{[\s\S]*Open session replay/);
+  assert.match(accountSource, /aria-label=\{`SkyTracker account: \$\{label\}`\}/);
+  assert.match(accountSource, /h-11 w-11 items-center[^"]*sm:w-auto/);
+  assert.match(accountSource, /<span className="hidden sm:inline">\{label\}<\/span>/);
+});

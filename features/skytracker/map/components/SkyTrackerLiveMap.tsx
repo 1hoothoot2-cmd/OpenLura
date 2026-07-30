@@ -1382,13 +1382,13 @@ export function SkyTrackerLiveMap({
               priority
             />
           </span>
-          <span className="text-sm font-semibold tracking-[-0.02em] text-white/92">
+          <span className="hidden text-sm font-semibold tracking-[-0.02em] text-white/92 sm:inline">
             <span className="hidden text-white/44 sm:inline">OpenLura / </span>
             SkyTracker
           </span>
         </Link>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-1 sm:gap-2.5">
           <button
             type="button"
             aria-label={searchOpen ? "Close aircraft search" : "Search aircraft"}
@@ -1473,9 +1473,25 @@ export function SkyTrackerLiveMap({
             onClick={
               replayState.mode === "replay" ? returnToLive : enterReplay
             }
-            className="ol-interactive min-h-11 rounded-full border border-cyan-200/14 px-3 text-xs font-semibold uppercase tracking-[0.11em] text-cyan-100/70 hover:bg-cyan-200/[0.07] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 disabled:cursor-not-allowed disabled:opacity-35"
+            className="ol-interactive flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-cyan-200/14 text-xs font-semibold uppercase tracking-[0.11em] text-cyan-100/70 hover:bg-cyan-200/[0.07] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 disabled:cursor-not-allowed disabled:opacity-35 sm:h-auto sm:w-auto sm:min-h-11 sm:px-3"
           >
-            {replayState.mode === "replay" ? "Live" : "Replay"}
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              className="h-5 w-5 sm:hidden"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.7"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M4 12a8 8 0 1 0 2.35-5.65L4 8.7" />
+              <path d="M4 4v4.7h4.7" />
+              <path d="m10 9 5 3-5 3Z" />
+            </svg>
+            <span className="hidden sm:inline">
+              {replayState.mode === "replay" ? "Live" : "Replay"}
+            </span>
           </button>
           <span className="hidden min-h-8 items-center gap-2 rounded-full border border-cyan-200/12 bg-cyan-200/[0.045] px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-100/62 sm:inline-flex">
             <span
